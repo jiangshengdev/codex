@@ -258,11 +258,15 @@ test("renders formatted and aggregated sub-agent activity from a read-only snaps
   ).toHaveLength(0);
 });
 
-test("renders isolated context pages without Composer and keeps the transcript end above the fixed primary action", async () => {
+test("keeps the transcript end above the measured continuation action surface", async () => {
   const finalMessage = `${Array.from(
     { length: 80 },
     (_, index) => `Read-only history line ${String(index + 1)}`,
   ).join("\n")}\nEnd of read-only history`;
+  const diagnostic = Array.from(
+    { length: 80 },
+    (_, index) => `Continuation diagnostic line ${String(index + 1)}`,
+  ).join("\n");
   const thread = historyThread([
     baseTurn("history-turn-1", [
       userMessage("history-user-1", [textInput("First historical context page")]),
@@ -276,7 +280,18 @@ test("renders isolated context pages without Composer and keeps the transcript e
     ...createGuiHostCommands(),
     readThread: vi.fn<GuiHostCommands["readThread"]>().mockResolvedValue({ thread }),
   };
-  const { screen } = await renderDetail({ commands });
+  const { screen } = await renderDetail({
+    activate: {
+      type: "unavailable",
+      failure: {
+        type: "operationFailed",
+        phase: "resume",
+        error: new Error(diagnostic),
+        cleanupError: null,
+      },
+    },
+    commands,
+  });
 
   const pagination = screen.getByRole("navigation", { name: "Transcript context pages" });
   const firstPage = pagination.getByRole("button", { name: "Context page 1" });
@@ -304,18 +319,65 @@ test("renders isolated context pages without Composer and keeps the transcript e
   const action = screen.getByRole("button", { name: "Continue this task" });
   const qrAction = screen.getByRole("button", { name: "Scan with phone" });
   const actionBar = action.element().closest("aside");
-  const bottomSpace = screen.container.querySelector("[data-app-shell-bottom-action-space]");
+  const appShellBottomSpace = screen.container.querySelector(
+    "[data-app-shell-bottom-action-space]",
+  );
   expect(action.element().classList.contains("button--primary")).toBe(true);
   expect(qrAction.element().closest("aside")).toBe(actionBar);
   expect(actionBar?.classList.contains("fixed")).toBe(true);
-  expect(bottomSpace).not.toBeNull();
+  expect(appShellBottomSpace).toBeNull();
+
+  const localBottomSpace = screen.container.querySelector(
+    "[data-thread-history-continuation-action-space]",
+  );
+  if (!(actionBar instanceof HTMLElement) || !(localBottomSpace instanceof HTMLElement)) {
+    throw new Error("History continuation action must own its measured bottom space");
+  }
+  expect(localBottomSpace.getAttribute("aria-hidden")).toBe("true");
+  await expect
+    .poll(() =>
+      Math.abs(
+        localBottomSpace.getBoundingClientRect().height - actionBar.getBoundingClientRect().height,
+      ),
+    )
+    .toBeLessThanOrEqual(1);
+  const idleSurfaceHeight = actionBar.getBoundingClientRect().height;
+
+  await action.click();
+  await expect
+    .element(screen.getByText("The task could not be resumed.", { exact: true }))
+    .toBeVisible();
+  await expect
+    .poll(() => actionBar.getBoundingClientRect().height)
+    .toBeGreaterThan(idleSurfaceHeight);
+  await expect
+    .poll(() =>
+      Math.abs(
+        localBottomSpace.getBoundingClientRect().height - actionBar.getBoundingClientRect().height,
+      ),
+    )
+    .toBeLessThanOrEqual(1);
+  const collapsedSurfaceHeight = actionBar.getBoundingClientRect().height;
+
+  await screen.getByRole("button", { name: "View diagnostic information" }).click();
+  await expect
+    .element(screen.getByText("Continuation diagnostic line 80", { exact: false }))
+    .toBeVisible();
+  await expect
+    .poll(() => actionBar.getBoundingClientRect().height)
+    .toBeGreaterThan(collapsedSurfaceHeight);
+  await expect
+    .poll(() =>
+      Math.abs(
+        localBottomSpace.getBoundingClientRect().height - actionBar.getBoundingClientRect().height,
+      ),
+    )
+    .toBeLessThanOrEqual(1);
+
   window.scrollTo(0, document.documentElement.scrollHeight);
   const transcriptEnd = screen.getByText("End of read-only history", { exact: false });
   await expect
     .poll(() => {
-      if (!(actionBar instanceof HTMLElement)) {
-        return false;
-      }
       return (
         transcriptEnd.element().getBoundingClientRect().bottom <=
         actionBar.getBoundingClientRect().top

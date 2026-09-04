@@ -207,7 +207,7 @@ msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗�
 msgid "Continue sending"
 msgstr "继续发送"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:201
+#: src/features/threadHistory/ContinueTaskAction.tsx:231
 msgid "Continue this task"
 msgstr "继续此任务"
 
@@ -797,8 +797,8 @@ msgstr "上一个任务连接未能完全清理，后续状态可能受到影响
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:258
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:260
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:265
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:267
 msgid "The task connection could not be prepared."
 msgstr "无法准备任务连接。"
 
@@ -808,11 +808,11 @@ msgstr "任务连接已关闭。"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:64
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:110
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:262
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:269
 msgid "The task could not be activated."
 msgstr "无法激活任务。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:256
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:263
 msgid "The task could not be resumed."
 msgstr "无法恢复任务。"
 
@@ -874,7 +874,7 @@ msgstr "无法加载任务历史"
 msgid "Unable to load the current task"
 msgstr "无法加载当前任务"
 
-#: src/features/appShell/AppShell.tsx:22
+#: src/features/appShell/AppShell.tsx:21
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 

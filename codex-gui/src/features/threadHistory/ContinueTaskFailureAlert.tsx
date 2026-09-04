@@ -239,7 +239,14 @@ function FailureDiagnosticDisclosure({ children }: Readonly<{ children: ReactNod
       </Disclosure.Heading>
       <Disclosure.Content>
         <Disclosure.Body className="pt-2">
-          {isExpanded ? <div className="grid gap-1">{children}</div> : null}
+          {isExpanded ? (
+            <div
+              className="grid gap-1 overflow-y-auto whitespace-pre-wrap [max-height:min(13rem,30vh)] [overflow-wrap:anywhere]"
+              data-history-continuation-diagnostics-scroll-region=""
+            >
+              {children}
+            </div>
+          ) : null}
         </Disclosure.Body>
       </Disclosure.Content>
     </Disclosure>

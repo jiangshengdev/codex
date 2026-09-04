@@ -207,7 +207,7 @@ msgstr "Context usage details, {usedTokensLabel} tokens used, context window cap
 msgid "Continue sending"
 msgstr "Continue sending"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:201
+#: src/features/threadHistory/ContinueTaskAction.tsx:231
 msgid "Continue this task"
 msgstr "Continue this task"
 
@@ -797,8 +797,8 @@ msgstr "The previous task connection could not be fully cleaned up. Later state 
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:258
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:260
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:265
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:267
 msgid "The task connection could not be prepared."
 msgstr "The task connection could not be prepared."
 
@@ -808,11 +808,11 @@ msgstr "The task connection was closed."
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:64
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:110
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:262
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:269
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:256
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:263
 msgid "The task could not be resumed."
 msgstr "The task could not be resumed."
 
@@ -874,7 +874,7 @@ msgstr "Unable to load task history"
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
-#: src/features/appShell/AppShell.tsx:22
+#: src/features/appShell/AppShell.tsx:21
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 

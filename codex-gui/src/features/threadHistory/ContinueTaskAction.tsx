@@ -1,7 +1,7 @@
 import { Button, toast } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
   ActiveThreadActivationFailure,
   ActiveThreadActivationWarning,
@@ -61,6 +61,8 @@ export function ContinueTaskAction({
   const currentCapabilityTokenRef = useRef(capabilityToken);
   const mountedRef = useRef(true);
   const inFlightRef = useRef<ContinueTaskRequest | null>(null);
+  const actionSurfaceObserverRef = useRef<ResizeObserver | null>(null);
+  const [actionSurfaceHeight, setActionSurfaceHeight] = useState(0);
   const [state, setState] = useState<ContinueTaskState>({ type: "idle" });
   const visibleState =
     state.type === "idle" || state.capabilityToken === capabilityToken
@@ -87,6 +89,25 @@ export function ContinueTaskAction({
       }
     };
   }, [capabilityToken]);
+
+  const observeActionSurface = useCallback((actionSurface: HTMLElement | null): void => {
+    actionSurfaceObserverRef.current?.disconnect();
+    actionSurfaceObserverRef.current = null;
+    if (actionSurface == null) {
+      return;
+    }
+
+    const updateActionSurfaceHeight = (): void => {
+      const nextHeight = actionSurface.getBoundingClientRect().height;
+      setActionSurfaceHeight((currentHeight) =>
+        currentHeight === nextHeight ? currentHeight : nextHeight,
+      );
+    };
+    const observer = new ResizeObserver(updateActionSurfaceHeight);
+    actionSurfaceObserverRef.current = observer;
+    observer.observe(actionSurface);
+    updateActionSurfaceHeight();
+  }, []);
 
   const navigateToReadyTask = (activeThreadId: string): void => {
     void navigate({
@@ -175,34 +196,44 @@ export function ContinueTaskAction({
   };
 
   return (
-    <aside className="fixed inset-x-0 bottom-0 z-30 border-t border-separator bg-surface/95 px-4 py-4 backdrop-blur">
-      <div className="mx-auto grid w-full max-w-3xl gap-3">
-        <ContinueTaskFailureAlert
-          descriptionId={failureDescriptionId}
-          navigateToCurrentTask={navigateToCurrentTask}
-          state={visibleState}
-        />
-        <div className="flex items-center gap-2">
-          <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
-          <Button
-            aria-describedby={
-              visibleState.type === "idle" || visibleState.type === "pending"
-                ? undefined
-                : failureDescriptionId
-            }
-            className="flex-1"
-            isDisabled={capability.activateThread == null}
-            isPending={visibleState.type === "pending"}
-            onPress={() => {
-              void handleContinue();
-            }}
-            variant="primary"
-          >
-            <Trans>Continue this task</Trans>
-          </Button>
+    <>
+      <div
+        aria-hidden="true"
+        data-thread-history-continuation-action-space=""
+        style={{ height: actionSurfaceHeight }}
+      />
+      <aside
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-separator bg-surface/95 px-4 py-4 backdrop-blur"
+        ref={observeActionSurface}
+      >
+        <div className="mx-auto grid w-full max-w-3xl gap-3">
+          <ContinueTaskFailureAlert
+            descriptionId={failureDescriptionId}
+            navigateToCurrentTask={navigateToCurrentTask}
+            state={visibleState}
+          />
+          <div className="flex items-center gap-2">
+            <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
+            <Button
+              aria-describedby={
+                visibleState.type === "idle" || visibleState.type === "pending"
+                  ? undefined
+                  : failureDescriptionId
+              }
+              className="flex-1"
+              isDisabled={capability.activateThread == null}
+              isPending={visibleState.type === "pending"}
+              onPress={() => {
+                void handleContinue();
+              }}
+              variant="primary"
+            >
+              <Trans>Continue this task</Trans>
+            </Button>
+          </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 

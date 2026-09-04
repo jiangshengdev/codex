@@ -1,5 +1,6 @@
 import { toast } from "@heroui/react";
 import { afterEach, expect, test, vi } from "vitest";
+import { page } from "vitest/browser";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
@@ -314,6 +315,97 @@ test("keeps a long history continuation failure visible beside the retry action"
   await action.click();
   expect(activate).toHaveBeenCalledTimes(2);
   expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+});
+
+test("keeps long continuation diagnostics within a narrow action surface", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  const originalScrollTop = window.scrollY;
+  try {
+    await page.viewport(390, 600);
+    const diagnostic = Array.from(
+      { length: 100 },
+      (_, index) =>
+        `Raw continuation diagnostic line ${String(index + 1)} with enough detail to wrap.`,
+    ).join("\n");
+    const historyText = Array.from(
+      { length: 80 },
+      (_, index) => `Narrow history line ${String(index + 1)}`,
+    ).join("\n");
+    const thread = historyThread([
+      baseTurn("narrow-diagnostic-turn", [
+        userMessage("narrow-diagnostic-user", [textInput(historyText)]),
+      ]),
+    ]);
+    const commands = {
+      ...createGuiHostCommands(),
+      readThread: vi.fn<GuiHostCommands["readThread"]>().mockResolvedValue({ thread }),
+    };
+    const { screen } = await renderDetail({
+      activate: {
+        type: "unavailable",
+        failure: {
+          type: "operationFailed",
+          phase: "resume",
+          error: new Error(diagnostic),
+          cleanupError: null,
+        },
+      },
+      commands,
+    });
+    const action = screen.getByRole("button", { name: "Continue this task" });
+
+    await action.click();
+    const alert = screen.getByRole("alert");
+    await expect.element(alert.getByText("The task could not be resumed.")).toBeVisible();
+    const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
+    await expect.element(disclosure).toBeInViewport({ ratio: 1 });
+
+    const documentScroller = document.scrollingElement;
+    if (!(documentScroller instanceof HTMLElement)) {
+      throw new Error("Expected an HTML document scrolling element");
+    }
+    window.scrollTo({ top: Math.min(120, documentScroller.scrollHeight - window.innerHeight) });
+    await expect.poll(() => documentScroller.scrollTop).toBeGreaterThan(0);
+    const scrollTopBeforeExpand = documentScroller.scrollTop;
+
+    await disclosure.click();
+
+    const diagnosticRegion = alert
+      .element()
+      .querySelector("[data-history-continuation-diagnostics-scroll-region]");
+    if (!(diagnosticRegion instanceof HTMLElement)) {
+      throw new Error("Expected continuation diagnostics to own an internal scroll region");
+    }
+    await expect
+      .element(
+        alert.getByText("Raw continuation diagnostic line 100 with enough detail to wrap.", {
+          exact: false,
+        }),
+      )
+      .toBeVisible();
+    await expect.element(action).toBeInViewport({ ratio: 1 });
+    await expect.element(disclosure).toHaveFocus();
+    await expect
+      .poll(() => ({
+        documentScrollTopStable: Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand) <= 1,
+        hasInternalOverflow: diagnosticRegion.scrollHeight > diagnosticRegion.clientHeight + 1,
+        usesInternalScrolling: ["auto", "scroll"].includes(
+          getComputedStyle(diagnosticRegion).overflowY,
+        ),
+      }))
+      .toEqual({
+        documentScrollTopStable: true,
+        hasInternalOverflow: true,
+        usesInternalScrolling: true,
+      });
+    diagnosticRegion.scrollTo({ top: diagnosticRegion.scrollHeight });
+    await expect.poll(() => diagnosticRegion.scrollTop).toBeGreaterThan(0);
+    expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
+    await expect.element(disclosure).toHaveFocus();
+  } finally {
+    window.scrollTo({ top: originalScrollTop });
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
 });
 
 test.each([
