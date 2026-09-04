@@ -1,5 +1,6 @@
-import { Alert, Button } from "@heroui/react";
+import { Alert, Button, Disclosure } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
+import { useState, type ReactNode } from "react";
 import type { ActiveThreadActivationFailure } from "@/features/activeThreadSession/activeThreadSession";
 
 type ContinueTaskFailureAlertState =
@@ -39,12 +40,14 @@ export function ContinueTaskFailureAlert({
               <Trans>Unable to continue this task</Trans>
             </Alert.Title>
             <Alert.Description>
-              <span className="block">
+              <span className="block" id={descriptionId}>
                 <Trans>An unexpected error occurred while continuing the task.</Trans>
               </span>
-              <span className="mt-1 block">
-                <Trans>Diagnostic:</Trans> {errorText(state.error)}
-              </span>
+              <FailureDiagnosticDisclosure>
+                <span className="block">
+                  <Trans>Diagnostic:</Trans> {errorText(state.error)}
+                </span>
+              </FailureDiagnosticDisclosure>
             </Alert.Description>
           </Alert.Content>
         </Alert>
@@ -57,7 +60,7 @@ export function ContinueTaskFailureAlert({
             <Alert.Title>
               <Trans>Unable to continue this task</Trans>
             </Alert.Title>
-            <Alert.Description>
+            <Alert.Description id={descriptionId}>
               <Trans>The task could not be activated.</Trans>
             </Alert.Description>
           </Alert.Content>
@@ -102,8 +105,10 @@ function ContinueTaskUnavailableAlert({
             <Alert.Title>
               <Trans>Unable to continue this task</Trans>
             </Alert.Title>
-            <Alert.Description id={descriptionId}>
-              <Trans>The task could not be activated.</Trans>
+            <Alert.Description>
+              <span className="block" id={descriptionId}>
+                <Trans>The task could not be activated.</Trans>
+              </span>
             </Alert.Description>
             {activeThreadId == null ? null : (
               <Button
@@ -129,11 +134,13 @@ function ContinueTaskUnavailableAlert({
             <Alert.Title>
               <Trans>Unable to switch tasks yet</Trans>
             </Alert.Title>
-            <Alert.Description id={descriptionId}>
-              <Trans>
-                The current task still has queued or unresolved messages. Return to it before
-                switching.
-              </Trans>
+            <Alert.Description>
+              <span className="block" id={descriptionId}>
+                <Trans>
+                  The current task still has queued or unresolved messages. Return to it before
+                  switching.
+                </Trans>
+              </span>
             </Alert.Description>
             <Button
               className="mt-3"
@@ -160,8 +167,8 @@ function ContinueTaskUnavailableAlert({
                 <Trans>Task switched, but cannot be opened</Trans>
               )}
             </Alert.Title>
-            <Alert.Description id={descriptionId}>
-              <span className="block">
+            <Alert.Description>
+              <span className="block" id={descriptionId}>
                 {failure.progress === "beforeCommit" ? (
                   <Trans>
                     The connection was interrupted before the task switch completed. Reconnect and
@@ -175,9 +182,11 @@ function ContinueTaskUnavailableAlert({
                 )}
               </span>
               {failure.cleanupError == null ? null : (
-                <span className="mt-1 block">
-                  <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
-                </span>
+                <FailureDiagnosticDisclosure>
+                  <span className="block">
+                    <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
+                  </span>
+                </FailureDiagnosticDisclosure>
               )}
             </Alert.Description>
           </Alert.Content>
@@ -191,18 +200,20 @@ function ContinueTaskUnavailableAlert({
             <Alert.Title>
               <Trans>Unable to continue this task</Trans>
             </Alert.Title>
-            <Alert.Description id={descriptionId}>
-              <span className="block">
+            <Alert.Description>
+              <span className="block" id={descriptionId}>
                 <OperationFailureSummary phase={failure.phase} />
               </span>
-              <span className="mt-1 block">
-                <Trans>Operation diagnostic:</Trans> {errorText(failure.error)}
-              </span>
-              {failure.cleanupError == null ? null : (
-                <span className="mt-1 block">
-                  <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
+              <FailureDiagnosticDisclosure>
+                <span className="block">
+                  <Trans>Operation diagnostic:</Trans> {errorText(failure.error)}
                 </span>
-              )}
+                {failure.cleanupError == null ? null : (
+                  <span className="block">
+                    <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
+                  </span>
+                )}
+              </FailureDiagnosticDisclosure>
             </Alert.Description>
           </Alert.Content>
         </Alert>
@@ -211,6 +222,28 @@ function ContinueTaskUnavailableAlert({
 
   failure satisfies never;
   return null;
+}
+
+function FailureDiagnosticDisclosure({ children }: Readonly<{ children: ReactNode }>) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <Disclosure isExpanded={isExpanded} onExpandedChange={setIsExpanded}>
+      <Disclosure.Heading>
+        <Button className="mt-2 h-auto justify-between" slot="trigger" variant="tertiary">
+          <Trans comment="Button in a history continuation error that expands raw diagnostic details">
+            View diagnostic information
+          </Trans>
+          <Disclosure.Indicator />
+        </Button>
+      </Disclosure.Heading>
+      <Disclosure.Content>
+        <Disclosure.Body className="pt-2">
+          {isExpanded ? <div className="grid gap-1">{children}</div> : null}
+        </Disclosure.Body>
+      </Disclosure.Content>
+    </Disclosure>
+  );
 }
 
 function OperationFailureSummary({

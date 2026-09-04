@@ -42,7 +42,7 @@ export function ContinueTaskAction({
 }>) {
   const { t } = useLingui();
   const navigate = useNavigate();
-  const unavailableDescriptionId = useId();
+  const failureDescriptionId = useId();
   const warningMessages: ActivationWarningMessages = {
     authorizationPersistenceFailed: {
       title: t`Task opened`,
@@ -175,18 +175,20 @@ export function ContinueTaskAction({
   };
 
   return (
-    <>
-      <ContinueTaskFailureAlert
-        descriptionId={unavailableDescriptionId}
-        navigateToCurrentTask={navigateToCurrentTask}
-        state={visibleState}
-      />
-      <aside className="fixed inset-x-0 bottom-0 z-30 border-t border-separator bg-surface/95 px-4 py-4 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-3xl items-center gap-2">
+    <aside className="fixed inset-x-0 bottom-0 z-30 border-t border-separator bg-surface/95 px-4 py-4 backdrop-blur">
+      <div className="mx-auto grid w-full max-w-3xl gap-3">
+        <ContinueTaskFailureAlert
+          descriptionId={failureDescriptionId}
+          navigateToCurrentTask={navigateToCurrentTask}
+          state={visibleState}
+        />
+        <div className="flex items-center gap-2">
           <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
           <Button
             aria-describedby={
-              visibleState.type === "unavailable" ? unavailableDescriptionId : undefined
+              visibleState.type === "idle" || visibleState.type === "pending"
+                ? undefined
+                : failureDescriptionId
             }
             className="flex-1"
             isDisabled={capability.activateThread == null}
@@ -199,8 +201,8 @@ export function ContinueTaskAction({
             <Trans>Continue this task</Trans>
           </Button>
         </div>
-      </aside>
-    </>
+      </div>
+    </aside>
   );
 }
 
