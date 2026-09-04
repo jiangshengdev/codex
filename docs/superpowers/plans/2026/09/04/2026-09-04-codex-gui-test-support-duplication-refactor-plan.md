@@ -2,7 +2,7 @@
 
 ## 状态与边界
 
-- 计划状态：待确认
+- 计划状态：已确认（含 2026-09-04 Editor seam 修订）
 - 日期：2026-09-04
 - 设计依据：[Codex GUI 测试支撑重复重构设计](../../../../specs/2026/09/04/2026-09-04-codex-gui-test-support-duplication-refactor-design.md)
 - 计划编写基线：`dev` / `8de6f1cab63e895926e3507562d5717d7adef626`
@@ -16,12 +16,33 @@
 amend、squash、rebase、worktree cleanup、branch cleanup、依赖安装、可见浏览器或计划外文件修改。
 实现和验证必须保持无头。四个实现 worktree 与 branch 在本计划结束后保留，清理需要独立授权。
 
+## 已确认的 Editor seam 修订
+
+2026-09-04 已确认将 ComposerEditor 的单文件 `.tsx` support 精确化为唯一公共
+`composerEditorBrowserTestSupport.ts` 与私有 component-only `composerEditorBrowserTestFixture.tsx`。
+公共 `.ts` Module 继续公开 `ComposerEditorFixture`、`renderEditor`、`catalog`、`skill`、
+`getController` 五个入口，其中 `ComposerEditorFixture` 从私有 `.tsx` fixture re-export；私有 fixture 只导出
+该组件。四个 caller 继续使用不带扩展名的公共 support import。
+
+修订依据是 live `eslint.config.ts` 启用的 `react-refresh/only-export-components`：组件与四个非组件 helper
+同处 `.tsx` 时，`renderEditor`、`catalog`、`skill`、`getController` 均被报告。禁用规则、配置
+`allowExportNames`、借 `.test.` 命名避开扫描或把组件和 helper 继续放在单文件中改用 `createElement` 都只会
+绕过检查，不消除 owner 混合；公共 `.ts` support 与私有 component-only `.tsx` fixture 才直接满足约束。
+
+本修订作为两份工作文档的独立 docs-only `DOCS_AMENDMENT_COMMIT` 落在主 `dev`。Editor branch/worktree
+base 必须保持原 `DOCS_COMMIT`；应用本修订时存在的任意 in-scope 未提交状态必须原样保留。本修订只授权
+工作文档变更，不授权为了制造祖先关系 rebase、restore 或 cleanup Editor worktree。Editor 实现继续前必须
+先形成 `DOCS_AMENDMENT_COMMIT`。后续
+`N52-INTEGRATE-EDITOR` 把仍以原 `DOCS_COMMIT` 为 parent 的 `EDITOR_COMMIT` cherry-pick 到执行时当前
+`dev`；该 `dev` 必须已经包含 `DOCS_AMENDMENT_COMMIT` 与其余三个已集成任务。
+
 ## 唯一目标与完成语义
 
 在不改变生产行为、测试场景边界、事件顺序和完整断言的前提下，建立四个 test-only 深 Module：
 
 1. `composerTurnControlBrowserTestSupport.tsx` 统一 ComposerTurnControl Browser mount graph；
-2. `composerEditorBrowserTestSupport.tsx` 统一 ComposerEditor Browser fixture 与普通 render helper；
+2. 唯一公共 `composerEditorBrowserTestSupport.ts` 与私有 component-only
+   `composerEditorBrowserTestFixture.tsx` 统一 ComposerEditor Browser fixture 与普通 render helper；
 3. `appComposerQueueBrowserTestSupport.tsx` 统一 App composer queue mount、pending readers 与 command readers；
 4. `composerInputQueueCoordinatorTestFixtures.ts` 统一 coordinator construction 与单步 fixture。
 
@@ -62,6 +83,13 @@ amend、squash、rebase、worktree cleanup、branch cleanup、依赖安装、可
 
 建议提交信息：`docs: plan test support duplication refactor`。
 
+### `TASK-DOC-AMENDMENT`：Editor seam 修订文档提交
+
+独立 docs-only 提交仍只包含上述两份工作文档，记录公共 `.ts` support、私有 component-only `.tsx`
+fixture、Editor 十个 path identities 与修订后的集成拓扑，不包含代码、运行状态或其他文档。
+
+建议提交信息：`docs: refine composer editor test support seam`。
+
 ### `TASK-TURN-CONTROL`：ComposerTurnControl Browser 支撑
 
 - branch：`codex/gui-test-support-turn-control`
@@ -88,11 +116,13 @@ recovery fake。owner replacement JSX/rerender、mock 生命周期、事件数�
 - branch：`codex/gui-test-support-editor`
 - worktree：`/Users/jiangsheng/cnb/codex/.worktrees/gui-test-support-editor`
 
-write set：
+write set（十个 path identities）：
 
 - 通过 `git mv` 将
   `codex-gui/src/features/composerEditor/__tests__/composerEditorSkillTokenBrowserTestSupport.tsx` 移为
-  `codex-gui/src/features/composerEditor/__tests__/composerEditorBrowserTestSupport.tsx`
+  `codex-gui/src/features/composerEditor/__tests__/composerEditorBrowserTestSupport.ts`
+- 新增私有 `codex-gui/src/features/composerEditor/__tests__/composerEditorBrowserTestFixture.tsx`，只导出
+  `ComposerEditorFixture`；公共 `.ts` support re-export 该组件
 - 删除 `codex-gui/src/features/composerEditor/__tests__/composerEditorSkillTokenBrowserTestFixture.tsx`
 - 删除 `codex-gui/src/features/composerEditor/__tests__/composerEditorTypeaheadBrowserTestSupport.tsx`
 - 删除 `codex-gui/src/features/composerEditor/__tests__/composerEditorTypeaheadBrowserTestFixture.tsx`
@@ -101,8 +131,9 @@ write set：
 - 修改 `codex-gui/src/features/composerEditor/__tests__/ComposerEditorTypeaheadMenu.browser.test.tsx`
 - 修改 `codex-gui/src/features/composerEditor/__tests__/ComposerEditorTypeaheadSelection.browser.test.tsx`
 
-统一 Module 只公开 `ComposerEditorFixture`、`renderEditor`、`catalog`、`skill`、`getController`。双 editor、
-Drawer、catalog rerender、invalid topology、NodeSelection/DOM Selection/caret/history helpers 保留在 owning suite。
+唯一公共 `.ts` Module 只公开 `ComposerEditorFixture`、`renderEditor`、`catalog`、`skill`、`getController`；
+私有 `.tsx` fixture 只导出组件，四个 caller 的 extensionless imports 保持。双 editor、Drawer、catalog
+rerender、invalid topology、NodeSelection/DOM Selection/caret/history helpers 保留在 owning suite。
 
 建议提交信息：`test(codex-gui): share composer editor browser support`。
 
@@ -365,7 +396,8 @@ settlement、observation、recovery、request/response 队列和完整 expected 
 - `hardPredecessors`: `N03A-WORKTREE-TURN`、`N03B-WORKTREE-EDITOR`、`N03C-WORKTREE-APP`、
   `N03D-WORKTREE-COORD`；全局规则要求所有相关 worktree 预配完成后才开始实现。
 - `consumes`: 四份 worktree completion evidence。
-- `produces`: 可解锁四个编辑任务的统一预配证据。
+- `produces`: 可解锁 `N05A-DOC-AMEND-EDIT`、`N10-TURN-EDIT`、`N30-APP-EDIT`、`N40-COORD-EDIT`，并满足
+  `N20-EDITOR-EDIT` 一个硬前提的统一预配证据。
 - `completionEvidence`: 四 worktree 均指向同一 `DOCS_COMMIT`，各自 status clean、control plane 与 links 完整。
 - `readSet`: 四 worktree 的 HEAD/status/sparse/link metadata。
 - `writeSet`: 空。
@@ -376,14 +408,122 @@ settlement、observation、recovery、request/response 队列和完整 expected 
 - `resourceLocks`: 四 worktree metadata/read。
 - `owner`: 主代理协调的预配审查子代理。
 - `verification`: base、branch、path、index 与链接逐一对应。
-- `failureDomain`: 四个实现任务；失败的创建节点独立保留现场，不自动 cleanup。
+- `failureDomain`: amendment 文档链与四个实现任务；失败的创建节点独立保留现场，不自动 cleanup。
 - `replanTriggers`: 任一 worktree HEAD/base/link/status 与验收证据不一致。
 - `authorizationGate`: `pending`；计划确认后只读 fan-in active。
 
-### 四个并行任务分支
+#### `N05A-DOC-AMEND-EDIT`
 
-四个任务在 `N04-WORKTREE-FAN-IN` 完成后同时进入 ready set。每个任务内部依赖固定为
-`EDIT -> FORMAT -> VERIFY -> REVIEW -> STAGE -> COMMIT`；不同任务之间没有硬依赖。所有 Vitest 节点共享
+- `taskBoundary`: `TASK-DOC-AMENDMENT`
+- `operationKind`: 编辑
+- `outcome`: 两份工作文档记录已确认的 Editor 公共 `.ts` support、私有 component-only `.tsx` fixture、十个
+  path identities 与修订后集成拓扑。
+- `estimatedCost`: 小
+- `deferralEvidence`: 无。
+- `hardPredecessors`: `N04-WORKTREE-FAN-IN`；等待四个 worktree 已稳定固定在原 `DOCS_COMMIT`。
+- `consumes`: 用户选择 A、Editor lint 失败与规则 owner 证据、原设计和计划。
+- `produces`: 两份工作文档内未暂存的 amendment diff。
+- `completionEvidence`: 设计与计划只修改两份 allowlist 文档，公共五入口、十个 path identities、原
+  `DOCS_COMMIT` worktree base、最后集成顺序和所有排除项一致。
+- `readSet`: 两份工作文档、Editor lint/config/plugin 证据与主 status/HEAD/index。
+- `writeSet`:
+  `docs/superpowers/specs/2026/09/04/2026-09-04-codex-gui-test-support-duplication-refactor-design.md` 与
+  `docs/superpowers/plans/2026/09/04/2026-09-04-codex-gui-test-support-duplication-refactor-plan.md`。
+- `stateEffects`: 仅修改两份工作文档；不修改代码、worktree 或 Git index。
+- `commandScope`: `apply_patch` 编辑两份文档，以及只读 diff/status/路径/尾随空白检查。
+- `subdelegation`: 禁止。
+- `executionContext`: 主 checkout/`dev`，主 index 只读。
+- `resourceLocks`: 上述两份工作文档 write；`/Users/jiangsheng/cnb/codex/.git/index` read。
+- `owner`: amendment 文档编辑子代理。
+- `verification`: 逐项核对设计、`TASK-EDITOR`、`N20` 至 `N25`、`N52`、`N59`、`N55` 与 ready/关键路径。
+- `failureDomain`: `N05B` 至 `N05D`、`N20` 至 `N25`、`N52`、`N59`、`N55`。
+- `replanTriggers`: 需要第三个文档、代码文件、Editor 第十个 identity 外目标或产品行为改变。
+- `authorizationGate`: `active`；用户选择 A 已授权两文档 amendment。
+
+#### `N05B-DOC-AMEND-REVIEW`
+
+- `taskBoundary`: `TASK-DOC-AMENDMENT`
+- `operationKind`: 审查
+- `outcome`: amendment diff 与用户选择 A、lint 根因、设计不变量及描述式 DAG 一致。
+- `estimatedCost`: 小
+- `deferralEvidence`: 无。
+- `hardPredecessors`: `N05A-DOC-AMEND-EDIT`；等待稳定的两文档 diff。
+- `consumes`: 两文档 amendment diff、用户选择 A 与 lint 证据。
+- `produces`: 两文档精确 stage allowlist。
+- `completionEvidence`: `git diff --check` 通过；仅两文档变化；无旧 `.tsx` 公共 support、九 path identities、
+  动态运行状态或 DAG 前提矛盾残留。
+- `readSet`: 两份工作文档、主 status/index 与 amendment diff。
+- `writeSet`: 空。
+- `stateEffects`: 仅审查结论。
+- `commandScope`: 只读 `git status`、`git diff`、`git diff --check`、`rg` 与路径检查。
+- `subdelegation`: 禁止。
+- `executionContext`: 主 checkout/`dev`，主 index 只读。
+- `resourceLocks`: 两份工作文档与 `/Users/jiangsheng/cnb/codex/.git/index` read。
+- `owner`: 独立 amendment 文档 review 子代理。
+- `verification`: 反向审查四节点 amendment DAG、N20 前提、N52 最后集成和静态现场约束。
+- `failureDomain`: `N05C`、`N05D` 及所有消费 amendment 的 Editor 后继。
+- `replanTriggers`: allowlist、十路径、集成前提或静态约束不精确。
+- `authorizationGate`: `active`；用户选择 A 授权只读 amendment review。
+
+#### `N05C-DOC-AMEND-STAGE`
+
+- `taskBoundary`: `TASK-DOC-AMENDMENT`
+- `operationKind`: stage
+- `outcome`: 主 index 只含两份 amendment 工作文档。
+- `estimatedCost`: 小
+- `deferralEvidence`: 无。
+- `hardPredecessors`: `N05B-DOC-AMEND-REVIEW`；等待精确 allowlist 审查证据。
+- `consumes`: 审查通过的两文档 amendment diff。
+- `produces`: 两文档 staged snapshot。
+- `completionEvidence`: cached name/status 精确等于两份文档，`git diff --cached --check` 通过。
+- `readSet`: 两份工作文档与主 index。
+- `writeSet`: `/Users/jiangsheng/cnb/codex/.git/index` 中两份文档条目。
+- `stateEffects`: 精确 stage 两份文档。
+- `commandScope`: 精确运行
+  `git add -- docs/superpowers/specs/2026/09/04/2026-09-04-codex-gui-test-support-duplication-refactor-design.md docs/superpowers/plans/2026/09/04/2026-09-04-codex-gui-test-support-duplication-refactor-plan.md`，
+  随后只读审查 cached name/status/diff/check。
+- `subdelegation`: 禁止。
+- `executionContext`: 主 checkout/`dev`/独占主 index。
+- `resourceLocks`: `/Users/jiangsheng/cnb/codex/.git/index` write。
+- `owner`: `TASK-DOC-AMENDMENT` 唯一 Git owner。
+- `verification`: staged snapshot 仅两文档且内容等于 review 产物。
+- `failureDomain`: `N05D-DOC-AMEND-COMMIT` 及所有消费 amendment 的 Editor 后继。
+- `replanTriggers`: index 预含其他条目、cached allowlist 不精确或 check 失败。
+- `authorizationGate`: `active`；用户选择 A 已授权精确两文档 stage。
+
+#### `N05D-DOC-AMEND-COMMIT`
+
+- `taskBoundary`: `TASK-DOC-AMENDMENT`
+- `operationKind`: commit
+- `outcome`: 在主 `dev` 创建独立 docs-only amendment commit。
+- `estimatedCost`: 小
+- `deferralEvidence`: 无。
+- `hardPredecessors`: `N05C-DOC-AMEND-STAGE`；等待已审查 staged snapshot。
+- `consumes`: 两文档 staged snapshot、Git identity 与执行时主 `dev` HEAD。
+- `produces`: `DOCS_AMENDMENT_COMMIT`。
+- `completionEvidence`: 新提交只含两份文档，提交信息精确为
+  `docs: refine composer editor test support seam`；提交后主 status/index clean。
+- `readSet`: staged snapshot、Git identity、主 HEAD/status/index。
+- `writeSet`: `refs/heads/dev`、Git object database 与主 index。
+- `stateEffects`: 一个独立 docs-only 本地提交；无 remote。
+- `commandScope`: 精确 `git commit -m 'docs: refine composer editor test support seam'` 与只读
+  show/diff-tree/status/rev-parse 审计。
+- `subdelegation`: 禁止。
+- `executionContext`: 主 checkout/`dev`/独占主 index。
+- `resourceLocks`: `/Users/jiangsheng/cnb/codex/.git/index`、主 worktree 与 `refs/heads/dev` write；Git object
+  database 由 Git 自身原子协议管理。
+- `owner`: `TASK-DOC-AMENDMENT` 唯一 Git owner。
+- `verification`: 记录完整 SHA，证明 parent 为执行时锁定 HEAD、边界为两文档且 subject 精确。
+- `failureDomain`: `N20` 至 `N25`、`N52`、`N59`、`N55`。
+- `replanTriggers`: HEAD 漂移、hook 越界、提交失败或边界不精确。
+- `authorizationGate`: `active`；用户选择 A 已授权精确 docs-only 本地提交，无 amend/remote。
+
+### 四个任务分支
+
+`N10-TURN-EDIT`、`N30-APP-EDIT`、`N40-COORD-EDIT` 与 `N05A-DOC-AMEND-EDIT` 在
+`N04-WORKTREE-FAN-IN` 完成后进入 ready set；`N20-EDITOR-EDIT` 还必须等待
+`N05D-DOC-AMEND-COMMIT`。每个代码任务内部依赖固定为 `EDIT -> FORMAT -> VERIFY -> REVIEW -> STAGE ->
+COMMIT`。所有 Vitest 节点共享
 `/Users/jiangsheng/cnb/codex/codex-gui/node_modules/.vite` 的 write lock，因此 ready 时按锁排队；其他编辑、
 格式化和静态验证不因该锁被人为串行化。
 
@@ -549,42 +689,50 @@ settlement、observation、recovery、request/response 队列和完整 expected 
 
 - `taskBoundary`: `TASK-EDITOR`
 - `operationKind`: 编辑
-- `outcome`: 两套 support/fixture 收敛为唯一 Module，四个 caller 切换。
+- `outcome`: 两套 support/fixture 收敛为唯一公共 `.ts` Module 与私有 component-only `.tsx` fixture，四个
+  caller 通过 extensionless import 切换。
 - `estimatedCost`: 中
 - `deferralEvidence`: 无。
-- `hardPredecessors`: `N04-WORKTREE-FAN-IN`；等待四 worktree 统一预配证据。
-- `consumes`: 两套现有 support/fixture、四个 suites、权威 editor/catalog/controller types。
+- `hardPredecessors`: `N04-WORKTREE-FAN-IN` 与 `N05D-DOC-AMEND-COMMIT`；等待四 worktree 固定在原
+  `DOCS_COMMIT` 的预配证据和独立 `DOCS_AMENDMENT_COMMIT`。
+- `consumes`: `DOCS_AMENDMENT_COMMIT`、两套现有 support/fixture、四个 suites、权威
+  editor/catalog/controller types，以及 Editor worktree 内必须保留的任意 in-scope 未提交状态。
 - `produces`: task write set 内未格式化 diff。
-- `completionEvidence`: 唯一 Module 保持五个短入口与原默认值；特殊 mount/selection 场景未吸收。
+- `completionEvidence`: 公共 `.ts` Module 保持五个短入口与原默认值并 re-export `ComposerEditorFixture`；
+  私有 `.tsx` fixture 只导出该组件；四个 caller 保持 extensionless import；特殊 mount/selection 场景未吸收。
 - `readSet`: task write set 与直接 production/test types。
-- `writeSet`: `TASK-EDITOR` 精确九文件身份，包括一项 move 和三项 delete。
+- `writeSet`: `TASK-EDITOR` 精确十个 path identities，包括一项 move 的 source/destination、一个新增私有
+  fixture、三项 delete 与四个 caller 修改。
 - `stateEffects`: `git mv`、`git rm` 会把 rename/delete 写入 editor 独立 index；普通内容编辑保持 unstaged；
   不 stage 其他文件。
 - `commandScope`: 精确 `git mv`、三个 `git rm --`、`apply_patch`、只读 diff。
 - `subdelegation`: 禁止。
-- `executionContext`: editor worktree/branch/独立 index。
-- `resourceLocks`: `TASK-EDITOR` 九个 absolute path identities write；
+- `executionContext`: editor worktree/branch/独立 index；branch base 保持原 `DOCS_COMMIT`，不 rebase、restore
+  或 cleanup，直接在保留的 in-scope 状态上完成修订后的实现。
+- `resourceLocks`: `TASK-EDITOR` 十个 absolute path identities write；
   `/Users/jiangsheng/cnb/codex/.git/worktrees/gui-test-support-editor/index` write 仅用于 `git mv/rm`。
 - `owner`: editor 编辑子代理。
-- `verification`: fixture DOM/CSS、locale/catalog/controller readiness 与 imports 等价；后续审查必须合并读取
-  staged rename/delete 与 unstaged 内容 diff。
+- `verification`: fixture DOM/CSS、locale/catalog/controller readiness 与 extensionless imports 等价；公共
+  `.ts`/私有 component-only `.tsx` owner 分离成立；后续审查必须合并读取 staged rename/delete 与 unstaged
+  内容 diff。
 - `failureDomain`: `N21` 至 `N25`。
-- `replanTriggers`: 需要修改 Lifecycle/Drawer/双 editor suite、production props 或新增 Adapter。
+- `replanTriggers`: 需要修改 Lifecycle/Drawer/双 editor suite、production props、第三个 support/fixture 文件
+  或新增 Adapter。
 - `authorizationGate`: `pending`；计划确认后授权精确 move/delete/edit。
 
 #### `N21-EDITOR-FORMAT`
 
 - `taskBoundary`: `TASK-EDITOR`
 - `operationKind`: 格式化
-- `outcome`: oxfmt fix/check 后 diff 仍局限于 task identities。
+- `outcome`: oxfmt fix/check 后 diff 仍局限于 `TASK-EDITOR` 十个 path identities。
 - `estimatedCost`: 小
 - `deferralEvidence`: 无。
 - `hardPredecessors`: `N20-EDITOR-EDIT`。
 - `consumes`: editor diff/package script。
 - `produces`: 格式化 diff。
-- `completionEvidence`: format check exit 0，范围 audit 通过。
+- `completionEvidence`: format check exit 0，范围 audit 精确覆盖十个 path identities。
 - `readSet`: `codex-gui` tree/task files。
-- `writeSet`: oxfmt 自动输出；预期为 task write set。
+- `writeSet`: oxfmt 自动输出；预期严格为 `TASK-EDITOR` 十个 path identities。
 - `stateEffects`: formatter 自动写入。
 - `commandScope`: fnm-backed `pnpm run format:oxfmt:fix`、`pnpm run format:oxfmt`、只读 diff；越界则保留现场暂停。
 - `subdelegation`: 禁止。
@@ -600,14 +748,16 @@ settlement、observation、recovery、request/response 队列和完整 expected 
 
 - `taskBoundary`: `TASK-EDITOR`
 - `operationKind`: 验证
-- `outcome`: 静态检查和四个 Browser suites 三浏览器非零收集并通过。
+- `outcome`: lint 验证公共 `.ts`/私有 component-only `.tsx` owner 分离，其他静态检查和四个 Browser suites
+  三浏览器非零收集并通过。
 - `estimatedCost`: 大
 - `deferralEvidence`: 无；Vitest lock 冲突时 ready 等锁。
 - `hardPredecessors`: `N21-EDITOR-FORMAT`。
 - `consumes`: 格式化 diff、package scripts、Browser config。
 - `produces`: format/lint/type/focused Browser 证据。
-- `completionEvidence`: 全部 exit 0，输出命中四个目标 files 且 tests 非零。
-- `readSet`: 完整 GUI tree 与四个 suites。
+- `completionEvidence`: 全部 exit 0；lint 不再报告 `react-refresh/only-export-components`；输出命中四个目标
+  files 且 tests 非零。
+- `readSet`: 完整 GUI tree、`TASK-EDITOR` 十个 path identities、lint config 与四个 suites。
 - `writeSet`: 工具 cache/report 副作用。
 - `stateEffects`: headless Browser/cache 状态。
 - `commandScope`: 在该 worktree 的 `codex-gui` cwd 依次运行：
@@ -633,13 +783,15 @@ settlement、observation、recovery、request/response 队列和完整 expected 
 
 - `taskBoundary`: `TASK-EDITOR`
 - `operationKind`: 审查
-- `outcome`: 合并仅消除重复 fixture/support，不参数化特殊场景或改变断言。
+- `outcome`: 公共 `.ts` support 与私有 component-only `.tsx` fixture 只消除重复并满足 lint owner 约束，
+  不参数化特殊场景或改变断言。
 - `estimatedCost`: 中
 - `deferralEvidence`: 无。
 - `hardPredecessors`: `N22-EDITOR-VERIFY`。
 - `consumes`: task diff/验证证据。
 - `produces`: stage allowlist。
-- `completionEvidence`: `git diff HEAD`、`git diff --cached`、diff/check/type derivation/import audit 通过，
+- `completionEvidence`: `git diff HEAD`、`git diff --cached`、diff/check/type derivation/import audit 通过；十个
+  path identities 精确；私有 `.tsx` 只导出组件，公共 `.ts` re-export；四个 caller extensionless imports 与
   test names 无增删。
 - `readSet`: task diff/设计/目标 suites。
 - `writeSet`: 空。
@@ -651,7 +803,8 @@ settlement、observation、recovery、request/response 队列和完整 expected 
 - `resourceLocks`: editor task file identities 与
   `/Users/jiangsheng/cnb/codex/.git/worktrees/gui-test-support-editor/index` read。
 - `owner`: 独立 review 子代理。
-- `verification`: 检查无 arbitrary props/callback bag/fixtureKind/镜像类型。
+- `verification`: 检查无 arbitrary props/callback bag/fixtureKind/镜像类型，也无 lint disable、
+  `allowExportNames`、`.test.` 命名绕过或单文件 component/helper 混合。
 - `failureDomain`: `N24`、`N25`。
 - `replanTriggers`: 特殊场景被隐藏或 delete 边界异常。
 - `authorizationGate`: `pending`。
@@ -660,13 +813,14 @@ settlement、observation、recovery、request/response 队列和完整 expected 
 
 - `taskBoundary`: `TASK-EDITOR`
 - `operationKind`: stage
-- `outcome`: editor index 只含 task identities。
+- `outcome`: editor index 只含 `TASK-EDITOR` 十个 path identities。
 - `estimatedCost`: 小
 - `deferralEvidence`: 无。
 - `hardPredecessors`: `N23-EDITOR-REVIEW`。
 - `consumes`: 审查通过 diff。
 - `produces`: staged snapshot。
-- `completionEvidence`: cached name/status/check 精确覆盖 move/delete/modify/add。
+- `completionEvidence`: cached name/status/check 精确覆盖一项 move 的 source/destination、一个新增私有 fixture、
+  三项 delete 与四个 caller modify，共十个 path identities。
 - `readSet`: task files/index。
 - `writeSet`: editor index。
 - `stateEffects`: 精确 stage。
@@ -677,7 +831,7 @@ settlement、observation、recovery、request/response 队列和完整 expected 
 - `owner`: 本任务唯一 Git owner。
 - `verification`: staged diff 全量审查。
 - `failureDomain`: `N25-EDITOR-COMMIT`。
-- `replanTriggers`: index 污染或 rename/delete 识别不符。
+- `replanTriggers`: index 污染，十个 path identities 不精确，或 move/delete/add 语义不符。
 - `authorizationGate`: `pending`。
 
 #### `N25-EDITOR-COMMIT`
@@ -690,7 +844,8 @@ settlement、observation、recovery、request/response 队列和完整 expected 
 - `hardPredecessors`: `N24-EDITOR-STAGE`。
 - `consumes`: staged snapshot。
 - `produces`: `EDITOR_COMMIT`。
-- `completionEvidence`: commit 边界精确，信息为 `test(codex-gui): share composer editor browser support`。
+- `completionEvidence`: commit 边界精确为 `TASK-EDITOR` 十个 path identities，信息为
+  `test(codex-gui): share composer editor browser support`。
 - `readSet`: staged snapshot/Git identity。
 - `writeSet`: editor branch ref/object database/index。
 - `stateEffects`: 一个本地提交。
@@ -1022,14 +1177,17 @@ settlement、observation、recovery、request/response 队列和完整 expected 
 
 - `taskBoundary`: 无提交；集成 fan-in
 - `operationKind`: fan-in
-- `outcome`: 四个独立 task commits 都已一对一集成到 `dev`，提交边界可审计。
+- `outcome`: `DOCS_COMMIT`、独立 `DOCS_AMENDMENT_COMMIT` 与四个独立 task commits 都保留在 `dev`，四个
+  task 提交均一对一集成且边界可审计。
 - `estimatedCost`: 小
 - `deferralEvidence`: 无。
 - `hardPredecessors`: `N51-INTEGRATE-TURN`、`N52-INTEGRATE-EDITOR`、`N53-INTEGRATE-APP`、
   `N54-INTEGRATE-COORD`；等待四个独立集成产物。
-- `consumes`: 四份 integrated commit evidence、当前 `dev` history/status/index。
+- `consumes`: `DOCS_COMMIT`、`DOCS_AMENDMENT_COMMIT`、四份 integrated commit evidence、当前 `dev`
+  history/status/index。
 - `produces`: 四任务全部集成后的稳定 `INTEGRATED_HEAD`。
-- `completionEvidence`: `dev` history 保留 docs 与四个 task 边界，主 status/index 无计划外变化。
+- `completionEvidence`: `dev` history 保留原 docs、独立 amendment docs 与四个 task 边界，主 status/index 无
+  计划外变化。
 - `readSet`: 主 repo refs/index/status/history 与四个 source/integrated commits。
 - `writeSet`: 空。
 - `stateEffects`: 仅 fan-in 结论。
@@ -1077,24 +1235,32 @@ settlement、observation、recovery、request/response 队列和完整 expected 
 - `operationKind`: 集成
 - `outcome`: editor task 作为独立 commit 集成到 `dev`。
 - `estimatedCost`: 小
-- `deferralEvidence`: 无；与其他集成节点没有 DAG 依赖，同一 `dev` index/ref 的 write lock 只限制同时运行。
-- `hardPredecessors`: `N25-EDITOR-COMMIT`；该 task commit 完成即可竞争主 `dev` 集成锁。
-- `consumes`: `EDITOR_COMMIT`、`DOCS_COMMIT` 与执行时当前 `dev` HEAD/status/index。
+- `deferralEvidence`: 无；本节点由真实集成产物依赖明确排在最后，不是基于编号或 agent 复用暂缓。
+- `hardPredecessors`: `N25-EDITOR-COMMIT`、`N05D-DOC-AMEND-COMMIT`、`N51-INTEGRATE-TURN`、
+  `N53-INTEGRATE-APP`、`N54-INTEGRATE-COORD`；等待十个 path identities 的稳定 Editor task commit、独立
+  amendment commit 和其余三个 task 的稳定 integrated commits，使 Editor 成为最后一个集成节点。
+- `consumes`: parent 仍为原 `DOCS_COMMIT` 的 `EDITOR_COMMIT`、`DOCS_AMENDMENT_COMMIT`，以及执行时已经
+  包含 amendment 和其余三个 integrated task commits 的当前 `dev` HEAD/status/index。
 - `produces`: integrated editor commit。
-- `completionEvidence`: parent/boundary/merge-tree 预检通过；cherry-pick 成功且边界等价、status/index clean。
+- `completionEvidence`: source parent 精确为原 `DOCS_COMMIT`，source 边界精确为十个 path identities；当前
+  `dev` 包含 `DOCS_AMENDMENT_COMMIT` 与其余三个 integrated task commits；merge-tree 预检通过，cherry-pick
+  成功且边界等价、status/index clean。
 - `readSet`: source commit/`dev` HEAD。
 - `writeSet`: `dev` ref/tree/index/object database。
 - `stateEffects`: 一次本地 cherry-pick。
-- `commandScope`: 先完成当前 HEAD/status/parent/boundary/merge-tree 只读预检，再运行
-  `git cherry-pick <EDITOR_COMMIT>` 与只读 audit；不处理冲突。
+- `commandScope`: 先完成当前 HEAD/status、原 `DOCS_COMMIT` parent、十个 path identities、
+  `DOCS_AMENDMENT_COMMIT`/其余三个 task 集成存在性与 merge-tree 只读预检，再运行
+  `git cherry-pick <EDITOR_COMMIT>` 与只读 audit；不 rebase source，不 restore/cleanup Editor worktree，不处理
+  冲突。
 - `subdelegation`: 禁止。
 - `executionContext`: 主 checkout/`dev`/独占 index。
 - `resourceLocks`: `/Users/jiangsheng/cnb/codex/.git/index`、`/Users/jiangsheng/cnb/codex` tree 与
   `refs/heads/dev` write；Git object database 不作为外部独占锁。
 - `owner`: 唯一 integration Git owner。
 - `verification`: source/integrated diff 等价。
-- `failureDomain`: 本节点、`N59-INTEGRATION-FAN-IN` 与 `N55-FINAL-VERIFY`；其他集成分支继续。
-- `replanTriggers`: 冲突、hook 越界、HEAD 漂移。
+- `failureDomain`: 本节点、`N59-INTEGRATION-FAN-IN` 与 `N55-FINAL-VERIFY`；三个前置集成产物保持不变。
+- `replanTriggers`: amendment 或其余三个 task integration 缺失、source parent/boundary 不符、冲突、hook
+  越界或 HEAD 漂移。
 - `authorizationGate`: `pending`。
 
 #### `N53-INTEGRATE-APP`
@@ -1158,10 +1324,11 @@ settlement、observation、recovery、request/response 队列和完整 expected 
 - `deferralEvidence`: 无；单一最终验证节点按权威入口串行记录，避免同一 checkout 的 eslint/Vite/Browser
   cache 写冲突；这不是任务之间的硬依赖。
 - `hardPredecessors`: `N59-INTEGRATION-FAN-IN`；等待四任务集成后的稳定 `INTEGRATED_HEAD`。
-- `consumes`: `INTEGRATED_HEAD`、`DOCS_COMMIT`、所有 task/focused evidence、live package scripts/config、
-  设计基线 `jscpd` 口径。
+- `consumes`: `INTEGRATED_HEAD`、`DOCS_COMMIT`、`DOCS_AMENDMENT_COMMIT`、所有 task/focused evidence、live
+  package scripts/config、设计基线 `jscpd` 口径。
 - `produces`: 最终 format/lint/type/unit/parallel Browser/sequential Browser/jscpd/production-diff 证据。
 - `completionEvidence`: 所有适用命令 exit 0；unit/parallel/sequential tests 非零收集；四类目标 tests 全部出现；
+  Editor 公共 `.ts`/私有 component-only `.tsx` 分离且四个 caller extensionless imports 保持；
   `git diff <DOCS_COMMIT>..HEAD` 证明 production diff 为零、test names/完整断言无删除；`jscpd` 记录新指标和
   目标大块重复族结果。
 - `readSet`: 完整 integrated GUI tree、Git diff、package/config、四类目标 files。
@@ -1204,13 +1371,20 @@ settlement、observation、recovery、request/response 队列和完整 expected 
 - 初始 ready set：计划确认后的 `N00-DOC-REVIEW`。
 - 文档提交后：`N03A` 至 `N03D` 同时 ready；它们因共享
   `/Users/jiangsheng/cnb/codex/.git/worktrees` write lock 逐个取得执行权，四项完成后 `N04` fan-in。
-- 首次 fan-out：`N10-TURN-EDIT`、`N20-EDITOR-EDIT`、`N30-APP-EDIT`、`N40-COORD-EDIT` 同时 ready。
-- 任务内关键链：各自 `EDIT -> FORMAT -> VERIFY -> REVIEW -> STAGE -> COMMIT`。
-- 粗粒度关键路径：`TASK-DOC -> 最慢 worktree 预配 -> N04 -> 最慢任务链 -> 该任务集成 -> N59 -> N55`。
-- 集成节点各自在对应 task commit 完成后 ready，通过主 `dev` index/ref write lock 竞争执行；`N59` fan-in
-  等待四个 integrated commits，`N55` 等待 `N59` 的稳定 `INTEGRATED_HEAD`。
-- 四个任务 write sets、branch、worktree、index 均不相交，没有跨任务硬依赖。任务编号、方向相似、同仓库或
-  最终合并都不产生串行边。
+- 首次 fan-out：`N10-TURN-EDIT`、`N30-APP-EDIT`、`N40-COORD-EDIT` 与
+  `N05A-DOC-AMEND-EDIT` 同时 ready；`N20-EDITOR-EDIT` 等待 `N05D-DOC-AMEND-COMMIT`。
+- 任务内关键链：代码任务各自 `EDIT -> FORMAT -> VERIFY -> REVIEW -> STAGE -> COMMIT`；amendment 文档链为
+  `N05A -> N05B -> N05C -> N05D`。
+- Editor branch/worktree base 保持原 `DOCS_COMMIT`，任意 in-scope 未提交状态必须保留；amendment 不授权
+  rebase、restore 或 cleanup。
+- 粗粒度关键路径：`TASK-DOC -> 最慢 worktree 预配 -> N04 -> N05A -> N05B -> N05C -> N05D -> Editor
+  EDIT/FORMAT/VERIFY/REVIEW/STAGE/COMMIT -> N52 -> N59 -> N55`。
+- `N51`、`N53`、`N54` 各自在对应 task commit 完成后竞争主 `dev` index/ref write lock；`N52` 等待这三个
+  integrated commits、`N05D` 与 `N25`，因此精确作为最后一个集成节点。`N59` 等待四个 integrated commits，
+  `N55` 等待 `N59` 的稳定 `INTEGRATED_HEAD`。
+- 四个代码任务 write sets、branch、worktree、index 均不相交；唯一新增跨任务硬依赖是 N20 消费稳定
+  `DOCS_AMENDMENT_COMMIT`，以及 N52 消费其余三个稳定 integrated commits。任务编号、方向相似、同仓库或
+  最终合并本身都不产生串行边。
 - 实现阶段的跨任务运行冲突是所有 worktree symlink 到同一
   `/Users/jiangsheng/cnb/codex/codex-gui/node_modules`，Vitest/Vite 写同一物理 `.vite` cache；以该 canonical
   cache write lock 调度验证，不伪造 DAG 依赖。锁释放即重算 ready set。

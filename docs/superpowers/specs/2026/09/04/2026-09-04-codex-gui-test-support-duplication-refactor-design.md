@@ -2,7 +2,7 @@
 
 ## 状态
 
-- 设计状态：已确认
+- 设计状态：已确认（含 2026-09-04 Editor seam 修订）
 - 确认日期：2026-09-04
 - 日期：2026-09-04
 - 当前分支：`dev`
@@ -175,13 +175,19 @@ export async function renderComposerTurnControl(
 
 ### Seam 与 owner
 
-新增统一 Module：
+新增唯一公共 Module：
 
-- `codex-gui/src/features/composerEditor/__tests__/composerEditorBrowserTestSupport.tsx`
+- `codex-gui/src/features/composerEditor/__tests__/composerEditorBrowserTestSupport.ts`
+
+并新增只属于该公共 Module Implementation 的私有 component-only fixture：
+
+- `codex-gui/src/features/composerEditor/__tests__/composerEditorBrowserTestFixture.tsx`
 
 当前 skill-token 与 typeahead 两套 support 的公共段，以及两套 fixture，实际表达同一个
-ComposerEditor Browser test Adapter。统一 Module 拥有普通单编辑器 mount、typed catalog candidate、
-controller readiness 和 portal parent topology。
+ComposerEditor Browser test Adapter。公共 `.ts` Module 拥有普通单编辑器 mount、typed catalog candidate、
+controller readiness 和 portal parent topology；私有 `.tsx` fixture 只导出 `ComposerEditorFixture` 组件，
+公共 Module 对其 re-export。这样公共 Interface 仍只有一个 owner，同时让 React Refresh 对 `.tsx` 的
+component-only 约束在文件边界上成立，而不是通过 lint 配置或 export allowlist 绕过。
 
 ### Interface
 
@@ -194,7 +200,8 @@ controller readiness 和 portal parent topology。
 - `getController`。
 
 保持现有短名称，使 caller 迁移主要是 import 替换。Interface 不增加 `fixtureKind`、任意 props passthrough、
-callback bag 或第二层 Adapter。
+callback bag 或第二层 Adapter。四个 caller 继续使用不带扩展名的公共 support import，不直接依赖私有
+fixture 文件。
 
 ### 不变量与保留分离内容
 
@@ -202,6 +209,8 @@ callback bag 或第二层 Adapter。
 - 默认 catalog 为 ready，`partialErrorCount` 为 0；
 - `ariaLabel`、placeholder、disabled、no-op submit 和 controller-ready poll 时点保持不变；
 - fixture 继续拥有真实 portal parent DOM 生命周期及现有 CSS variable；
+- 私有 `.tsx` fixture 只导出组件；`renderEditor`、`catalog`、`skill` 和 `getController` 只由公共 `.ts`
+  Module 导出；
 - `SkillCatalogCandidate`、`SkillCatalogState`、`ComposerEditorProps` 与 controller 类型继续从权威类型派生。
 
 双 editor、Drawer editor、catalog rerender、invalid skill topology、NodeSelection、DOM Selection、caret、
