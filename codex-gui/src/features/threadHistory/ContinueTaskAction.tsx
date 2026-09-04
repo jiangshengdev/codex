@@ -1,7 +1,7 @@
 import { Button, toast } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
   ActiveThreadActivationFailure,
   ActiveThreadActivationWarning,
@@ -61,7 +61,7 @@ export function ContinueTaskAction({
   const currentCapabilityTokenRef = useRef(capabilityToken);
   const mountedRef = useRef(true);
   const inFlightRef = useRef<ContinueTaskRequest | null>(null);
-  const actionSurfaceObserverRef = useRef<ResizeObserver | null>(null);
+  const actionSurfaceRef = useRef<HTMLElement | null>(null);
   const [actionSurfaceHeight, setActionSurfaceHeight] = useState(0);
   const [state, setState] = useState<ContinueTaskState>({ type: "idle" });
   const visibleState =
@@ -90,23 +90,41 @@ export function ContinueTaskAction({
     };
   }, [capabilityToken]);
 
-  const observeActionSurface = useCallback((actionSurface: HTMLElement | null): void => {
-    actionSurfaceObserverRef.current?.disconnect();
-    actionSurfaceObserverRef.current = null;
+  useLayoutEffect(() => {
+    const actionSurface = actionSurfaceRef.current;
     if (actionSurface == null) {
       return;
     }
 
-    const updateActionSurfaceHeight = (): void => {
-      const nextHeight = actionSurface.getBoundingClientRect().height;
+    let animationFrame: number | null = null;
+    let pendingHeight: number | null = null;
+    const commitActionSurfaceHeight = (): void => {
+      animationFrame = null;
+      const nextHeight = pendingHeight;
+      pendingHeight = null;
+      if (nextHeight == null) {
+        return;
+      }
       setActionSurfaceHeight((currentHeight) =>
         currentHeight === nextHeight ? currentHeight : nextHeight,
       );
     };
-    const observer = new ResizeObserver(updateActionSurfaceHeight);
-    actionSurfaceObserverRef.current = observer;
-    observer.observe(actionSurface);
-    updateActionSurfaceHeight();
+    const observer = new ResizeObserver((entries) => {
+      const borderBoxSize = entries[0]?.borderBoxSize[0];
+      if (borderBoxSize == null) {
+        return;
+      }
+      pendingHeight = borderBoxSize.blockSize;
+      animationFrame ??= window.requestAnimationFrame(commitActionSurfaceHeight);
+    });
+    observer.observe(actionSurface, { box: "border-box" });
+
+    return () => {
+      observer.disconnect();
+      if (animationFrame != null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+    };
   }, []);
 
   const navigateToReadyTask = (activeThreadId: string): void => {
@@ -204,7 +222,7 @@ export function ContinueTaskAction({
       />
       <aside
         className="fixed inset-x-0 bottom-0 z-30 border-t border-separator bg-surface/95 px-4 py-4 backdrop-blur"
-        ref={observeActionSurface}
+        ref={actionSurfaceRef}
       >
         <div className="mx-auto grid w-full max-w-3xl gap-3">
           <ContinueTaskFailureAlert

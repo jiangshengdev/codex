@@ -207,7 +207,7 @@ msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗�
 msgid "Continue sending"
 msgstr "继续发送"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:231
+#: src/features/threadHistory/ContinueTaskAction.tsx:249
 msgid "Continue this task"
 msgstr "继续此任务"
 
