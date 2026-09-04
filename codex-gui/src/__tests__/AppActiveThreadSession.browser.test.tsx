@@ -16,6 +16,11 @@ import {
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
+import {
+  readAllPendingItems,
+  readPendingTextPreviews,
+  startTurnParamsAt,
+} from "./appComposerQueueBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import {
@@ -23,10 +28,6 @@ import {
   useActiveThreadSessionSnapshot,
 } from "@/features/appShell/AppCapabilities";
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
-import type {
-  ComposerPendingInputLane,
-  ComposerPendingInputPageItem,
-} from "@/features/composerInputQueue/composerInputQueueContracts";
 import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
@@ -202,32 +203,6 @@ const createQueueCoordinatorMock = (
   return { coordinator, dispose, observeAcceptedEvent, reservationRelease };
 };
 
-const readPendingItems = (
-  coordinator: ComposerInputQueueCoordinator,
-  lane: ComposerPendingInputLane,
-  limit = 20,
-): readonly ComposerPendingInputPageItem[] => {
-  const snapshot = coordinator.getSnapshot();
-  const result = coordinator.readPendingInputPage({
-    lane,
-    revision: snapshot.detailRevision,
-    cursor: null,
-    limit,
-  });
-  if (result.type !== "page") {
-    throw new Error(`expected ${lane} pending-input page, received ${result.type}`);
-  }
-  return result.items;
-};
-
-const readPendingTextPreviews = (
-  coordinator: ComposerInputQueueCoordinator,
-  lane: ComposerPendingInputLane,
-): string[] =>
-  readPendingItems(coordinator, lane).map(({ preview }) =>
-    preview.type === "text" ? preview.text : "nonText",
-  );
-
 const requireThreadSwitchProbeSession = (): ActiveThreadSession => {
   if (threadSwitchProbeSession == null) {
     throw new Error("thread switch probe must expose an active session");
@@ -269,17 +244,6 @@ const renderThreadSwitchProbe = async (commands: GuiHostCommands) => {
   const { snapshot } = await waitForThreadSwitchProbeSession();
   expect(snapshot.threadId).toBe(launchThreadId);
   return { continueButton, options, screen };
-};
-
-const startTurnParamsAt = (
-  startTurn: Mock<GuiHostCommands["startTurn"]>,
-  index: number,
-): Parameters<GuiHostCommands["startTurn"]>[0] => {
-  const call = startTurn.mock.calls.at(index);
-  if (call == null) {
-    throw new Error(`startTurn call ${String(index + 1)} must be recorded`);
-  }
-  return call[0];
 };
 
 const expectStartTurnCalledOnceWithText = (
@@ -377,7 +341,7 @@ test("App releases an edited owner only after its marker settles and drains", as
   if (begun == null) throw new Error("old owner edit must begin");
   const save = vi.spyOn(begun.reservation, "save");
   const cancel = vi.spyOn(begun.reservation, "cancel");
-  expect(readPendingItems(oldCoordinator, "ordinary")).toMatchObject([
+  expect(readAllPendingItems(oldCoordinator, "ordinary")).toMatchObject([
     { key: oldDetailKey, lane: "ordinary", management: { type: "editing" } },
   ]);
   expect(oldCoordinator.reserveRelease()).toEqual({
@@ -576,7 +540,7 @@ test("App releases an edited owner only after its marker settles and drains", as
     replacementOrderBeforeOldMove,
   );
 
-  const replacementMoveTarget = readPendingItems(replacementCoordinator, "ordinary").at(1);
+  const replacementMoveTarget = readAllPendingItems(replacementCoordinator, "ordinary").at(1);
   if (replacementMoveTarget == null) {
     throw new Error("replacement owner must expose its second ordinary input");
   }

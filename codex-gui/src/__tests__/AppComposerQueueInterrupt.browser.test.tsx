@@ -10,6 +10,10 @@ import {
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
+import {
+  renderActiveComposerQueueApp,
+  startTurnParamsAt,
+} from "./appComposerQueueBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
 import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
@@ -23,7 +27,6 @@ import {
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
-  attachWithTurns,
   baseTurn,
   eventWithEnvelope,
   inProgressTurn,
@@ -44,17 +47,6 @@ vi.mock("@/features/composerInputQueue/composerInputQueueCoordinator", { spy: tr
 
 const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
-
-const startTurnParamsAt = (
-  startTurn: Mock<GuiHostCommands["startTurn"]>,
-  index: number,
-): Parameters<GuiHostCommands["startTurn"]>[0] => {
-  const call = startTurn.mock.calls.at(index);
-  if (call == null) {
-    throw new Error(`startTurn call ${String(index + 1)} must be recorded`);
-  }
-  return call[0];
-};
 
 const expectStartTurnCalledOnceWithText = (
   startTurn: Mock<GuiHostCommands["startTurn"]>,
@@ -111,57 +103,6 @@ const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
   return { commandHandle, options, screen };
 };
 
-type ActiveAppCommandOverrides = Partial<{
-  interruptTurn: Mock<GuiHostCommands["interruptTurn"]>;
-  startTurn: Mock<GuiHostCommands["startTurn"]>;
-  steerTurn: Mock<GuiHostCommands["steerTurn"]>;
-}>;
-
-const renderActiveApp = async (commandOverrides: ActiveAppCommandOverrides = {}) => {
-  const startTurn =
-    commandOverrides.startTurn ??
-    vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
-      turn: inProgressTurn("turn-started-from-app"),
-    });
-  const steerTurn =
-    commandOverrides.steerTurn ??
-    vi.fn<GuiHostCommands["steerTurn"]>().mockResolvedValue({
-      turnId: "turn-steered-from-app",
-    });
-  const interruptTurn =
-    commandOverrides.interruptTurn ??
-    vi.fn<GuiHostCommands["interruptTurn"]>().mockResolvedValue({});
-  const commandHandle: GuiHostCommands = {
-    ...createGuiHostCommands(),
-    interruptTurn,
-    startTurn,
-    steerTurn,
-  };
-  const screen = await renderWithProviders(<App />);
-  const options = getHostOptions(startGuiHostConnectionMock);
-  const activeTurn = inProgressTurn("turn-active-queue");
-
-  queueAttachProjectionResponse(commandHandle, attachWithTurns(attachResponse, [activeTurn]));
-  initializeHost(options, commandHandle);
-  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
-  await expect.poll(() => vi.mocked(createComposerInputQueueCoordinator).mock.calls.length).toBe(1);
-  const coordinatorResult = vi.mocked(createComposerInputQueueCoordinator).mock.results.at(0);
-  if (coordinatorResult?.type !== "return") {
-    throw new Error("active App must create a queue coordinator");
-  }
-
-  return {
-    activeTurn,
-    commandHandle,
-    interruptTurn,
-    options,
-    queueCoordinator: coordinatorResult.value,
-    screen,
-    startTurn,
-    steerTurn,
-  };
-};
-
 test("App keeps a local Stop paused until explicit rejected-first and ordinary FIFO recovery", async () => {
   let startedTurnSequence = 0;
   const startTurn = vi.fn<GuiHostCommands["startTurn"]>().mockImplementation(() => {
@@ -177,11 +118,8 @@ test("App keeps a local Stop paused until explicit rejected-first and ordinary F
       error: new Error("local steer rejected"),
     }),
   );
-  const { activeTurn, interruptTurn, options, queueCoordinator, screen } = await renderActiveApp({
-    startTurn,
-    steerTurn,
-  });
-  const composer = getAppComposer(screen);
+  const { activeTurn, composer, interruptTurn, options, queueCoordinator, screen } =
+    await renderActiveComposerQueueApp(startGuiHostConnectionMock, { startTurn, steerTurn });
 
   await composer.fill("First ordinary message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
@@ -319,11 +257,8 @@ test("App auto-recovers a non-local interruption rejected-first before ordinary 
       error: new Error("non-local steer rejected"),
     }),
   );
-  const { activeTurn, interruptTurn, options, queueCoordinator, screen } = await renderActiveApp({
-    startTurn,
-    steerTurn,
-  });
-  const composer = getAppComposer(screen);
+  const { activeTurn, composer, interruptTurn, options, queueCoordinator, screen } =
+    await renderActiveComposerQueueApp(startGuiHostConnectionMock, { startTurn, steerTurn });
 
   await composer.fill("Ordinary after non-local interruption");
   await screen.getByRole("button", { name: "Send", exact: true }).click();

@@ -2,24 +2,21 @@ import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
 import {
   attachResponse,
   createDeferred,
-  createGuiHostCommands,
   emitProjectionEvent,
-  getHostOptions,
-  initializeHost,
   launchThreadId,
-  queueAttachProjectionResponse,
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
-import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
 import {
-  createComposerInputQueueCoordinator,
-  type ComposerInputQueueCoordinator,
-} from "@/features/composerInputQueue/composerInputQueueCoordinator";
-import type {
-  ComposerPendingInputLane,
-  ComposerPendingInputPageItem,
-} from "@/features/composerInputQueue/composerInputQueueContracts";
+  dispatchGuideShortcut,
+  readAllPendingItems,
+  readGuiHostCommandCallCounts,
+  readPendingTextPreviews,
+  renderActiveComposerQueueApp,
+  startTurnParamsAt,
+  steerTurnParamsAt,
+} from "./appComposerQueueBrowserTestSupport";
+import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import type {
   GuiHostCommands,
@@ -32,7 +29,6 @@ import {
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
-  attachWithTurns,
   eventWithEnvelope,
   inProgressTurn,
   itemCompleted,
@@ -42,7 +38,6 @@ import {
   turnStarted,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import { renderWithProviders } from "@/utils/test-utils";
 
 const guiHostClientMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -56,82 +51,6 @@ vi.mock("@/features/composerInputQueue/composerInputQueueCoordinator", { spy: tr
 
 const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
-
-const readPendingItems = (
-  coordinator: ComposerInputQueueCoordinator,
-  lane: ComposerPendingInputLane,
-  limit = 20,
-): readonly ComposerPendingInputPageItem[] => {
-  const snapshot = coordinator.getSnapshot();
-  const result = coordinator.readPendingInputPage({
-    lane,
-    revision: snapshot.detailRevision,
-    cursor: null,
-    limit,
-  });
-  if (result.type !== "page") {
-    throw new Error(`expected ${lane} pending-input page, received ${result.type}`);
-  }
-  return result.items;
-};
-
-const readPendingTextPreviews = (
-  coordinator: ComposerInputQueueCoordinator,
-  lane: ComposerPendingInputLane,
-): string[] =>
-  readPendingItems(coordinator, lane).map(({ preview }) =>
-    preview.type === "text" ? preview.text : "nonText",
-  );
-
-const startTurnParamsAt = (
-  startTurn: Mock<GuiHostCommands["startTurn"]>,
-  index: number,
-): Parameters<GuiHostCommands["startTurn"]>[0] => {
-  const call = startTurn.mock.calls.at(index);
-  if (call == null) {
-    throw new Error(`startTurn call ${String(index + 1)} must be recorded`);
-  }
-  return call[0];
-};
-
-const steerTurnParamsAt = (
-  steerTurn: Mock<GuiHostCommands["steerTurn"]>,
-  index: number,
-): Parameters<GuiHostCommands["steerTurn"]>[0] => {
-  const call = steerTurn.mock.calls.at(index);
-  if (call == null) {
-    throw new Error(`steerTurn call ${String(index + 1)} must be recorded`);
-  }
-  return call[0];
-};
-
-const readGuiHostCommandCallCounts = (
-  commands: GuiHostCommands,
-): Record<keyof GuiHostCommands, number> => ({
-  compactThread: vi.mocked(commands.compactThread).mock.calls.length,
-  attachThreadProjection: vi.mocked(commands.attachThreadProjection).mock.calls.length,
-  listSkills: vi.mocked(commands.listSkills).mock.calls.length,
-  listThreads: vi.mocked(commands.listThreads).mock.calls.length,
-  readThread: vi.mocked(commands.readThread).mock.calls.length,
-  resumeThread: vi.mocked(commands.resumeThread).mock.calls.length,
-  detachThreadProjection: vi.mocked(commands.detachThreadProjection).mock.calls.length,
-  startTurn: vi.mocked(commands.startTurn).mock.calls.length,
-  steerTurn: vi.mocked(commands.steerTurn).mock.calls.length,
-  interruptTurn: vi.mocked(commands.interruptTurn).mock.calls.length,
-});
-
-const dispatchGuideShortcut = (element: Element): void => {
-  const isMac = navigator.platform.startsWith("Mac");
-  element.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      ctrlKey: !isMac,
-      key: "Enter",
-      metaKey: isMac,
-    }),
-  );
-};
 
 const expectStartTurnCalledOnceWithText = (
   startTurn: Mock<GuiHostCommands["startTurn"]>,
@@ -159,60 +78,6 @@ afterEach(() => {
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
 });
 
-const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
-  screen.getByRole("combobox", { name: "Message Codex", exact: true });
-
-type ActiveAppCommandOverrides = Partial<{
-  interruptTurn: Mock<GuiHostCommands["interruptTurn"]>;
-  startTurn: Mock<GuiHostCommands["startTurn"]>;
-  steerTurn: Mock<GuiHostCommands["steerTurn"]>;
-}>;
-
-const renderActiveApp = async (commandOverrides: ActiveAppCommandOverrides = {}) => {
-  const startTurn =
-    commandOverrides.startTurn ??
-    vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
-      turn: inProgressTurn("turn-started-from-app"),
-    });
-  const steerTurn =
-    commandOverrides.steerTurn ??
-    vi.fn<GuiHostCommands["steerTurn"]>().mockResolvedValue({
-      turnId: "turn-steered-from-app",
-    });
-  const interruptTurn =
-    commandOverrides.interruptTurn ??
-    vi.fn<GuiHostCommands["interruptTurn"]>().mockResolvedValue({});
-  const commandHandle: GuiHostCommands = {
-    ...createGuiHostCommands(),
-    interruptTurn,
-    startTurn,
-    steerTurn,
-  };
-  const screen = await renderWithProviders(<App />);
-  const options = getHostOptions(startGuiHostConnectionMock);
-  const activeTurn = inProgressTurn("turn-active-queue");
-
-  queueAttachProjectionResponse(commandHandle, attachWithTurns(attachResponse, [activeTurn]));
-  initializeHost(options, commandHandle);
-  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
-  await expect.poll(() => vi.mocked(createComposerInputQueueCoordinator).mock.calls.length).toBe(1);
-  const coordinatorResult = vi.mocked(createComposerInputQueueCoordinator).mock.results.at(0);
-  if (coordinatorResult?.type !== "return") {
-    throw new Error("active App must create a queue coordinator");
-  }
-
-  return {
-    activeTurn,
-    commandHandle,
-    interruptTurn,
-    options,
-    queueCoordinator: coordinatorResult.value,
-    screen,
-    startTurn,
-    steerTurn,
-  };
-};
-
 test("App drains ordinary inputs in the authoritative order selected through Pending details", async () => {
   type SteerResponse = Awaited<ReturnType<GuiHostCommands["steerTurn"]>>;
   const issuingSteer = createDeferred<SteerResponse>();
@@ -229,11 +94,8 @@ test("App drains ordinary inputs in the authoritative order selected through Pen
     .mockResolvedValueOnce({ turn: firstStartedTurn })
     .mockResolvedValueOnce({ turn: secondStartedTurn })
     .mockResolvedValueOnce({ turn: thirdStartedTurn });
-  const { activeTurn, commandHandle, options, queueCoordinator, screen } = await renderActiveApp({
-    startTurn,
-    steerTurn,
-  });
-  const composer = getAppComposer(screen);
+  const { activeTurn, commandHandle, composer, options, queueCoordinator, screen } =
+    await renderActiveComposerQueueApp(startGuiHostConnectionMock, { startTurn, steerTurn });
   const transcript = screen.getByRole("region", { name: "Committed transcript" });
 
   for (const text of ["Ordinary order A", "Ordinary order B", "Ordinary order C"]) {
@@ -405,8 +267,8 @@ test("App keeps a middle ordinary edit in place after deleting its predecessor",
     .fn<GuiHostCommands["startTurn"]>()
     .mockResolvedValueOnce({ turn: firstStartedTurn })
     .mockResolvedValueOnce({ turn: secondStartedTurn });
-  const { activeTurn, options, queueCoordinator, screen } = await renderActiveApp({ startTurn });
-  const composer = getAppComposer(screen);
+  const { activeTurn, composer, options, queueCoordinator, screen } =
+    await renderActiveComposerQueueApp(startGuiHostConnectionMock, { startTurn });
   const transcript = screen.getByRole("region", { name: "Committed transcript" });
 
   await composer.fill("Ordinary predecessor to delete");
@@ -553,8 +415,8 @@ test("App defers ordinary management during recovery and sends the successor bef
     .mockResolvedValueOnce({ turn: successorTurn })
     .mockResolvedValueOnce({ turn: secondSuccessorTurn })
     .mockResolvedValueOnce({ turn: retriedTurn });
-  const { activeTurn, options, queueCoordinator, screen } = await renderActiveApp({ startTurn });
-  const composer = getAppComposer(screen);
+  const { activeTurn, composer, options, queueCoordinator, screen } =
+    await renderActiveComposerQueueApp(startGuiHostConnectionMock, { startTurn });
 
   await composer.fill("Ordinary that will fail");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
@@ -609,7 +471,7 @@ test("App defers ordinary management during recovery and sends the successor bef
     "Ordinary successor under edit",
     "Second ordinary successor keeps recovery order",
   ]);
-  const recoveryMoveTarget = readPendingItems(queueCoordinator, "ordinary").at(1);
+  const recoveryMoveTarget = readAllPendingItems(queueCoordinator, "ordinary").at(1);
   if (recoveryMoveTarget == null) {
     throw new Error("recovery scenario must expose the second ordinary successor");
   }
