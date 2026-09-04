@@ -1,6 +1,6 @@
 import { toast } from "@heroui/react";
 import { afterEach, expect, test, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
@@ -306,11 +306,19 @@ test("keeps a long history continuation failure visible beside the retry action"
   await expect.element(cleanupDiagnostic).not.toBeInTheDocument();
   const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
   await expect.element(disclosure).toBeVisible();
-  await disclosure.click();
+  disclosure.element().focus();
+  await expect.element(disclosure).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
   await expect.element(operationDiagnostic).toHaveTextContent(rawFailure.message);
   await expect.element(operationDiagnostic).toBeVisible();
   await expect.element(cleanupDiagnostic).toHaveTextContent(cleanupError.message);
   await expect.element(cleanupDiagnostic).toBeVisible();
+
+  disclosure.element().focus();
+  await expect.element(disclosure).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(operationDiagnostic).not.toBeInTheDocument();
+  await expect.element(cleanupDiagnostic).not.toBeInTheDocument();
 
   await action.click();
   expect(activate).toHaveBeenCalledTimes(2);
