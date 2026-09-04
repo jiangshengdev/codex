@@ -325,6 +325,90 @@ test("keeps a long history continuation failure visible beside the retry action"
   expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
 });
 
+test("preserves document scroll position when expanding diagnostics at the bottom", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  const originalScrollTop = window.scrollY;
+  try {
+    await page.viewport(1280, 720);
+    const diagnostic = "complete resume failure: request id 88";
+    const historyText = Array.from(
+      { length: 80 },
+      (_, index) => `Bottom expansion history line ${String(index + 1)}`,
+    ).join("\n");
+    const thread = historyThread([
+      baseTurn("bottom-expansion-turn", [
+        userMessage("bottom-expansion-user", [textInput(historyText)]),
+      ]),
+    ]);
+    const commands = {
+      ...createGuiHostCommands(),
+      readThread: vi.fn<GuiHostCommands["readThread"]>().mockResolvedValue({ thread }),
+    };
+    const { screen } = await renderDetail({
+      activate: {
+        type: "unavailable",
+        failure: {
+          type: "operationFailed",
+          phase: "resume",
+          error: new Error(diagnostic),
+          cleanupError: null,
+        },
+      },
+      commands,
+    });
+    const action = screen.getByRole("button", { name: "Continue this task" });
+
+    await action.click();
+    const alert = screen.getByRole("alert");
+    await expect.element(alert.getByText("The task could not be resumed.")).toBeVisible();
+    const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
+    await expect.element(disclosure).toBeVisible();
+
+    const actionBar = action.element().closest("aside");
+    if (!(actionBar instanceof HTMLElement)) {
+      throw new Error("Expected continuation action to be rendered in an aside");
+    }
+    const actionSpace = document.querySelector("[data-thread-history-continuation-action-space]");
+    if (!(actionSpace instanceof HTMLElement)) {
+      throw new Error("Expected continuation action space");
+    }
+    // Keep the measured spacer out of document scroll anchoring while its height changes.
+    expect(getComputedStyle(actionSpace).overflowAnchor).toBe("none");
+    await expect
+      .poll(() => Math.abs(actionSpace.getBoundingClientRect().height - actionBar.offsetHeight))
+      .toBeLessThanOrEqual(1);
+
+    const documentScroller = document.scrollingElement;
+    if (!(documentScroller instanceof HTMLElement)) {
+      throw new Error("Expected an HTML document scrolling element");
+    }
+    window.scrollTo({ top: documentScroller.scrollHeight });
+    await expect.poll(() => documentScroller.scrollTop).toBeGreaterThan(0);
+    await expect
+      .poll(
+        () =>
+          documentScroller.scrollHeight -
+          documentScroller.clientHeight -
+          documentScroller.scrollTop,
+      )
+      .toBeLessThanOrEqual(1);
+    const scrollTopBeforeExpand = documentScroller.scrollTop;
+
+    disclosure.element().focus();
+    await expect.element(disclosure).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    await expect.element(alert.getByText(diagnostic, { exact: false })).toBeVisible();
+    await expect
+      .poll(() => Math.abs(actionSpace.getBoundingClientRect().height - actionBar.offsetHeight))
+      .toBeLessThanOrEqual(1);
+    await expect.element(disclosure).toHaveFocus();
+    expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
+  } finally {
+    window.scrollTo({ top: originalScrollTop });
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
 test("keeps long continuation diagnostics within a narrow action surface", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
   const originalScrollTop = window.scrollY;

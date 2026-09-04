@@ -212,7 +212,7 @@ msgstr "Context usage details, {usedTokensLabel} tokens used, context window cap
 msgid "Continue sending"
 msgstr "Continue sending"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:249
+#: src/features/threadHistory/ContinueTaskAction.tsx:250
 msgid "Continue this task"
 msgstr "Continue this task"
 

@@ -217,6 +217,7 @@ export function ContinueTaskAction({
     <>
       <div
         aria-hidden="true"
+        className="[overflow-anchor:none]"
         data-thread-history-continuation-action-space=""
         style={{ height: actionSurfaceHeight }}
       />
