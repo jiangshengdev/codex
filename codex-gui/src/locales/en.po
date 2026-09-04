@@ -61,7 +61,7 @@ msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {I
 msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 msgstr "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:85
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:80
 msgid "{percentageLabel} used"
 msgstr "{percentageLabel} used"
 
@@ -70,11 +70,11 @@ msgstr "{percentageLabel} used"
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:88
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:83
 msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:80
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:75
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 
@@ -129,7 +129,7 @@ msgid "Collapse pending message: {previewText}"
 msgstr "Collapse pending message: {previewText}"
 
 #. Accessible name for the region containing committed transcript turns
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:74
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:75
 msgid "Committed transcript"
 msgstr "Committed transcript"
 
@@ -151,18 +151,16 @@ msgid "Completed <0/> <1/>"
 msgstr "Completed <0/> <1/>"
 
 #. Button that starts compression for the current conversation context
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:111
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:106
 msgid "Compress context"
 msgstr "Compress context"
 
 #. Status shown while the current conversation context is compressed
-#. Status shown while the current conversation context is compressed
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:47
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:106
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:101
 msgid "Compressing"
 msgstr "Compressing"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:92
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:93
 msgid "Connection interrupted. Reconnect required."
 msgstr "Connection interrupted. Reconnect required."
 
@@ -170,11 +168,11 @@ msgstr "Connection interrupted. Reconnect required."
 msgid "Contact support"
 msgstr "Contact support"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:103
+#: src/features/committedTranscriptSurface/TranscriptContextBoundary.tsx:20
 msgid "Context compressed"
 msgstr "Context compressed"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:118
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:113
 msgid "Context compression could not be started."
 msgstr "Context compression could not be started."
 
@@ -190,8 +188,8 @@ msgstr "Context page {item}"
 
 #. Accessible label for the context usage progress indicator
 #. Heading for context usage and compression controls
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:54
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:73
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:49
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:68
 msgid "Context usage"
 msgstr "Context usage"
 
@@ -204,15 +202,6 @@ msgstr "Context usage details, {percentageLabel} used, {usedTokensLabel} of {con
 #: src/features/composerTurnControl/ContextUsagePopover.tsx:25
 msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
-
-#. Accessible name for context controls when usage data is unavailable
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:23
-#~ msgid "Context usage details, usage unavailable"
-#~ msgstr "Context usage details, usage unavailable"
-
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:84
-#~ msgid "Context usage is unavailable."
-#~ msgstr "Context usage is unavailable."
 
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:132
 msgid "Continue sending"
@@ -515,7 +504,7 @@ msgstr "Next context page"
 msgid "No agents completed yet"
 msgstr "No agents completed yet"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:111
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:105
 msgid "No committed messages yet."
 msgstr "No committed messages yet."
 
