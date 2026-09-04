@@ -1,7 +1,8 @@
 # Codex GUI 历史任务继续失败即时可见实施计划
 
 > 日期：2026-09-04
-> 状态：待确认
+> 状态：已确认
+> 确认原文：开始进行
 > 设计：[Codex GUI 历史任务继续失败即时可见设计](../../../../specs/2026/09/04/2026-09-04-codex-gui-history-continue-failure-visibility-design.md)
 
 ## 目标与完成条件
