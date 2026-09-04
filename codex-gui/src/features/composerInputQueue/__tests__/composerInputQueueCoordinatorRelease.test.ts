@@ -5,56 +5,23 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   baseTurn,
-  eventWithEnvelope,
   itemStarted,
   turnCompleted,
-  userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import type {
-  ThreadItem,
-  TurnInterruptParams,
-  TurnInterruptResponse,
-  TurnStartParams,
-  TurnStartResponse,
-  TurnSteerParams,
-  TurnSteerResponse,
-} from "@codex-protocol/v2";
-import { createComposerInputQueueCoordinator } from "../composerInputQueueCoordinator";
-import { composerCapture, composerDraftCapture } from "./composerInputQueueTestFixtures";
+import type { ComposerInputQueueCoordinator } from "../composerInputQueueCoordinator";
+import {
+  committedUserMessage,
+  createCoordinator,
+  deferredStart,
+  live,
+  nextMicrotask,
+  type InterruptTurn,
+  type StartTurn,
+  type SteerTurn,
+} from "./composerInputQueueCoordinatorTestFixtures";
+import { composerCapture as input, composerDraftCapture } from "./composerInputQueueTestFixtures";
 
 type Deferred = ReturnType<typeof deferredStart>;
-type StartTurn = (params: TurnStartParams) => Promise<TurnStartResponse>;
-type SteerTurn = (params: TurnSteerParams) => Promise<TurnSteerResponse>;
-type InterruptTurn = (params: TurnInterruptParams) => Promise<TurnInterruptResponse>;
-type CoordinatorInput = Parameters<typeof createComposerInputQueueCoordinator>[0];
-const createCoordinator = (
-  options: Omit<CoordinatorInput, "interruptTurn"> & { interruptTurn?: InterruptTurn },
-) =>
-  createComposerInputQueueCoordinator({
-    ...options,
-    interruptTurn: options.interruptTurn ?? vi.fn<InterruptTurn>(),
-  });
-const input = composerCapture;
-const deferredStart = () => {
-  let resolve!: (response: TurnStartResponse) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<TurnStartResponse>((yes, no) => {
-    resolve = yes;
-    reject = no;
-  });
-  return { promise, resolve, reject };
-};
-type UserMessage = Extract<ThreadItem, { type: "userMessage" }>;
-const committedUserMessage = (clientId: string): UserMessage => {
-  const item = userMessage("item-1", []);
-  if (item.type !== "userMessage") throw new Error("userMessage builder returned another variant");
-  return { ...item, clientId };
-};
-const live = (notification: typeof eventItemStarted) => ({
-  notification: eventWithEnvelope(notification, { threadId: "thread-1" }),
-  replay: "live" as const,
-});
-const flush = (): Promise<void> => Promise.resolve();
 describe("ComposerInputQueueCoordinator", () => {
   it("reserves a safe release, blocks queue operations until release, and rejects disposal", () => {
     const coordinator = createCoordinator({
@@ -190,9 +157,7 @@ describe("ComposerInputQueueCoordinator", () => {
       steerTurn: vi.fn<SteerTurn>(),
       interruptTurn,
     });
-    const listener = vi.fn<
-      Parameters<ReturnType<typeof createComposerInputQueueCoordinator>["subscribe"]>[0]
-    >(() => {
+    const listener = vi.fn<Parameters<ComposerInputQueueCoordinator["subscribe"]>[0]>(() => {
       expect(coordinator.getSnapshot().interrupt).toEqual({ phase: "issuing" });
       coordinator.dispose();
     });
@@ -238,7 +203,7 @@ describe("ComposerInputQueueCoordinator", () => {
       blockers: [{ type: "pendingStart", phase: "issuing" }],
     });
     request.resolve({ turn: baseTurn("turn-1") });
-    await flush();
+    await nextMicrotask();
     expect(coordinator.getReleaseReadiness()).toEqual({
       type: "blocked",
       blockers: [{ type: "pendingStart", phase: "acceptedAwaitingRuntime" }],
@@ -291,7 +256,7 @@ describe("ComposerInputQueueCoordinator", () => {
         ),
       );
       starts[0]?.resolve({ turn: baseTurn("turn-1") });
-      await flush();
+      await nextMicrotask();
       coordinator.observeAcceptedEvent(
         live(
           turnCompleted(eventTurnCompleted, "commit-end", {
