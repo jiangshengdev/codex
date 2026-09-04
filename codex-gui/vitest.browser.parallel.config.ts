@@ -5,6 +5,7 @@ import { defineBrowserConfig } from "./vitest.browser.shared.config.js";
 
 export default defineBrowserConfig({
   name: `${packageJson.name}-browser-parallel`,
+  maxWorkers: "50%",
   include: ["src/**/*.browser.test.ts", "src/**/*.browser.test.tsx"],
   exclude: [...configDefaults.exclude, "e2e/**", "src/__tests__/sequential/**"],
   typecheck: {
