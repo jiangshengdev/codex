@@ -78,7 +78,7 @@ msgstr "已用 {usedTokensLabel} tokens，共 {contextWindowLabel}"
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:191
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:231
 msgid "Active"
 msgstr "活动中"
 
@@ -359,7 +359,7 @@ msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项�
 msgid "History"
 msgstr "历史记录"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:66
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:72
 msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
@@ -370,7 +370,7 @@ msgstr "历史详情"
 
 #. Short idle-state label for the current task beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:31
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:190
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:230
 msgid "Idle"
 msgstr "空闲"
 
@@ -413,12 +413,12 @@ msgstr "无效技能"
 msgid "Keep"
 msgstr "保留"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:127
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:166
 msgid "Load more"
 msgstr "加载更多"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:48
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:99
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:54
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:114
 msgid "Loading history…"
 msgstr "正在加载历史记录…"
 
@@ -513,7 +513,7 @@ msgstr "尚无智能体完成任务"
 msgid "No committed messages yet."
 msgstr "暂无已提交的消息。"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:107
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:122
 msgid "No history for the current working directory."
 msgstr "当前工作目录没有历史记录。"
 
@@ -532,11 +532,11 @@ msgstr "未找到"
 
 #. Short label for a current task that is not loaded beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:23
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:189
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:229
 msgid "Not loaded"
 msgstr "未加载"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:69
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:75
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
@@ -659,7 +659,7 @@ msgstr "正在恢复 {receiver}"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:405
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:118
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:221
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:261
 msgid "Retry"
 msgstr "重试"
 
@@ -766,7 +766,7 @@ msgstr "结构化输入"
 msgid "System"
 msgstr "系统"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:192
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:232
 msgid "System error"
 msgstr "系统错误"
 
@@ -854,6 +854,11 @@ msgstr "无法编辑这条待处理消息。"
 msgid "This task has no messages."
 msgstr "此任务没有消息。"
 
+#. History date group: tasks last active on the current local day
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:126
+msgid "Today"
+msgstr "今天"
+
 #. Accessible name for pagination between transcript context generations
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:47
 msgid "Transcript context pages"
@@ -872,7 +877,7 @@ msgstr "轮次 {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:216
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:256
 msgid "Unable to load history"
 msgstr "无法加载历史记录"
 
@@ -900,7 +905,7 @@ msgstr "状态未知"
 
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:137
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:175
 msgid "Untitled task"
 msgstr "未命名任务"
 
@@ -915,7 +920,7 @@ msgstr "无法加载更新后的待处理顺序"
 msgid "User"
 msgstr "用户"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:180
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:219
 msgid "View"
 msgstr "查看"
 
@@ -955,3 +960,8 @@ msgstr "等待输入"
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:91
 msgid "Will send first"
 msgstr "将优先发送"
+
+#. History date group: tasks last active on the previous local day
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:130
+msgid "Yesterday"
+msgstr "昨天"

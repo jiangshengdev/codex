@@ -78,7 +78,7 @@ msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:191
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:231
 msgid "Active"
 msgstr "Active"
 
@@ -359,7 +359,7 @@ msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 msgid "History"
 msgstr "History"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:66
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:72
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
@@ -370,7 +370,7 @@ msgstr "History detail"
 
 #. Short idle-state label for the current task beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:31
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:190
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:230
 msgid "Idle"
 msgstr "Idle"
 
@@ -413,12 +413,12 @@ msgstr "Invalid skill"
 msgid "Keep"
 msgstr "Keep"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:127
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:166
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:48
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:99
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:54
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:114
 msgid "Loading history…"
 msgstr "Loading history…"
 
@@ -513,7 +513,7 @@ msgstr "No agents completed yet"
 msgid "No committed messages yet."
 msgstr "No committed messages yet."
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:107
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:122
 msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
 
@@ -532,11 +532,11 @@ msgstr "Not found"
 
 #. Short label for a current task that is not loaded beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:23
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:189
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:229
 msgid "Not loaded"
 msgstr "Not loaded"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:69
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:75
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
@@ -659,7 +659,7 @@ msgstr "Resuming {receiver}"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:405
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:118
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:221
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:261
 msgid "Retry"
 msgstr "Retry"
 
@@ -766,7 +766,7 @@ msgstr "Structured input"
 msgid "System"
 msgstr "System"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:192
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:232
 msgid "System error"
 msgstr "System error"
 
@@ -854,6 +854,11 @@ msgstr "This pending message cannot be edited."
 msgid "This task has no messages."
 msgstr "This task has no messages."
 
+#. History date group: tasks last active on the current local day
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:126
+msgid "Today"
+msgstr "Today"
+
 #. Accessible name for pagination between transcript context generations
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:47
 msgid "Transcript context pages"
@@ -872,7 +877,7 @@ msgstr "Turn {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:216
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:256
 msgid "Unable to load history"
 msgstr "Unable to load history"
 
@@ -900,7 +905,7 @@ msgstr "Unknown"
 
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:137
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:175
 msgid "Untitled task"
 msgstr "Untitled task"
 
@@ -915,7 +920,7 @@ msgstr "Updated pending order could not be loaded"
 msgid "User"
 msgstr "User"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:180
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:219
 msgid "View"
 msgstr "View"
 
@@ -955,3 +960,8 @@ msgstr "Waiting for input"
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:91
 msgid "Will send first"
 msgstr "Will send first"
+
+#. History date group: tasks last active on the previous local day
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:130
+msgid "Yesterday"
+msgstr "Yesterday"

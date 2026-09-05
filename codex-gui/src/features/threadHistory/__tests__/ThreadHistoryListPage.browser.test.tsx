@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -47,8 +47,8 @@ const baselineAttached = (
     facts: [{ type: "baselineAttached", response }],
   });
 
-const historyCards = (container: HTMLElement): HTMLElement[] =>
-  Array.from(container.querySelectorAll<HTMLElement>('[role="article"]'));
+const historyCards = (container: Element): HTMLElement[] =>
+  Array.from(container.querySelectorAll<HTMLElement>('article, [role="article"]'));
 
 const historyGrid = (card: HTMLElement): HTMLElement => {
   const grid = card.parentElement;
@@ -84,7 +84,7 @@ const hasAlignedFirstRow = (cards: readonly HTMLElement[], columns: number): boo
 const fitsWithinOwnWidth = (element: HTMLElement): boolean =>
   element.scrollWidth <= element.clientWidth + 1;
 
-const HistoryDetailPlaceholder = () => <main aria-label="History detail" />;
+const HistoryDetailPlaceholder = () => <main aria-label="History detail">History detail</main>;
 
 type RenderHistoryOptions = {
   activeThreadSession?: ActiveThreadSession | null;
@@ -248,7 +248,7 @@ test("shows the non-retryable dependency error when commands are unavailable", a
   expect(listThreads).not.toHaveBeenCalled();
 });
 
-test("renders generated Thread cards with title fallbacks, nonduplicated summaries, status colors, time, and View navigation", async () => {
+test("renders generated Thread cards with title fallbacks, nonduplicated summaries, status colors, time, and whole-card navigation", async () => {
   const activitySeconds = 1_725_000_000;
   const namedThreadId = "00000000-0000-0000-0000-000000000091";
   const threads = [
@@ -284,7 +284,6 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
   await expect.element(screen.getByRole("article", { name: "Untitled task" })).toBeVisible();
 
   const formattedActivityTime = new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(activitySeconds * 1000));
   await expect.element(namedCard.getByText(formattedActivityTime)).toBeVisible();
@@ -297,7 +296,12 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
     .element(screen.getByRole("button", { name: "Scan with phone" }))
     .not.toBeInTheDocument();
 
-  await namedCard.getByRole("button", { name: "View" }).click();
+  const link = namedCard.getByRole("link", { name: "Named task", exact: true });
+  await expect.element(link).toHaveAttribute("href", `/history/${namedThreadId}`);
+  await expect.element(link.getByText("View", { exact: true })).toBeVisible();
+  expect(namedCard.element().querySelectorAll("a")).toHaveLength(1);
+  expect(link.element().querySelectorAll("a, button, [role='button']")).toHaveLength(0);
+  await namedCard.getByText("Named task", { exact: true }).click();
   await expect.element(screen.getByRole("main", { name: "History detail" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe(`/history/${namedThreadId}`);
   expect(
@@ -345,6 +349,225 @@ test("lays out history cards in one, two, and three real columns with aligned ro
   } finally {
     await page.viewport(originalViewport.width, originalViewport.height);
   }
+});
+
+test("groups local dates with relative headings and merges same-day pagination in server order", async () => {
+  vi.setSystemTime(new Date(2026, 8, 5, 12));
+  try {
+    const today = new Date(2026, 8, 5, 10).getTime() / 1000;
+    const yesterday = new Date(2026, 8, 4, 23, 59).getTime() / 1000;
+    const earlier = new Date(2026, 7, 30, 9);
+    const priorYear = new Date(2025, 11, 31, 9);
+    const listThreads = vi
+      .fn<GuiHostCommands["listThreads"]>()
+      .mockResolvedValueOnce(
+        response(
+          [
+            thread("today", { name: "Today task", recencyAt: today }),
+            thread("yesterday-first", { name: "Yesterday first", recencyAt: yesterday }),
+          ],
+          "same-day-cursor",
+        ),
+      )
+      .mockResolvedValueOnce(
+        response(
+          [
+            thread("yesterday-first", { name: "Yesterday first", recencyAt: yesterday }),
+            thread("yesterday-second", {
+              name: "Yesterday second",
+              recencyAt: null,
+              updatedAt: yesterday - 60,
+            }),
+            thread("earlier", { name: "Earlier task", recencyAt: earlier.getTime() / 1000 }),
+            thread("prior-year", {
+              name: "Prior year task",
+              recencyAt: priorYear.getTime() / 1000,
+            }),
+          ],
+          null,
+        ),
+      );
+    const { screen } = await renderHistory(listThreads);
+    const todayGroup = screen.getByRole("region", { name: "Today", exact: true });
+    const yesterdayGroup = screen.getByRole("region", { name: "Yesterday", exact: true });
+    await expect
+      .element(todayGroup.getByRole("heading", { name: "Today", exact: true }))
+      .toBeVisible();
+    await expect.element(todayGroup.getByRole("article", { name: "Today task" })).toBeVisible();
+    await expect
+      .element(yesterdayGroup.getByRole("article", { name: "Yesterday first" }))
+      .toBeVisible();
+    await screen.getByRole("button", { name: "Load more" }).click();
+    await expect
+      .element(yesterdayGroup.getByRole("article", { name: "Yesterday second" }))
+      .toBeVisible();
+    expect(screen.getByRole("heading", { name: "Yesterday", exact: true }).elements()).toHaveLength(
+      1,
+    );
+    expect(
+      historyCards(yesterdayGroup.element()).map((card) => card.querySelector("a")?.textContent),
+    ).toEqual([
+      expect.stringContaining("Yesterday first"),
+      expect.stringContaining("Yesterday second"),
+    ]);
+    const earlierLabel = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(
+      earlier,
+    );
+    const priorYearLabel = new Intl.DateTimeFormat("en", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(priorYear);
+    await expect
+      .element(
+        screen
+          .getByRole("region", { name: earlierLabel, exact: true })
+          .getByRole("article", { name: "Earlier task" }),
+      )
+      .toBeVisible();
+    await expect
+      .element(
+        screen
+          .getByRole("region", { name: priorYearLabel, exact: true })
+          .getByRole("article", { name: "Prior year task" }),
+      )
+      .toBeVisible();
+    expect(historyCards(screen.container)).toHaveLength(5);
+    await expect.element(screen.getByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+    expect(listThreads).toHaveBeenNthCalledWith(2, {
+      archived: false,
+      cwd: attachResponse.snapshot.thread.cwd,
+      cursor: "same-day-cursor",
+      limit: 25,
+      sortDirection: "desc",
+      sortKey: "recency_at",
+    });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("refreshes relative date labels when pagination renders after local midnight", async () => {
+  vi.setSystemTime(new Date(2026, 8, 5, 23, 59));
+  try {
+    const today = new Date(2026, 8, 5, 10).getTime() / 1000;
+    const yesterday = new Date(2026, 8, 4, 10).getTime() / 1000;
+    const listThreads = vi
+      .fn<GuiHostCommands["listThreads"]>()
+      .mockResolvedValueOnce(
+        response(
+          [
+            thread("rollover-today", { name: "Rollover today task", recencyAt: today }),
+            thread("rollover-yesterday", { name: "Rollover yesterday task", recencyAt: yesterday }),
+          ],
+          "rollover-cursor",
+        ),
+      )
+      .mockResolvedValueOnce(response([], null));
+    const { screen } = await renderHistory(listThreads);
+    await expect
+      .element(
+        screen
+          .getByRole("region", { name: "Today", exact: true })
+          .getByRole("article", { name: "Rollover today task" }),
+      )
+      .toBeVisible();
+    await expect
+      .element(
+        screen
+          .getByRole("region", { name: "Yesterday", exact: true })
+          .getByRole("article", { name: "Rollover yesterday task" }),
+      )
+      .toBeVisible();
+
+    vi.setSystemTime(new Date(2026, 8, 6, 0, 1));
+    await screen.getByRole("button", { name: "Load more" }).click();
+
+    await expect
+      .element(
+        screen
+          .getByRole("region", { name: "Yesterday", exact: true })
+          .getByRole("article", { name: "Rollover today task" }),
+      )
+      .toBeVisible();
+    const earlierLabel = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(
+      new Date(yesterday * 1000),
+    );
+    await expect
+      .element(
+        screen
+          .getByRole("region", { name: earlierLabel, exact: true })
+          .getByRole("article", { name: "Rollover yesterday task" }),
+      )
+      .toBeVisible();
+    await expect
+      .element(screen.getByRole("heading", { name: "Today", exact: true }))
+      .not.toBeInTheDocument();
+    await expect.element(screen.getByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test.each(["summary", "blank space"])("opens a card by clicking its %s", async (target) => {
+  const threadId = "00000000-0000-0000-0000-000000000092";
+  const listThreads = vi
+    .fn<GuiHostCommands["listThreads"]>()
+    .mockResolvedValue(
+      response([thread(threadId, { name: "Clickable task", preview: "Clickable summary" })], null),
+    );
+  const { router, screen } = await renderHistory(listThreads);
+  const link = screen.getByRole("link", { name: "Clickable task", exact: true });
+  await expect.element(link).toBeVisible();
+  if (target === "summary") {
+    await link.getByText("Clickable summary", { exact: true }).click();
+  } else {
+    const rect = link.element().getBoundingClientRect();
+    await link.click({ position: { x: rect.width / 2, y: 8 } });
+  }
+  await expect.element(screen.getByRole("main", { name: "History detail" })).toBeVisible();
+  expect(router.state.location.pathname).toBe(`/history/${threadId}`);
+  expect(router.state.location.search).toEqual({});
+  expect(router.state.location.hash).toBe("");
+});
+
+test("has one keyboard stop per card with visible focus and Enter navigation", async () => {
+  const threadId = "00000000-0000-0000-0000-000000000093";
+  const listThreads = vi
+    .fn<GuiHostCommands["listThreads"]>()
+    .mockResolvedValue(
+      response(
+        [
+          thread("first-focus", { name: "First focus task", preview: "First summary" }),
+          thread(threadId, { name: "Second focus task", preview: "Second summary" }),
+        ],
+        null,
+      ),
+    );
+  const { router, screen } = await renderHistory(listThreads);
+  const firstLink = screen.getByRole("link", { name: "First focus task", exact: true });
+  const secondLink = screen.getByRole("link", { name: "Second focus task", exact: true });
+  await expect.element(firstLink).toBeVisible();
+  await userEvent.tab();
+  await expect.element(firstLink).toHaveFocus();
+  await expect
+    .poll(() => {
+      const element = firstLink.element();
+      const style = getComputedStyle(element);
+      return (
+        element.matches(":focus-visible") &&
+        ((style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0) ||
+          style.boxShadow !== "none")
+      );
+    })
+    .toBe(true);
+  await userEvent.tab();
+  await expect.element(secondLink).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(screen.getByRole("main", { name: "History detail" })).toBeVisible();
+  expect(router.state.location.pathname).toBe(`/history/${threadId}`);
+  expect(router.state.location.search).toEqual({});
+  expect(router.state.location.hash).toBe("");
 });
 
 test("clamps complete long text without horizontal overflow and hides only exact trimmed duplicates", async () => {
@@ -397,9 +620,25 @@ test("clamps complete long text without horizontal overflow and hides only exact
         throw new Error("long history cards must render a title and summary");
       }
       expect(getComputedStyle(title).webkitLineClamp).toBe("2");
-      expect(getComputedStyle(summary).webkitLineClamp).toBe("3");
+      expect(getComputedStyle(summary).webkitLineClamp).toBe("2");
       expect(getComputedStyle(title).overflow).toBe("hidden");
       expect(getComputedStyle(summary).overflow).toBe("hidden");
+      expect(title.getBoundingClientRect().height).toBeLessThanOrEqual(
+        Number.parseFloat(getComputedStyle(title).lineHeight) * 2 + 1,
+      );
+      expect(summary.getBoundingClientRect().height).toBeLessThanOrEqual(
+        Number.parseFloat(getComputedStyle(summary).lineHeight) * 2 + 1,
+      );
+      const footer = card.querySelector<HTMLElement>('[data-slot="card-footer"]');
+      if (footer == null) {
+        throw new Error("history cards must retain a compact information footer");
+      }
+      const footerRect = footer.getBoundingClientRect();
+      expect(footerRect.top).toBeGreaterThanOrEqual(summary.getBoundingClientRect().bottom);
+      expect(footerRect.bottom).toBeLessThanOrEqual(card.getBoundingClientRect().bottom);
+      expect(fitsWithinOwnWidth(footer)).toBe(true);
+      expect(footer.querySelector(".chip")).not.toBeNull();
+      expect(footer.textContent).toContain("View");
     }
 
     const duplicateCard = screen.getByRole("article", { name: "Repeated task" }).element();
