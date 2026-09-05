@@ -11,6 +11,7 @@ import {
 import { HISTORY_DETAIL_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
+import { errorText } from "@/text/errorText";
 import type { Thread } from "@codex-protocol/v2";
 import { ThreadHistoryListOwner, type ThreadHistoryListState } from "./threadHistoryListOwner";
 import { resolveThreadHistoryPresentation } from "./threadHistoryPresentation";
@@ -214,11 +215,7 @@ function HistoryError(props: HistoryErrorProps) {
         <Alert.Title>
           <Trans>Unable to load history</Trans>
         </Alert.Title>
-        {"error" in props ? (
-          <Alert.Description>
-            {props.error instanceof Error ? props.error.message : String(props.error)}
-          </Alert.Description>
-        ) : null}
+        {"error" in props ? <Alert.Description>{errorText(props.error)}</Alert.Description> : null}
         {props.retry == null ? null : (
           <Button className="mt-3" onPress={props.retry} variant="tertiary">
             <Trans>Retry</Trans>

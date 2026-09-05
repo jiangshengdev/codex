@@ -9,6 +9,7 @@ import {
 import { ReadOnlyCommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
 import { formatTaskDocumentTitle } from "@/features/documentTitle/documentTitle";
 import { HistoryDetailDocumentTitleFactPublisher } from "@/features/documentTitle/DocumentTitleOwner";
+import { errorText } from "@/text/errorText";
 import { ContinueTaskAction } from "./ContinueTaskAction";
 import type { ThreadHistoryDetailState } from "./threadHistoryDetailOwner";
 import { resolveThreadHistoryPresentation } from "./threadHistoryPresentation";
@@ -120,8 +121,4 @@ function HistoryDetailError({
       </Alert.Content>
     </Alert>
   );
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

@@ -12,6 +12,7 @@ import { consumeBrowserAuthorizationSession } from "@/features/browserLaunch/bro
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "@/features/guiHost/guiHostClient";
+import { errorText } from "@/text/errorText";
 
 export type GuiHostConnectionBridgeProps = {
   setStatus: (status: GuiHostStatus) => void;
@@ -199,8 +200,4 @@ function activationFailureText(failure: ActiveThreadActivationFailure): string {
       return failures.join("; ");
     }
   }
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

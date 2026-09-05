@@ -2,6 +2,7 @@ import { Alert, Button, Disclosure } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { useState, type ReactNode } from "react";
 import type { ActiveThreadActivationFailure } from "@/features/activeThreadSession/activeThreadSession";
+import { errorText } from "@/text/errorText";
 
 type ContinueTaskFailureAlertState =
   | Readonly<{ type: "idle" }>
@@ -271,8 +272,4 @@ function OperationFailureSummary({
 
   phase satisfies never;
   return null;
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
