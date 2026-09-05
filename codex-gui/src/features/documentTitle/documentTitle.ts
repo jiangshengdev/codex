@@ -1,21 +1,18 @@
+import { boundGraphemes } from "@/text/grapheme";
+
 const DOCUMENT_TITLE_SUFFIX = " · Codex";
 const MAX_DOCUMENT_TITLE_CONTENT_GRAPHEMES = 52;
 const TRUNCATED_DOCUMENT_TITLE_CONTENT_GRAPHEMES = 51;
-
-const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 const normalizeDocumentTitleContent = (value: string): string => value.trim().replace(/\s+/gu, " ");
 
 export const formatDocumentTitle = (content: string): string => {
   const normalizedContent = normalizeDocumentTitleContent(content);
-  const graphemes = Array.from(
-    graphemeSegmenter.segment(normalizedContent),
-    ({ segment }) => segment,
-  );
-  const boundedContent =
-    graphemes.length <= MAX_DOCUMENT_TITLE_CONTENT_GRAPHEMES
-      ? normalizedContent
-      : `${graphemes.slice(0, TRUNCATED_DOCUMENT_TITLE_CONTENT_GRAPHEMES).join("")}…`;
+  const bounded = boundGraphemes(normalizedContent, {
+    maxGraphemes: MAX_DOCUMENT_TITLE_CONTENT_GRAPHEMES,
+    truncatedGraphemes: TRUNCATED_DOCUMENT_TITLE_CONTENT_GRAPHEMES,
+  });
+  const boundedContent = bounded.truncated ? `${bounded.text}…` : bounded.text;
 
   return `${boundedContent}${DOCUMENT_TITLE_SUFFIX}`;
 };
