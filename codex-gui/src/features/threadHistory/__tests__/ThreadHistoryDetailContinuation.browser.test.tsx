@@ -7,6 +7,7 @@ import { createActiveThreadSessionHarness } from "@/features/activeThreadSession
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import {
+  agentMessage,
   attachWithTurns,
   baseTurn,
   textInput,
@@ -426,6 +427,10 @@ test("keeps long continuation diagnostics within a narrow action surface", async
     const thread = historyThread([
       baseTurn("narrow-diagnostic-turn", [
         userMessage("narrow-diagnostic-user", [textInput(historyText)]),
+        agentMessage(
+          "narrow-diagnostic-answer",
+          "[Last history message](https://example.invalid/last-history-message)",
+        ),
       ]),
     ]);
     const commands = {
@@ -446,11 +451,20 @@ test("keeps long continuation diagnostics within a narrow action surface", async
     });
     const action = screen.getByRole("button", { name: "Continue this task" });
 
+    await expect.element(action).toBeVisible();
+    const actionPanel = action.element().closest(".task-bottom-panel");
+    if (!(actionPanel instanceof HTMLElement)) {
+      throw new Error("Expected continuation card");
+    }
+    const idleHeight = actionPanel.getBoundingClientRect().height;
+
     await action.click();
     const alert = screen.getByRole("alert");
     await expect.element(alert.getByText("The task could not be resumed.")).toBeVisible();
     const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
     await expect.element(disclosure).toBeInViewport({ ratio: 1 });
+    expect(actionPanel.getBoundingClientRect().height).toBeGreaterThan(idleHeight);
+    const collapsedHeight = actionPanel.getBoundingClientRect().height;
 
     const documentScroller = document.scrollingElement;
     if (!(documentScroller instanceof HTMLElement)) {
@@ -478,6 +492,9 @@ test("keeps long continuation diagnostics within a narrow action surface", async
     await expect.element(action).toBeInViewport({ ratio: 1 });
     await expect.element(disclosure).toHaveFocus();
     await expect
+      .poll(() => actionPanel.getBoundingClientRect().height)
+      .toBeGreaterThan(collapsedHeight);
+    await expect
       .poll(() => ({
         documentScrollTopStable: Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand) <= 1,
         hasInternalOverflow: diagnosticRegion.scrollHeight > diagnosticRegion.clientHeight + 1,
@@ -494,6 +511,50 @@ test("keeps long continuation diagnostics within a narrow action surface", async
     await expect.poll(() => diagnosticRegion.scrollTop).toBeGreaterThan(0);
     expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
     await expect.element(disclosure).toHaveFocus();
+
+    await expect
+      .poll(
+        () =>
+          actionPanel
+            .getAnimations({ subtree: true })
+            .filter((animation) => animation.playState === "running" || animation.pending).length,
+      )
+      .toBe(0);
+    const actionSpace = screen.container.querySelector(
+      "[data-thread-history-continuation-action-space]",
+    );
+    const actionBar = actionPanel.closest("aside");
+    if (!(actionSpace instanceof HTMLElement) || !(actionBar instanceof HTMLElement)) {
+      throw new Error("Expected the measured continuation action space and bar");
+    }
+    await expect
+      .poll(() =>
+        Math.abs(
+          actionSpace.getBoundingClientRect().height - actionBar.getBoundingClientRect().height,
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+    const lastMessage = screen.getByRole("link", { name: "Last history message" });
+    lastMessage.element().focus();
+    window.scrollTo({ top: documentScroller.scrollHeight });
+    await expect.element(lastMessage).toHaveFocus();
+    await expect.element(lastMessage).toBeInViewport({ ratio: 1 });
+    await expect
+      .poll(
+        () =>
+          actionPanel.getBoundingClientRect().top -
+          lastMessage.element().getBoundingClientRect().bottom,
+      )
+      .toBeGreaterThanOrEqual(0);
+    const lastBounds = lastMessage.element().getBoundingClientRect();
+    expect(
+      lastMessage
+        .element()
+        .contains(
+          document.elementFromPoint(lastBounds.left + 1, lastBounds.top + lastBounds.height / 2),
+        ),
+    ).toBe(true);
+    expect(documentScroller.scrollWidth).toBeLessThanOrEqual(documentScroller.clientWidth + 1);
   } finally {
     window.scrollTo({ top: originalScrollTop });
     await page.viewport(originalViewport.width, originalViewport.height);

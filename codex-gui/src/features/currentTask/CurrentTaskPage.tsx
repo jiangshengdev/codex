@@ -72,7 +72,7 @@ function CurrentTaskReady({
   return (
     <main className="flex min-h-0 w-full flex-1 flex-col gap-4" data-gui-host-status={status.label}>
       <Surface
-        className="mx-auto grid min-w-0 w-full max-w-3xl flex-1 content-start"
+        className="task-reading-boundary grid min-w-0 flex-1 content-start"
         variant="transparent"
       >
         <CommittedTranscriptSurface />

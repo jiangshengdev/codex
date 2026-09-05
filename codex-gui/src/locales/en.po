@@ -102,12 +102,12 @@ msgstr "An unexpected error occurred while continuing the task."
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:62
+#: src/features/appShell/AppShellTopBar.tsx:68
 msgid "Back to history"
 msgstr "Back to history"
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:143
+#: src/features/appShell/AppShellTopBar.tsx:169
 msgid "Browse task history"
 msgstr "Browse task history"
 
@@ -212,13 +212,13 @@ msgstr "Context usage details, {usedTokensLabel} tokens used, context window cap
 msgid "Continue sending"
 msgstr "Continue sending"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:250
+#: src/features/threadHistory/ContinueTaskAction.tsx:253
 msgid "Continue this task"
 msgstr "Continue this task"
 
-#: src/features/appShell/AppShellTopBar.tsx:28
-#: src/features/appShell/AppShellTopBar.tsx:99
-#: src/features/documentTitle/DocumentTitleOwner.tsx:43
+#: src/features/appShell/AppShellTopBar.tsx:32
+#: src/features/appShell/AppShellTopBar.tsx:125
+#: src/features/documentTitle/DocumentTitleOwner.tsx:44
 msgid "Current task"
 msgstr "Current task"
 
@@ -353,9 +353,9 @@ msgstr "Guiding"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 
-#: src/features/appShell/AppShellTopBar.tsx:28
-#: src/features/appShell/AppShellTopBar.tsx:137
-#: src/features/documentTitle/DocumentTitleOwner.tsx:44
+#: src/features/appShell/AppShellTopBar.tsx:35
+#: src/features/appShell/AppShellTopBar.tsx:163
+#: src/features/documentTitle/DocumentTitleOwner.tsx:45
 msgid "History"
 msgstr "History"
 
@@ -363,8 +363,9 @@ msgstr "History"
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
-#: src/features/documentTitle/DocumentTitleOwner.tsx:45
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:39
+#: src/features/appShell/AppShellTopBar.tsx:34
+#: src/features/documentTitle/DocumentTitleOwner.tsx:46
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:33
 msgid "History detail"
 msgstr "History detail"
 
@@ -426,15 +427,15 @@ msgstr "Loading history…"
 msgid "Loading skills…"
 msgstr "Loading skills…"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:76
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:43
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/appShell/AppShellTopBar.tsx:71
+#: src/features/appShell/AppShellTopBar.tsx:97
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:56
+#: src/features/appShell/AppShellTopBar.tsx:64
 msgid "Menu"
 msgstr "Menu"
 
@@ -491,7 +492,7 @@ msgstr "Move up"
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:67
+#: src/features/appShell/AppShellTopBar.tsx:93
 msgid "Navigation"
 msgstr "Navigation"
 
@@ -541,7 +542,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:105
+#: src/features/appShell/AppShellTopBar.tsx:131
 msgid "Open current task"
 msgstr "Open current task"
 
@@ -549,7 +550,7 @@ msgstr "Open current task"
 msgid "Operation diagnostic:"
 msgstr "Operation diagnostic:"
 
-#: src/features/documentTitle/DocumentTitleOwner.tsx:46
+#: src/features/documentTitle/DocumentTitleOwner.tsx:47
 #: src/NotFoundPage.tsx:20
 msgid "Page not found"
 msgstr "Page not found"
@@ -620,7 +621,7 @@ msgstr "Queued {ordinaryQueuedCount}"
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "Queued message moved to position {movedPosition} of {movedCount}."
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:70
+#: src/features/appShell/AppShellTopBar.tsx:82
 msgid "Read-only history"
 msgstr "Read-only history"
 
@@ -658,7 +659,7 @@ msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:405
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:118
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:85
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:261
 msgid "Retry"
 msgstr "Retry"
@@ -850,7 +851,7 @@ msgstr "This message is being edited."
 msgid "This pending message cannot be edited."
 msgstr "This pending message cannot be edited."
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:82
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:49
 msgid "This task has no messages."
 msgstr "This task has no messages."
 
@@ -881,7 +882,7 @@ msgstr "Unable to continue this task"
 msgid "Unable to load history"
 msgstr "Unable to load history"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:113
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:80
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
@@ -903,8 +904,7 @@ msgstr "Unable to switch tasks yet"
 msgid "Unknown"
 msgstr "Unknown"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:34
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:175
 msgid "Untitled task"
 msgstr "Untitled task"

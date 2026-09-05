@@ -1,4 +1,4 @@
-import { Button, toast } from "@heroui/react";
+import { Button, Surface, toast } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -222,10 +222,13 @@ export function ContinueTaskAction({
         style={{ height: actionSurfaceHeight }}
       />
       <aside
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-separator bg-surface/95 px-4 py-4 backdrop-blur"
+        className="task-bottom-shell pointer-events-none fixed inset-x-0 bottom-0 z-30"
         ref={actionSurfaceRef}
       >
-        <div className="mx-auto grid w-full max-w-3xl gap-3">
+        <Surface
+          className="task-reading-boundary task-bottom-panel pointer-events-auto grid gap-3"
+          variant="default"
+        >
           <ContinueTaskFailureAlert
             descriptionId={failureDescriptionId}
             navigateToCurrentTask={navigateToCurrentTask}
@@ -250,7 +253,7 @@ export function ContinueTaskAction({
               <Trans>Continue this task</Trans>
             </Button>
           </div>
-        </div>
+        </Surface>
       </aside>
     </>
   );

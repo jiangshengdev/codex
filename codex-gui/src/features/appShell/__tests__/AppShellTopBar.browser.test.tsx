@@ -22,6 +22,7 @@ import {
   type GuiRouteTarget,
 } from "@/features/browserLaunch/guiRouteTarget";
 import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
+import { DocumentTitleOwner } from "@/features/documentTitle/DocumentTitleOwner";
 import { AppShellTopBar } from "../AppShellTopBar";
 
 function RoutePlaceholder() {
@@ -104,6 +105,7 @@ const renderTopBar = async ({
   });
 
   const router = createRouter({
+    InnerWrap: DocumentTitleOwner,
     history: createMemoryHistory({ initialEntries: [initialEntry] }),
     routeTree: rootRoute.addChildren([currentTaskRoute, historyRoute, historyDetailRoute]),
   });
@@ -303,6 +305,15 @@ test("History detail marks only History as the current navigation destination", 
     routeTarget: { type: "historyDetail", threadId: otherThreadId },
   });
 
+  await expect
+    .element(screen.getByRole("heading", { level: 1, name: "History detail", exact: true }))
+    .toBeVisible();
+  await expect
+    .element(screen.getByRole("banner").getByText("Read-only history", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Back to history", exact: true }))
+    .toBeVisible();
   await screen.getByRole("button", { name: "Menu" }).click();
   const navigation = screen.getByRole("navigation", { name: "Main navigation" });
   const currentTaskButton = navigation.getByRole("button", {

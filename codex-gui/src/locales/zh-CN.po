@@ -102,12 +102,12 @@ msgstr "继续此任务时发生意外错误。"
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:62
+#: src/features/appShell/AppShellTopBar.tsx:68
 msgid "Back to history"
 msgstr "返回历史记录"
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:143
+#: src/features/appShell/AppShellTopBar.tsx:169
 msgid "Browse task history"
 msgstr "浏览历史任务"
 
@@ -212,13 +212,13 @@ msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗�
 msgid "Continue sending"
 msgstr "继续发送"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:250
+#: src/features/threadHistory/ContinueTaskAction.tsx:253
 msgid "Continue this task"
 msgstr "继续此任务"
 
-#: src/features/appShell/AppShellTopBar.tsx:28
-#: src/features/appShell/AppShellTopBar.tsx:99
-#: src/features/documentTitle/DocumentTitleOwner.tsx:43
+#: src/features/appShell/AppShellTopBar.tsx:32
+#: src/features/appShell/AppShellTopBar.tsx:125
+#: src/features/documentTitle/DocumentTitleOwner.tsx:44
 msgid "Current task"
 msgstr "当前任务"
 
@@ -353,9 +353,9 @@ msgstr "引导中"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
-#: src/features/appShell/AppShellTopBar.tsx:28
-#: src/features/appShell/AppShellTopBar.tsx:137
-#: src/features/documentTitle/DocumentTitleOwner.tsx:44
+#: src/features/appShell/AppShellTopBar.tsx:35
+#: src/features/appShell/AppShellTopBar.tsx:163
+#: src/features/documentTitle/DocumentTitleOwner.tsx:45
 msgid "History"
 msgstr "历史记录"
 
@@ -363,8 +363,9 @@ msgstr "历史记录"
 msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
-#: src/features/documentTitle/DocumentTitleOwner.tsx:45
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:39
+#: src/features/appShell/AppShellTopBar.tsx:34
+#: src/features/documentTitle/DocumentTitleOwner.tsx:46
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:33
 msgid "History detail"
 msgstr "历史详情"
 
@@ -426,15 +427,15 @@ msgstr "正在加载历史记录…"
 msgid "Loading skills…"
 msgstr "正在加载技能…"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:76
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:43
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
-#: src/features/appShell/AppShellTopBar.tsx:71
+#: src/features/appShell/AppShellTopBar.tsx:97
 msgid "Main navigation"
 msgstr "主导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:56
+#: src/features/appShell/AppShellTopBar.tsx:64
 msgid "Menu"
 msgstr "菜单"
 
@@ -491,7 +492,7 @@ msgstr "上移"
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:67
+#: src/features/appShell/AppShellTopBar.tsx:93
 msgid "Navigation"
 msgstr "导航"
 
@@ -541,7 +542,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:105
+#: src/features/appShell/AppShellTopBar.tsx:131
 msgid "Open current task"
 msgstr "打开当前任务"
 
@@ -549,7 +550,7 @@ msgstr "打开当前任务"
 msgid "Operation diagnostic:"
 msgstr "操作诊断信息："
 
-#: src/features/documentTitle/DocumentTitleOwner.tsx:46
+#: src/features/documentTitle/DocumentTitleOwner.tsx:47
 #: src/NotFoundPage.tsx:20
 msgid "Page not found"
 msgstr "找不到页面"
@@ -620,7 +621,7 @@ msgstr "排队 {ordinaryQueuedCount}"
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "已将已排队消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:70
+#: src/features/appShell/AppShellTopBar.tsx:82
 msgid "Read-only history"
 msgstr "只读历史记录"
 
@@ -658,7 +659,7 @@ msgid "Resuming {receiver}"
 msgstr "正在恢复 {receiver}"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:405
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:118
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:85
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:261
 msgid "Retry"
 msgstr "重试"
@@ -850,7 +851,7 @@ msgstr "这条消息正在编辑。"
 msgid "This pending message cannot be edited."
 msgstr "无法编辑这条待处理消息。"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:82
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:49
 msgid "This task has no messages."
 msgstr "此任务没有消息。"
 
@@ -881,7 +882,7 @@ msgstr "无法继续此任务"
 msgid "Unable to load history"
 msgstr "无法加载历史记录"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:113
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:80
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
@@ -903,8 +904,7 @@ msgstr "暂时无法切换任务"
 msgid "Unknown"
 msgstr "状态未知"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:34
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:175
 msgid "Untitled task"
 msgstr "未命名任务"

@@ -138,6 +138,12 @@ test("settles a deferred read into ready after StrictMode effect replay", async 
 
   await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
   await expect.element(screen.getByRole("status")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("banner").getByRole("heading", { level: 1 }))
+    .toHaveTextContent("Historical task");
+  expect(screen.getByRole("heading", { level: 1 }).elements()).toHaveLength(1);
+  await expect.poll(() => document.title).toBe("Historical task · Codex");
+  expect(readThread).toHaveBeenCalledTimes(1);
   expect(commands.resumeThread).not.toHaveBeenCalled();
   expect(commands.attachThreadProjection).not.toHaveBeenCalled();
 });
@@ -161,6 +167,11 @@ test("settles a deferred read into error after StrictMode effect replay", async 
   await expect.element(alert.getByText("Unable to load task history")).toBeVisible();
   await expect.element(alert.getByText(failure.message, { exact: true })).toBeVisible();
   await expect.element(screen.getByRole("status")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("banner").getByRole("heading", { level: 1 }))
+    .toHaveTextContent("History detail");
+  await expect.poll(() => document.title).toBe("History detail · Codex");
+  expect(readThread).toHaveBeenCalledTimes(1);
   expect(commands.resumeThread).not.toHaveBeenCalled();
   expect(commands.attachThreadProjection).not.toHaveBeenCalled();
 });
