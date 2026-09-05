@@ -48,7 +48,7 @@ export const TranscriptContextPagination = ({
           comment: "Accessible name for pagination between transcript context generations",
           message: "Transcript context pages",
         })}
-        className="justify-center"
+        className="min-w-max justify-center"
         size="sm"
       >
         <Pagination.Content className="gap-2 px-1">
