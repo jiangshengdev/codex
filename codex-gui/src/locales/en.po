@@ -116,6 +116,11 @@ msgstr "Cancel"
 msgid "Cleanup diagnostic:"
 msgstr "Cleanup diagnostic:"
 
+#. Accessible label for closing the history continuation diagnostics dialog
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:242
+msgid "Close diagnostics"
+msgstr "Close diagnostics"
+
 #. Collaboration activity showing the raw receiver value of the closed agent
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:240
 msgid "Closed {receiver}"
@@ -262,6 +267,11 @@ msgstr "Delete"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:275
 msgid "Delete this pending message?"
 msgstr "Delete this pending message?"
+
+#. Title of the dialog showing raw history continuation errors
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:249
+msgid "Diagnostic information"
+msgstr "Diagnostic information"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:49
 msgid "Diagnostic:"
@@ -800,8 +810,8 @@ msgstr "The previous task connection could not be fully cleaned up. Later state 
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:266
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:268
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:273
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:275
 msgid "The task connection could not be prepared."
 msgstr "The task connection could not be prepared."
 
@@ -811,11 +821,11 @@ msgstr "The task connection was closed."
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:65
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:111
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:270
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:277
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:264
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:271
 msgid "The task could not be resumed."
 msgstr "The task could not be resumed."
 
@@ -916,8 +926,8 @@ msgstr "User"
 msgid "View"
 msgstr "View"
 
-#. Button in a history continuation error that expands raw diagnostic details
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:235
+#. Button in a history continuation error that opens a dialog with raw diagnostic details
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:234
 msgid "View diagnostic information"
 msgstr "View diagnostic information"
 

@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vitest";
+import { page } from "vitest/browser";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
@@ -360,9 +361,12 @@ test("keeps the transcript end above the measured continuation action surface", 
     .toBeVisible();
 
   await screen.getByRole("button", { name: "View diagnostic information" }).click();
+  const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
   await expect
-    .element(screen.getByText("Continuation diagnostic line 80", { exact: false }))
+    .element(dialog.getByText("Continuation diagnostic line 80", { exact: false }))
     .toBeVisible();
+  await dialog.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect.element(dialog).not.toBeInTheDocument();
   await expect
     .poll(
       () =>

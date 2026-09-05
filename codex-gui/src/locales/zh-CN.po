@@ -116,6 +116,11 @@ msgstr "取消"
 msgid "Cleanup diagnostic:"
 msgstr "清理诊断信息："
 
+#. Accessible label for closing the history continuation diagnostics dialog
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:242
+msgid "Close diagnostics"
+msgstr "关闭诊断信息"
+
 #. Collaboration activity showing the raw receiver value of the closed agent
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:240
 msgid "Closed {receiver}"
@@ -262,6 +267,11 @@ msgstr "删除"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:275
 msgid "Delete this pending message?"
 msgstr "删除这条待处理消息？"
+
+#. Title of the dialog showing raw history continuation errors
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:249
+msgid "Diagnostic information"
+msgstr "诊断信息"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:49
 msgid "Diagnostic:"
@@ -800,8 +810,8 @@ msgstr "上一个任务连接未能完全清理，后续状态可能受到影响
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:266
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:268
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:273
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:275
 msgid "The task connection could not be prepared."
 msgstr "无法准备任务连接。"
 
@@ -811,11 +821,11 @@ msgstr "任务连接已关闭。"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:65
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:111
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:270
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:277
 msgid "The task could not be activated."
 msgstr "无法激活任务。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:264
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:271
 msgid "The task could not be resumed."
 msgstr "无法恢复任务。"
 
@@ -916,8 +926,8 @@ msgstr "用户"
 msgid "View"
 msgstr "查看"
 
-#. Button in a history continuation error that expands raw diagnostic details
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:235
+#. Button in a history continuation error that opens a dialog with raw diagnostic details
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:234
 msgid "View diagnostic information"
 msgstr "查看诊断信息"
 
