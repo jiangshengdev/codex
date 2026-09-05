@@ -3,12 +3,23 @@ import {
   attachBaseline,
   closedBackpressure,
   eventAgentMessageDelta,
+  eventItemCompleted,
   eventItemStarted,
+  eventTokenUsageUpdated,
+  eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
+  agentMessage,
+  attachWithTurns,
+  baseTurn,
   deltaWithEnvelope,
   eventWithEnvelope,
+  inProgressTurn,
+  itemCompleted,
+  itemStarted,
+  turnCompleted,
+  turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createActiveThreadProjection } from "../activeThreadProjection";
 
@@ -22,6 +33,89 @@ const createProjection = () =>
   });
 
 describe("ActiveThreadProjection", () => {
+  const snapshotItem = agentMessage("snapshot-item", "Already attached");
+  const snapshotTurn = baseTurn("snapshot-turn", [snapshotItem]);
+  const pendingTurn = inProgressTurn("pending-turn");
+  const newItem = agentMessage("new-item", "New event");
+  const replayCommitId = "commit-after-snapshot";
+
+  it.each([
+    {
+      name: "a snapshotted turn start",
+      notification: turnStarted(eventTurnStarted, replayCommitId, inProgressTurn(snapshotTurn.id)),
+      replay: "snapshotDuplicate",
+    },
+    {
+      name: "a snapshotted turn completion",
+      notification: turnCompleted(eventTurnCompleted, replayCommitId, snapshotTurn),
+      replay: "snapshotDuplicate",
+    },
+    {
+      name: "a snapshotted item start",
+      notification: itemStarted(eventItemStarted, replayCommitId, snapshotTurn.id, snapshotItem),
+      replay: "snapshotDuplicate",
+    },
+    {
+      name: "a snapshotted item completion",
+      notification: itemCompleted(
+        eventItemCompleted,
+        replayCommitId,
+        snapshotTurn.id,
+        snapshotItem,
+      ),
+      replay: "snapshotDuplicate",
+    },
+    {
+      name: "a new turn start",
+      notification: turnStarted(eventTurnStarted, replayCommitId, inProgressTurn("new-turn")),
+      replay: "live",
+    },
+    {
+      name: "a new turn completion",
+      notification: turnCompleted(eventTurnCompleted, replayCommitId, baseTurn("new-turn")),
+      replay: "live",
+    },
+    {
+      name: "completion of a turn still in progress in the snapshot",
+      notification: turnCompleted(eventTurnCompleted, replayCommitId, baseTurn(pendingTurn.id)),
+      replay: "live",
+    },
+    {
+      name: "a new item start",
+      notification: itemStarted(eventItemStarted, replayCommitId, pendingTurn.id, newItem),
+      replay: "live",
+    },
+    {
+      name: "a new item completion",
+      notification: itemCompleted(eventItemCompleted, replayCommitId, pendingTurn.id, newItem),
+      replay: "live",
+    },
+    {
+      name: "a token usage update",
+      notification: eventTokenUsageUpdated,
+      replay: "live",
+    },
+  ])("shares the accepted replay fact for $name", ({ notification, replay }) => {
+    const attachResponse = attachWithTurns(attachBaseline, [snapshotTurn, pendingTurn]);
+    const projection = createActiveThreadProjection({ threadId, attachResponse });
+    projection.flush();
+    const contiguousNotification = eventWithEnvelope(notification, {
+      commitId: replayCommitId,
+      parentCommitId: attachResponse.snapshot.headCommitId,
+    });
+
+    expect(projection.handleEvent(contiguousNotification)).toEqual({ type: "accepted" });
+
+    const batch = projection.flush();
+    expect(batch.acceptedQueueFacts).toEqual([{ notification: contiguousNotification, replay }]);
+    expect(batch.readModelFacts).toEqual([
+      { type: "eventAccepted", payload: batch.acceptedQueueFacts[0] },
+    ]);
+    const fact = batch.readModelFacts[0];
+    if (fact?.type !== "eventAccepted") throw new Error("Expected an accepted event fact");
+    expect(fact.payload).toBe(batch.acceptedQueueFacts[0]);
+  });
+
   it("stages baseline, deltas, and accepted events in FIFO replay order", () => {
     const projection = createProjection();
 
