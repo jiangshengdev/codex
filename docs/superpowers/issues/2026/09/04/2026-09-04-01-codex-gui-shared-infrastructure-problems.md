@@ -13,7 +13,7 @@
 
 - `docs/superpowers/issues/2026/09/04/2026-09-04-01-codex-gui-shared-infrastructure-problems/2026-09-04-01-cross-feature-public-api-boundaries.md`: 跨 feature 公共入口没有显式 public/internal 边界与依赖治理。
 - `docs/superpowers/issues/2026/09/04/2026-09-04-01-codex-gui-shared-infrastructure-problems/2026-09-04-02-active-thread-runtime-contract-direction.md`: active-thread projection 与 thread runtime 的契约归属和依赖方向不清。
-- `docs/superpowers/issues/2026/09/04/2026-09-04-01-codex-gui-shared-infrastructure-problems/2026-09-04-03-composer-draft-input-contract-direction.md`: Composer draft 与 input payload 的共同契约边界尚未命名。
+- `docs/superpowers/issues/2026/09/04/2026-09-04-01-codex-gui-shared-infrastructure-problems/2026-09-04-03-composer-draft-input-contract-direction.md`: 已修复；Composer draft 归 editor 管理，input payload 独立，依赖方向已明确。
 - `docs/superpowers/issues/2026/09/04/2026-09-04-01-codex-gui-shared-infrastructure-problems/2026-09-04-04-grapheme-bounding-primitive-duplication.md`: 三处产品 formatter 重复实现 Unicode grapheme 分段与有界截断机制。
 - `docs/superpowers/issues/2026/09/04/2026-09-04-01-codex-gui-shared-infrastructure-problems/2026-09-04-05-composer-shortcut-model-duplication.md`: Composer 快捷键行为与提示分别维护平台判定。
 - `docs/superpowers/issues/2026/09/04/2026-09-04-01-codex-gui-shared-infrastructure-problems/2026-09-04-06-thread-history-title-resolution-duplication.md`: History list/detail 重复标题选择规则。
