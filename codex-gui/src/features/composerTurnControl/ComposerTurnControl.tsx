@@ -19,6 +19,7 @@ import {
   type ComposerEditorSubmitIntent,
 } from "@/features/composerEditor/ComposerEditor";
 import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
+import { composerShortcutsForPlatform } from "@/features/composerEditor/composerShortcuts";
 import { selectThreadRuntimeTokenUsage } from "@/features/threadRuntime/threadRuntimeSlice";
 import { ContextUsagePopover } from "./ContextUsagePopover";
 import { createComposerPendingInputSession } from "./composerPendingInputSession";
@@ -97,7 +98,7 @@ export function ComposerTurnControl({
     () => ({ invalidPaths: controlView.invalidSelectedSkillPaths, statusText: invalidStatusText }),
     [controlView.invalidSelectedSkillPaths, invalidStatusText],
   );
-  const guideShortcut = guideShortcutForPlatform(navigator.platform);
+  const guideShortcut = composerShortcutsForPlatform(navigator.platform).guide;
   const focusComposer = useCallback((): void => {
     if (composerEditorController == null) return;
     if (controlView.operationsEnabled) {
@@ -226,7 +227,7 @@ export function ComposerTurnControl({
             {controlView.guide.visible ? (
               <Tooltip delay={0}>
                 <Button
-                  aria-keyshortcuts={guideShortcut.aria}
+                  render={(props) => <button {...props} aria-keyshortcuts={guideShortcut.aria} />}
                   isDisabled={!controlView.guide.buttonEnabled}
                   onPress={() => {
                     submit(undefined, "guide");
@@ -252,12 +253,6 @@ export function ComposerTurnControl({
       </Surface>
     </section>
   );
-}
-
-function guideShortcutForPlatform(platform: string): Readonly<{ aria: string; visible: string }> {
-  return platform.startsWith("Mac")
-    ? { aria: "Meta+Enter", visible: "⌘ Enter" }
-    : { aria: "Control+Enter", visible: "Ctrl+Enter" };
 }
 
 function useComposerFocusVisible(composerShellRef: {

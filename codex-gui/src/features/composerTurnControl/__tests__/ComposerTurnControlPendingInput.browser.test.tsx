@@ -326,6 +326,41 @@ test("shows Guide only for an active turn and submits an accepted draft as steer
     .toBe("Keep the newer draft");
 });
 
+test("keeps Mac Guide hints consistent with the actual keyboard action", async () => {
+  const platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+  try {
+    const harness = createQueueControllerHarness(queueSnapshot({ canStop: true }));
+    const screen = await renderComposerTurnControl({
+      scenario: { type: "activeFixture" },
+      queue: { type: "provided", controller: harness.controller },
+    });
+    const composer = screen.composer();
+    const guide = screen.getByRole("button", { name: "Guide", exact: true });
+
+    await composer.fill("Guide from the Mac shortcut");
+    await expect.element(composer).toHaveAttribute("aria-keyshortcuts", "Meta+Enter");
+    await expect.element(guide).toHaveAttribute("aria-keyshortcuts", "Meta+Enter");
+    await expect.element(guide).toBeEnabled();
+    await userEvent.unhover(document.body);
+    await userEvent.hover(guide);
+    await expect.element(screen.getByRole("tooltip")).toHaveTextContent("⌘ Enter");
+    await userEvent.unhover(guide);
+    await composer.click();
+    await screen.user.keyboard("{Meta>}{Enter}{/Meta}");
+
+    expect(harness.submitSteer).toHaveBeenCalledOnce();
+    expect(harness.submitSteer.mock.calls.at(0)?.at(0)).toMatchObject({
+      textContent: "Guide from the Mac shortcut",
+    });
+    expect(harness.submit).not.toHaveBeenCalled();
+    await expect
+      .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+      .toBe("");
+  } finally {
+    platform.mockRestore();
+  }
+});
+
 test("routes guide shortcuts by draft presence while ordinary Enter stays ordinary", async () => {
   const harness = createQueueControllerHarness(
     queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1, canStop: true }),
