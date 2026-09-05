@@ -1,7 +1,7 @@
 import { Button, Drawer } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useState } from "react";
 import { useAppSelector } from "@/app/hooks";
 import {
@@ -63,25 +63,9 @@ export function AppShellTopBar() {
           <Menu aria-hidden="true" className="size-5" />
           <Trans>Menu</Trans>
         </Button>
-        {isHistoryDetail ? (
-          <Button
-            aria-label={t`Back to history`}
-            className="shrink-0"
-            isIconOnly
-            onPress={navigateToHistory}
-            variant="secondary"
-          >
-            <ArrowLeft aria-hidden="true" className="size-5" />
-          </Button>
-        ) : null}
         <h1 className="min-w-0 flex-1 truncate text-base font-semibold" title={title}>
           {title}
         </h1>
-        {isHistoryDetail ? (
-          <span className="shrink-0 text-xs text-muted">
-            <Trans>Read-only history</Trans>
-          </span>
-        ) : null}
       </div>
 
       <Drawer.Backdrop isOpen={isDrawerOpen} onOpenChange={setIsDrawerOpen}>

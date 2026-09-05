@@ -414,10 +414,10 @@ test("History detail marks only History as the current navigation destination", 
     .toBeVisible();
   await expect
     .element(screen.getByRole("banner").getByText("Read-only history", { exact: true }))
-    .toBeVisible();
+    .not.toBeInTheDocument();
   await expect
     .element(screen.getByRole("button", { name: "Back to history", exact: true }))
-    .toBeVisible();
+    .not.toBeInTheDocument();
   await screen.getByRole("button", { name: "Menu" }).click();
   const navigation = screen.getByRole("navigation", { name: "Main navigation" });
   const currentTaskButton = navigation.getByRole("button", {

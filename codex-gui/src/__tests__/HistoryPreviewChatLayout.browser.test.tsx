@@ -80,8 +80,12 @@ test.each([
     const continueAction = screen.getByRole("button", { name: "Continue this task" });
     await expect.element(continueAction).toBeEnabled();
     await expect.element(transcript).toBeVisible();
-    await expect.element(screen.getByText("Read-only history", { exact: true })).toBeInViewport();
-    await expect.element(screen.getByRole("button", { name: "Back to history" })).toBeInViewport();
+    await expect
+      .element(screen.getByText("Read-only history", { exact: true }))
+      .not.toBeInTheDocument();
+    await expect
+      .element(screen.getByRole("button", { name: "Back to history" }))
+      .not.toBeInTheDocument();
     window.scrollTo({ top: 0 });
     await expect.poll(() => window.scrollY).toBe(0);
 
@@ -95,8 +99,7 @@ test.each([
       0,
     );
     expect(previewBounds.right).toBeCloseTo(
-      screen.getByText("Read-only history", { exact: true }).element().getBoundingClientRect()
-        .right,
+      screen.getByRole("heading", { level: 1 }).element().getBoundingClientRect().right,
       0,
     );
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth + 1);

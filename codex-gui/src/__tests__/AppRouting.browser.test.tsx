@@ -463,7 +463,9 @@ test("history titles follow route identity through loading, error, retry, and un
 
   await expect.element(heading).toHaveTextContent("First preview");
   expect(screen.getByRole("heading", { level: 1 }).elements()).toHaveLength(1);
-  await expect.element(screen.getByRole("banner").getByText("Read-only history")).toBeVisible();
+  await expect
+    .element(screen.getByRole("banner").getByText("Read-only history"))
+    .not.toBeInTheDocument();
   await router.navigate({ to: "/history/$threadId", params: { threadId: launchThreadId } });
   await expect.element(heading).toHaveTextContent("History detail");
   await expect.element(screen.getByText("First preview", { exact: true })).not.toBeInTheDocument();
@@ -479,7 +481,11 @@ test("history titles follow route identity through loading, error, retry, and un
   expect(readThread).toHaveBeenNthCalledWith(2, { threadId: launchThreadId, includeTurns: true });
   expect(readThread).toHaveBeenNthCalledWith(3, { threadId: launchThreadId, includeTurns: true });
 
-  await screen.getByRole("button", { name: "Back to history", exact: true }).click();
+  await screen.getByRole("button", { name: "Menu", exact: true }).click();
+  await screen
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "History", exact: true })
+    .click();
   await expect.element(heading).toHaveTextContent(/^History$/);
   await expect
     .element(screen.getByText("Read-only history", { exact: true }))
@@ -521,16 +527,25 @@ test("long preview titles retain their full accessible name while the compact he
     await expect.poll(() => document.title).toBe(`${title.slice(0, 51)}… · Codex`);
     expect(screen.getByRole("heading", { level: 1 }).elements()).toHaveLength(1);
     const banner = screen.getByRole("banner");
-    for (const control of [
-      banner.getByRole("button", { name: "Menu", exact: true }),
-      banner.getByRole("button", { name: "Back to history", exact: true }),
-      banner.getByText("Read-only history", { exact: true }),
-    ]) {
+    for (const control of [banner.getByRole("button", { name: "Menu", exact: true }), heading]) {
       await expect.element(control).toBeVisible();
       const bounds = control.element().getBoundingClientRect();
       expect(bounds.left).toBeGreaterThanOrEqual(0);
       expect(bounds.right).toBeLessThanOrEqual(window.innerWidth);
     }
+    await expect
+      .element(banner.getByRole("button", { name: "Back to history", exact: true }))
+      .not.toBeInTheDocument();
+    await expect
+      .element(banner.getByText("Read-only history", { exact: true }))
+      .not.toBeInTheDocument();
+    const menuBounds = banner
+      .getByRole("button", { name: "Menu", exact: true })
+      .element()
+      .getBoundingClientRect();
+    const headingBounds = heading.element().getBoundingClientRect();
+    expect(headingBounds.left).toBeGreaterThan(menuBounds.right);
+    expect(headingBounds.right).toBeCloseTo(window.innerWidth - menuBounds.left, 0);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
     expect(commands.readThread).toHaveBeenCalledExactlyOnceWith({
       threadId: historyThreadId,

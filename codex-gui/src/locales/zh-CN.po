@@ -102,12 +102,8 @@ msgstr "继续此任务时发生意外错误。"
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
-#: src/features/appShell/AppShellTopBar.tsx:68
-msgid "Back to history"
-msgstr "返回历史记录"
-
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:169
+#: src/features/appShell/AppShellTopBar.tsx:153
 msgid "Browse task history"
 msgstr "浏览历史任务"
 
@@ -217,7 +213,7 @@ msgid "Continue this task"
 msgstr "继续此任务"
 
 #: src/features/appShell/AppShellTopBar.tsx:32
-#: src/features/appShell/AppShellTopBar.tsx:125
+#: src/features/appShell/AppShellTopBar.tsx:109
 #: src/features/documentTitle/DocumentTitleOwner.tsx:44
 msgid "Current task"
 msgstr "当前任务"
@@ -354,7 +350,7 @@ msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
 #: src/features/appShell/AppShellTopBar.tsx:35
-#: src/features/appShell/AppShellTopBar.tsx:163
+#: src/features/appShell/AppShellTopBar.tsx:147
 #: src/features/documentTitle/DocumentTitleOwner.tsx:45
 msgid "History"
 msgstr "历史记录"
@@ -431,7 +427,7 @@ msgstr "正在加载技能…"
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
-#: src/features/appShell/AppShellTopBar.tsx:97
+#: src/features/appShell/AppShellTopBar.tsx:81
 msgid "Main navigation"
 msgstr "主导航"
 
@@ -492,7 +488,7 @@ msgstr "上移"
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:93
+#: src/features/appShell/AppShellTopBar.tsx:77
 msgid "Navigation"
 msgstr "导航"
 
@@ -542,7 +538,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:131
+#: src/features/appShell/AppShellTopBar.tsx:115
 msgid "Open current task"
 msgstr "打开当前任务"
 
@@ -620,10 +616,6 @@ msgstr "排队 {ordinaryQueuedCount}"
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:225
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "已将已排队消息移到第 {movedPosition} 项，共 {movedCount} 项。"
-
-#: src/features/appShell/AppShellTopBar.tsx:82
-msgid "Read-only history"
-msgstr "只读历史记录"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:330
 msgid "Refresh complete. Try the action again."

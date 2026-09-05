@@ -189,10 +189,14 @@ test("shows a terminal connection error without an invalid Retry before commands
   await expect.element(screen.getByText("Loading task history…")).not.toBeInTheDocument();
 });
 
-test("returns to the canonical history list without search or fragment", async () => {
+test("opens the canonical history list from the menu without search or fragment", async () => {
   const { router, screen } = await renderDetail();
 
-  await screen.getByRole("button", { name: "Back to history" }).click();
+  await screen.getByRole("button", { name: "Menu", exact: true }).click();
+  await screen
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "History", exact: true })
+    .click();
 
   await expect.element(screen.getByRole("main", { name: "History list" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/history");
@@ -392,7 +396,11 @@ test("preserves detail and list entries across browser back and forward navigati
   const { router, screen } = await renderDetail({ commands });
 
   await expect.element(screen.getByRole("heading", { name: "Historical task" })).toBeVisible();
-  await screen.getByRole("button", { name: "Back to history" }).click();
+  await screen.getByRole("button", { name: "Menu", exact: true }).click();
+  await screen
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "History", exact: true })
+    .click();
   await expect.element(screen.getByRole("main", { name: "History list" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/history");
 

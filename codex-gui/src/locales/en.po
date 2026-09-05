@@ -102,12 +102,8 @@ msgstr "An unexpected error occurred while continuing the task."
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
-#: src/features/appShell/AppShellTopBar.tsx:68
-msgid "Back to history"
-msgstr "Back to history"
-
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:169
+#: src/features/appShell/AppShellTopBar.tsx:153
 msgid "Browse task history"
 msgstr "Browse task history"
 
@@ -217,7 +213,7 @@ msgid "Continue this task"
 msgstr "Continue this task"
 
 #: src/features/appShell/AppShellTopBar.tsx:32
-#: src/features/appShell/AppShellTopBar.tsx:125
+#: src/features/appShell/AppShellTopBar.tsx:109
 #: src/features/documentTitle/DocumentTitleOwner.tsx:44
 msgid "Current task"
 msgstr "Current task"
@@ -354,7 +350,7 @@ msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 
 #: src/features/appShell/AppShellTopBar.tsx:35
-#: src/features/appShell/AppShellTopBar.tsx:163
+#: src/features/appShell/AppShellTopBar.tsx:147
 #: src/features/documentTitle/DocumentTitleOwner.tsx:45
 msgid "History"
 msgstr "History"
@@ -431,7 +427,7 @@ msgstr "Loading skills…"
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/appShell/AppShellTopBar.tsx:97
+#: src/features/appShell/AppShellTopBar.tsx:81
 msgid "Main navigation"
 msgstr "Main navigation"
 
@@ -492,7 +488,7 @@ msgstr "Move up"
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:93
+#: src/features/appShell/AppShellTopBar.tsx:77
 msgid "Navigation"
 msgstr "Navigation"
 
@@ -542,7 +538,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:131
+#: src/features/appShell/AppShellTopBar.tsx:115
 msgid "Open current task"
 msgstr "Open current task"
 
@@ -620,10 +616,6 @@ msgstr "Queued {ordinaryQueuedCount}"
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:225
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "Queued message moved to position {movedPosition} of {movedCount}."
-
-#: src/features/appShell/AppShellTopBar.tsx:82
-msgid "Read-only history"
-msgstr "Read-only history"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:330
 msgid "Refresh complete. Try the action again."
