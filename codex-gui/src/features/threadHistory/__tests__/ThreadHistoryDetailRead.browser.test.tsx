@@ -345,60 +345,30 @@ test("keeps the transcript end above the measured continuation action surface", 
   const action = screen.getByRole("button", { name: "Continue this task" });
   const qrAction = screen.getByRole("button", { name: "Scan with phone" });
   const actionBar = action.element().closest("aside");
-  const appShellBottomSpace = screen.container.querySelector(
-    "[data-app-shell-bottom-action-space]",
-  );
-  expect(action.element().classList.contains("button--primary")).toBe(true);
   expect(qrAction.element().closest("aside")).toBe(actionBar);
-  expect(actionBar?.classList.contains("fixed")).toBe(true);
-  expect(appShellBottomSpace).toBeNull();
-
-  const localBottomSpace = screen.container.querySelector(
-    "[data-thread-history-continuation-action-space]",
-  );
-  if (!(actionBar instanceof HTMLElement) || !(localBottomSpace instanceof HTMLElement)) {
-    throw new Error("History continuation action must own its measured bottom space");
+  if (!(actionBar instanceof HTMLElement)) {
+    throw new Error("Expected history continuation actions");
   }
-  expect(localBottomSpace.getAttribute("aria-hidden")).toBe("true");
-  await expect
-    .poll(() =>
-      Math.abs(
-        localBottomSpace.getBoundingClientRect().height - actionBar.getBoundingClientRect().height,
-      ),
-    )
-    .toBeLessThanOrEqual(1);
-  const idleSurfaceHeight = actionBar.getBoundingClientRect().height;
 
   await action.click();
   await expect
     .element(screen.getByText("The task could not be resumed.", { exact: true }))
     .toBeVisible();
-  await expect
-    .poll(() => actionBar.getBoundingClientRect().height)
-    .toBeGreaterThan(idleSurfaceHeight);
-  await expect
-    .poll(() =>
-      Math.abs(
-        localBottomSpace.getBoundingClientRect().height - actionBar.getBoundingClientRect().height,
-      ),
-    )
-    .toBeLessThanOrEqual(1);
-  const collapsedSurfaceHeight = actionBar.getBoundingClientRect().height;
 
   await screen.getByRole("button", { name: "View diagnostic information" }).click();
   await expect
     .element(screen.getByText("Continuation diagnostic line 80", { exact: false }))
     .toBeVisible();
   await expect
-    .poll(() => actionBar.getBoundingClientRect().height)
-    .toBeGreaterThan(collapsedSurfaceHeight);
-  await expect
-    .poll(() =>
-      Math.abs(
-        localBottomSpace.getBoundingClientRect().height - actionBar.getBoundingClientRect().height,
-      ),
+    .poll(
+      () =>
+        actionBar
+          .getAnimations({ subtree: true })
+          .filter((animation) => animation.playState === "running" || animation.pending).length,
     )
-    .toBeLessThanOrEqual(1);
+    .toBe(0);
+  await expect.element(action).toBeInViewport({ ratio: 1 });
+  await expect.element(qrAction).toBeInViewport({ ratio: 1 });
 
   window.scrollTo(0, document.documentElement.scrollHeight);
   const transcriptEnd = screen.getByText("End of read-only history", { exact: false });

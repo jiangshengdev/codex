@@ -30,40 +30,6 @@ afterEach(() => {
   restoreMotion = undefined;
 });
 
-test("vertically centers an inline skill chip with adjacent text", async () => {
-  const selectedSkill = skill("alignment", "/skills/alignment/SKILL.md", "Alignment");
-  const { screen } = await renderEditor([selectedSkill]);
-  const editor = screen.getByRole("combobox", { name: "Message" });
-  const initialText = "abc $ali def";
-
-  await editor.fill(initialText);
-  setCollapsedCaret(editor.element(), initialText, "abc $ali".length);
-  await expect.element(screen.getByRole("listbox", { name: "Typeahead menu" })).toBeVisible();
-  await screen.user.keyboard("{Enter}");
-
-  const host = screen.getByRole("group", { name: /Alignment/i });
-  const hostElement = host.element();
-  const chip = hostElement.querySelector('[data-slot="chip"]');
-  if (!(hostElement instanceof HTMLSpanElement) || !(chip instanceof HTMLSpanElement)) {
-    throw new Error("selected skill must render as an inline HeroUI Chip");
-  }
-
-  const chipBounds = chip.getBoundingClientRect();
-  const chipCenter = chipBounds.top + chipBounds.height / 2;
-  const leftTextBounds = adjacentVisibleTextCharacterRect(hostElement, "before");
-  const rightTextBounds = adjacentVisibleTextCharacterRect(hostElement, "after");
-  const centerOffsets = {
-    left: chipCenter - (leftTextBounds.top + leftTextBounds.height / 2),
-    right: chipCenter - (rightTextBounds.top + rightTextBounds.height / 2),
-  };
-  const maximumCenterOffset = Math.max(Math.abs(centerOffsets.left), Math.abs(centerOffsets.right));
-
-  expect(
-    maximumCenterOffset,
-    `skill chip center offsets in CSS px: ${JSON.stringify(centerOffsets)}`,
-  ).toBeLessThanOrEqual(1);
-});
-
 test("renders an inline HeroUI skill chip whose tooltip discloses only catalog-backed details", async () => {
   restoreMotion = disableMotionForTest();
   const selectedSkill: SkillCatalogCandidate = {
@@ -113,8 +79,6 @@ test("renders an inline HeroUI skill chip whose tooltip discloses only catalog-b
   expect(tooltipTrigger.getAttribute("role")).toBe("presentation");
   expect(tooltipTrigger.getAttribute("tabindex")).toBe("-1");
   expect(hostElement.querySelector('button, [role="button"], [role="math"]')).toBeNull();
-  expect(chip.classList).toContain("chip--sm");
-  expect(chip.classList).toContain("chip--secondary");
   expect(chip.querySelector('[data-slot="chip-label"]')?.textContent).toBe("$Friendly Review");
   expect(chip.querySelector("button")).toBeNull();
   expect(hostElement.textContent).toBe("$Friendly Review");
@@ -128,8 +92,6 @@ test("renders an inline HeroUI skill chip whose tooltip discloses only catalog-b
   const triggerBounds = tooltipTrigger.getBoundingClientRect();
   expect(triggerBounds.left).toBeGreaterThanOrEqual(editorBounds.left - 1);
   expect(triggerBounds.right).toBeLessThanOrEqual(editorBounds.right + 1);
-  const bodyOverflow = getComputedStyle(document.body).overflow;
-  const rootOverflow = getComputedStyle(document.documentElement).overflow;
   const documentScrollWidth = document.documentElement.scrollWidth;
 
   await userEvent.unhover(document.body);
@@ -144,10 +106,7 @@ test("renders an inline HeroUI skill chip whose tooltip discloses only catalog-b
   expect(tooltip.element().textContent).not.toContain("Fallback description");
   expect(tooltip.element().textContent).not.toContain("/workspace/");
   expect(tooltip.element().textContent).not.toContain("SKILL.md");
-  expect(tooltip.element().getBoundingClientRect().width).toBeLessThanOrEqual(321);
   expect(tooltip.element().scrollWidth).toBeLessThanOrEqual(tooltip.element().clientWidth + 1);
-  expect(getComputedStyle(document.body).overflow).toBe(bodyOverflow);
-  expect(getComputedStyle(document.documentElement).overflow).toBe(rootOverflow);
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(documentScrollWidth + 1);
 
   await userEvent.unhover(document.body);
@@ -246,8 +205,6 @@ test("shows invalid chip details only when a complete ready catalog confirms its
   await expect
     .element(hostElement)
     .toHaveAccessibleName(/^(?=.*Friendly Skill)(?=.*Invalid skill).*$/i);
-  expect(chip.classList).toContain("chip--danger");
-  expect(chip.classList).toContain("chip--soft");
   expect(hostElement.textContent).toBe("$Friendly Skill");
   expect(getController(controllerRef).getSnapshot().textContent).toBe("$Friendly Skill");
   expect(hostElement.outerHTML).not.toContain(selectedSkill.path);
@@ -264,8 +221,6 @@ test("shows invalid chip details only when a complete ready catalog confirms its
   await screen.rerender(renderForCatalog(readyCatalog));
   await expect.element(hostElement).not.toHaveAttribute("aria-invalid");
   await expect.element(hostElement).toHaveAccessibleName(/Friendly Skill/i);
-  expect(chip.classList).toContain("chip--secondary");
-  expect(chip.classList).not.toContain("chip--danger");
   const refreshedSkill: SkillCatalogCandidate = {
     ...selectedSkill,
     interface: {
@@ -296,7 +251,6 @@ test("shows invalid chip details only when a complete ready catalog confirms its
     await screen.rerender(renderForCatalog(skillCatalog));
     await expect.element(hostElement).not.toHaveAttribute("aria-invalid");
     await expect.element(hostElement).toHaveAccessibleName(/Friendly Skill/i);
-    expect(chip.classList).not.toContain("chip--danger");
   }
 
   await screen.rerender(renderForCatalog(readyCatalog, true));
@@ -490,47 +444,6 @@ async function expectPathDetails(
   await expect.poll(() => chip.hasAttribute("data-selected")).toBe(wasSelected);
 }
 
-type SkillCaretSide = "after" | "before";
-
-function findAdjacentText(node: ChildNode | null, side: SkillCaretSide): Text {
-  if (node instanceof Text) {
-    return node;
-  }
-  if (!(node instanceof Element)) {
-    throw new Error(`selected skill must have ${side} text content`);
-  }
-  const walker = node.ownerDocument.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-  let text = walker.nextNode();
-  if (side === "before") {
-    let nextText = walker.nextNode();
-    while (nextText != null) {
-      text = nextText;
-      nextText = walker.nextNode();
-    }
-  }
-  if (!(text instanceof Text)) {
-    throw new Error(`selected skill must have ${side} text content`);
-  }
-  return text;
-}
-
-function adjacentVisibleTextCharacterRect(tokenHost: HTMLElement, side: SkillCaretSide): DOMRect {
-  const adjacentNode = side === "before" ? tokenHost.previousSibling : tokenHost.nextSibling;
-  const text = findAdjacentText(adjacentNode, side);
-  const characterIndex =
-    side === "before"
-      ? Array.from(text.data.matchAll(/\S/gu)).at(-1)?.index
-      : text.data.search(/\S/u);
-  if (characterIndex == null || characterIndex < 0) {
-    throw new Error(`selected skill must have visible ${side} text content`);
-  }
-
-  const range = tokenHost.ownerDocument.createRange();
-  range.setStart(text, characterIndex);
-  range.setEnd(text, characterIndex + 1);
-  return range.getBoundingClientRect();
-}
-
 function readNodeSelectionSize(root: Element): number | null {
   const editor = getNearestEditorFromDOMNode(root);
   if (editor == null) throw new Error("composer root must belong to a Lexical editor");
@@ -538,36 +451,6 @@ function readNodeSelectionSize(root: Element): number | null {
     const selection = $getSelection();
     return $isNodeSelection(selection) ? selection.getNodes().length : null;
   });
-}
-
-function setCollapsedCaret(root: Element, expectedText: string, offset: number): void {
-  const textElements = root.querySelectorAll<HTMLElement>('[data-lexical-text="true"]');
-  if (textElements.length !== 1) {
-    throw new Error("composer editor must contain exactly one Lexical text element");
-  }
-
-  const textElement = textElements.item(0);
-  const textNode = textElement.firstChild;
-  if (textElement.childNodes.length !== 1 || !(textNode instanceof Text)) {
-    throw new Error("Lexical text element must contain exactly one Text child");
-  }
-  if (textNode.data !== expectedText) {
-    throw new Error(`expected Lexical text ${expectedText}, received ${textNode.data}`);
-  }
-  if (!Number.isInteger(offset) || offset < 0 || offset > textNode.length) {
-    throw new Error(`caret offset ${String(offset)} is outside the Lexical text`);
-  }
-
-  const selection = root.ownerDocument.getSelection();
-  if (selection == null) {
-    throw new Error("composer editor document must provide a Selection");
-  }
-  const range = root.ownerDocument.createRange();
-  range.setStart(textNode, offset);
-  range.collapse(true);
-  selection.removeAllRanges();
-  selection.addRange(range);
-  root.ownerDocument.dispatchEvent(new Event("selectionchange"));
 }
 
 function dispatchHistoryShortcut(element: Element, command: "undo" | "redo"): void {

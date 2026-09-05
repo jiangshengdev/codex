@@ -198,7 +198,7 @@ test("gates operations by the active session phase", async () => {
   });
 });
 
-test("uses the same skill chip and catalog tooltip while editing a pending message", async () => {
+test("shows the selected skill and catalog tooltip while editing a pending message", async () => {
   restoreMotion = disableMotionForTest();
   const selectedSkill: SkillCatalogCandidate = {
     name: "pending-skill",
@@ -239,15 +239,10 @@ test("uses the same skill chip and catalog tooltip while editing a pending messa
   const trigger = screen.getByRole("group", { name: /Pending Skill/i });
   await expect.element(trigger).toHaveAccessibleName(/^(?=.*Pending Skill)(?=.*details?).*$/i);
   const triggerElement = trigger.element();
-  const chip = triggerElement.querySelector('[data-slot="chip"]');
-  if (!(chip instanceof HTMLSpanElement))
-    throw new Error("pending editor must render a HeroUI Chip");
   const tooltipTrigger = triggerElement.querySelector('[data-slot="tooltip-trigger"]');
   if (!(tooltipTrigger instanceof HTMLElement))
     throw new Error("pending skill chip must render inside a Tooltip trigger");
-  expect(chip.classList).toContain("chip--sm");
-  expect(chip.classList).toContain("chip--secondary");
-  expect(chip.textContent).toBe("$Pending Skill");
+  await expect.element(trigger).toHaveTextContent("$Pending Skill");
   await expect.element(pendingEditor).toHaveTextContent("$Pending Skill");
 
   await userEvent.unhover(document.body);

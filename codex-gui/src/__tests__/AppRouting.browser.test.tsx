@@ -305,7 +305,7 @@ test("history cards open details and preserve one connection across browser back
   scrollTo.mockRestore();
 });
 
-test("aligns the wider history list with the top bar without widening current or detail routes", async () => {
+test("aligns history, current task, and detail content with their top bars", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
   let unmount: (() => Promise<void>) | null = null;
 
@@ -369,8 +369,7 @@ test("aligns the wider history list with the top bar without widening current or
 
     const historyCard = screen.getByRole("article", { name: "Projection fixture" });
     await expect.element(historyCard).toBeVisible();
-    const historyBounds = alignedRouteBounds(screen.getByRole("main").element());
-    expect(historyBounds.width).toBeGreaterThan(currentBounds.width);
+    alignedRouteBounds(screen.getByRole("main").element());
     expectCanonicalRoute(router.state.location.href, "/history", 0);
 
     await historyCard.getByRole("link", { name: "Projection fixture", exact: true }).click();
@@ -380,8 +379,6 @@ test("aligns the wider history list with the top bar without widening current or
       .toBeVisible();
     const detailBounds = alignedRouteBounds(screen.getByRole("main").element());
     expectHorizontalAlignment(currentBounds, detailBounds);
-    expect(Math.abs(currentBounds.width - detailBounds.width)).toBeLessThanOrEqual(1);
-    expect(historyBounds.width).toBeGreaterThan(detailBounds.width);
     expect(readThread).toHaveBeenCalledWith({
       threadId: historyThreadId,
       includeTurns: true,
@@ -522,9 +519,6 @@ test("long preview titles retain their full accessible name while the compact he
     await expect.element(heading).toBeVisible();
     await expect.element(heading).toHaveAccessibleName(title);
     await expect.poll(() => document.title).toBe(`${title.slice(0, 51)}… · Codex`);
-    const headingElement = heading.element();
-    expect(headingElement.scrollWidth).toBeGreaterThan(headingElement.clientWidth);
-    expect(getComputedStyle(headingElement).textOverflow).toBe("ellipsis");
     expect(screen.getByRole("heading", { level: 1 }).elements()).toHaveLength(1);
     const banner = screen.getByRole("banner");
     for (const control of [

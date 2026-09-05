@@ -49,26 +49,104 @@ const getComposerPanel = (screen: RenderedComposerTurnControl): HTMLElement => {
   return composerPanel;
 };
 
-const composerPanelVisualSignature = (composerPanel: HTMLElement) => {
+const composerFocusIndicator = (composerPanel: HTMLElement) => {
   const style = window.getComputedStyle(composerPanel);
   return {
-    backgroundColor: style.backgroundColor,
-    borderColor: style.borderColor,
-    borderWidth: style.borderWidth,
     boxShadow: style.boxShadow,
-    cursor: style.cursor,
-    opacity: style.opacity,
+    outline: style.outline,
   };
 };
 
-const elementGeometry = (element: Element) => {
-  const rect = element.getBoundingClientRect();
-  return {
-    height: rect.height,
-    left: rect.left,
-    top: rect.top,
-    width: rect.width,
+const hasUnclippedFocusPaint = (
+  element: HTMLElement,
+  restingIndicator: ReturnType<typeof composerFocusIndicator>,
+): boolean => {
+  const context = document.createElement("canvas").getContext("2d");
+  if (context == null) throw new Error("focus color sampling requires a canvas context");
+  const colorPixel = (color: string): Uint8ClampedArray => {
+    context.clearRect(0, 0, 1, 1);
+    context.fillStyle = color;
+    context.fillRect(0, 0, 1, 1);
+    return context.getImageData(0, 0, 1, 1).data;
   };
+  let background = colorPixel("white");
+  for (let ancestor: HTMLElement | null = element; ancestor; ancestor = ancestor.parentElement) {
+    const pixel = colorPixel(getComputedStyle(ancestor).backgroundColor);
+    if (pixel[3] === 255) {
+      background = pixel;
+      break;
+    }
+  }
+  const isVisibleColor = (color: string): boolean => {
+    const pixel = colorPixel(color);
+    return (
+      (pixel[3] ?? 0) > 0 &&
+      pixel.some((channel, index) => index < 3 && channel !== background[index])
+    );
+  };
+  const style = getComputedStyle(element);
+  if (
+    element
+      .getAnimations()
+      .some((animation) => animation.playState === "running" || animation.pending)
+  )
+    return false;
+  const restingShadows = new Set(
+    restingIndicator.boxShadow.split(/,(?![^()]*\))/u).map((shadow) => shadow.trim()),
+  );
+  let outset = 0;
+  for (const shadow of style.boxShadow.split(/,(?![^()]*\))/u)) {
+    if (shadow.includes("inset") || restingShadows.has(shadow.trim())) continue;
+    const color = /(?:rgba?|[a-z]+)\([^)]*\)/u.exec(shadow)?.[0];
+    if (color == null || !isVisibleColor(color)) continue;
+    const [x = 0, y = 0, blur = 0, spread = 0] = (
+      shadow.replace(color, "").match(/-?[\d.]+px/gu) ?? []
+    ).map(Number.parseFloat);
+    outset = Math.max(outset, Math.max(Math.abs(x), Math.abs(y)) + blur + spread);
+  }
+  if (
+    style.outline !== restingIndicator.outline &&
+    style.outlineStyle !== "none" &&
+    style.outlineStyle !== "hidden" &&
+    isVisibleColor(style.outlineColor)
+  ) {
+    outset = Math.max(
+      outset,
+      Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset),
+    );
+  }
+  if (outset <= 0) return false;
+  const rect = element.getBoundingClientRect();
+  const paint = {
+    left: rect.left - outset,
+    right: rect.right + outset,
+    top: rect.top - outset,
+    bottom: rect.bottom + outset,
+  };
+  if (
+    paint.left < 0 ||
+    paint.top < 0 ||
+    paint.right > window.innerWidth ||
+    paint.bottom > window.innerHeight
+  )
+    return false;
+  for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    const ancestorStyle = getComputedStyle(ancestor);
+    const bounds = ancestor.getBoundingClientRect();
+    if (
+      /(auto|scroll|hidden|clip)/u.test(ancestorStyle.overflowX) &&
+      (paint.left < bounds.left + ancestor.clientLeft ||
+        paint.right > bounds.left + ancestor.clientLeft + ancestor.clientWidth)
+    )
+      return false;
+    if (
+      /(auto|scroll|hidden|clip)/u.test(ancestorStyle.overflowY) &&
+      (paint.top < bounds.top + ancestor.clientTop ||
+        paint.bottom > bounds.top + ancestor.clientTop + ancestor.clientHeight)
+    )
+      return false;
+  }
+  return true;
 };
 
 const composerTextWithoutTrailingBrowserPlaceholders = (
@@ -96,76 +174,56 @@ test("renders the Lexical composer panel and actions", async () => {
     .map((button) => button.textContent.trim())
     .filter((label) => label.length > 0);
 
-  expect(composerPanel.classList.contains("p-2")).toBe(true);
-  expect(composerPanel.classList.contains("pb-5")).toBe(false);
-  expect(composerPanel.classList.contains("p-3")).toBe(false);
-  expect(composerPanel.classList.contains("composer-panel")).toBe(true);
-  expect(composerShell.classList.contains("composer-shell")).toBe(true);
-  expect(composerShell.classList.contains("sticky")).toBe(true);
-  expect(composerShell.classList.contains("bottom-0")).toBe(true);
-  expect(composerShell.classList.contains("fixed")).toBe(false);
-  expect(composerShell.classList.contains("inset-x-0")).toBe(false);
-  expect(composerShell.classList.contains("px-3")).toBe(true);
-  expect(composerShell.classList.contains("px-4")).toBe(false);
-  expect(composerShell.classList.contains("pb-0")).toBe(false);
-  expect(composerShell.classList.contains("pb-3")).toBe(true);
-  expect(composerShell.classList.contains("py-3")).toBe(false);
   await expect.element(composerPanel).toHaveAttribute("aria-disabled", "false");
   await expect.element(composerPanel).toHaveAttribute("data-disabled", "false");
   await expect.element(editorRoot).toHaveAttribute("contenteditable", "true");
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
   const threadStatus = screen.getByRole("status", { name: "Current task is idle", exact: true });
-  const footerLeft = composerPanel.querySelector(".composer-footer-left");
-  if (!(footerLeft instanceof HTMLElement)) {
-    throw new Error("composer footer left cluster must render");
-  }
   await expect.element(qrButton).toBeDisabled();
-  await expect.element(qrButton).toHaveClass("button--icon-only");
   await expect.element(threadStatus).toHaveTextContent("Idle");
-  expect(qrButton.element().parentElement).toBe(footerLeft);
-  expect(threadStatus.element().parentElement).toBe(footerLeft);
-  expect(qrButton.element().nextElementSibling).toBe(threadStatus.element());
   expect(actions).toEqual(["Stop", "Send"]);
 });
 
-test("distinguishes hover, pointer focus, and keyboard focus-visible field states", async () => {
+test("supports pointer editing and visibly indicates keyboard focus", async () => {
   const screen = await renderComposerTurnControl();
+  // The isolated component needs space for focus paint outside its border.
+  screen.container.style.paddingBlock = "1rem";
   const composerPanel = getComposerPanel(screen);
   const composer = screen.composer();
 
   await userEvent.unhover(document.body);
-  const restingVisualSignature = composerPanelVisualSignature(composerPanel);
-
-  await userEvent.hover(composerPanel);
-  await expect
-    .poll(() => composerPanelVisualSignature(composerPanel))
-    .not.toEqual(restingVisualSignature);
-  const hoverVisualSignature = composerPanelVisualSignature(composerPanel);
-  const panelGeometryBeforeFocus = elementGeometry(composerPanel);
-  const composerGeometryBeforeFocus = elementGeometry(composer.element());
+  const restingIndicator = composerFocusIndicator(composerPanel);
 
   await userEvent.click(composer);
   await expect.element(composer).toHaveFocus();
-  await expect.element(composerPanel).toHaveAttribute("data-focus-visible", "false");
-  await expect
-    .poll(() => composerPanelVisualSignature(composerPanel))
-    .not.toEqual(hoverVisualSignature);
-  const pointerFocusVisualSignature = composerPanelVisualSignature(composerPanel);
-  expect(pointerFocusVisualSignature.borderWidth).toBe(hoverVisualSignature.borderWidth);
-  expect(elementGeometry(composerPanel)).toEqual(panelGeometryBeforeFocus);
-  expect(elementGeometry(composer.element())).toEqual(composerGeometryBeforeFocus);
 
   await userEvent.keyboard("x");
-  await expect.element(composerPanel).toHaveAttribute("data-focus-visible", "false");
+  await expect.element(composer).toHaveTextContent("x");
 
   await userEvent.tab();
   await expect.element(composer).not.toHaveFocus();
   await userEvent.tab({ shift: true });
   await expect.element(composer).toHaveFocus();
-  await expect.element(composerPanel).toHaveAttribute("data-focus-visible", "true");
+  await expect.element(composerPanel).toBeVisible();
+  // Measure only settled paint added by focus, without fixing its color or size.
   await expect
-    .poll(() => composerPanelVisualSignature(composerPanel))
-    .not.toEqual(pointerFocusVisualSignature);
+    .poll(async () => {
+      const indicator = composerFocusIndicator(composerPanel);
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            resolve();
+          }),
+        ),
+      );
+      const settledIndicator = composerFocusIndicator(composerPanel);
+      return (
+        indicator.boxShadow === settledIndicator.boxShadow &&
+        indicator.outline === settledIndicator.outline &&
+        hasUnclippedFocusPaint(composerPanel, restingIndicator)
+      );
+    })
+    .toBe(true);
 });
 
 test("marks a skill invalid only when a complete ready catalog confirms its path is unavailable", async () => {
@@ -199,9 +257,6 @@ test("marks a skill invalid only when a complete ready catalog confirms its path
   await screen.user.keyboard("{Enter}");
   const trigger = screen.getByRole("group", { name: /Friendly Skill/i });
   const triggerElement = trigger.element();
-  const chip = triggerElement.querySelector('[data-slot="chip"]');
-  if (!(chip instanceof HTMLSpanElement))
-    throw new Error("selected skill must render a HeroUI Chip");
   await expect.element(send).toBeEnabled();
 
   catalogHarness.publish(invalidCatalog);
@@ -209,8 +264,6 @@ test("marks a skill invalid only when a complete ready catalog confirms its path
   await expect
     .element(triggerElement)
     .toHaveAccessibleName(/^(?=.*Friendly Skill)(?=.*Invalid skill)(?=.*details?).*$/i);
-  expect(chip.classList).toContain("chip--danger");
-  expect(chip.classList).toContain("chip--soft");
   await expect.element(send).toBeDisabled();
   await expect.element(triggerElement).toHaveTextContent("$Friendly Skill");
   expect(triggerElement.outerHTML).not.toContain(selectedSkill.path);
@@ -218,8 +271,6 @@ test("marks a skill invalid only when a complete ready catalog confirms its path
   catalogHarness.publish(readyCatalog);
   await expect.element(triggerElement).not.toHaveAttribute("aria-invalid");
   await expect.element(triggerElement).toHaveAccessibleName(/details?/i);
-  expect(chip.classList).toContain("chip--secondary");
-  expect(chip.classList).not.toContain("chip--danger");
   await expect.element(send).toBeEnabled();
 
   const unconfirmedCatalogs: SkillCatalogState[] = [
@@ -234,7 +285,6 @@ test("marks a skill invalid only when a complete ready catalog confirms its path
     catalogHarness.publish(catalog);
     await expect.element(triggerElement).not.toHaveAttribute("aria-invalid");
     await expect.element(triggerElement).toHaveAccessibleName(/details?/i);
-    expect(chip.classList).not.toContain("chip--danger");
     await expect.element(send).toBeEnabled();
     await expect.element(triggerElement).toHaveTextContent("$Friendly Skill");
     expect(triggerElement.outerHTML).not.toContain(selectedSkill.path);

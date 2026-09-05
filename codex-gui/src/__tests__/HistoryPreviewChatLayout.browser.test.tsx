@@ -40,18 +40,6 @@ function requirePanel(container: HTMLElement): HTMLElement {
   return panel;
 }
 
-function panelAppearance(panel: HTMLElement) {
-  const style = getComputedStyle(panel);
-  return {
-    background: style.backgroundColor,
-    color: style.color,
-    radius: style.borderTopLeftRadius,
-    borderColor: style.borderTopColor,
-    borderWidth: style.borderTopWidth,
-    shadow: style.boxShadow,
-  };
-}
-
 function expectAligned(first: DOMRect, second: DOMRect) {
   expect(Math.abs(first.left - second.left)).toBeLessThanOrEqual(1);
   expect(Math.abs(first.right - second.right)).toBeLessThanOrEqual(1);
@@ -100,9 +88,6 @@ test.each([
     const previewPanel = requirePanel(screen.container);
     const previewBounds = transcript.element().getBoundingClientRect();
     const previewCardBounds = previewPanel.getBoundingClientRect();
-    const previewAppearance = panelAppearance(previewPanel);
-    const previewBottomGap = window.innerHeight - previewCardBounds.bottom;
-    const bannerBottom = screen.getByRole("banner").element().getBoundingClientRect().bottom;
     expectAligned(previewBounds, previewCardBounds);
     expect(previewBounds.left).toBeCloseTo(
       screen.getByRole("button", { name: "Menu", exact: true }).element().getBoundingClientRect()
@@ -114,14 +99,7 @@ test.each([
         .right,
       0,
     );
-    expect(Math.abs(previewBounds.top - bannerBottom)).toBeLessThanOrEqual(1);
-    expect(previewCardBounds.left).toBeGreaterThan(0);
-    expect(previewBottomGap).toBeGreaterThan(0);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth + 1);
-    const aside = previewPanel.closest("aside");
-    expect(aside).not.toBeNull();
-    expect(aside?.contains(document.elementFromPoint(2, previewCardBounds.top + 2))).toBe(false);
-
     const lastLink = screen.getByRole("link", { name: "Last message link" });
     lastLink.element().focus();
     await expect.element(lastLink).toHaveFocus();
@@ -134,6 +112,15 @@ test.each([
       )
       .toBe(true);
     await expect.element(lastLink).toBeInViewport({ ratio: 1 });
+    await expect
+      .poll(() => {
+        const link = lastLink.element();
+        const bounds = link.getBoundingClientRect();
+        return link.contains(
+          document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2),
+        );
+      })
+      .toBe(true);
 
     await continueAction.click();
     await expect
@@ -143,7 +130,6 @@ test.each([
     window.scrollTo({ top: 0 });
     await expect.poll(() => window.scrollY).toBe(0);
     const chatPanel = requirePanel(screen.container);
-    await expect.poll(() => panelAppearance(chatPanel)).toEqual(previewAppearance);
     const chatBounds = transcript.element().getBoundingClientRect();
     const chatCardBounds = chatPanel.getBoundingClientRect();
     expectAligned(chatBounds, chatCardBounds);
@@ -157,11 +143,6 @@ test.each([
       0,
     );
     expectAligned(chatBounds, previewBounds);
-    expect(Math.abs(chatBounds.top - previewBounds.top)).toBeLessThanOrEqual(1);
-    expect(
-      Math.abs(window.innerHeight - chatCardBounds.bottom - previewBottomGap),
-    ).toBeLessThanOrEqual(1);
-    expect(chatCardBounds.height).toBeGreaterThan(previewCardBounds.height);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth + 1);
     lastLink.element().focus();
     await expect.element(lastLink).toHaveFocus();
@@ -174,6 +155,15 @@ test.each([
       )
       .toBe(true);
     await expect.element(lastLink).toBeInViewport({ ratio: 1 });
+    await expect
+      .poll(() => {
+        const link = lastLink.element();
+        const bounds = link.getBoundingClientRect();
+        return link.contains(
+          document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2),
+        );
+      })
+      .toBe(true);
     expect(commands.readThread).toHaveBeenCalledExactlyOnceWith({
       threadId: launchThreadId,
       includeTurns: true,

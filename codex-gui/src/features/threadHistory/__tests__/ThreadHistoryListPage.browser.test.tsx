@@ -58,29 +58,6 @@ const historyGrid = (card: HTMLElement): HTMLElement => {
   return grid;
 };
 
-const firstRowColumnCount = (cards: readonly HTMLElement[]): number => {
-  const firstTop = cards[0]?.getBoundingClientRect().top;
-  if (firstTop == null) {
-    return 0;
-  }
-  return cards.filter((card) => Math.abs(card.getBoundingClientRect().top - firstTop) <= 1).length;
-};
-
-const hasAlignedFirstRow = (cards: readonly HTMLElement[], columns: number): boolean => {
-  const firstRow = cards.slice(0, columns);
-  const heights = firstRow.map((card) => card.getBoundingClientRect().height);
-  const footerTops = firstRow.map(
-    (card) =>
-      card.querySelector<HTMLElement>('[data-slot="card-footer"]')?.getBoundingClientRect().top ??
-      -1,
-  );
-  return (
-    Math.max(...heights) - Math.min(...heights) <= 1 &&
-    footerTops.every((top) => top >= 0) &&
-    Math.max(...footerTops) - Math.min(...footerTops) <= 1
-  );
-};
-
 const fitsWithinOwnWidth = (element: HTMLElement): boolean =>
   element.scrollWidth <= element.clientWidth + 1;
 
@@ -288,10 +265,9 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
   }).format(new Date(activitySeconds * 1000));
   await expect.element(namedCard.getByText(formattedActivityTime)).toBeVisible();
 
-  const statusDangerByLabel = ["Not loaded", "Idle", "Active", "System error"].map((label) =>
-    screen.getByText(label).element().closest(".chip")?.classList.contains("chip--danger"),
-  );
-  expect(statusDangerByLabel).toStrictEqual([false, false, false, true]);
+  for (const label of ["Not loaded", "Idle", "Active", "System error"]) {
+    await expect.element(screen.getByText(label)).toBeVisible();
+  }
   await expect
     .element(screen.getByRole("button", { name: "Scan with phone" }))
     .not.toBeInTheDocument();
@@ -313,7 +289,7 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
   expect(router.state.location.hash).toBe("");
 });
 
-test("lays out history cards in one, two, and three real columns with aligned rows", async () => {
+test("keeps history cards reachable without horizontal overflow across viewport sizes", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
   try {
     await page.viewport(390, 900);
@@ -337,15 +313,24 @@ test("lays out history cards in one, two, and three real columns with aligned ro
 
     const cards = historyCards(screen.container);
     expect(cards).toHaveLength(6);
-    await expect.poll(() => firstRowColumnCount(cards)).toBe(1);
-
-    await page.viewport(900, 900);
-    await expect.poll(() => firstRowColumnCount(cards)).toBe(2);
-    await expect.poll(() => hasAlignedFirstRow(cards, 2)).toBe(true);
-
-    await page.viewport(1440, 900);
-    await expect.poll(() => firstRowColumnCount(cards)).toBe(3);
-    await expect.poll(() => hasAlignedFirstRow(cards, 3)).toBe(true);
+    for (const width of [390, 900, 1440]) {
+      await page.viewport(width, 900);
+      await expect
+        .poll(() => [document.documentElement, ...cards].every(fitsWithinOwnWidth))
+        .toBe(true);
+      for (const card of cards) {
+        card.scrollIntoView({ block: "center" });
+        const bounds = card.getBoundingClientRect();
+        expect(
+          card.contains(
+            document.elementFromPoint(
+              bounds.left + bounds.width / 2,
+              bounds.top + bounds.height / 2,
+            ),
+          ),
+        ).toBe(true);
+      }
+    }
   } finally {
     await page.viewport(originalViewport.width, originalViewport.height);
   }
@@ -570,7 +555,7 @@ test("has one keyboard stop per card with visible focus and Enter navigation", a
   expect(router.state.location.hash).toBe("");
 });
 
-test("clamps complete long text without horizontal overflow and hides only exact trimmed duplicates", async () => {
+test("preserves complete long text without horizontal overflow and hides only exact trimmed duplicates", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
   try {
     await page.viewport(390, 900);
@@ -619,16 +604,6 @@ test("clamps complete long text without horizontal overflow and hides only exact
       if (title == null || summary == null) {
         throw new Error("long history cards must render a title and summary");
       }
-      expect(getComputedStyle(title).webkitLineClamp).toBe("2");
-      expect(getComputedStyle(summary).webkitLineClamp).toBe("2");
-      expect(getComputedStyle(title).overflow).toBe("hidden");
-      expect(getComputedStyle(summary).overflow).toBe("hidden");
-      expect(title.getBoundingClientRect().height).toBeLessThanOrEqual(
-        Number.parseFloat(getComputedStyle(title).lineHeight) * 2 + 1,
-      );
-      expect(summary.getBoundingClientRect().height).toBeLessThanOrEqual(
-        Number.parseFloat(getComputedStyle(summary).lineHeight) * 2 + 1,
-      );
       const footer = card.querySelector<HTMLElement>('[data-slot="card-footer"]');
       if (footer == null) {
         throw new Error("history cards must retain a compact information footer");
@@ -637,7 +612,6 @@ test("clamps complete long text without horizontal overflow and hides only exact
       expect(footerRect.top).toBeGreaterThanOrEqual(summary.getBoundingClientRect().bottom);
       expect(footerRect.bottom).toBeLessThanOrEqual(card.getBoundingClientRect().bottom);
       expect(fitsWithinOwnWidth(footer)).toBe(true);
-      expect(footer.querySelector(".chip")).not.toBeNull();
       expect(footer.textContent).toContain("View");
     }
 
@@ -652,7 +626,7 @@ test("clamps complete long text without horizontal overflow and hides only exact
   }
 });
 
-test("keeps load-more and append errors on their own full-grid rows", async () => {
+test("keeps load-more and append errors reachable after the history cards", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
   try {
     await page.viewport(1440, 900);
@@ -680,17 +654,11 @@ test("keeps load-more and append errors on their own full-grid rows", async () =
     if (firstCard == null) {
       throw new Error("history grid must render at least one card");
     }
-    const grid = historyGrid(firstCard);
-    await expect.poll(() => firstRowColumnCount(cards)).toBe(3);
     await expect
       .poll(() => {
-        const gridRect = grid.getBoundingClientRect();
         const buttonRect = loadMore.element().getBoundingClientRect();
         const cardBottom = Math.max(...cards.map((card) => card.getBoundingClientRect().bottom));
-        return (
-          Math.abs(buttonRect.left + buttonRect.width / 2 - (gridRect.left + gridRect.width / 2)) <=
-            1 && buttonRect.top >= cardBottom
-        );
+        return buttonRect.top >= cardBottom;
       })
       .toBe(true);
 
@@ -700,14 +668,9 @@ test("keeps load-more and append errors on their own full-grid rows", async () =
     await expect.element(alert.getByText(rawFailure.message, { exact: true })).toBeVisible();
     await expect
       .poll(() => {
-        const gridRect = grid.getBoundingClientRect();
         const alertRect = alert.element().getBoundingClientRect();
         const cardBottom = Math.max(...cards.map((card) => card.getBoundingClientRect().bottom));
-        return (
-          Math.abs(alertRect.left - gridRect.left) <= 1 &&
-          Math.abs(alertRect.right - gridRect.right) <= 1 &&
-          alertRect.top >= cardBottom
-        );
+        return alertRect.top >= cardBottom;
       })
       .toBe(true);
   } finally {

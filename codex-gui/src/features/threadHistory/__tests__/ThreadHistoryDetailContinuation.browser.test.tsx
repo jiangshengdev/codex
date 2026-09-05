@@ -26,6 +26,32 @@ const historyThread = (
 
 const emptyHistoryThread = () => historyThread([]);
 
+const waitForActionLayout = async (surface: HTMLElement) => {
+  await expect
+    .poll(async () => {
+      const sample = () => [
+        surface.getBoundingClientRect().height,
+        document.documentElement.scrollHeight,
+        window.scrollY,
+      ];
+      const before = sample();
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            resolve();
+          }),
+        ),
+      );
+      return (
+        surface
+          .getAnimations({ subtree: true })
+          .every((animation) => animation.playState !== "running" && !animation.pending) &&
+        sample().every((value, index) => value === before[index])
+      );
+    })
+    .toBe(true);
+};
+
 afterEach(() => {
   toast.clear();
 });
@@ -369,15 +395,7 @@ test("preserves document scroll position when expanding diagnostics at the botto
     if (!(actionBar instanceof HTMLElement)) {
       throw new Error("Expected continuation action to be rendered in an aside");
     }
-    const actionSpace = document.querySelector("[data-thread-history-continuation-action-space]");
-    if (!(actionSpace instanceof HTMLElement)) {
-      throw new Error("Expected continuation action space");
-    }
-    // Keep the measured spacer out of document scroll anchoring while its height changes.
-    expect(getComputedStyle(actionSpace).overflowAnchor).toBe("none");
-    await expect
-      .poll(() => Math.abs(actionSpace.getBoundingClientRect().height - actionBar.offsetHeight))
-      .toBeLessThanOrEqual(1);
+    await waitForActionLayout(actionBar);
 
     const documentScroller = document.scrollingElement;
     if (!(documentScroller instanceof HTMLElement)) {
@@ -393,15 +411,13 @@ test("preserves document scroll position when expanding diagnostics at the botto
           documentScroller.scrollTop,
       )
       .toBeLessThanOrEqual(1);
-    const scrollTopBeforeExpand = documentScroller.scrollTop;
-
     disclosure.element().focus();
     await expect.element(disclosure).toHaveFocus();
+    await waitForActionLayout(actionBar);
+    const scrollTopBeforeExpand = documentScroller.scrollTop;
     await userEvent.keyboard("{Enter}");
     await expect.element(alert.getByText(diagnostic, { exact: false })).toBeVisible();
-    await expect
-      .poll(() => Math.abs(actionSpace.getBoundingClientRect().height - actionBar.offsetHeight))
-      .toBeLessThanOrEqual(1);
+    await waitForActionLayout(actionBar);
     await expect.element(disclosure).toHaveFocus();
     expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
   } finally {
@@ -456,15 +472,13 @@ test("keeps long continuation diagnostics within a narrow action surface", async
     if (!(actionPanel instanceof HTMLElement)) {
       throw new Error("Expected continuation card");
     }
-    const idleHeight = actionPanel.getBoundingClientRect().height;
 
     await action.click();
     const alert = screen.getByRole("alert");
     await expect.element(alert.getByText("The task could not be resumed.")).toBeVisible();
     const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
     await expect.element(disclosure).toBeInViewport({ ratio: 1 });
-    expect(actionPanel.getBoundingClientRect().height).toBeGreaterThan(idleHeight);
-    const collapsedHeight = actionPanel.getBoundingClientRect().height;
+    await waitForActionLayout(actionPanel);
 
     const documentScroller = document.scrollingElement;
     if (!(documentScroller instanceof HTMLElement)) {
@@ -472,6 +486,7 @@ test("keeps long continuation diagnostics within a narrow action surface", async
     }
     window.scrollTo({ top: Math.min(120, documentScroller.scrollHeight - window.innerHeight) });
     await expect.poll(() => documentScroller.scrollTop).toBeGreaterThan(0);
+    await waitForActionLayout(actionPanel);
     const scrollTopBeforeExpand = documentScroller.scrollTop;
 
     await disclosure.click();
@@ -491,49 +506,58 @@ test("keeps long continuation diagnostics within a narrow action surface", async
       .toBeVisible();
     await expect.element(action).toBeInViewport({ ratio: 1 });
     await expect.element(disclosure).toHaveFocus();
-    await expect
-      .poll(() => actionPanel.getBoundingClientRect().height)
-      .toBeGreaterThan(collapsedHeight);
+    await waitForActionLayout(actionPanel);
     await expect
       .poll(() => ({
         documentScrollTopStable: Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand) <= 1,
         hasInternalOverflow: diagnosticRegion.scrollHeight > diagnosticRegion.clientHeight + 1,
-        usesInternalScrolling: ["auto", "scroll"].includes(
-          getComputedStyle(diagnosticRegion).overflowY,
-        ),
       }))
       .toEqual({
         documentScrollTopStable: true,
         hasInternalOverflow: true,
-        usesInternalScrolling: true,
       });
-    diagnosticRegion.scrollTo({ top: diagnosticRegion.scrollHeight });
-    await expect.poll(() => diagnosticRegion.scrollTop).toBeGreaterThan(0);
+    const lastDiagnosticLineVisible = () => {
+      const walker = document.createTreeWalker(diagnosticRegion, NodeFilter.SHOW_TEXT);
+      const text = "Raw continuation diagnostic line 100 with enough detail to wrap.";
+      let node = walker.nextNode();
+      while (node != null) {
+        const offset = node.textContent?.indexOf(text) ?? -1;
+        if (offset >= 0) {
+          const range = document.createRange();
+          range.setStart(node, offset);
+          range.setEnd(node, offset + text.length);
+          const regionBounds = diagnosticRegion.getBoundingClientRect();
+          return Array.from(range.getClientRects()).every(
+            (bounds) => bounds.top >= regionBounds.top && bounds.bottom <= regionBounds.bottom,
+          );
+        }
+        node = walker.nextNode();
+      }
+      return false;
+    };
+    while (!lastDiagnosticLineVisible()) {
+      const before = diagnosticRegion.scrollTop;
+      await userEvent.wheel(diagnosticRegion, { delta: { y: diagnosticRegion.clientHeight } });
+      await expect.poll(() => diagnosticRegion.scrollTop).toBeGreaterThan(before);
+      await expect
+        .poll(async () => {
+          const scrollTop = diagnosticRegion.scrollTop;
+          await new Promise<void>((resolve) =>
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                resolve();
+              }),
+            ),
+          );
+          return diagnosticRegion.scrollTop === scrollTop;
+        })
+        .toBe(true);
+    }
+    expect(lastDiagnosticLineVisible()).toBe(true);
     expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
     await expect.element(disclosure).toHaveFocus();
 
-    await expect
-      .poll(
-        () =>
-          actionPanel
-            .getAnimations({ subtree: true })
-            .filter((animation) => animation.playState === "running" || animation.pending).length,
-      )
-      .toBe(0);
-    const actionSpace = screen.container.querySelector(
-      "[data-thread-history-continuation-action-space]",
-    );
-    const actionBar = actionPanel.closest("aside");
-    if (!(actionSpace instanceof HTMLElement) || !(actionBar instanceof HTMLElement)) {
-      throw new Error("Expected the measured continuation action space and bar");
-    }
-    await expect
-      .poll(() =>
-        Math.abs(
-          actionSpace.getBoundingClientRect().height - actionBar.getBoundingClientRect().height,
-        ),
-      )
-      .toBeLessThanOrEqual(1);
+    await waitForActionLayout(actionPanel);
     const lastMessage = screen.getByRole("link", { name: "Last history message" });
     lastMessage.element().focus();
     window.scrollTo({ top: documentScroller.scrollHeight });

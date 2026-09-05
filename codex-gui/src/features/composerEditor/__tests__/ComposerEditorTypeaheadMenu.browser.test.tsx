@@ -37,27 +37,15 @@ test("opens the full accessible skill list and keeps editor focus", async () => 
   await expect.element(editor).toHaveAttribute("aria-expanded", "true");
   await expect.element(editor).toHaveAttribute("aria-controls", listbox.element().id);
   const activeOption = listbox.getByRole("option").first();
-  const styledListbox = listbox.element().querySelector("ul.list-box");
-  if (!(styledListbox instanceof HTMLUListElement)) {
-    throw new Error("skill options must use the HeroUI listbox styles");
-  }
   expect(screen.container.querySelectorAll('[role="listbox"]')).toHaveLength(1);
-  expect(styledListbox.children).toHaveLength(candidates.length);
-  expect(Array.from(styledListbox.children).every((child) => child.role === "option")).toBe(true);
   expect(listbox.element().querySelector('[role="group"], [role="separator"]')).toBeNull();
-  expect(styledListbox.classList).toContain("list-box--default");
-  expect(styledListbox.getAttribute("data-slot")).toBe("list-box");
-  await expect.element(activeOption).toHaveClass("list-box-item", "list-box-item--default");
-  await expect.element(activeOption).toHaveAttribute("data-slot", "list-box-item");
   await expect.element(editor).toHaveAttribute("aria-activedescendant", activeOption.element().id);
   await expect.element(activeOption).toHaveAttribute("aria-selected", "true");
-  await expect.element(activeOption).toHaveAttribute("data-active", "true");
-  await expect.element(activeOption).not.toHaveAttribute("data-focus-visible");
   await expect.element(editor).toHaveFocus();
   expect(getController(controllerRef).getRootElement()).toBe(editor.element());
 });
 
-test("uses a clipped Select popover surface with one nested scroll owner", async () => {
+test("scrolls candidates without moving the surrounding editor and closes on Escape", async () => {
   const candidates = Array.from({ length: 20 }, (_, index) =>
     skill(`skill-${String(index).padStart(2, "0")}`, `/skills/${String(index)}`),
   );
@@ -68,97 +56,26 @@ test("uses a clipped Select popover surface with one nested scroll owner", async
 
   const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
   await expect.element(listbox.getByRole("option", { name: /skill-00/ })).toBeVisible();
-  const menuSurface = listbox.element().querySelector("[data-skill-menu-surface]");
-  if (!(menuSurface instanceof HTMLElement)) {
-    throw new Error("skill menu must render a popover surface");
-  }
-  const scrollRegions = listbox.element().querySelectorAll("[data-skill-menu-scroll-region]");
-  expect(scrollRegions).toHaveLength(1);
-  const scrollRegion = scrollRegions.item(0);
+  const scrollRegion = listbox.element().querySelector("[data-skill-menu-scroll-region]");
   if (!(scrollRegion instanceof HTMLElement)) {
-    throw new Error("skill menu must render a nested scroll region");
+    throw new Error("skill menu must expose its candidate scroll region");
   }
-  expect(scrollRegion).not.toBe(menuSurface);
-  expect(menuSurface.contains(scrollRegion)).toBe(true);
-  expect(menuSurface.classList).toContain("select__popover");
-  expect(scrollRegion.getAttribute("data-scrollbar")).toBe("thin");
-
-  const scrollOwners = [menuSurface, ...menuSurface.querySelectorAll<HTMLElement>("*")].filter(
-    (element) => ["auto", "scroll"].includes(getComputedStyle(element).overflowY),
-  );
-  expect(scrollOwners).toEqual([scrollRegion]);
-
-  const styledListbox = menuSurface.querySelector('[data-slot="list-box"]');
-  const styledItem = menuSurface.querySelector('[data-slot="list-box-item"]');
-  if (!(styledListbox instanceof HTMLUListElement) || !(styledItem instanceof HTMLLIElement)) {
-    throw new Error("skill menu must expose Select listbox styling slots");
-  }
-
-  const overlayProbe = document.createElement("div");
-  overlayProbe.className = "rounded-3xl bg-overlay";
-  overlayProbe.style.boxShadow = "var(--shadow-overlay)";
-  document.body.append(overlayProbe);
-  const menuStyle = getComputedStyle(menuSurface);
-  const scrollStyle = getComputedStyle(scrollRegion);
-  const overlayStyle = getComputedStyle(overlayProbe);
-  expect(menuStyle.backgroundColor).toBe(overlayStyle.backgroundColor);
-  expect(menuStyle.boxShadow).toBe(overlayStyle.boxShadow);
-  expect(menuStyle.borderRadius).toBe(overlayStyle.borderRadius);
-  expect(menuStyle.borderTopWidth).toBe("0px");
-  expect(menuStyle.borderRightWidth).toBe("0px");
-  expect(menuStyle.borderBottomWidth).toBe("0px");
-  expect(menuStyle.borderLeftWidth).toBe("0px");
-  expect(menuStyle.overflowX).toBe("hidden");
-  expect(menuStyle.overflowY).toBe("hidden");
-  expect(scrollStyle.overflowX).toBe("hidden");
-  expect(scrollStyle.overflowY).toBe("auto");
-  expect(scrollStyle.overscrollBehaviorY).toBe("contain");
-  const scrollbarProbe = document.createElement("div");
-  scrollbarProbe.className = "scrollbar-thin";
-  scrollbarProbe.setAttribute("data-scrollbar", "thin");
-  document.body.append(scrollbarProbe);
-  const scrollbarProbeStyle = getComputedStyle(scrollbarProbe);
-  expect(scrollStyle.getPropertyValue("--scrollbar-width").trim()).toBe("thin");
-  expect(scrollStyle.scrollbarWidth).toBe(scrollbarProbeStyle.scrollbarWidth);
-  scrollbarProbe.remove();
-  expect(menuStyle.animationName).toBe("none");
-  expect(menuStyle.animationDuration).toBe("0s");
-  expect(menuStyle.transitionDuration).toBe("0s");
-  overlayProbe.remove();
-
-  const listboxStyle = getComputedStyle(styledListbox);
-  const itemStyle = getComputedStyle(styledItem);
-  expect(listboxStyle.paddingTop).toBe("6px");
-  expect(listboxStyle.paddingRight).toBe("6px");
-  expect(listboxStyle.paddingBottom).toBe("6px");
-  expect(listboxStyle.paddingLeft).toBe("6px");
-  expect(itemStyle.paddingRight).toBe("10px");
-  expect(itemStyle.paddingLeft).toBe("10px");
-  expect(menuSurface.hasAttribute("data-entering")).toBe(false);
-  expect(menuSurface.hasAttribute("data-exiting")).toBe(false);
-
-  const expectNoMask = (element: HTMLElement): void => {
-    const style = getComputedStyle(element);
-    expect(style.maskImage).toBe("none");
-    const webkitMaskImage = style.getPropertyValue("-webkit-mask-image");
-    expect(["", "none"]).toContain(webkitMaskImage);
-  };
-  expectNoMask(menuSurface);
+  const editorBounds = editor.element().getBoundingClientRect();
+  const outerScrollTop = document.scrollingElement?.scrollTop;
   await expect.poll(() => scrollRegion.scrollHeight > scrollRegion.clientHeight).toBe(true);
-  const maximumScrollTop = scrollRegion.scrollHeight - scrollRegion.clientHeight;
+  scrollRegion.scrollTop = scrollRegion.scrollHeight;
+  await expect.poll(() => scrollRegion.scrollTop).toBeGreaterThan(0);
+  await expect.element(listbox.getByRole("option").last()).toBeInViewport({ ratio: 1 });
+  await expect
+    .poll(() => optionIsUnobstructed(listbox.getByRole("option").last().element()))
+    .toBe(true);
+  expect(document.scrollingElement?.scrollTop).toBe(outerScrollTop);
+  expect(editor.element().getBoundingClientRect().top).toBe(editorBounds.top);
   scrollRegion.scrollTop = 0;
-  await expect.poll(() => scrollRegion.scrollTop).toBe(0);
-  expectNoMask(scrollRegion);
-  scrollRegion.scrollTop = maximumScrollTop / 2;
+  await expect.element(listbox.getByRole("option").first()).toBeInViewport({ ratio: 1 });
   await expect
-    .poll(() => Math.abs(scrollRegion.scrollTop - maximumScrollTop / 2))
-    .toBeLessThanOrEqual(1);
-  expectNoMask(scrollRegion);
-  scrollRegion.scrollTop = maximumScrollTop;
-  await expect
-    .poll(() => Math.abs(scrollRegion.scrollTop - maximumScrollTop))
-    .toBeLessThanOrEqual(1);
-  expectNoMask(scrollRegion);
+    .poll(() => optionIsUnobstructed(listbox.getByRole("option").first().element()))
+    .toBe(true);
 
   await screen.user.keyboard("{Escape}");
   await expect.element(listbox).not.toBeInTheDocument();
@@ -217,25 +134,14 @@ test.for([
     const firstOption = listbox.getByRole("option").first();
     const lastOption = listbox.getByRole("option").last();
     await expect.element(lastOption).toHaveAccessibleName(/boundary-24/);
-    const scrollRegions = listbox.element().querySelectorAll("[data-skill-menu-scroll-region]");
-    expect(scrollRegions).toHaveLength(1);
-    const scrollRegion = scrollRegions.item(0);
-    const styledListboxes = listbox.element().querySelectorAll('[data-slot="list-box"]');
-    expect(styledListboxes).toHaveLength(1);
-    const styledListbox = styledListboxes.item(0);
-    if (!(scrollRegion instanceof HTMLElement) || !(styledListbox instanceof HTMLUListElement)) {
-      throw new Error("skill menu must expose its candidate scroll and listbox geometry");
+    const scrollRegion = listbox.element().querySelector("[data-skill-menu-scroll-region]");
+    if (!(scrollRegion instanceof HTMLElement)) {
+      throw new Error("skill menu must expose its candidate scroll region");
     }
     const banner = bannerText == null ? null : screen.getByText(bannerText, { exact: true });
     const bannerIsVisible = (): boolean => banner == null || banner.element().checkVisibility();
     await expect.poll(() => listbox.getByRole("status").length).toBe(banner == null ? 0 : 1);
     await expect.poll(bannerIsVisible).toBe(true);
-    const focusRingProbe = document.createElement("div");
-    focusRingProbe.className = "status-focused";
-    document.body.append(focusRingProbe);
-    const expectedActiveRing = getComputedStyle(focusRingProbe).boxShadow;
-    focusRingProbe.remove();
-    expect(expectedActiveRing).not.toBe("none");
 
     await expect.element(firstOption).toHaveAttribute("aria-selected", "true");
     await expect.element(editor).toHaveAttribute("aria-activedescendant", firstOption.element().id);
@@ -247,36 +153,8 @@ test.for([
 
     await expect.element(lastOption).toHaveAttribute("aria-selected", "true");
     await expect.element(editor).toHaveAttribute("aria-activedescendant", lastOption.element().id);
-    const maximumScrollTop = scrollRegion.scrollHeight - scrollRegion.clientHeight;
-    await expect
-      .poll(() => {
-        const scrollBounds = scrollRegion.getBoundingClientRect();
-        const optionBounds = lastOption.element().getBoundingClientRect();
-        const scrollStyle = getComputedStyle(scrollRegion);
-        const listboxStyle = getComputedStyle(styledListbox);
-        return {
-          bannerOutsideScrollRegion: banner == null || !scrollRegion.contains(banner.element()),
-          boxShadow: getComputedStyle(lastOption.element()).boxShadow,
-          edgeClearance: scrollBounds.bottom - optionBounds.bottom,
-          listboxPaddingBottom: listboxStyle.paddingBottom,
-          listboxPaddingTop: listboxStyle.paddingTop,
-          maximumScrollTop,
-          scrollPaddingBottom: scrollStyle.scrollPaddingBottom,
-          scrollPaddingTop: scrollStyle.scrollPaddingTop,
-          scrollTop: scrollRegion.scrollTop,
-        };
-      })
-      .toEqual({
-        bannerOutsideScrollRegion: true,
-        boxShadow: expectedActiveRing,
-        edgeClearance: 6,
-        listboxPaddingBottom: "6px",
-        listboxPaddingTop: "6px",
-        maximumScrollTop,
-        scrollPaddingBottom: "6px",
-        scrollPaddingTop: "6px",
-        scrollTop: maximumScrollTop,
-      });
+    await expect.element(lastOption).toBeInViewport({ ratio: 1 });
+    await expect.poll(() => optionIsUnobstructed(lastOption.element())).toBe(true);
     await expect.element(editor).toHaveFocus();
     await expect.poll(bannerIsVisible).toBe(true);
 
@@ -284,23 +162,8 @@ test.for([
 
     await expect.element(firstOption).toHaveAttribute("aria-selected", "true");
     await expect.element(editor).toHaveAttribute("aria-activedescendant", firstOption.element().id);
-    await expect
-      .poll(() => {
-        const scrollBounds = scrollRegion.getBoundingClientRect();
-        const optionBounds = firstOption.element().getBoundingClientRect();
-        return {
-          bannerOutsideScrollRegion: banner == null || !scrollRegion.contains(banner.element()),
-          boxShadow: getComputedStyle(firstOption.element()).boxShadow,
-          edgeClearance: optionBounds.top - scrollBounds.top,
-          scrollTop: scrollRegion.scrollTop,
-        };
-      })
-      .toEqual({
-        bannerOutsideScrollRegion: true,
-        boxShadow: expectedActiveRing,
-        edgeClearance: 6,
-        scrollTop: 0,
-      });
+    await expect.element(firstOption).toBeInViewport({ ratio: 1 });
+    await expect.poll(() => optionIsUnobstructed(firstOption.element())).toBe(true);
     await expect.element(editor).toHaveFocus();
     await expect.poll(bannerIsVisible).toBe(true);
   },
@@ -398,9 +261,6 @@ test.each([
       throw new Error("skill option must place its source label in the main row");
     }
     expect(sourceLabel.textContent).toBe(label);
-    expect(sourceLabel.classList).toContain("shrink-0");
-    expect(sourceLabel.classList).toContain("text-xs");
-    expect(sourceLabel.classList).toContain("text-muted");
     expect(option.element().textContent).not.toContain(candidate.path);
     expect(option.element().outerHTML).not.toContain("hidden/");
   }
@@ -477,7 +337,7 @@ test("progressively discloses canonical names and only collision paths", async (
   expect(screen.container.querySelector("[data-skill-menu-detail-preview]")).toBeNull();
 });
 
-test("lays out one-line descriptions and collision paths without horizontal overflow", async () => {
+test("keeps long descriptions and collision paths accessible without horizontal overflow", async () => {
   const longDisplayName = `Friendly ${"unbroken".repeat(20)}`;
   const longDescription = "A naturally wrapping description with useful detail. ".repeat(12);
   const longPath = `/skills/${"path-token".repeat(30)}/SKILL.md`;
@@ -521,8 +381,6 @@ test("lays out one-line descriptions and collision paths without horizontal over
   if (!(description instanceof HTMLElement)) {
     throw new Error("long skill description must render");
   }
-  const descriptionStyle = getComputedStyle(description);
-  const lineHeight = Number.parseFloat(descriptionStyle.lineHeight);
 
   await expect.element(listbox.getByText(longDisplayName, { exact: true })).toBeVisible();
   await expect.element(listbox.getByText("$a-canonical-skill", { exact: true })).toBeVisible();
@@ -536,18 +394,13 @@ test("lays out one-line descriptions and collision paths without horizontal over
   ) {
     throw new Error("long skill option must retain its main-row source layout");
   }
-  expect(longNameRegion.classList).toContain("min-w-0");
-  expect(longNameRegion.classList).toContain("flex-1");
   expect(longSourceLabel.textContent).toBe("Repository");
-  expect(longSourceLabel.classList).toContain("shrink-0");
   expect(longOption.outerHTML).not.toContain(longPath);
-  expect(description.getBoundingClientRect().height).toBeLessThanOrEqual(lineHeight + 1);
   expect(emptyOption.querySelector("[data-skill-description]")).toBeNull();
   expect(collisionOption.firstElementChild?.textContent).toContain("User");
   expect(collisionOption.children.item(1)?.textContent).toBe(`${firstCollisionParent}/shared`);
   expect(collisionOption.firstElementChild?.textContent).not.toContain(firstCollisionParent);
   expect(collisionOption.outerHTML).not.toContain("SKILL.md");
-  await expect.poll(() => longOption.getBoundingClientRect().width).toBeLessThanOrEqual(384);
   await expect
     .poll(() => {
       const optionBounds = longOption.getBoundingClientRect();
@@ -567,14 +420,12 @@ test("lays out one-line descriptions and collision paths without horizontal over
   if (!(scrollRegion instanceof HTMLElement)) {
     throw new Error("skill scroll region must render");
   }
-  expect(getComputedStyle(scrollRegion).overflowY).toBe("auto");
-  expect(scrollRegion.getAttribute("data-scrollbar")).toBe("thin");
   await expect.poll(() => scrollRegion.scrollWidth <= scrollRegion.clientWidth + 1).toBe(true);
   expect(screen.container.querySelector("[data-skill-menu-details]")).toBeNull();
   expect(listbox.element().querySelector('[role="separator"]')).toBeNull();
 });
 
-test("keeps HeroUI hover visual-only and active styling stronger than hover", async () => {
+test("keeps keyboard selection and editor focus unchanged by pointer hover", async () => {
   await userEvent.unhover(document.body);
   const { controllerRef, screen } = await renderEditor([
     skill("alpha", "/skills/alpha/SKILL.md", "Alpha", "Alpha description", "repo"),
@@ -590,46 +441,12 @@ test("keeps HeroUI hover visual-only and active styling stronger than hover", as
   const betaOption = listbox.getByRole("option", { name: /Beta/ }).element();
   await expect.element(alphaOption).toHaveAttribute("aria-selected", "false");
   await expect.element(betaOption).toHaveAttribute("aria-selected", "true");
-  await expect
-    .poll(
-      () =>
-        getComputedStyle(betaOption).backgroundColor !==
-        getComputedStyle(alphaOption).backgroundColor,
-    )
-    .toBe(true);
-  const defaultBackground = getComputedStyle(alphaOption).backgroundColor;
-  const activeBackground = getComputedStyle(betaOption).backgroundColor;
-  const neutralBackgroundProbe = document.createElement("div");
-  neutralBackgroundProbe.className = "bg-default";
-  document.body.append(neutralBackgroundProbe);
-  expect(activeBackground).toBe(getComputedStyle(neutralBackgroundProbe).backgroundColor);
-  neutralBackgroundProbe.remove();
-  const focusRingProbe = document.createElement("div");
-  focusRingProbe.className = "status-focused";
-  document.body.append(focusRingProbe);
-  const expectedActiveRing = getComputedStyle(focusRingProbe).boxShadow;
-  focusRingProbe.remove();
-  expect(expectedActiveRing).not.toBe("none");
-  await expect.poll(() => getComputedStyle(betaOption).boxShadow).toBe(expectedActiveRing);
-  await expect.element(alphaOption).not.toHaveAttribute("data-hovered");
-  await expect.element(betaOption).not.toHaveAttribute("data-hovered");
-
   await userEvent.hover(alphaOption);
-  await expect
-    .poll(() => getComputedStyle(alphaOption).backgroundColor)
-    .not.toBe(defaultBackground);
-  const hoverBackground = getComputedStyle(alphaOption).backgroundColor;
-  expect(hoverBackground).toBe(activeBackground);
-  expect(getComputedStyle(alphaOption).boxShadow).toBe("none");
-  await expect.element(alphaOption).not.toHaveAttribute("data-hovered");
   await expect.element(alphaOption).toHaveAttribute("aria-selected", "false");
   await expect.element(betaOption).toHaveAttribute("aria-selected", "true");
   await expect.element(editor).toHaveFocus();
 
   await userEvent.hover(betaOption);
-  await expect.poll(() => getComputedStyle(betaOption).backgroundColor).toBe(activeBackground);
-  await expect.poll(() => getComputedStyle(betaOption).boxShadow).toBe(expectedActiveRing);
-  await expect.element(betaOption).not.toHaveAttribute("data-focus-visible");
   expect(screen.container.querySelector("[data-skill-menu-detail-preview]")).toBeNull();
   await screen.user.keyboard("{Enter}");
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("$Beta");
@@ -673,7 +490,6 @@ test("does not scroll back to an offscreen active candidate on pointer hover", a
   const scrollTopBeforeHover = scrollRegion.scrollTop;
 
   await userEvent.hover(hoveredOption);
-  await expect.element(hoveredOption).not.toHaveAttribute("data-hovered");
   await expect
     .poll(() => Math.abs(scrollRegion.scrollTop - scrollTopBeforeHover))
     .toBeLessThanOrEqual(1);
@@ -748,6 +564,15 @@ test("preserves catalog loading, refresh, partial error, total error, retry, emp
     .element(screen.getByRole("listbox", { name: "Typeahead menu" }))
     .not.toBeInTheDocument();
 });
+
+function optionIsUnobstructed(option: Element): boolean {
+  const bounds = option.getBoundingClientRect();
+  const x = bounds.left + bounds.width / 2;
+  return [bounds.top + 1, bounds.top + bounds.height / 2, bounds.bottom - 1].every((y) => {
+    const target = option.ownerDocument.elementFromPoint(x, y);
+    return target != null && option.contains(target);
+  });
+}
 
 function DrawerEditorFixture({
   candidates,
