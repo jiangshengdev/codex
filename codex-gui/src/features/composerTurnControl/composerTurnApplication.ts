@@ -8,6 +8,7 @@ import type {
   ComposerEditorSubmitIntent,
 } from "@/features/composerEditor/ComposerEditor";
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 import {
   canRecoverComposerQueue,
   canSend,
@@ -88,7 +89,7 @@ type SubmissionToken = Readonly<{
 
 class ComposerTurnApplicationImpl implements ComposerTurnApplication {
   private readonly scheduleMicrotask: (callback: () => void) => void;
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = createListenerSet();
   private projectedSession: ProjectedSession | null = null;
   private activeSubmission: SubmissionToken | null = null;
   private ownerGeneration = 0;
@@ -108,10 +109,7 @@ class ComposerTurnApplicationImpl implements ComposerTurnApplication {
 
   readonly subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return () => undefined;
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.listeners.subscribe(listener);
   };
 
   project({
@@ -290,7 +288,7 @@ class ComposerTurnApplicationImpl implements ComposerTurnApplication {
 
   private publish(): void {
     this.version += 1;
-    for (const listener of this.listeners) listener();
+    this.listeners.notify();
   }
 }
 

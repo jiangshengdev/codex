@@ -10,6 +10,7 @@ import type {
 import { isGuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 import {
   createComposerInputQueue,
   type ComposerInputQueue,
@@ -178,7 +179,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   private readonly steerTurn: CreateComposerInputQueueCoordinatorInput["steerTurn"];
   private readonly interruptTurn: CreateComposerInputQueueCoordinatorInput["interruptTurn"];
   private interruptState = createComposerInterruptState();
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = createListenerSet();
   private recovery: RecoveryBatch | null = null;
   private deferredEffects: readonly ComposerInputQueueEffect[] = [];
   private snapshot: ComposerInputQueueCoordinatorSnapshot;
@@ -408,10 +409,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   };
   subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return (): void => undefined;
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.listeners.subscribe(listener);
   };
   dispose(cause: ComposerPendingInputOwnerGoneCause = "disposed"): void {
     if (this.disposed) return;
@@ -631,7 +629,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     };
     if (JSON.stringify(next) === JSON.stringify(this.snapshot)) return;
     this.snapshot = next;
-    for (const listener of this.listeners) listener();
+    this.listeners.notify();
   }
   private canInterrupt(turnId: Turn["id"] | null): turnId is Turn["id"] {
     return (

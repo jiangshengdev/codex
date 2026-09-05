@@ -9,6 +9,7 @@ import type {
   ComposerPendingInputPageItem,
 } from "@/features/composerInputQueue/composerInputQueueContracts";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 import {
   createComposerPendingInputLoadBudgets,
   readInitialComposerPendingInputPrefixes,
@@ -188,7 +189,7 @@ const ignored = { type: "ignored" } as const;
 const applied = { type: "applied" } as const;
 
 class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = createListenerSet();
   private phase: ComposerPendingInputSessionSnapshot["phase"] = "closed";
   private owner: ActiveThreadComposerRole | null = null;
   private ownerGeneration = 0;
@@ -212,8 +213,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
 
   subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return () => undefined;
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return this.listeners.subscribe(listener);
   };
 
   project = (facts: ComposerPendingInputCurrentFacts): ComposerPendingInputSessionSnapshot => {
@@ -583,7 +583,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     if (index < 0) return;
     this.effects = this.effects.filter(({ id }) => id !== effectId);
     this.snapshot = { ...this.snapshot, effects: [...this.effects] };
-    for (const listener of this.listeners) listener();
+    this.listeners.notify();
   };
 
   dispose = (): void => {
@@ -763,7 +763,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
 
   private publish(facts: ComposerPendingInputCurrentFacts | null): void {
     this.snapshot = this.createSnapshot(facts);
-    for (const listener of this.listeners) listener();
+    this.listeners.notify();
   }
 
   private createSnapshot(

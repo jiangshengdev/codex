@@ -9,6 +9,7 @@ import {
   isGuiHostCommandError,
 } from "@/features/guiHost/guiHostCommandGateway";
 import { SkillCatalogOwner } from "@/features/skillCatalog/skillCatalogOwner";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
@@ -63,7 +64,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private readonly skillCatalog: SkillCatalogOwner;
   private readonly threadStatus: ActiveThreadStatus;
   private readonly dispatch: AppDispatch;
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = createListenerSet();
   private readonly unsubscribeQueue: () => void;
   private readonly unsubscribeSkills: () => void;
   private readonly unsubscribeThreadStatus: () => void;
@@ -137,10 +138,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
 
   subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return () => undefined;
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.listeners.subscribe(listener);
   };
 
   submit: LiveActiveThreadSession["submit"] = (expectedRevision, capture) =>
@@ -549,7 +547,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   }
 
   private notifyListeners(): void {
-    for (const listener of this.listeners) listener();
+    this.listeners.notify();
   }
 
   private settleCompactionRequest(

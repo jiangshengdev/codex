@@ -2,6 +2,7 @@ import type { AppDispatch } from "@/app/store";
 import type { BrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 import type { ComposerInputQueueCoordinatorReleaseBlocker } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
@@ -201,7 +202,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   private readonly commands: ActiveThreadSessionCommands;
   private readonly dispatch: AppDispatch;
   private readonly scheduler: ActiveThreadSessionScheduler;
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = createListenerSet();
   private current: LiveActiveThreadSession | null = null;
   private currentRoles: ActiveThreadSessionRoles | null = null;
   private currentSnapshotCache: Readonly<{
@@ -243,10 +244,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
 
   private readonly subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return () => undefined;
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.listeners.subscribe(listener);
   };
 
   activateRecoveryThread = (): Promise<ActiveThreadActivationOutcome> => {
@@ -726,7 +724,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   }
 
   private notifyListeners(): void {
-    for (const listener of this.listeners) listener();
+    this.listeners.notify();
   }
 }
 

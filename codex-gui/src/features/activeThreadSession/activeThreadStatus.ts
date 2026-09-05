@@ -1,4 +1,5 @@
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 import type { Thread } from "@codex-protocol/v2";
 
 export type ActiveThreadStatusSnapshot = Thread["status"] | null;
@@ -20,7 +21,7 @@ type CreateActiveThreadStatusInput = Readonly<{
 class ActiveThreadStatusImpl implements ActiveThreadStatus {
   private readonly threadId: Thread["id"];
   private readonly readThread: GuiHostCommands["readThread"];
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = createListenerSet();
   private snapshot: ActiveThreadStatusSnapshot;
   private generation = 0;
   private dirty = false;
@@ -41,10 +42,7 @@ class ActiveThreadStatusImpl implements ActiveThreadStatus {
 
   subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return () => undefined;
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.listeners.subscribe(listener);
   };
 
   invalidate = (): boolean => {
@@ -105,7 +103,7 @@ class ActiveThreadStatusImpl implements ActiveThreadStatus {
   private publish(snapshot: ActiveThreadStatusSnapshot): void {
     if (threadStatusEqual(this.snapshot, snapshot)) return;
     this.snapshot = snapshot;
-    for (const listener of this.listeners) listener();
+    this.listeners.notify();
   }
 }
 

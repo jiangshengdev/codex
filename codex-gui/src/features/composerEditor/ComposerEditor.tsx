@@ -17,6 +17,7 @@ import {
 import { useEffect, useMemo, useRef, type Ref } from "react";
 
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 import { composerShortcutsForPlatform, type ComposerShortcuts } from "./composerShortcuts";
 
 import { ComposerClipboardPlugin } from "./ComposerClipboardPlugin";
@@ -292,7 +293,7 @@ class ComposerEditorControllerImpl implements ComposerEditorController {
   private readonly editor: LexicalEditor;
   private publishedEditorState: EditorState;
   private snapshot: ComposerEditorSnapshot;
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = createListenerSet();
 
   constructor(editor: LexicalEditor) {
     this.editor = editor;
@@ -303,10 +304,7 @@ class ComposerEditorControllerImpl implements ComposerEditorController {
   readonly getSnapshot = (): ComposerEditorSnapshot => this.snapshot;
 
   readonly subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.listeners.subscribe(listener);
   };
 
   readonly capture = (): ComposerDraftCapture => captureComposerDraft(this.editor.getEditorState());
@@ -348,9 +346,7 @@ class ComposerEditorControllerImpl implements ComposerEditorController {
 
     this.publishedEditorState = editorState;
     this.snapshot = snapshotFromEditorState(editorState);
-    for (const listener of this.listeners) {
-      listener();
-    }
+    this.listeners.notify();
   }
 }
 
