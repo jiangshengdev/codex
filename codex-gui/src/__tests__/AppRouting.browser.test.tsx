@@ -231,7 +231,7 @@ test("history cards open details and preserve one connection across browser back
 
   const historyCard = screen.getByRole("article", { name: "Projection fixture" });
   await expect.element(historyCard).toBeVisible();
-  await historyCard.getByRole("button", { name: "View" }).click();
+  await historyCard.getByRole("link", { name: "Projection fixture", exact: true }).click();
 
   await expect.element(screen.getByRole("status")).toHaveTextContent("Loading task history…");
   await expect.poll(() => document.title).toBe("History detail · Codex");
@@ -332,8 +332,23 @@ test("aligns the wider history list with the top bar without widening current or
 
       const bannerBounds = bannerContent.getBoundingClientRect();
       const routeContentBounds = routeContent.getBoundingClientRect();
-      expectHorizontalAlignment(bannerBounds, routeContentBounds);
-      return routeContentBounds;
+      const bannerStyle = getComputedStyle(bannerContent);
+      const routeStyle = getComputedStyle(routeContent);
+      const bannerLeft = bannerBounds.left + parseFloat(bannerStyle.paddingLeft);
+      const bannerRight = bannerBounds.right - parseFloat(bannerStyle.paddingRight);
+      const routeLeft = routeContentBounds.left + parseFloat(routeStyle.paddingLeft);
+      const routeRight = routeContentBounds.right - parseFloat(routeStyle.paddingRight);
+      const contentBounds = new DOMRect(
+        routeLeft,
+        routeContentBounds.top,
+        routeRight - routeLeft,
+        routeContentBounds.height,
+      );
+      expectHorizontalAlignment(
+        new DOMRect(bannerLeft, bannerBounds.top, bannerRight - bannerLeft, bannerBounds.height),
+        contentBounds,
+      );
+      return contentBounds;
     };
 
     await expect
@@ -358,7 +373,7 @@ test("aligns the wider history list with the top bar without widening current or
     expect(historyBounds.width).toBeGreaterThan(currentBounds.width);
     expectCanonicalRoute(router.state.location.href, "/history", 0);
 
-    await historyCard.getByRole("button", { name: "View" }).click();
+    await historyCard.getByRole("link", { name: "Projection fixture", exact: true }).click();
 
     await expect
       .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
