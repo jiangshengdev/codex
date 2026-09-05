@@ -104,6 +104,16 @@ test.each([
     const previewBottomGap = window.innerHeight - previewCardBounds.bottom;
     const bannerBottom = screen.getByRole("banner").element().getBoundingClientRect().bottom;
     expectAligned(previewBounds, previewCardBounds);
+    expect(previewBounds.left).toBeCloseTo(
+      screen.getByRole("button", { name: "Menu", exact: true }).element().getBoundingClientRect()
+        .left,
+      0,
+    );
+    expect(previewBounds.right).toBeCloseTo(
+      screen.getByText("Read-only history", { exact: true }).element().getBoundingClientRect()
+        .right,
+      0,
+    );
     expect(Math.abs(previewBounds.top - bannerBottom)).toBeLessThanOrEqual(1);
     expect(previewCardBounds.left).toBeGreaterThan(0);
     expect(previewBottomGap).toBeGreaterThan(0);
@@ -137,6 +147,15 @@ test.each([
     const chatBounds = transcript.element().getBoundingClientRect();
     const chatCardBounds = chatPanel.getBoundingClientRect();
     expectAligned(chatBounds, chatCardBounds);
+    expect(chatBounds.left).toBeCloseTo(
+      screen.getByRole("button", { name: "Menu", exact: true }).element().getBoundingClientRect()
+        .left,
+      0,
+    );
+    expect(chatBounds.right).toBeCloseTo(
+      screen.getByRole("heading", { level: 1 }).element().getBoundingClientRect().right,
+      0,
+    );
     expectAligned(chatBounds, previewBounds);
     expect(Math.abs(chatBounds.top - previewBounds.top)).toBeLessThanOrEqual(1);
     expect(

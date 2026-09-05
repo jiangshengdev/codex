@@ -18,13 +18,13 @@
   margin-inline: auto;
   width: 100%;
   max-width: var(--app-shell-content-max-width);
-  padding-inline: calc(var(--spacing) * 4);
+  padding-inline: var(--app-shell-content-gutter);
 }
 
 .task-reading-boundary {
   margin-inline: auto;
-  width: calc(100% - var(--spacing) * 6);
-  max-width: var(--container-3xl);
+  width: calc(100% - var(--app-shell-content-gutter) * 2);
+  max-width: calc(var(--container-3xl) - var(--app-shell-content-gutter) * 2);
 }
 
 .task-bottom-shell {
@@ -48,6 +48,7 @@
 }
 
 :root {
+  --app-shell-content-gutter: calc(var(--spacing) * 4);
   background-color: var(--background);
   color: var(--foreground);
   font-variant-numeric: tabular-nums;
