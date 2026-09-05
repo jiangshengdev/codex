@@ -12,8 +12,8 @@
     "format:prettier:fix": "prettier --write .",
     "format:oxfmt": "oxfmt --check .",
     "format:oxfmt:fix": "oxfmt . --write",
-    "lint": "pnpm run lint:oxlint && pnpm run lint:eslint",
-    "lint:fix": "pnpm run lint:oxlint:fix && pnpm run lint:eslint:fix",
+    "lint": "pnpm run lint:boundaries && pnpm run lint:oxlint && pnpm run lint:eslint",
+    "lint:fix": "pnpm run lint:oxlint:fix && pnpm run lint:eslint:fix && pnpm run lint:boundaries",
     "lint:oxlint": "oxlint .",
     "lint:oxlint:fix": "oxlint . --fix",
     "lint:eslint": "eslint . --cache",
@@ -31,7 +31,8 @@
     "analyze:large-files": "tsx scripts/large-files/cli.ts",
     "clean:test-artifacts": "tsx scripts/clean-test-artifacts/cli.ts",
     "protocol:generate-validators": "tsx scripts/protocolValidators/cli.ts --write",
-    "protocol:check-validators": "tsx scripts/protocolValidators/cli.ts --check"
+    "protocol:check-validators": "tsx scripts/protocolValidators/cli.ts --check",
+    "lint:boundaries": "tsx scripts/featureBoundaries/cli.ts"
   },
   "dependencies": {
     "@heroui/react": "^3.2.4",
