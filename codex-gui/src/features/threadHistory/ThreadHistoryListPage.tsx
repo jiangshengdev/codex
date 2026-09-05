@@ -13,6 +13,7 @@ import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import type { Thread } from "@codex-protocol/v2";
 import { ThreadHistoryListOwner, type ThreadHistoryListState } from "./threadHistoryListOwner";
+import { resolveThreadHistoryPresentation } from "./threadHistoryPresentation";
 import { useStrictModeSafeOwner } from "./useStrictModeSafeOwner";
 
 export function ThreadHistoryListPage() {
@@ -132,10 +133,7 @@ function HistoryListContent({ state, loadMore, retry }: HistoryListContentProps)
 function ThreadHistoryCard({ thread }: { thread: Thread }) {
   const { i18n, t } = useLingui();
   const navigate = useNavigate();
-  const name = thread.name?.trim() ?? "";
-  const preview = thread.preview.trim();
-  const title = name || preview || t`Untitled task`;
-  const summary = name !== "" && preview !== "" && name !== preview ? preview : null;
+  const { title, summary } = resolveThreadHistoryPresentation(thread, t`Untitled task`);
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium", timeStyle: "short" }),
     [i18n.locale],

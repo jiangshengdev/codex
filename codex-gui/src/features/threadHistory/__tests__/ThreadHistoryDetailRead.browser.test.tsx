@@ -23,6 +23,21 @@ const historyThread = (
 
 const emptyHistoryThread = () => historyThread([]);
 
+test.each([
+  { name: null, preview: "  Preview title  ", title: "Preview title" },
+  { name: " \t ", preview: " \n ", title: "Untitled task" },
+])("renders the detail fallback title $title", async ({ name, preview, title }) => {
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi.fn<GuiHostCommands["readThread"]>().mockResolvedValue({
+      thread: { ...emptyHistoryThread(), name, preview },
+    }),
+  };
+  const { screen } = await renderDetail({ commands });
+
+  await expect.element(screen.getByRole("heading", { name: title, exact: true })).toBeVisible();
+});
+
 test("loads with exact read parameters, preserves the complete error, and retries into empty history", async () => {
   const initialRead = deferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
   const readThread = vi
