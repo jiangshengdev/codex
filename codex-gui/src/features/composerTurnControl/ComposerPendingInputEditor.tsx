@@ -6,7 +6,7 @@ import {
   type ComposerEditorController,
   type ComposerEditorSnapshot,
 } from "@/features/composerEditor/ComposerEditor";
-import type { ComposerDraftCapture } from "@/features/composerEditor/composerDraft";
+import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import { invalidSelectedSkillPaths } from "./composerTurnControlModel";
 

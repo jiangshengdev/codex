@@ -4,7 +4,7 @@ import type {
   ComposerInputQueueView,
 } from "./composerInputQueueContracts";
 import { projectComposerInputPreview } from "./composerInputPreview";
-import { copyComposerInputPayload } from "./composerInputPayload";
+import { copyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 import type { ComposerSteerQueueOverview } from "./composerSteerQueueState";
 
 export function projectComposerInputQueueView(

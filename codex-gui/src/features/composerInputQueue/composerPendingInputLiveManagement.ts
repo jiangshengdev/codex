@@ -1,5 +1,5 @@
 import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThreadSession/activeThreadProjectionFacts";
-import type { ComposerDraftCapture } from "@/features/composerEditor/composerDraft";
+import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
 import type { ComposerInputQueue } from "./composerInputQueue";
 import type {
   ComposerPendingInputDrainIntent,

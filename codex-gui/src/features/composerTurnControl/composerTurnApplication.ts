@@ -7,7 +7,7 @@ import type {
   ComposerEditorSnapshot,
   ComposerEditorSubmitIntent,
 } from "@/features/composerEditor/ComposerEditor";
-import type { ComposerDraftCapture } from "@/features/composerEditor/composerDraft";
+import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
 import {
   canRecoverComposerQueue,
   canSend,

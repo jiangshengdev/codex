@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ActiveThreadPendingInputEditReservation } from "@/features/activeThreadSession/activeThreadSessionContracts";
-import type { ComposerDraftCapture } from "@/features/composerEditor/composerDraft";
+import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
 import type {
   ComposerPendingInputDisplayKey,
   ComposerPendingInputLane,

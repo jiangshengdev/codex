@@ -10,7 +10,7 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import type { TurnSteerParams, TurnSteerResponse } from "@codex-protocol/v2";
-import { copyComposerInputPayload } from "../composerInputPayload";
+import { copyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 import {
   committedUserMessage,
   createCoordinator,

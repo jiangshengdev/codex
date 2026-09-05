@@ -1,4 +1,4 @@
-import type { ReadonlyComposerInputPayload } from "./composerInputPayload";
+import type { ReadonlyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 
 const MAX_PREVIEW_GRAPHEMES = 160;
 const TRUNCATED_PREVIEW_GRAPHEMES = MAX_PREVIEW_GRAPHEMES - 3;

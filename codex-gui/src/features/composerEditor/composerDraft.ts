@@ -8,7 +8,7 @@ import {
   type SerializedEditorState,
 } from "lexical";
 
-import type { ReadonlyComposerInputPayload } from "@/features/composerInputQueue/composerInputPayload";
+import type { ReadonlyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 
 import { $isSkillNode, type SkillNodeState } from "./SkillNode";
 

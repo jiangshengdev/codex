@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ComposerEditorController } from "@/features/composerEditor/ComposerEditor";
-import type { ComposerDraftCapture } from "@/features/composerEditor/composerDraft";
+import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import {

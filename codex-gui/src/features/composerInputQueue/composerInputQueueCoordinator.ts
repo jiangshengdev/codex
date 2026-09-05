@@ -9,7 +9,7 @@ import type {
 } from "@codex-protocol/v2";
 import { isGuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThreadSession/activeThreadProjectionFacts";
-import type { ComposerDraftCapture } from "@/features/composerEditor/composerDraft";
+import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
 import {
   createComposerInputQueue,
   type ComposerInputQueue,
@@ -38,7 +38,7 @@ import type {
 import { createComposerInterruptState, type InterruptClaim } from "./composerInterruptState";
 import type { InterruptPhase, InterruptSettlement } from "./composerInterruptState";
 import type { SteerClaim } from "./composerSteerQueueState";
-import { copyComposerInputPayload } from "./composerInputPayload";
+import { copyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 import { runtimeObservationFromAcceptedProjectionEvent } from "./composerInputQueueRuntimeObservation";
 import {
   createComposerPendingInputLiveManagement,
