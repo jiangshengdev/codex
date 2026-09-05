@@ -1,11 +1,9 @@
 # codex-gui
 
-## Repository `just fmt` Scope Hard Override
+## Repository Formatting Scope
 
-- Run the repository-level `just fmt` command only when the current task modifies at least one file that is actually managed by the live `scripts/format.py` implementation. Its current managed scopes are the repository Justfile, Rust files handled by `cargo fmt`, Bazel/Starlark files handled by buildifier, Python files under `sdk/python`, and Python files under `scripts`.
-- Do not run `just fmt` merely because the task changes another repository file. In particular, changes confined to frontend files under `codex-gui/**`, `docs/**`, Markdown files, or other paths not handled by `scripts/format.py` do not trigger it. Pure frontend formatting must use the applicable scripts defined in `codex-gui/package.json`.
-- If a task changes both unmanaged files and at least one `just fmt`-managed file, run `just fmt`. Treat the live `scripts/format.py` implementation as authoritative if its managed scope changes.
-- This rule explicitly overrides the repository-root `AGENTS.md` requirement to run `just fmt` after making code changes anywhere in the repository.
+- Run repository-level `just fmt` if and only if the task changes at least one file managed by the live `scripts/format.py`, including tasks that also change unmanaged files. Its current scopes are the repository Justfile, Rust files handled by `cargo fmt`, Bazel/Starlark files handled by buildifier, and Python files under `sdk/python` and `scripts`; the live implementation remains authoritative if these scopes change.
+- Changes confined to unmanaged paths, including frontend files under `codex-gui/**`, `docs/**`, or Markdown files, do not trigger `just fmt`. Pure frontend formatting uses the applicable scripts in `codex-gui/package.json`.
 
 Use `$codex-gui-toolchain` to select and run frontend formatters, package scripts, and verification entrypoints.
 
@@ -38,8 +36,8 @@ Use `$codex-gui-toolchain` to select and run frontend formatters, package script
 
 ## Frontend Evidence Closure
 
-- For high-risk GUI changes, apply the general evidence-closure rules in `$managing-work-stages`; additionally trace real production and mount entrypoints, public and barrel exports, path aliases, dynamic registrations and their indirect consumers, DOM/ARIA selectors, test fixtures, Browser Mode and E2E verification, and applicable mount/unmount, reset, resume, reconnect, retry, rollback, and partial failure lifecycle and recovery paths.
-- For contract-bearing changes, apply the Authoritative Contract Invariants above and trace the authoritative TypeScript contract, runtime validator, schema inputs, generated artifacts, and generated fixtures instead of inventing parallel frontend definitions.
+- For high-risk GUI changes, read and apply `$managing-work-stages`'s `references/vertical-impact-closure.md` for all applicable entrypoint, export, consumer, lifecycle, recovery, and verification chains. Include real production and mount entrypoints, dynamic registrations and their indirect consumers, DOM/ARIA selectors, test fixtures, and Browser Mode/E2E verification.
+- For contract-bearing changes, apply the Authoritative Contract Invariants above and trace the authoritative TypeScript contract, runtime validator, schema inputs, generated artifacts, and generated fixtures.
 
 ## GUI Acceptance Levels
 
