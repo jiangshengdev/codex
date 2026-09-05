@@ -1,4 +1,4 @@
-import type { ThreadRuntimeProjectionEventPayload } from "@/features/threadRuntime/threadRuntimeSlice";
+import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerDraft";
 import type { ComposerInputQueue } from "./composerInputQueue";
 import type {
@@ -96,7 +96,7 @@ type AcceptedEventReplayResult =
 type ComposerPendingInputDrainResult = "consumed" | "consumedRecoveryPending" | "deferred";
 
 export type ComposerPendingInputLiveManagementHost = Readonly<{
-  applyAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void;
+  applyAcceptedEvent(payload: Readonly<ActiveThreadProjectionAcceptedEvent>): void;
   publishSnapshot(): void;
   drainPendingInput(intent: ComposerPendingInputDrainIntent): ComposerPendingInputDrainResult;
 }>;
@@ -115,7 +115,7 @@ export type ComposerPendingInputLiveManagement = Readonly<{
     request: ComposerPendingInputMoveRequest,
     unavailableReason: ComposerPendingInputCoordinatorMoveUnavailable["reason"] | null,
   ): ComposerPendingInputCoordinatorMoveResult;
-  observeAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void;
+  observeAcceptedEvent(payload: Readonly<ActiveThreadProjectionAcceptedEvent>): void;
   consumeEditInvalidation(invalidation: ComposerPendingInputEditInvalidation | undefined): void;
   flushDeferredDrains(): void;
   mutationPending(): boolean;
@@ -129,7 +129,7 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
   private readonly queue: ComposerInputQueue;
   private readonly host: ComposerPendingInputLiveManagementHost;
   private readonly deferredDrainLanes = new Set<ComposerPendingInputDrainIntent["lane"]>();
-  private readonly deferredAcceptedEvents: ThreadRuntimeProjectionEventPayload[] = [];
+  private readonly deferredAcceptedEvents: ActiveThreadProjectionAcceptedEvent[] = [];
   private activeSession: PendingInputManagementSession | null = null;
   private managementOutcome: ComposerPendingInputLiveInvalidation | null = null;
   private ownerGone: ComposerPendingInputOwnerGoneResult | null = null;
@@ -339,7 +339,7 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
     }
   }
 
-  observeAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void {
+  observeAcceptedEvent(payload: Readonly<ActiveThreadProjectionAcceptedEvent>): void {
     if (this.ownerGone != null) return;
     this.deferredAcceptedEvents.push(payload);
     if (this.acquiring || this.mutating || this.replayingAcceptedEvents) return;

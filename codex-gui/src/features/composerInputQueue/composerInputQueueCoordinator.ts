@@ -8,7 +8,7 @@ import type {
   TurnSteerResponse,
 } from "@codex-protocol/v2";
 import { isGuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
-import type { ThreadRuntimeProjectionEventPayload } from "@/features/threadRuntime/threadRuntimeSlice";
+import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerDraft";
 import {
   createComposerInputQueue,
@@ -120,7 +120,7 @@ export type ComposerInputQueueCoordinator = Readonly<{
   promoteOrdinaryFrontToSteer(): boolean;
   interruptActiveTurn(): boolean;
   recover(): boolean;
-  observeAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void;
+  observeAcceptedEvent(payload: Readonly<ActiveThreadProjectionAcceptedEvent>): void;
   getReleaseReadiness(): ComposerInputQueueCoordinatorReleaseReadiness;
   reserveRelease(): ComposerInputQueueCoordinatorReserveReleaseResult;
   readPendingInputPage(request: ComposerPendingInputPageRequest): ComposerPendingInputPageResult;
@@ -317,11 +317,11 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.publishSnapshot();
     return true;
   }
-  observeAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void {
+  observeAcceptedEvent(payload: Readonly<ActiveThreadProjectionAcceptedEvent>): void {
     if (this.disposed || payload.notification.threadId !== this.threadId) return;
     this.liveManagement.observeAcceptedEvent(payload);
   }
-  private applyAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void {
+  private applyAcceptedEvent(payload: Readonly<ActiveThreadProjectionAcceptedEvent>): void {
     const observation = runtimeObservationFromAcceptedProjectionEvent(payload);
     if (observation == null) return;
     if (observation.type === "turnCompleted") {

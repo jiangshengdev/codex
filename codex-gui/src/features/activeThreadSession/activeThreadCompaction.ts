@@ -1,6 +1,6 @@
 import type { ComposerInputQueueCoordinatorReleaseReservation } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
-import type { ActiveThreadProjectionAcceptedQueueFact } from "./activeThreadProjection";
+import type { ActiveThreadProjectionAcceptedEvent } from "./activeThreadProjectionFacts";
 
 const compactionClaimCapability: unique symbol = Symbol("ActiveThreadCompactionClaim");
 
@@ -52,9 +52,7 @@ export type ActiveThreadCompaction = Readonly<{
     claim: ActiveThreadCompactionClaim,
     settlement: ActiveThreadCompactionSettlement,
   ): ActiveThreadCompactionMutation;
-  observeAcceptedEvent(
-    fact: ActiveThreadProjectionAcceptedQueueFact,
-  ): ActiveThreadCompactionMutation;
+  observeAcceptedEvent(fact: ActiveThreadProjectionAcceptedEvent): ActiveThreadCompactionMutation;
   dispose(): ActiveThreadCompactionMutation;
 }>;
 
@@ -130,7 +128,7 @@ class ActiveThreadCompactionImpl implements ActiveThreadCompaction {
   };
 
   observeAcceptedEvent = (
-    fact: ActiveThreadProjectionAcceptedQueueFact,
+    fact: ActiveThreadProjectionAcceptedEvent,
   ): ActiveThreadCompactionMutation => {
     if (this.disposed || fact.replay !== "live") return { type: "unchanged" };
 

@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { ThreadRuntimeProjectionEventPayload } from "@/features/threadRuntime/threadRuntimeSlice";
+import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import {
   eventWithEnvelope,
   userMessage,
@@ -45,8 +45,8 @@ export function deferredStart() {
 }
 
 export function live(
-  notification: ThreadRuntimeProjectionEventPayload["notification"],
-): ThreadRuntimeProjectionEventPayload {
+  notification: ActiveThreadProjectionAcceptedEvent["notification"],
+): ActiveThreadProjectionAcceptedEvent {
   return {
     notification: eventWithEnvelope(notification, { threadId: "thread-1" }),
     replay: "live",

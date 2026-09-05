@@ -8,7 +8,7 @@ import {
   createActiveThreadSessionHarness,
   type ActiveThreadSessionHarness,
 } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
-import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjection";
+import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
   ActiveThreadComposerRole,

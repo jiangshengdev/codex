@@ -19,7 +19,6 @@ import type {
 import { createActiveThreadStatus, type ActiveThreadStatus } from "./activeThreadStatus";
 import {
   type ActiveThreadProjection,
-  type ActiveThreadProjectionAcceptedQueueFact,
   type ActiveThreadProjectionStagedBatch,
 } from "./activeThreadProjection";
 import {
@@ -28,6 +27,7 @@ import {
   type ActiveThreadCompactionClaim,
   type ActiveThreadCompactionSettlement,
 } from "./activeThreadCompaction";
+import type { ActiveThreadProjectionAcceptedEvent } from "./activeThreadProjectionFacts";
 import { activeThreadReadModelTransitionApplied } from "./activeThreadSessionReadModel";
 import type {
   ActiveThreadBeginPendingInputEditResult,
@@ -483,7 +483,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     this.publishTransition(batch.readModelFacts);
   }
 
-  private applyQueueFacts(facts: readonly ActiveThreadProjectionAcceptedQueueFact[]): void {
+  private applyQueueFacts(facts: readonly ActiveThreadProjectionAcceptedEvent[]): void {
     for (const fact of facts) {
       this.queue.observeAcceptedEvent(fact);
       if (fact.replay === "live") {

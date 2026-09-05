@@ -6,7 +6,11 @@ import {
 import {
   replayForProjectionEvent,
   snapshotReplayIndexFromTurns,
-} from "@/features/threadRuntime/threadRuntimeSlice";
+} from "./activeThreadProjectionReplay";
+import type {
+  ActiveThreadProjectionAcceptedEvent,
+  ActiveThreadProjectionReadModelFact,
+} from "./activeThreadProjectionFacts";
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
@@ -14,34 +18,9 @@ import type {
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
 
-export type ActiveThreadProjectionAcceptedQueueFact = Readonly<{
-  notification: ThreadProjectionEventNotification;
-  replay: ReturnType<typeof replayForProjectionEvent>;
-}>;
-
-export type ActiveThreadProjectionReadModelFact =
-  | Readonly<{
-      type: "baselineAttached";
-      response: ThreadProjectionAttachResponse;
-    }>
-  | Readonly<{
-      type: "deltasAccepted";
-      notifications: readonly ThreadProjectionDeltaNotification[];
-    }>
-  | Readonly<{
-      type: "eventAccepted";
-      payload: ActiveThreadProjectionAcceptedQueueFact;
-    }>
-  | Readonly<{
-      type: "projectionUnavailable";
-      reason: ProjectionManualReconnectReason;
-      threadId: string;
-      subscriptionId: string | null;
-    }>;
-
 export type ActiveThreadProjectionStagedBatch = Readonly<{
   readModelFacts: readonly ActiveThreadProjectionReadModelFact[];
-  acceptedQueueFacts: readonly ActiveThreadProjectionAcceptedQueueFact[];
+  acceptedQueueFacts: readonly ActiveThreadProjectionAcceptedEvent[];
 }>;
 
 export type ActiveThreadProjectionInputOutcome =
@@ -74,7 +53,7 @@ class ActiveThreadProjectionImpl implements ActiveThreadProjection {
   private readonly ingress: ProjectionIngressAdapter;
   private readonly snapshotReplayIndex;
   private readModelFacts: ActiveThreadProjectionReadModelFact[];
-  private acceptedQueueFacts: ActiveThreadProjectionAcceptedQueueFact[] = [];
+  private acceptedQueueFacts: ActiveThreadProjectionAcceptedEvent[] = [];
   private pendingDeltas: ThreadProjectionDeltaNotification[] = [];
 
   constructor({ threadId, attachResponse }: CreateActiveThreadProjectionInput) {
@@ -101,7 +80,7 @@ class ActiveThreadProjectionImpl implements ActiveThreadProjection {
     switch (outcome.type) {
       case "eventAccepted": {
         this.flushPendingDeltas();
-        const payload: ActiveThreadProjectionAcceptedQueueFact = {
+        const payload: ActiveThreadProjectionAcceptedEvent = {
           notification: outcome.notification,
           replay: replayForProjectionEvent(this.snapshotReplayIndex, outcome.notification),
         };
