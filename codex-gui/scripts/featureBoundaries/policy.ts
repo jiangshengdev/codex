@@ -73,9 +73,9 @@ export const boundaryPolicy: BoundaryPolicy = {
     ),
     publicModule(
       "activeThreadSession",
-      "activeThreadProjection.ts",
-      ["ActiveThreadProjectionAcceptedQueueFact", "ActiveThreadProjectionReadModelFact"],
-      "Accepted projection facts shared by the runtime and transcript read models; ownership direction remains tracked below.",
+      "activeThreadProjectionFacts.ts",
+      ["ActiveThreadProjectionAcceptedEvent", "ActiveThreadProjectionReadModelFact"],
+      "Session-owned accepted projection facts consumed by the input queue and read models; replay classification stays private to the session.",
     ),
     publicModule(
       "activeThreadSession",
@@ -401,15 +401,12 @@ export const boundaryPolicy: BoundaryPolicy = {
       "threadRuntime",
       "threadRuntimeSlice.ts",
       [
-        "ThreadRuntimeProjectionEventPayload",
         "default",
-        "replayForProjectionEvent",
         "selectThreadRuntimeRecord",
         "selectThreadRuntimeThreadId",
         "selectThreadRuntimeTokenUsage",
-        "snapshotReplayIndexFromTurns",
       ],
-      "Store-mounted runtime read model, selectors, and projection replay contract; session/replay direction remains tracked below.",
+      "Store-mounted runtime read model and selectors consuming session-owned projection facts.",
     ),
     publicModule(
       "transcriptState",
@@ -474,7 +471,6 @@ export const boundaryPolicy: BoundaryPolicy = {
       "guiHost",
       "projectionIngress",
       "skillCatalog",
-      "threadRuntime",
     ]),
     ...directions({ feature: "appShell" }, [
       "activeThreadSession",
@@ -486,9 +482,9 @@ export const boundaryPolicy: BoundaryPolicy = {
     ...directions({ feature: "committedTranscriptSurface" }, ["threadRuntime", "transcriptState"]),
     ...directions({ feature: "composerEditor" }, ["composerInputQueue", "skillCatalog"]),
     ...directions({ feature: "composerInputQueue" }, [
+      "activeThreadSession",
       "composerEditor",
       "guiHost",
-      "threadRuntime",
     ]),
     ...directions({ feature: "composerTurnControl" }, [
       "activeThreadSession",
@@ -700,22 +696,6 @@ export const boundaryPolicy: BoundaryPolicy = {
   ],
   testSupportFiles: ["src/utils/TestProvider.tsx", "src/utils/test-utils.tsx"],
   knownDirectionIssues: [
-    {
-      from: "activeThreadSession",
-      to: "threadRuntime",
-      issue:
-        "../docs/superpowers/issues/2026/09/04/2026-09-04-01-codex-gui-shared-infrastructure-problems/2026-09-04-02-active-thread-runtime-contract-direction.md",
-      description:
-        "Session admission uses runtime-owned replay classification; this preserves the necessary existing contract without resolving its ownership.",
-    },
-    {
-      from: "threadRuntime",
-      to: "activeThreadSession",
-      issue:
-        "../docs/superpowers/issues/2026/09/04/2026-09-04-01-codex-gui-shared-infrastructure-problems/2026-09-04-02-active-thread-runtime-contract-direction.md",
-      description:
-        "Runtime consumes the session transition action and accepted read-model facts; the reverse direction remains an open ownership issue.",
-    },
     {
       from: "composerEditor",
       to: "composerInputQueue",
