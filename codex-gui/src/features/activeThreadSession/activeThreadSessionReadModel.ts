@@ -1,5 +1,5 @@
 import { createAction } from "@reduxjs/toolkit";
-import type { ActiveThreadProjectionReadModelFact } from "./activeThreadProjection";
+import type { ActiveThreadProjectionReadModelFact } from "./activeThreadProjectionFacts";
 import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 
 export type ActiveThreadReadModelTransition = Readonly<{

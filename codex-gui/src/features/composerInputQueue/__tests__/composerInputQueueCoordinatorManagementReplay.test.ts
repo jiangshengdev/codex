@@ -6,62 +6,20 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   baseTurn,
-  eventWithEnvelope,
   itemStarted,
   turnStarted,
   turnCompleted,
-  userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import type {
-  ThreadItem,
-  TurnInterruptParams,
-  TurnInterruptResponse,
-  TurnStartParams,
-  TurnStartResponse,
-  TurnSteerParams,
-  TurnSteerResponse,
-} from "@codex-protocol/v2";
-import { createComposerInputQueueCoordinator } from "../composerInputQueueCoordinator";
-import { composerCapture } from "./composerInputQueueTestFixtures";
-
-type StartTurn = (params: TurnStartParams) => Promise<TurnStartResponse>;
-type SteerTurn = (params: TurnSteerParams) => Promise<TurnSteerResponse>;
-type InterruptTurn = (params: TurnInterruptParams) => Promise<TurnInterruptResponse>;
-type CoordinatorInput = Parameters<typeof createComposerInputQueueCoordinator>[0];
-const createCoordinator = (
-  options: Omit<CoordinatorInput, "interruptTurn"> & { interruptTurn?: InterruptTurn },
-) =>
-  createComposerInputQueueCoordinator({
-    ...options,
-    interruptTurn: options.interruptTurn ?? vi.fn<InterruptTurn>(),
-  });
-const input = composerCapture;
-type UserMessage = Extract<ThreadItem, { type: "userMessage" }>;
-const committedUserMessage = (clientId: string): UserMessage => {
-  const item = userMessage("item-1", []);
-  if (item.type !== "userMessage") throw new Error("userMessage builder returned another variant");
-  return { ...item, clientId };
-};
-const live = (notification: typeof eventItemStarted) => ({
-  notification: eventWithEnvelope(notification, { threadId: "thread-1" }),
-  replay: "live" as const,
-});
-const pendingItem = (
-  coordinator: ReturnType<typeof createComposerInputQueueCoordinator>,
-  lane: "ordinary" | "steer",
-  index = 0,
-) => {
-  const page = coordinator.readPendingInputPage({
-    lane,
-    revision: coordinator.getSnapshot().detailRevision,
-    cursor: null,
-    limit: 10,
-  });
-  if (page.type !== "page" || page.items[index] == null) {
-    throw new Error(`expected pending ${lane} item at index ${String(index)}`);
-  }
-  return page.items[index];
-};
+import type { TurnStartResponse, TurnSteerResponse } from "@codex-protocol/v2";
+import {
+  committedUserMessage,
+  createCoordinator,
+  live,
+  pendingItem,
+  type StartTurn,
+  type SteerTurn,
+} from "./composerInputQueueCoordinatorTestFixtures";
+import { composerCapture as input } from "./composerInputQueueTestFixtures";
 describe("ComposerInputQueueCoordinator", () => {
   it("gates reentrant queue mutations and replays runtime facts after restore acquisition", () => {
     const startTurn = vi.fn<StartTurn>().mockResolvedValue({ turn: baseTurn("turn-pending") });

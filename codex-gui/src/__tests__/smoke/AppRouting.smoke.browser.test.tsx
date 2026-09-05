@@ -11,10 +11,11 @@ import {
   type StartGuiHostConnectionMock,
 } from "../appBrowserTestSupport";
 import { createDeferred as deferred } from "../testDeferred";
-import type * as ActiveThreadSessionModule from "@/features/activeThreadSession/activeThreadSession";
 import type {
   ActiveThreadActivationOutcome,
   ActiveThreadSessionController,
+  createActiveThreadSession,
+  CreateActiveThreadSessionInput,
 } from "@/features/activeThreadSession/activeThreadSession";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
@@ -26,12 +27,11 @@ const activeThreadSessionFactoryState: {
 } = vi.hoisted(() => ({ controller: null }));
 
 vi.mock("@/features/activeThreadSession/activeThreadSession", async (importOriginal) => {
-  const actual = await importOriginal<typeof ActiveThreadSessionModule>();
+  const actual = await importOriginal<{
+    createActiveThreadSession: typeof createActiveThreadSession;
+  }>();
   return {
-    ...actual,
-    createActiveThreadSession: (
-      input: Parameters<typeof ActiveThreadSessionModule.createActiveThreadSession>[0],
-    ) => {
+    createActiveThreadSession: (input: CreateActiveThreadSessionInput) => {
       const controller = activeThreadSessionFactoryState.controller;
       return controller ?? actual.createActiveThreadSession(input);
     },

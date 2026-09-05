@@ -1,9 +1,8 @@
-import type { ReadonlyComposerInputPayload } from "./composerInputPayload";
+import type { ReadonlyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
+import { boundGraphemes } from "@/text/grapheme";
 
 const MAX_PREVIEW_GRAPHEMES = 160;
 const TRUNCATED_PREVIEW_GRAPHEMES = MAX_PREVIEW_GRAPHEMES - 3;
-
-const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 export type ComposerInputPreview =
   | Readonly<{ type: "text"; text: string; truncated: boolean }>
@@ -90,16 +89,12 @@ export const projectComposerInputTextDetail = (
 };
 
 const truncatePreview = (text: string): Readonly<{ text: string; truncated: boolean }> => {
-  const graphemes: string[] = [];
-  for (const segment of graphemeSegmenter.segment(text)) {
-    graphemes.push(segment.segment);
-    if (graphemes.length > MAX_PREVIEW_GRAPHEMES) {
-      return {
-        text: `${graphemes.slice(0, TRUNCATED_PREVIEW_GRAPHEMES).join("")}...`,
-        truncated: true,
-      };
-    }
-  }
-
-  return { text: graphemes.join(""), truncated: false };
+  const bounded = boundGraphemes(text, {
+    maxGraphemes: MAX_PREVIEW_GRAPHEMES,
+    truncatedGraphemes: TRUNCATED_PREVIEW_GRAPHEMES,
+  });
+  return {
+    text: bounded.truncated ? `${bounded.text}...` : bounded.text,
+    truncated: bounded.truncated,
+  };
 };

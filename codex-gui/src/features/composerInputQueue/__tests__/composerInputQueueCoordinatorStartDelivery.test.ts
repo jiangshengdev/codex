@@ -5,57 +5,22 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   baseTurn,
-  eventWithEnvelope,
   itemStarted,
   turnCompleted,
-  userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
-import type {
-  ThreadItem,
-  TurnInterruptParams,
-  TurnInterruptResponse,
-  TurnStartParams,
-  TurnStartResponse,
-  TurnSteerParams,
-  TurnSteerResponse,
-} from "@codex-protocol/v2";
-import { createComposerInputQueueCoordinator } from "../composerInputQueueCoordinator";
-import { composerCapture } from "./composerInputQueueTestFixtures";
+import {
+  committedUserMessage,
+  createCoordinator,
+  deferredStart,
+  live,
+  nextMicrotask,
+  type StartTurn,
+  type SteerTurn,
+} from "./composerInputQueueCoordinatorTestFixtures";
+import { composerCapture as input } from "./composerInputQueueTestFixtures";
 
 type Deferred = ReturnType<typeof deferredStart>;
-type StartTurn = (params: TurnStartParams) => Promise<TurnStartResponse>;
-type SteerTurn = (params: TurnSteerParams) => Promise<TurnSteerResponse>;
-type InterruptTurn = (params: TurnInterruptParams) => Promise<TurnInterruptResponse>;
-type CoordinatorInput = Parameters<typeof createComposerInputQueueCoordinator>[0];
-const createCoordinator = (
-  options: Omit<CoordinatorInput, "interruptTurn"> & { interruptTurn?: InterruptTurn },
-) =>
-  createComposerInputQueueCoordinator({
-    ...options,
-    interruptTurn: options.interruptTurn ?? vi.fn<InterruptTurn>(),
-  });
-const input = composerCapture;
-const deferredStart = () => {
-  let resolve!: (response: TurnStartResponse) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<TurnStartResponse>((yes, no) => {
-    resolve = yes;
-    reject = no;
-  });
-  return { promise, resolve, reject };
-};
-type UserMessage = Extract<ThreadItem, { type: "userMessage" }>;
-const committedUserMessage = (clientId: string): UserMessage => {
-  const item = userMessage("item-1", []);
-  if (item.type !== "userMessage") throw new Error("userMessage builder returned another variant");
-  return { ...item, clientId };
-};
-const live = (notification: typeof eventItemStarted) => ({
-  notification: eventWithEnvelope(notification, { threadId: "thread-1" }),
-  replay: "live" as const,
-});
-const flush = (): Promise<void> => Promise.resolve();
 describe("ComposerInputQueueCoordinator", () => {
   it("keeps delivery-unknown blocked and recovers a definite rejection before deferred start", async () => {
     const requests: Deferred[] = [];
@@ -79,7 +44,7 @@ describe("ComposerInputQueueCoordinator", () => {
         error: new Error(),
       }),
     );
-    await flush();
+    await nextMicrotask();
     expect(startTurn).toHaveBeenCalledTimes(1);
     expect(startTurn.mock.calls[0]?.[0].input).toEqual(input("unknown").input);
     expect(coordinator.getReleaseReadiness()).toEqual({
@@ -111,7 +76,7 @@ describe("ComposerInputQueueCoordinator", () => {
         error: new Error(),
       }),
     );
-    await flush();
+    await nextMicrotask();
     expect(definite.getSnapshot().recoveryCount).toBe(1);
     expect(definite.getReleaseReadiness()).toEqual({
       type: "blocked",
@@ -130,7 +95,7 @@ describe("ComposerInputQueueCoordinator", () => {
     expect(definiteStart).toHaveBeenCalledTimes(2);
     expect(definiteStart.mock.calls[1]?.[0].input).toEqual(input("deferred").input);
     definiteRequests[1]?.resolve({ turn: baseTurn("turn-deferred") });
-    await flush();
+    await nextMicrotask();
     definite.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "commit-deferred", baseTurn("turn-deferred"))),
     );
@@ -161,7 +126,7 @@ describe("ComposerInputQueueCoordinator", () => {
     );
     expect(acceptedStart).toHaveBeenCalledTimes(1);
     acceptedRequest.resolve({ turn: baseTurn("accepted-owner") });
-    await flush();
+    await nextMicrotask();
     expect(acceptedStart.mock.calls.map(([params]) => params.input)).toEqual([
       input("accepted-owner").input,
       input("accepted-next").input,
@@ -191,7 +156,7 @@ describe("ComposerInputQueueCoordinator", () => {
       ),
     );
     unknownRequest.reject(new Error("delivery is unknown"));
-    await flush();
+    await nextMicrotask();
     expect(unknownStart).toHaveBeenCalledTimes(1);
     unknown.observeAcceptedEvent(
       live(

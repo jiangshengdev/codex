@@ -9,13 +9,13 @@ import type {
 import { renderWithProviders } from "@/utils/test-utils";
 
 import { ComposerEditor, type ComposerEditorController } from "../ComposerEditor";
-import { ComposerEditorFixture } from "./composerEditorTypeaheadBrowserTestFixture";
 import {
   catalog,
+  ComposerEditorFixture,
   getController,
   renderEditor,
   skill,
-} from "./composerEditorTypeaheadBrowserTestSupport";
+} from "./composerEditorBrowserTestSupport";
 
 beforeEach(async () => {
   await userEvent.unhover(document.body);

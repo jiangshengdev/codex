@@ -5,73 +5,24 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   baseTurn,
-  eventWithEnvelope,
   itemStarted,
   turnCompleted,
-  userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
-import type {
-  ThreadItem,
-  TurnInterruptParams,
-  TurnInterruptResponse,
-  TurnStartParams,
-  TurnStartResponse,
-  TurnSteerParams,
-  TurnSteerResponse,
-} from "@codex-protocol/v2";
-import { createComposerInputQueueCoordinator } from "../composerInputQueueCoordinator";
-import { composerCapture, composerDraftCapture } from "./composerInputQueueTestFixtures";
+import type { TurnSteerResponse } from "@codex-protocol/v2";
+import {
+  committedUserMessage,
+  createCoordinator,
+  deferredStart,
+  live,
+  nextMicrotask,
+  pendingItem,
+  type StartTurn,
+  type SteerTurn,
+} from "./composerInputQueueCoordinatorTestFixtures";
+import { composerCapture as input, composerDraftCapture } from "./composerInputQueueTestFixtures";
 
 type Deferred = ReturnType<typeof deferredStart>;
-type StartTurn = (params: TurnStartParams) => Promise<TurnStartResponse>;
-type SteerTurn = (params: TurnSteerParams) => Promise<TurnSteerResponse>;
-type InterruptTurn = (params: TurnInterruptParams) => Promise<TurnInterruptResponse>;
-type CoordinatorInput = Parameters<typeof createComposerInputQueueCoordinator>[0];
-const createCoordinator = (
-  options: Omit<CoordinatorInput, "interruptTurn"> & { interruptTurn?: InterruptTurn },
-) =>
-  createComposerInputQueueCoordinator({
-    ...options,
-    interruptTurn: options.interruptTurn ?? vi.fn<InterruptTurn>(),
-  });
-const input = composerCapture;
-const deferredStart = () => {
-  let resolve!: (response: TurnStartResponse) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<TurnStartResponse>((yes, no) => {
-    resolve = yes;
-    reject = no;
-  });
-  return { promise, resolve, reject };
-};
-type UserMessage = Extract<ThreadItem, { type: "userMessage" }>;
-const committedUserMessage = (clientId: string): UserMessage => {
-  const item = userMessage("item-1", []);
-  if (item.type !== "userMessage") throw new Error("userMessage builder returned another variant");
-  return { ...item, clientId };
-};
-const live = (notification: typeof eventItemStarted) => ({
-  notification: eventWithEnvelope(notification, { threadId: "thread-1" }),
-  replay: "live" as const,
-});
-const pendingItem = (
-  coordinator: ReturnType<typeof createComposerInputQueueCoordinator>,
-  lane: "ordinary" | "steer",
-  index = 0,
-) => {
-  const page = coordinator.readPendingInputPage({
-    lane,
-    revision: coordinator.getSnapshot().detailRevision,
-    cursor: null,
-    limit: 10,
-  });
-  if (page.type !== "page" || page.items[index] == null) {
-    throw new Error(`expected pending ${lane} item at index ${String(index)}`);
-  }
-  return page.items[index];
-};
-const flush = (): Promise<void> => Promise.resolve();
 describe("ComposerInputQueueCoordinator", () => {
   it("defers ordinary management drain through recovery and preserves successor-first ordering", async () => {
     const requests: Deferred[] = [];
@@ -103,7 +54,7 @@ describe("ComposerInputQueueCoordinator", () => {
         error: new Error("failed"),
       }),
     );
-    await flush();
+    await nextMicrotask();
     expect(coordinator.getSnapshot().recovery?.reason).toBe("startDefinitelyNotAccepted");
     expect(begun.reservation.cancel()).toMatchObject({ type: "cancelled" });
     expect(startTurn).toHaveBeenCalledTimes(1);
@@ -114,13 +65,13 @@ describe("ComposerInputQueueCoordinator", () => {
       input("successor").input,
     ]);
     requests[1]?.resolve({ turn: baseTurn("turn-successor") });
-    await flush();
+    await nextMicrotask();
     coordinator.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "successor-terminal", baseTurn("turn-successor"))),
     );
     expect(startTurn.mock.calls[2]?.[0].input).toEqual(input("reserved").input);
     requests[2]?.resolve({ turn: baseTurn("turn-reserved") });
-    await flush();
+    await nextMicrotask();
     coordinator.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "reserved-terminal", baseTurn("turn-reserved"))),
     );
@@ -155,7 +106,7 @@ describe("ComposerInputQueueCoordinator", () => {
         error: new Error("failed"),
       }),
     );
-    await flush();
+    await nextMicrotask();
 
     expect(begun.reservation.save(composerDraftCapture("edited reserved"))).toMatchObject({
       type: "saved",
@@ -164,7 +115,7 @@ describe("ComposerInputQueueCoordinator", () => {
     expect(coordinator.recover()).toBe(true);
     expect(startTurn.mock.calls[1]?.[0].input).toEqual(input("edited reserved").input);
     requests[1]?.resolve({ turn: baseTurn("turn-edited") });
-    await flush();
+    await nextMicrotask();
     coordinator.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "edited-terminal", baseTurn("turn-edited"))),
     );
@@ -194,7 +145,7 @@ describe("ComposerInputQueueCoordinator", () => {
         error: new Error("failed"),
       }),
     );
-    await flush();
+    await nextMicrotask();
     const item = pendingItem(coordinator, "ordinary");
 
     expect(
@@ -207,7 +158,7 @@ describe("ComposerInputQueueCoordinator", () => {
     expect(coordinator.recover()).toBe(true);
     expect(startTurn.mock.calls[1]?.[0].input).toEqual(input("successor").input);
     requests[1]?.resolve({ turn: baseTurn("turn-successor") });
-    await flush();
+    await nextMicrotask();
     coordinator.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "successor-terminal", baseTurn("turn-successor"))),
     );
@@ -247,7 +198,7 @@ describe("ComposerInputQueueCoordinator", () => {
         error: new Error("failed steer"),
       }),
     );
-    await flush();
+    await nextMicrotask();
     expect(coordinator.getSnapshot().recovery?.reason).toBe("steerDefinitelyNotAccepted");
     expect(begun.reservation.save(composerDraftCapture("edited successor"))).toMatchObject({
       type: "saved",
@@ -259,7 +210,7 @@ describe("ComposerInputQueueCoordinator", () => {
       input("failed steer").input,
       input("failed steer").input,
     ]);
-    await flush();
+    await nextMicrotask();
     const retryClientId = steerTurn.mock.calls[1]?.[0].clientUserMessageId;
     coordinator.observeAcceptedEvent(
       live(
@@ -291,7 +242,7 @@ describe("ComposerInputQueueCoordinator", () => {
         error: new Error("failed"),
       }),
     );
-    await flush();
+    await nextMicrotask();
     coordinator.subscribe(() => {
       if (coordinator.getSnapshot().isRecovering) coordinator.dispose("ownerReplaced");
     });
@@ -321,7 +272,7 @@ describe("ComposerInputQueueCoordinator", () => {
       steerTurn,
     });
     coordinator.submitSteer(input("recover-steer"));
-    await flush();
+    await nextMicrotask();
     expect(coordinator.getSnapshot()).toMatchObject({
       recoveryCount: 1,
       recovery: { reason: "steerDefinitelyNotAccepted", count: 1 },

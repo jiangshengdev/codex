@@ -4,7 +4,7 @@ import {
   activeThreadReadModelTransitionApplied,
   buildActiveThreadCandidateReadModelTransition,
 } from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjection";
+import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import {
   attachBaseline,
   attachReplacement,

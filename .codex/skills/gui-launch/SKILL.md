@@ -28,18 +28,8 @@ Rules:
 - The first line is exactly `GUI URLs:`. Do not include a real bullet character in the text; the TUI assistant message renderer adds the outer bullet to the first line on its own.
 - Print one URL entry per following line: two spaces, label, colon, padding, URL.
 - Use the CLI `/gui` alignment semantics for padding: align URL start columns based on the longest returned label.
-- If only `Local` is returned, print only `Local`.
-- If `Local`, `LAN`, `VPN`, or any other label is returned, print every entry in the order returned by `launch_gui`.
+- Print every returned entry in order, including when only `Local` is returned.
 - Do not add extra explanation, Markdown links, debug status, verification results, or alternative addresses to the final response.
-
-Example:
-
-```text
-GUI URLs:
-  Local: http://127.0.0.1:12345/?threadId=t#token=x
-  LAN:   http://192.168.3.165:12345/?threadId=t#token=x
-  VPN:   http://100.88.28.119:12345/?threadId=t#token=x
-```
 
 ## Error Handling
 
@@ -49,4 +39,4 @@ If `launch_gui` fails, report the failure using CLI `/gui` semantics:
 Failed to launch GUI: <error>
 ```
 
-Do not automatically switch to the debug skill, start Vite, or open a browser.
+The Core Rules also apply on failure.

@@ -1,9 +1,9 @@
 import { expect, test } from "vitest";
 import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
-  ActiveThreadProjectionAcceptedQueueFact,
+  ActiveThreadProjectionAcceptedEvent,
   ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjection";
+} from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import {
   agentMessage,
   agentMessageDelta,
@@ -36,7 +36,7 @@ const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedQueueFact) =>
+const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
   readModelAction({ type: "eventAccepted", payload });
 const threadRuntimeDeltasAccepted = ({
   notifications,

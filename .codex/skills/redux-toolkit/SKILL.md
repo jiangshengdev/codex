@@ -20,9 +20,7 @@ Useful roots:
 
 ## Minimal Lookup
 
-1. For ordinary tasks, use only the local cache and search the task's Redux Toolkit API or architecture terms.
-2. Read the relevant RTK usage guide or API reference, plus the Redux style guide when making architecture or review decisions.
-3. Base recommendations and code changes on the local docs and existing `codex-gui` conventions.
+Apply the shared lookup contract using the task's Redux Toolkit API or architecture terms. Read the relevant usage guide or API reference, plus the Redux style guide for architecture or review decisions. Base recommendations and changes on these local docs and existing `codex-gui` conventions.
 
 ## Explicit Cache Refresh
 

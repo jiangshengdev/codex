@@ -9,6 +9,7 @@ import {
   isGuiHostCommandError,
 } from "@/features/guiHost/guiHostCommandGateway";
 import { SkillCatalogOwner } from "@/features/skillCatalog/skillCatalogOwner";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
@@ -19,7 +20,6 @@ import type {
 import { createActiveThreadStatus, type ActiveThreadStatus } from "./activeThreadStatus";
 import {
   type ActiveThreadProjection,
-  type ActiveThreadProjectionAcceptedQueueFact,
   type ActiveThreadProjectionStagedBatch,
 } from "./activeThreadProjection";
 import {
@@ -28,6 +28,7 @@ import {
   type ActiveThreadCompactionClaim,
   type ActiveThreadCompactionSettlement,
 } from "./activeThreadCompaction";
+import type { ActiveThreadProjectionAcceptedEvent } from "./activeThreadProjectionFacts";
 import { activeThreadReadModelTransitionApplied } from "./activeThreadSessionReadModel";
 import type {
   ActiveThreadBeginPendingInputEditResult,
@@ -63,7 +64,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private readonly skillCatalog: SkillCatalogOwner;
   private readonly threadStatus: ActiveThreadStatus;
   private readonly dispatch: AppDispatch;
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = createListenerSet();
   private readonly unsubscribeQueue: () => void;
   private readonly unsubscribeSkills: () => void;
   private readonly unsubscribeThreadStatus: () => void;
@@ -137,10 +138,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
 
   subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return () => undefined;
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.listeners.subscribe(listener);
   };
 
   submit: LiveActiveThreadSession["submit"] = (expectedRevision, capture) =>
@@ -483,7 +481,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     this.publishTransition(batch.readModelFacts);
   }
 
-  private applyQueueFacts(facts: readonly ActiveThreadProjectionAcceptedQueueFact[]): void {
+  private applyQueueFacts(facts: readonly ActiveThreadProjectionAcceptedEvent[]): void {
     for (const fact of facts) {
       this.queue.observeAcceptedEvent(fact);
       if (fact.replay === "live") {
@@ -549,7 +547,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   }
 
   private notifyListeners(): void {
-    for (const listener of this.listeners) listener();
+    this.listeners.notify();
   }
 
   private settleCompactionRequest(

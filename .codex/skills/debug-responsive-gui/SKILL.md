@@ -29,16 +29,10 @@ description: Use only for tier-three visible desktop acceptance or explicitly re
 
 - First determine whether a usable Codex runtime already exists.
 - If none exists, ask the user to run the exact command `j c`. Do not execute that command. Wait for the user to explicitly confirm that it has started before continuing.
-- Once the runtime is available, obtain the complete current GUI URL from `/gui` or outer `launch_gui`. Do not hand-write, guess, splice, or reuse an old URL.
+- Once the runtime is available, obtain the complete current GUI URL from `/gui` or outer `launch_gui`, preserving `threadId` and `token`. Do not hand-write, guess, splice, or reuse an old URL.
 - Successful `j c` startup proves only that the user-side runtime prerequisite is available. It does not prove that a GUI URL was obtained, the page opened, the browser environment is ready, or acceptance passed.
 
 ## Automation Entrypoint
-
-Script path:
-
-```bash
-.codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs
-```
 
 Stable usage:
 
@@ -46,7 +40,11 @@ Stable usage:
 node .codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs --gui-url '<VPN or LAN URL returned by launch_gui; use Local URL only when VPN/LAN is unavailable>'
 ```
 
-## React inspector
+## Inspectors
+
+Both inspectors only read the current page controlled by `playwright-cli`, write JSON only to stdout, and do not launch, navigate, or close the browser.
+
+### React inspector
 
 Read the React fiber tree from the current page controlled by `playwright-cli`:
 
@@ -58,9 +56,9 @@ node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --path 0.1.3 -
 node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --component AppShell --include-values
 ```
 
-The script only inspects the currently open page. It does not launch, navigate, or close the browser. It writes JSON only to stdout. Use the default output for shallow discovery; it does not hard-code `codex-gui` component names. Use `--component`, `--path`, and `--max-depth` for deeper inspection. This script is React-only; use the separate Redux entrypoint below for Redux inspection.
+Use the default output for shallow discovery; it does not hard-code `codex-gui` component names. Use `--component`, `--path`, and `--max-depth` for deeper inspection. This script is React-only; use the Redux entrypoint below for Redux inspection.
 
-## Redux inspector
+### Redux inspector
 
 Read the Redux store state from the current page controlled by `playwright-cli`:
 
@@ -70,7 +68,7 @@ node .codex/skills/debug-responsive-gui/scripts/inspect-redux.mjs --path threadR
 node .codex/skills/debug-responsive-gui/scripts/inspect-redux.mjs --path transcriptState.entriesById --max-depth 2 --max-keys 40
 ```
 
-The script only inspects the current page controlled by `playwright-cli`. It does not launch, navigate, or close the browser. It writes JSON only to stdout. It enters the React fiber tree through `#root.__reactContainer$...`, finds the React-Redux Provider at `memoizedProps.value.store`, then reads `store.getState()`. It does not depend on the Redux DevTools extension or on `__REACT_DEVTOOLS_GLOBAL_HOOK__.getFiberRoots()`.
+The script enters the React fiber tree through `#root.__reactContainer$...`, finds the React-Redux Provider at `memoizedProps.value.store`, then reads `store.getState()`. It does not depend on the Redux DevTools extension or on `__REACT_DEVTOOLS_GLOBAL_HOOK__.getFiberRoots()`.
 
 The default output is a safe summary, not the full store. Use `--path <dot.path>` for a specific state subtree. Output is still bounded by `--max-depth`, `--max-keys`, `--max-array-items`, and `--max-string-length`.
 
@@ -90,7 +88,6 @@ Read `/tmp/codex-ime-control/<session-id>/latest-candidate.json` first. Open `ca
 ## Workflow
 
 - Select URLs in this order by default: VPN -> LAN -> Local. If `launch_gui` returns a VPN URL, pass that VPN URL to `--gui-url`. Use the LAN URL only when no VPN URL exists, the VPN URL is explicitly unavailable, or the user explicitly asks for a LAN address. Use the Local URL only when no VPN/LAN URL exists, VPN/LAN is explicitly unavailable, or the user explicitly asks for a local address.
-- Preserve the full `threadId` and `token` in the URL. Do not hand-write, guess, or splice URLs from old values.
 - The entrypoint script runs discovery, CFT start/reuse, GUI navigation, window layout, responsive mode, reload, and metrics verification in order by default.
 - Each step checks the real current state first. If the target state is already satisfied, it prints `skip` and exits 0; otherwise it performs that step.
 - The state file is `/tmp/codex-debug-responsive-gui/current.json`.
@@ -101,7 +98,7 @@ For each affected tier-three scenario:
 
 - Enter the real target route and establish the state required to exercise the changed behavior.
 - Use representative desktop or narrow viewports only when those geometries are affected; do not require a named device model.
-- Perform the relevant pointer and keyboard paths with semantic roles or otherwise reviewable locators. Do not click by coordinates.
+- Perform the relevant pointer and keyboard paths with semantic roles or otherwise reviewable locators.
 - Check affected geometry, overflow, occlusion, clipping, scrolling, and overlay direction.
 - Check focus location and `focus-visible` before and after the relevant interactions.
 - Check affected default, hover, disabled, invalid, and other changed visual states.
@@ -135,11 +132,11 @@ node .codex/skills/debug-responsive-gui/scripts/steps/50-reload-page.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/60-verify-responsive-metrics.mjs
 ```
 
-If a step fails, read stderr and `/tmp/codex-debug-responsive-gui/current.json` first. Do not switch to Computer Use, coordinate clicks, or the system `Google Chrome` because one step failed.
+If a step fails, read stderr and `/tmp/codex-debug-responsive-gui/current.json` first. Failure does not relax the Core Rules.
 
 ## Verification Boundary
 
-The automation entrypoint verifies only workflow environment state. Its success means the real GUI acceptance environment is ready; it does not mean any affected product scenario passed:
+The automation entrypoint checks only environment readiness:
 
 - `playwright-cli` is connected.
 - The browser is headed `chrome-for-testing`.
@@ -148,29 +145,17 @@ The automation entrypoint verifies only workflow environment state. Its success 
 - The responsive step sends `Command+Shift+M` only when metrics are not responsive-like.
 - After reload, metrics still prove that the page is `codex-gui`.
 
-The script does not verify:
-
-- The target route's user-visible behavior.
-- Relevant pointer and keyboard interactions.
-- Affected geometry, overflow, occlusion, clipping, scrolling, or overlay direction.
-- Focus flow or `focus-visible` state.
-- Affected component visual states.
-- Real Codex-backed integration behavior.
-- Specific device models.
-- The current selection in the DevTools device dropdown.
-- iPhone SE, iPhone XR, or any other device profile.
+It does not verify the product scenarios in Tier-Three Scenario Acceptance, the DevTools device selection, or any specific device profile.
 
 ## Result Reporting
 
-Report these separately:
+Report these separately; none substitutes for another or makes environment readiness, screenshots, or DOM results sufficient for tier-three acceptance:
 
 - Codex runtime availability and GUI URL acquisition.
 - Automated regression results.
 - Visible-browser environment status.
 - Each executed tier-three visible desktop scenario and its result.
 - Every tier-three acceptance item not executed because of environment, authorization, or an explicit user restriction, using `可见桌面验收未执行` when any applicable scenario remains blocked.
-
-None of these results substitutes for another, and no environment-ready, screenshot, or DOM result substitutes for tier-three visible desktop acceptance.
 
 ## Common Validation Commands
 

@@ -1,13 +1,11 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
-
+import { renderComposerTurnControl } from "./composerTurnControlBrowserTestSupport";
 import {
   createQueueControllerHarness,
   pendingInputItem,
   queueSnapshot,
-  renderAttached,
 } from "./composerTurnControlPendingInputBrowserTestSupport";
 
 beforeEach(async () => {
@@ -47,7 +45,10 @@ test("moves pending messages through the authoritative owner and preserves menu 
     }),
     { ordinary, steer },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
 
   await screen.getByRole("button", { name: "Pending: Guide 2, Queued 4", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
@@ -216,7 +217,10 @@ test("re-reads independent lane budgets after a move and does not locate an item
     }),
     { ordinary, steer },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
 
   await screen.getByRole("button", { name: "Pending: Guide 21, Queued 41", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
@@ -287,7 +291,10 @@ test("does not announce or refresh when an accepted move action is a no-op", asy
     queueSnapshot({ ordinaryQueuedCount: 2, detailRevision: 25, canStop: true }),
     { ordinary, steer: [] },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
   await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   const pageReadCount = harness.readPendingInputPage.mock.calls.length;
@@ -347,7 +354,10 @@ test("restarts an atomic two-lane refresh once and falls back with an alert afte
     queueSnapshot({ ordinaryQueuedCount: 2, guidingCount: 2, detailRevision: 30, canStop: true }),
     { ordinary, steer },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
   await screen.getByRole("button", { name: "Pending: Guide 2, Queued 2", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
 
@@ -436,7 +446,10 @@ test("stops chasing continuous stale pages and resumes after a newer revision", 
     queueSnapshot({ ordinaryQueuedCount: 2, detailRevision: 60, canStop: true }),
     { ordinary, steer: [] },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
   await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   harness.setPageReadFallbackOverride((request) => {
@@ -534,7 +547,10 @@ test("hides move actions for owner-projected blockers and while delete confirmat
       ],
     },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
   await screen.getByRole("button", { name: "Pending: Guide 3, Queued 3", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect
@@ -659,7 +675,10 @@ test("keeps move failures in the Drawer and rejects a stale session callback", a
     queueSnapshot({ ordinaryQueuedCount: 2, detailRevision: 50, canStop: true }),
     { ordinary: items, steer: [] },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
   await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   harness.movePendingInput.mockReturnValueOnce({
@@ -707,7 +726,10 @@ test("keeps a terminal stale non-move failure in the Drawer when counts reach ze
     queueSnapshot({ ordinaryQueuedCount: 2, detailRevision: 70, canStop: true }),
     { ordinary: items, steer: [] },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
   await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   harness.movePendingInput.mockImplementationOnce(() => {

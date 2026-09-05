@@ -1,8 +1,9 @@
 import { createRef } from "react";
-import { beforeEach, expect, test } from "vitest";
+import { $getSelection, $isNodeSelection, getNearestEditorFromDOMNode } from "lexical";
+import { afterEach, beforeEach, expect, test } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { renderWithProviders } from "@/utils/test-utils";
+import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
 import type {
   SkillCatalogCandidate,
   SkillCatalogState,
@@ -10,19 +11,23 @@ import type {
 
 import type { ComposerEditorController } from "../ComposerEditor";
 import { invalidSelectedSkillPaths } from "../../composerTurnControl/composerTurnControlModel";
-import { ComposerEditorFixture } from "./composerEditorSkillTokenBrowserTestFixture";
 import {
   catalog,
-  dispatchHistoryShortcut,
+  ComposerEditorFixture,
   getController,
-  readNodeSelectionSize,
   renderEditor,
-  setCollapsedCaret,
   skill,
-} from "./composerEditorSkillTokenBrowserTestSupport";
+} from "./composerEditorBrowserTestSupport";
+
+let restoreMotion: (() => void) | undefined;
 
 beforeEach(async () => {
   await userEvent.unhover(document.body);
+});
+
+afterEach(() => {
+  restoreMotion?.();
+  restoreMotion = undefined;
 });
 
 test("vertically centers an inline skill chip with adjacent text", async () => {
@@ -60,6 +65,7 @@ test("vertically centers an inline skill chip with adjacent text", async () => {
 });
 
 test("renders an inline HeroUI skill chip whose tooltip discloses only catalog-backed details", async () => {
+  restoreMotion = disableMotionForTest();
   const selectedSkill: SkillCatalogCandidate = {
     ...skill(
       "review",
@@ -200,6 +206,7 @@ test("skips the skill host during Tab traversal without opening its tooltip", as
 });
 
 test("shows invalid chip details only when a complete ready catalog confirms its path is unavailable", async () => {
+  restoreMotion = disableMotionForTest();
   const selectedSkill = skill(
     "canonical-skill",
     "/private/skills/missing-location/SKILL.md",
@@ -329,6 +336,7 @@ test("shows invalid chip details only when a complete ready catalog confirms its
 });
 
 test("reprojects invalid sibling collision paths after deleting one skill", async () => {
+  restoreMotion = disableMotionForTest();
   const { controllerRef, primary, screen } = await renderInvalidSiblingCollisionScenario();
 
   await expectPathDetails(screen, /Alpha Shared/i, "alpha/shared");
@@ -344,6 +352,7 @@ test("reprojects invalid sibling collision paths after deleting one skill", asyn
 });
 
 test("reprojects invalid sibling collision paths through undo and redo", async () => {
+  restoreMotion = disableMotionForTest();
   const { controllerRef, editor, primary, screen, selectedPaths } =
     await renderInvalidSiblingCollisionScenario();
 
@@ -369,6 +378,7 @@ test("reprojects invalid sibling collision paths through undo and redo", async (
 });
 
 test("reprojects invalid sibling collision paths through draft restore", async () => {
+  restoreMotion = disableMotionForTest();
   const { collidingDraft, controllerRef, primary, screen, selectedPaths, singleDraft } =
     await renderInvalidSiblingCollisionScenario();
 
@@ -519,4 +529,58 @@ function adjacentVisibleTextCharacterRect(tokenHost: HTMLElement, side: SkillCar
   range.setStart(text, characterIndex);
   range.setEnd(text, characterIndex + 1);
   return range.getBoundingClientRect();
+}
+
+function readNodeSelectionSize(root: Element): number | null {
+  const editor = getNearestEditorFromDOMNode(root);
+  if (editor == null) throw new Error("composer root must belong to a Lexical editor");
+  return editor.getEditorState().read(() => {
+    const selection = $getSelection();
+    return $isNodeSelection(selection) ? selection.getNodes().length : null;
+  });
+}
+
+function setCollapsedCaret(root: Element, expectedText: string, offset: number): void {
+  const textElements = root.querySelectorAll<HTMLElement>('[data-lexical-text="true"]');
+  if (textElements.length !== 1) {
+    throw new Error("composer editor must contain exactly one Lexical text element");
+  }
+
+  const textElement = textElements.item(0);
+  const textNode = textElement.firstChild;
+  if (textElement.childNodes.length !== 1 || !(textNode instanceof Text)) {
+    throw new Error("Lexical text element must contain exactly one Text child");
+  }
+  if (textNode.data !== expectedText) {
+    throw new Error(`expected Lexical text ${expectedText}, received ${textNode.data}`);
+  }
+  if (!Number.isInteger(offset) || offset < 0 || offset > textNode.length) {
+    throw new Error(`caret offset ${String(offset)} is outside the Lexical text`);
+  }
+
+  const selection = root.ownerDocument.getSelection();
+  if (selection == null) {
+    throw new Error("composer editor document must provide a Selection");
+  }
+  const range = root.ownerDocument.createRange();
+  range.setStart(textNode, offset);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  root.ownerDocument.dispatchEvent(new Event("selectionchange"));
+}
+
+function dispatchHistoryShortcut(element: Element, command: "undo" | "redo"): void {
+  const isApple = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+  const isRedo = command === "redo";
+  element.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: !isApple,
+      key: isRedo && !isApple ? "y" : "z",
+      metaKey: isApple,
+      shiftKey: isRedo && isApple,
+    }),
+  );
 }

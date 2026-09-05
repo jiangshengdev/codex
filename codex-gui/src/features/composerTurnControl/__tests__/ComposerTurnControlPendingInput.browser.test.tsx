@@ -10,86 +10,34 @@ import type {
   ActiveThreadSkillsRole,
 } from "@/features/activeThreadSession/activeThreadSession";
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
-import {
-  createComposerInputQueueCoordinator,
-  type ComposerInputQueueCoordinator,
-  type ComposerPendingInputCoordinatorEditReservation,
-} from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import { type ComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import {
   attachBaseline,
   eventTurnCompleted,
-  eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
-import type {
-  SkillCatalogCandidate,
-  SkillCatalogState,
-} from "@/features/skillCatalog/skillCatalogOwner";
-import { renderWithProviders } from "@/utils/test-utils";
+import type { SkillCatalogCandidate } from "@/features/skillCatalog/skillCatalogOwner";
+import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
 
 import { ComposerTurnControl } from "../ComposerTurnControl";
+import {
+  createComposerSkillCatalogHarness,
+  renderComposerTurnControl,
+} from "./composerTurnControlBrowserTestSupport";
 import {
   createQueueControllerHarness,
   pendingInputItem,
   queueSnapshot,
-  renderAttached,
 } from "./composerTurnControlPendingInputBrowserTestSupport";
 
 const attachResponse = attachBaseline;
 
 const threadId = attachResponse.snapshot.thread.id;
-
-const readyEmptySkillCatalog: SkillCatalogState = {
-  type: "ready",
-  candidates: [],
-  partialErrorCount: 0,
-};
+let restoreMotion: (() => void) | undefined;
 
 beforeEach(async () => {
   await userEvent.unhover(document.body);
 });
-type SkillCatalogHarnessController = Readonly<{
-  getSnapshot(): SkillCatalogState;
-  subscribe(listener: () => void): () => void;
-  invalidate(): boolean;
-  retry(): boolean;
-}>;
-
-const createSkillCatalogHarness = (initial: SkillCatalogState = readyEmptySkillCatalog) => {
-  let snapshot = initial;
-  const listeners = new Set<() => void>();
-  const controller = {
-    getSnapshot: () => snapshot,
-    subscribe: (listener: () => void) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    invalidate: vi.fn<SkillCatalogHarnessController["invalidate"]>().mockReturnValue(true),
-    retry: vi.fn<SkillCatalogHarnessController["retry"]>().mockReturnValue(true),
-  } satisfies SkillCatalogHarnessController;
-
-  return {
-    controller,
-    publish(next: SkillCatalogState): void {
-      snapshot = next;
-      for (const listener of listeners) listener();
-    },
-  };
-};
-
-const capturePendingInputEditReservations = (
-  controller: ComposerInputQueueCoordinator,
-): ComposerPendingInputCoordinatorEditReservation[] => {
-  const reservations: ComposerPendingInputCoordinatorEditReservation[] = [];
-  const beginPendingInputEdit = controller.beginPendingInputEdit;
-  vi.spyOn(controller, "beginPendingInputEdit").mockImplementation((request, restore) => {
-    const result = beginPendingInputEdit(request, restore);
-    if (result.type === "begun") reservations.push(result.reservation);
-    return result;
-  });
-  return reservations;
-};
-
 const composerRoleFor = (
   controller: ComposerInputQueueCoordinator,
   getRevision: () => number,
@@ -135,17 +83,12 @@ const staleSessionOperation = (revision: number) =>
   }) as const;
 
 const skillsRoleFor = (
-  controller: SkillCatalogHarnessController,
+  controller: ReturnType<typeof createComposerSkillCatalogHarness>["controller"],
 ): Partial<ActiveThreadSkillsRole> => ({
   invalidateSkills: () => controller.invalidate(),
   refreshSkills: () => controller.invalidate(),
   retrySkills: () => controller.retry(),
 });
-const getComposer = (
-  screen: Awaited<ReturnType<typeof renderWithProviders>>,
-  name = "Message Codex",
-) => screen.getByRole("combobox", { name, exact: true });
-
 const composerTextWithoutTrailingBrowserPlaceholders = (
   element: Readonly<Pick<Node, "textContent">>,
 ): string => (element.textContent ?? "").replace(/[ \n\r\u00a0\u200b]+$/u, "");
@@ -163,55 +106,9 @@ const dispatchGuideShortcut = (element: Element): void => {
   );
 };
 
-type RenderActiveTurnOptions = Readonly<{
-  captureEditReservations?: boolean;
-  commandHandle?: GuiHostCommands;
-  skillCatalogController?: SkillCatalogHarnessController;
-  strictMode?: boolean;
-}>;
-
-const renderActiveTurn = async ({
-  captureEditReservations = false,
-  commandHandle = createGuiHostCommands(),
-  skillCatalogController,
-  strictMode = false,
-}: RenderActiveTurnOptions = {}) => {
-  const event = eventTurnStarted;
-  if (event.event.type !== "turnStarted") {
-    throw new Error("fixture must be turnStarted");
-  }
-  const turn = event.event.notification.turn;
-  const controller = createComposerInputQueueCoordinator({
-    threadId,
-    activeTurnId: turn.id,
-    startTurn: commandHandle.startTurn,
-    steerTurn: commandHandle.steerTurn,
-    interruptTurn: commandHandle.interruptTurn,
-  });
-  const reservations = captureEditReservations
-    ? capturePendingInputEditReservations(controller)
-    : [];
-  const screen = await renderAttached(
-    commandHandle,
-    false,
-    "en",
-    controller,
-    skillCatalogController ?? createSkillCatalogHarness().controller,
-    turn.id,
-    strictMode,
-  );
-  return {
-    commandHandle,
-    composer: getComposer(screen),
-    controller,
-    event,
-    reservations,
-    screen,
-    turn,
-  };
-};
-
 afterEach(() => {
+  restoreMotion?.();
+  restoreMotion = undefined;
   vi.restoreAllMocks();
 });
 
@@ -229,16 +126,11 @@ test("keeps submit and pending-input open available after StrictMode effect repl
       steer: [],
     },
   );
-  const screen = await renderAttached(
-    createGuiHostCommands(),
-    false,
-    "en",
-    harness.controller,
-    createSkillCatalogHarness().controller,
-    undefined,
-    true,
-  );
-  const composer = getComposer(screen);
+  const screen = await renderComposerTurnControl({
+    queue: { type: "provided", controller: harness.controller },
+    strictMode: true,
+  });
+  const composer = screen.composer();
 
   await composer.fill("Submit after replay");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
@@ -255,8 +147,11 @@ test("keeps submit and pending-input open available after StrictMode effect repl
 
 test("gates operations by the active session phase", async () => {
   const harness = createQueueControllerHarness(queueSnapshot({ canStop: true }));
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  const composer = getComposer(screen);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
+  const composer = screen.composer();
   const send = screen.getByRole("button", { name: "Send", exact: true });
   const stop = screen.getByRole("button", { name: "Stop" });
 
@@ -304,6 +199,7 @@ test("gates operations by the active session phase", async () => {
 });
 
 test("uses the same skill chip and catalog tooltip while editing a pending message", async () => {
+  restoreMotion = disableMotionForTest();
   const selectedSkill: SkillCatalogCandidate = {
     name: "pending-skill",
     path: "/repo/skills/hidden-pending-location/SKILL.md",
@@ -317,15 +213,18 @@ test("uses the same skill chip and catalog tooltip while editing a pending messa
       shortDescription: "Pending skill preferred summary",
     },
   };
-  const catalogHarness = createSkillCatalogHarness({
+  const catalogHarness = createComposerSkillCatalogHarness({
     type: "ready",
     candidates: [selectedSkill],
     partialErrorCount: 0,
   });
-  const { composer, reservations, screen } = await renderActiveTurn({
-    captureEditReservations: true,
-    skillCatalogController: catalogHarness.controller,
+  const view = await renderComposerTurnControl({
+    scenario: { type: "activeFixture", captureEditReservations: true },
+    skills: catalogHarness.controller,
   });
+  const { reservations } = view;
+  const screen = view;
+  const composer = view.composer();
 
   await composer.fill("$Pending");
   await screen.user.keyboard("{Enter}");
@@ -378,15 +277,19 @@ test("uses the same skill chip and catalog tooltip while editing a pending messa
 });
 
 test("shows Guide only for an active turn and submits an accepted draft as steer", async () => {
-  const idleScreen = await renderAttached();
+  restoreMotion = disableMotionForTest();
+  const idleScreen = await renderComposerTurnControl();
   await expect
     .element(idleScreen.getByRole("button", { name: "Guide", exact: true }))
     .not.toBeInTheDocument();
   await idleScreen.unmount();
 
   const harness = createQueueControllerHarness(queueSnapshot({ canStop: true }));
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  const composer = getComposer(screen);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
+  const composer = screen.composer();
   const guide = screen.getByRole("button", { name: "Guide", exact: true });
 
   await expect.element(guide).toBeDisabled();
@@ -423,6 +326,41 @@ test("shows Guide only for an active turn and submits an accepted draft as steer
     .toBe("Keep the newer draft");
 });
 
+test("keeps Mac Guide hints consistent with the actual keyboard action", async () => {
+  const platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+  try {
+    const harness = createQueueControllerHarness(queueSnapshot({ canStop: true }));
+    const screen = await renderComposerTurnControl({
+      scenario: { type: "activeFixture" },
+      queue: { type: "provided", controller: harness.controller },
+    });
+    const composer = screen.composer();
+    const guide = screen.getByRole("button", { name: "Guide", exact: true });
+
+    await composer.fill("Guide from the Mac shortcut");
+    await expect.element(composer).toHaveAttribute("aria-keyshortcuts", "Meta+Enter");
+    await expect.element(guide).toHaveAttribute("aria-keyshortcuts", "Meta+Enter");
+    await expect.element(guide).toBeEnabled();
+    await userEvent.unhover(document.body);
+    await userEvent.hover(guide);
+    await expect.element(screen.getByRole("tooltip")).toHaveTextContent("⌘ Enter");
+    await userEvent.unhover(guide);
+    await composer.click();
+    await screen.user.keyboard("{Meta>}{Enter}{/Meta}");
+
+    expect(harness.submitSteer).toHaveBeenCalledOnce();
+    expect(harness.submitSteer.mock.calls.at(0)?.at(0)).toMatchObject({
+      textContent: "Guide from the Mac shortcut",
+    });
+    expect(harness.submit).not.toHaveBeenCalled();
+    await expect
+      .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+      .toBe("");
+  } finally {
+    platform.mockRestore();
+  }
+});
+
 test("routes guide shortcuts by draft presence while ordinary Enter stays ordinary", async () => {
   const harness = createQueueControllerHarness(
     queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1, canStop: true }),
@@ -438,8 +376,11 @@ test("routes guide shortcuts by draft presence while ordinary Enter stays ordina
     },
   );
   harness.promoteOrdinaryFrontToSteer.mockReturnValue(true);
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  const composer = getComposer(screen);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
+  const composer = screen.composer();
 
   await composer.fill("Explicit guide");
   dispatchGuideShortcut(composer.element());
@@ -541,7 +482,10 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
     }),
     { ordinary: ordinaryItems, steer: steerItems },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
   const region = screen.getByRole("region", { name: "Pending messages", exact: true });
   const trigger = region.getByRole("button", {
     name: "Pending: Guide 21, Queued 21",
@@ -664,9 +608,12 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
 });
 
 test("edits and deletes an ordinary pending message in one Drawer without changing the main draft", async () => {
-  const { composer, reservations, screen } = await renderActiveTurn({
-    captureEditReservations: true,
+  const view = await renderComposerTurnControl({
+    scenario: { type: "activeFixture", captureEditReservations: true },
   });
+  const { reservations } = view;
+  const screen = view;
+  const composer = view.composer();
 
   await composer.fill("Original queued message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
@@ -751,9 +698,12 @@ test("edits and deletes an ordinary pending message in one Drawer without changi
 });
 
 test("returns focus to the Composer when cancelling an edit synchronously drains the last pending message", async () => {
-  const { composer, controller, reservations, screen } = await renderActiveTurn({
-    captureEditReservations: true,
+  const view = await renderComposerTurnControl({
+    scenario: { type: "activeFixture", captureEditReservations: true },
   });
+  const { controller, reservations } = view;
+  const screen = view;
+  const composer = view.composer();
 
   await composer.fill("Drain after cancelling edit");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
@@ -793,7 +743,10 @@ test("keeps live-owner management failures in the Drawer as an alert", async () 
       steer: [],
     },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
 
   await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
@@ -817,10 +770,13 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
   const commandHandle = createGuiHostCommands();
   const steerRequest = deferred<Awaited<ReturnType<GuiHostCommands["steerTurn"]>>>();
   vi.mocked(commandHandle.steerTurn).mockReturnValue(steerRequest.promise);
-  const { composer, controller, reservations, screen } = await renderActiveTurn({
-    captureEditReservations: true,
-    commandHandle,
+  const view = await renderComposerTurnControl({
+    scenario: { type: "activeFixture", captureEditReservations: true },
+    queue: { type: "created", commands: commandHandle },
   });
+  const { controller, reservations } = view;
+  const screen = view;
+  const composer = view.composer();
 
   await composer.fill("Already issued steer");
   await screen.getByRole("button", { name: "Guide", exact: true }).click();
@@ -868,12 +824,15 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
 
 test("tears down an active edit without settling its reservation when projection is unavailable", async () => {
   const commandHandle = createGuiHostCommands();
-  const skillCatalog = createSkillCatalogHarness();
-  const { composer, reservations, screen } = await renderActiveTurn({
-    captureEditReservations: true,
-    commandHandle,
-    skillCatalogController: skillCatalog.controller,
+  const skillCatalog = createComposerSkillCatalogHarness();
+  const view = await renderComposerTurnControl({
+    scenario: { type: "activeFixture", captureEditReservations: true },
+    queue: { type: "created", commands: commandHandle },
+    skills: skillCatalog.controller,
   });
+  const { reservations } = view;
+  const screen = view;
+  const composer = view.composer();
 
   await composer.fill("Owner-bound queued message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
@@ -902,11 +861,15 @@ test("tears down an active edit without settling its reservation when projection
     .not.toBeInTheDocument();
   expect(save).not.toHaveBeenCalled();
   expect(cancel).not.toHaveBeenCalled();
-  await expect.element(getComposer(screen)).toHaveFocus();
+  await expect.element(screen.composer()).toHaveFocus();
 });
 
 test("restores delete focus only to a neighbor in the same lane", async () => {
-  const { composer, screen } = await renderActiveTurn();
+  const view = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+  });
+  const screen = view;
+  const composer = view.composer();
 
   await composer.fill("First ordinary neighbor");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
@@ -936,7 +899,10 @@ test("keeps the Drawer open when a pending-input detail is missing", async () =>
     queueSnapshot({ guidingCount: 1, detailRevision: 1, canStop: true }),
     { ordinary: [], steer: [item] },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
 
   await screen.getByRole("button", { name: "Pending: Guide 1", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
@@ -974,7 +940,10 @@ test("uses one pending trigger for either lane and hides it when both lanes are 
       ],
     },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
   const region = screen.getByRole("region", { name: "Pending messages", exact: true });
 
   const guideTrigger = region.getByRole("button", {
@@ -1012,7 +981,10 @@ test("closes and clears pending details when counts become empty", async () => {
       steer: [],
     },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
 
   await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
@@ -1026,7 +998,7 @@ test("closes and clears pending details when counts become empty", async () => {
   await expect
     .element(screen.getByText("Clear this pending detail", { exact: true }))
     .not.toBeInTheDocument();
-  await expect.element(getComposer(screen)).toHaveFocus();
+  await expect.element(screen.composer()).toHaveFocus();
   await expect
     .element(screen.getByRole("region", { name: "Pending messages", exact: true }))
     .not.toBeInTheDocument();
@@ -1046,7 +1018,10 @@ test("does not reopen a closing Drawer when new pending input arrives before pre
       steer: [],
     },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
 
   const trigger = screen.getByRole("button", { name: "Pending: Queued 1", exact: true });
   await trigger.click();
@@ -1079,6 +1054,7 @@ test("does not reopen a closing Drawer when new pending input arrives before pre
 });
 
 test("replaces an open pending-input owner without leaking its cached view into the new owner", async () => {
+  restoreMotion = disableMotionForTest();
   const queueHarness = createQueueControllerHarness(
     queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1 }),
     {
@@ -1092,7 +1068,7 @@ test("replaces an open pending-input owner without leaking its cached view into 
       steer: [],
     },
   );
-  const skillHarness = createSkillCatalogHarness();
+  const skillHarness = createComposerSkillCatalogHarness();
   const firstRevision = 1;
   const firstOwner = createActiveThreadSessionHarness({
     composerRole: composerRoleFor(queueHarness.controller, () => firstRevision),
@@ -1181,7 +1157,10 @@ test("keeps pending details readable while projection mutations are unavailable"
       ],
     },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
 
   await screen.getByRole("button", { name: "Pending: Guide 1", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
@@ -1207,12 +1186,9 @@ test("keeps pending details readable while projection mutations are unavailable"
 
 test("rejects a mutation callback captured from an older session revision", async () => {
   const queueHarness = createQueueControllerHarness(queueSnapshot());
-  const screen = await renderAttached(
-    createGuiHostCommands(),
-    false,
-    "en",
-    queueHarness.controller,
-  );
+  const screen = await renderComposerTurnControl({
+    queue: { type: "provided", controller: queueHarness.controller },
+  });
   const capturedSnapshot = screen.sessionHarness.session.getSnapshot();
   if (capturedSnapshot.phase !== "active") throw new Error("expected an active session");
 
@@ -1272,7 +1248,11 @@ test("renders Simplified Chinese guide and pending-input copy", async () => {
       ],
     },
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "zh-CN", harness.controller);
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+    locale: "zh-CN",
+  });
 
   await expect.element(screen.getByRole("button", { name: "引导", exact: true })).toBeDisabled();
   const region = screen.getByRole("region", { name: "待处理消息", exact: true });
@@ -1323,8 +1303,10 @@ test("recovery disables send, keeps the editor editable, and prevents duplicate 
     harness.publish({ ...initialSnapshot, isRecovering: true });
     return true;
   });
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  const composer = getComposer(screen);
+  const screen = await renderComposerTurnControl({
+    queue: { type: "provided", controller: harness.controller },
+  });
+  const composer = screen.composer();
   const recoverButton = screen.getByRole("button", { name: "Continue sending" });
 
   await composer.fill("Draft while recovering");
@@ -1347,7 +1329,9 @@ test("guards recovery while manual reconnect is required", async () => {
       recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
     }),
   );
-  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const screen = await renderComposerTurnControl({
+    queue: { type: "provided", controller: harness.controller },
+  });
   const activeSnapshot = screen.sessionHarness.session.getSnapshot();
   if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
   screen.sessionHarness.publish(
@@ -1357,7 +1341,7 @@ test("guards recovery while manual reconnect is required", async () => {
       reason: "backpressure",
     }),
   );
-  const composer = getComposer(screen);
+  const composer = screen.composer();
   const recoverButton = screen.getByRole("button", { name: "Continue sending" });
 
   await expect.element(composer).toHaveAttribute("contenteditable", "false");

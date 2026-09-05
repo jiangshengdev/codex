@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjection";
+import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import {
   attachBaseline,
   eventTurnStarted,

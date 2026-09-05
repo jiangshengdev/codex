@@ -2,7 +2,7 @@ import type { TurnSteerParams } from "@codex-protocol/v2";
 import {
   copyComposerInputPayload,
   type ReadonlyComposerInputPayload,
-} from "./composerInputPayload";
+} from "@/features/composerInput/composerInputPayload";
 import type {
   ComposerPendingInputManagement,
   ComposerPendingInputMoveDestination,

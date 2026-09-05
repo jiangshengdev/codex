@@ -3,9 +3,9 @@ import type {
   ComposerDraft,
   ComposerDraftCapture,
   ComposerDraftRestoreResult,
-} from "@/features/composerEditor/composerDraft";
+} from "@/features/composerEditor/composerEditorContracts";
 import type { ComposerInputPreview } from "./composerInputPreview";
-import type { ReadonlyComposerInputPayload } from "./composerInputPayload";
+import type { ReadonlyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 import type { InterruptTerminalDisposition } from "./composerInterruptState";
 import type {
   RejectedSteer,

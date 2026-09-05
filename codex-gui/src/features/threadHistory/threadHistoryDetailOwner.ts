@@ -1,6 +1,7 @@
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { buildTranscriptStateFromTurns } from "@/features/transcriptState/transcriptStateImplementation";
 import type { TranscriptState } from "@/features/transcriptState/transcriptStateSlice";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 import type { Thread } from "@codex-protocol/v2";
 
 export type ThreadHistoryDetailState =
@@ -18,7 +19,7 @@ type ThreadHistoryDetailOwnerOptions = Readonly<{
 export class ThreadHistoryDetailOwner {
   private readonly threadId: string;
   private readonly readThread: GuiHostCommands["readThread"];
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = createListenerSet();
   private state: ThreadHistoryDetailState = initialThreadHistoryDetailState;
   private generation = 0;
   private started = false;
@@ -36,10 +37,7 @@ export class ThreadHistoryDetailOwner {
       return () => undefined;
     }
 
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.listeners.subscribe(listener);
   };
 
   start(): boolean {
@@ -112,8 +110,6 @@ export class ThreadHistoryDetailOwner {
     }
 
     this.state = state;
-    for (const listener of this.listeners) {
-      listener();
-    }
+    this.listeners.notify();
   }
 }

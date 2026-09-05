@@ -9,9 +9,10 @@ import {
 import { ReadOnlyCommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
 import { formatTaskDocumentTitle } from "@/features/documentTitle/documentTitle";
 import { HistoryDetailDocumentTitleFactPublisher } from "@/features/documentTitle/DocumentTitleOwner";
-import type { Thread } from "@codex-protocol/v2";
+import { errorText } from "@/text/errorText";
 import { ContinueTaskAction } from "./ContinueTaskAction";
 import type { ThreadHistoryDetailState } from "./threadHistoryDetailOwner";
+import { resolveThreadHistoryPresentation } from "./threadHistoryPresentation";
 
 type ThreadHistoryDetailContentProps = Readonly<{
   activateThread: ActiveThreadSession["activate"] | null;
@@ -33,7 +34,10 @@ export function ThreadHistoryDetailContent({
   const { t } = useLingui();
   const navigate = useNavigate();
   const thread = state.type === "ready" ? state.thread : null;
-  const title = thread == null ? t`History detail` : threadTitle(thread, t`Untitled task`);
+  const title =
+    thread == null
+      ? t`History detail`
+      : resolveThreadHistoryPresentation(thread, t`Untitled task`).title;
 
   return (
     <>
@@ -97,11 +101,6 @@ export function ThreadHistoryDetailContent({
   );
 }
 
-function threadTitle(thread: Thread, fallback: string): string {
-  const name = thread.name?.trim() ?? "";
-  return name || thread.preview.trim() || fallback;
-}
-
 function HistoryDetailError({
   error,
   retry,
@@ -122,8 +121,4 @@ function HistoryDetailError({
       </Alert.Content>
     </Alert>
   );
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

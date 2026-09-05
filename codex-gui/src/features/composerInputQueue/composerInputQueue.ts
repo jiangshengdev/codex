@@ -33,7 +33,7 @@ import {
   type OrdinaryEditReservation,
 } from "./composerOrdinaryQueueState";
 import { ComposerPendingInputIdentity } from "./composerPendingInputIdentity";
-import { copyComposerInputPayload } from "./composerInputPayload";
+import { copyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 import {
   projectComposerInputPreview,
   projectComposerInputTextDetail,

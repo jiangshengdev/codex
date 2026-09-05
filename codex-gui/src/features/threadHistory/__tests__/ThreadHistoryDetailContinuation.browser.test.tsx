@@ -1,11 +1,17 @@
 import { toast } from "@heroui/react";
 import { afterEach, expect, test, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
-import { attachWithTurns } from "@/features/projection/__tests__/projectionTestBuilders";
+import {
+  attachWithTurns,
+  baseTurn,
+  textInput,
+  userMessage,
+} from "@/features/projection/__tests__/projectionTestBuilders";
 import { detailThreadId, renderDetail } from "./threadHistoryDetailBrowserHarness";
 
 const historyThread = (
@@ -220,8 +226,9 @@ test("keeps one continuation in flight while the primary action is pending", asy
   await expect.element(action).not.toHaveAttribute("data-pending");
   await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
   const alert = screen.getByRole("alert");
-  const operationDiagnostic = alert.getByText("Operation diagnostic:", { exact: false });
-  await expect.element(operationDiagnostic).toHaveTextContent(rawFailure.message);
+  await expect
+    .element(alert.getByText("The task could not be resumed.", { exact: true }))
+    .toBeVisible();
   expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
 });
 
@@ -233,14 +240,264 @@ test("keeps the read-only detail visible when activation returns empty", async (
       .mockResolvedValue({ thread: emptyHistoryThread() }),
   };
   const { router, screen } = await renderDetail({ activate: { type: "empty" }, commands });
+  const action = screen.getByRole("button", { name: "Continue this task" });
 
-  await screen.getByRole("button", { name: "Continue this task" }).click();
+  await action.click();
 
   const alert = screen.getByRole("alert");
   await expect.element(alert.getByText("Unable to continue this task")).toBeVisible();
-  await expect.element(alert.getByText("The task could not be activated.")).toBeVisible();
+  const summary = "The task could not be activated.";
+  await expect.element(alert.getByText(summary)).toBeVisible();
+  await expect.element(action).toHaveAccessibleDescription(summary);
   await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
   expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+});
+
+test("keeps a long history continuation failure visible beside the retry action", async () => {
+  const rawFailure = new Error("complete resume failure: request id 88");
+  const cleanupError = new Error("cleanup after resume failed");
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
+    type: "unavailable",
+    failure: {
+      type: "operationFailed",
+      phase: "resume",
+      error: rawFailure,
+      cleanupError,
+    },
+  });
+  const historyText = Array.from(
+    { length: 80 },
+    (_, index) => `Long read-only history line ${String(index + 1)}`,
+  ).join("\n");
+  const thread = historyThread([
+    baseTurn("long-history-turn", [
+      userMessage("long-history-user", [textInput(`${historyText}\nEnd of long history`)]),
+    ]),
+  ]);
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi.fn<GuiHostCommands["readThread"]>().mockResolvedValue({ thread }),
+  };
+  const { router, screen } = await renderDetail({ activate, commands });
+  const action = screen.getByRole("button", { name: "Continue this task" });
+
+  await expect.element(action).toBeVisible();
+  window.scrollTo({ left: 0, top: 0 });
+  await expect.poll(() => window.scrollY).toBe(0);
+  await expect
+    .poll(() => document.documentElement.scrollHeight - window.innerHeight - window.scrollY)
+    .toBeGreaterThan(100);
+
+  await action.click();
+
+  const summary = "The task could not be resumed.";
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText(summary, { exact: true })).toBeVisible();
+  await expect.element(alert).toBeInViewport();
+  const actionBar = action.element().closest("aside");
+  expect(actionBar).not.toBeNull();
+  expect(actionBar?.contains(alert.element())).toBe(true);
+  await expect.element(action).toHaveAccessibleName("Continue this task");
+  await expect.element(action).toHaveAccessibleDescription(summary);
+
+  const operationDiagnostic = alert.getByText("Operation diagnostic:", { exact: false });
+  const cleanupDiagnostic = alert.getByText("Cleanup diagnostic:", { exact: false });
+  await expect.element(operationDiagnostic).not.toBeInTheDocument();
+  await expect.element(cleanupDiagnostic).not.toBeInTheDocument();
+  const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
+  await expect.element(disclosure).toBeVisible();
+  disclosure.element().focus();
+  await expect.element(disclosure).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(operationDiagnostic).toHaveTextContent(rawFailure.message);
+  await expect.element(operationDiagnostic).toBeVisible();
+  await expect.element(cleanupDiagnostic).toHaveTextContent(cleanupError.message);
+  await expect.element(cleanupDiagnostic).toBeVisible();
+
+  disclosure.element().focus();
+  await expect.element(disclosure).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(operationDiagnostic).not.toBeInTheDocument();
+  await expect.element(cleanupDiagnostic).not.toBeInTheDocument();
+
+  await action.click();
+  expect(activate).toHaveBeenCalledTimes(2);
+  expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+});
+
+test("preserves document scroll position when expanding diagnostics at the bottom", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  const originalScrollTop = window.scrollY;
+  try {
+    await page.viewport(1280, 720);
+    const diagnostic = "complete resume failure: request id 88";
+    const historyText = Array.from(
+      { length: 80 },
+      (_, index) => `Bottom expansion history line ${String(index + 1)}`,
+    ).join("\n");
+    const thread = historyThread([
+      baseTurn("bottom-expansion-turn", [
+        userMessage("bottom-expansion-user", [textInput(historyText)]),
+      ]),
+    ]);
+    const commands = {
+      ...createGuiHostCommands(),
+      readThread: vi.fn<GuiHostCommands["readThread"]>().mockResolvedValue({ thread }),
+    };
+    const { screen } = await renderDetail({
+      activate: {
+        type: "unavailable",
+        failure: {
+          type: "operationFailed",
+          phase: "resume",
+          error: new Error(diagnostic),
+          cleanupError: null,
+        },
+      },
+      commands,
+    });
+    const action = screen.getByRole("button", { name: "Continue this task" });
+
+    await action.click();
+    const alert = screen.getByRole("alert");
+    await expect.element(alert.getByText("The task could not be resumed.")).toBeVisible();
+    const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
+    await expect.element(disclosure).toBeVisible();
+
+    const actionBar = action.element().closest("aside");
+    if (!(actionBar instanceof HTMLElement)) {
+      throw new Error("Expected continuation action to be rendered in an aside");
+    }
+    const actionSpace = document.querySelector("[data-thread-history-continuation-action-space]");
+    if (!(actionSpace instanceof HTMLElement)) {
+      throw new Error("Expected continuation action space");
+    }
+    // Keep the measured spacer out of document scroll anchoring while its height changes.
+    expect(getComputedStyle(actionSpace).overflowAnchor).toBe("none");
+    await expect
+      .poll(() => Math.abs(actionSpace.getBoundingClientRect().height - actionBar.offsetHeight))
+      .toBeLessThanOrEqual(1);
+
+    const documentScroller = document.scrollingElement;
+    if (!(documentScroller instanceof HTMLElement)) {
+      throw new Error("Expected an HTML document scrolling element");
+    }
+    window.scrollTo({ top: documentScroller.scrollHeight });
+    await expect.poll(() => documentScroller.scrollTop).toBeGreaterThan(0);
+    await expect
+      .poll(
+        () =>
+          documentScroller.scrollHeight -
+          documentScroller.clientHeight -
+          documentScroller.scrollTop,
+      )
+      .toBeLessThanOrEqual(1);
+    const scrollTopBeforeExpand = documentScroller.scrollTop;
+
+    disclosure.element().focus();
+    await expect.element(disclosure).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    await expect.element(alert.getByText(diagnostic, { exact: false })).toBeVisible();
+    await expect
+      .poll(() => Math.abs(actionSpace.getBoundingClientRect().height - actionBar.offsetHeight))
+      .toBeLessThanOrEqual(1);
+    await expect.element(disclosure).toHaveFocus();
+    expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
+  } finally {
+    window.scrollTo({ top: originalScrollTop });
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
+test("keeps long continuation diagnostics within a narrow action surface", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  const originalScrollTop = window.scrollY;
+  try {
+    await page.viewport(390, 600);
+    const diagnostic = Array.from(
+      { length: 100 },
+      (_, index) =>
+        `Raw continuation diagnostic line ${String(index + 1)} with enough detail to wrap.`,
+    ).join("\n");
+    const historyText = Array.from(
+      { length: 80 },
+      (_, index) => `Narrow history line ${String(index + 1)}`,
+    ).join("\n");
+    const thread = historyThread([
+      baseTurn("narrow-diagnostic-turn", [
+        userMessage("narrow-diagnostic-user", [textInput(historyText)]),
+      ]),
+    ]);
+    const commands = {
+      ...createGuiHostCommands(),
+      readThread: vi.fn<GuiHostCommands["readThread"]>().mockResolvedValue({ thread }),
+    };
+    const { screen } = await renderDetail({
+      activate: {
+        type: "unavailable",
+        failure: {
+          type: "operationFailed",
+          phase: "resume",
+          error: new Error(diagnostic),
+          cleanupError: null,
+        },
+      },
+      commands,
+    });
+    const action = screen.getByRole("button", { name: "Continue this task" });
+
+    await action.click();
+    const alert = screen.getByRole("alert");
+    await expect.element(alert.getByText("The task could not be resumed.")).toBeVisible();
+    const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
+    await expect.element(disclosure).toBeInViewport({ ratio: 1 });
+
+    const documentScroller = document.scrollingElement;
+    if (!(documentScroller instanceof HTMLElement)) {
+      throw new Error("Expected an HTML document scrolling element");
+    }
+    window.scrollTo({ top: Math.min(120, documentScroller.scrollHeight - window.innerHeight) });
+    await expect.poll(() => documentScroller.scrollTop).toBeGreaterThan(0);
+    const scrollTopBeforeExpand = documentScroller.scrollTop;
+
+    await disclosure.click();
+
+    const diagnosticRegion = alert
+      .element()
+      .querySelector("[data-history-continuation-diagnostics-scroll-region]");
+    if (!(diagnosticRegion instanceof HTMLElement)) {
+      throw new Error("Expected continuation diagnostics to own an internal scroll region");
+    }
+    await expect
+      .element(
+        alert.getByText("Raw continuation diagnostic line 100 with enough detail to wrap.", {
+          exact: false,
+        }),
+      )
+      .toBeVisible();
+    await expect.element(action).toBeInViewport({ ratio: 1 });
+    await expect.element(disclosure).toHaveFocus();
+    await expect
+      .poll(() => ({
+        documentScrollTopStable: Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand) <= 1,
+        hasInternalOverflow: diagnosticRegion.scrollHeight > diagnosticRegion.clientHeight + 1,
+        usesInternalScrolling: ["auto", "scroll"].includes(
+          getComputedStyle(diagnosticRegion).overflowY,
+        ),
+      }))
+      .toEqual({
+        documentScrollTopStable: true,
+        hasInternalOverflow: true,
+        usesInternalScrolling: true,
+      });
+    diagnosticRegion.scrollTo({ top: diagnosticRegion.scrollHeight });
+    await expect.poll(() => diagnosticRegion.scrollTop).toBeGreaterThan(0);
+    expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
+    await expect.element(disclosure).toHaveFocus();
+  } finally {
+    window.scrollTo({ top: originalScrollTop });
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
 });
 
 test.each([
@@ -275,10 +532,6 @@ test.each([
     const alert = screen.getByRole("alert");
     await expect.element(alert.getByText("Unable to continue this task")).toBeVisible();
     await expect.element(alert.getByText(summary, { exact: true })).toBeVisible();
-    const operationDiagnostic = alert.getByText("Operation diagnostic:", { exact: false });
-    await expect.element(operationDiagnostic).toHaveTextContent(rawFailure.message);
-    const cleanupDiagnostic = alert.getByText("Cleanup diagnostic:", { exact: false });
-    await expect.element(cleanupDiagnostic).toHaveTextContent(cleanupError.message);
     await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
     await expect.element(action).not.toHaveAttribute("data-pending");
     expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
@@ -322,8 +575,6 @@ test.each(["beforeCommit", "afterCommit"] as const)(
         ),
       )
       .toBeVisible();
-    const cleanupDiagnostic = alert.getByText("Cleanup diagnostic:", { exact: false });
-    await expect.element(cleanupDiagnostic).toHaveTextContent(cleanupError.message);
     await expect
       .element(alert.getByRole("button", { name: "Return to current task" }))
       .not.toBeInTheDocument();
@@ -344,18 +595,22 @@ test("renders a synchronous activation exception as an unexpected failure", asyn
       .mockResolvedValue({ thread: emptyHistoryThread() }),
   };
   const { router, screen } = await renderDetail({ activate, commands });
+  const action = screen.getByRole("button", { name: "Continue this task" });
 
-  await screen.getByRole("button", { name: "Continue this task" }).click();
+  await action.click();
 
   const alert = screen.getByRole("alert");
   await expect.element(alert.getByText("Unable to continue this task")).toBeVisible();
-  await expect
-    .element(
-      alert.getByText("An unexpected error occurred while continuing the task.", { exact: true }),
-    )
-    .toBeVisible();
+  const summary = "An unexpected error occurred while continuing the task.";
+  await expect.element(alert.getByText(summary, { exact: true })).toBeVisible();
+  await expect.element(action).toHaveAccessibleDescription(summary);
   const diagnostic = alert.getByText("Diagnostic:", { exact: false });
+  await expect.element(diagnostic).not.toBeInTheDocument();
+  const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
+  await expect.element(disclosure).toBeVisible();
+  await disclosure.click();
   await expect.element(diagnostic).toHaveTextContent(rawFailure.message);
+  await expect.element(diagnostic).toBeVisible();
   expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
 });
 

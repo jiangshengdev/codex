@@ -1,8 +1,8 @@
-import type { ThreadRuntimeProjectionEventPayload } from "@/features/threadRuntime/threadRuntimeSlice";
+import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import type { RuntimeObservation } from "./composerInputQueue";
 
 export function runtimeObservationFromAcceptedProjectionEvent(
-  payload: Readonly<ThreadRuntimeProjectionEventPayload>,
+  payload: Readonly<ActiveThreadProjectionAcceptedEvent>,
 ): RuntimeObservation | null {
   if (payload.replay !== "live") {
     return null;
