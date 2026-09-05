@@ -1,15 +1,17 @@
-import { createRef, type RefObject } from "react";
+import { createElement, createRef, type RefObject } from "react";
 import { expect } from "vitest";
 
+import { renderWithProviders } from "@/utils/test-utils";
 import type { AppLocale } from "@/i18n";
 import type {
   SkillCatalogCandidate,
   SkillCatalogState,
 } from "@/features/skillCatalog/skillCatalogOwner";
-import { renderWithProviders } from "@/utils/test-utils";
 
 import type { ComposerEditorController, ComposerEditorProps } from "../ComposerEditor";
-import { ComposerEditorFixture } from "./composerEditorTypeaheadBrowserTestFixture";
+import { ComposerEditorFixture } from "./composerEditorBrowserTestFixture";
+
+export { ComposerEditorFixture };
 
 type RenderEditorOptions = Readonly<{
   guardCompositionEndEnter?: boolean;
@@ -32,15 +34,15 @@ export async function renderEditor(
     partialErrorCount: 0,
   };
   const screen = await renderWithProviders(
-    <ComposerEditorFixture
-      ariaLabel="Message"
-      controllerRef={controllerRef}
-      disabled={false}
-      guardCompositionEndEnter={guardCompositionEndEnter}
-      onSubmit={onSubmit}
-      placeholder="Message Codex"
-      skillCatalog={skillCatalog}
-    />,
+    createElement(ComposerEditorFixture, {
+      ariaLabel: "Message",
+      controllerRef,
+      disabled: false,
+      guardCompositionEndEnter,
+      onSubmit,
+      placeholder: "Message Codex",
+      skillCatalog,
+    }),
     { locale },
   );
   await expect.poll(() => controllerRef.current).not.toBeNull();

@@ -1,4 +1,5 @@
 import type { ThreadItem, ThreadProjectionDelta, UserInput } from "@codex-protocol/v2";
+import { boundGraphemes } from "@/text/grapheme";
 import type {
   TranscriptAgentMessageItem,
   TranscriptCollabAgentItem,
@@ -49,22 +50,9 @@ const COLLAB_PROMPT_PREVIEW_GRAPHEMES = 160;
 const COLLAB_AGENT_COMPLETED_PREVIEW_GRAPHEMES = 240;
 const COLLAB_AGENT_ERROR_PREVIEW_GRAPHEMES = 160;
 
-const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-
 const truncateGraphemePreview = (value: string, limit: number): string => {
-  const graphemes: string[] = [];
-  for (const segment of graphemeSegmenter.segment(value)) {
-    graphemes.push(segment.segment);
-    if (graphemes.length > limit) {
-      break;
-    }
-  }
-
-  if (graphemes.length <= limit) {
-    return graphemes.join("");
-  }
-
-  return `${graphemes.slice(0, limit - 3).join("")}...`;
+  const bounded = boundGraphemes(value, { maxGraphemes: limit, truncatedGraphemes: limit - 3 });
+  return bounded.truncated ? `${bounded.text}...` : bounded.text;
 };
 
 const collapseWhitespace = (value: string): string => value.trim().split(/\s+/u).join(" ");

@@ -1,56 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import { eventTurnCompleted } from "@/features/projection/__tests__/projectionFixtures";
-import type { eventItemStarted } from "@/features/projection/__tests__/projectionFixtures";
-import {
-  baseTurn,
-  eventWithEnvelope,
-  turnCompleted,
-} from "@/features/projection/__tests__/projectionTestBuilders";
+import { baseTurn, turnCompleted } from "@/features/projection/__tests__/projectionTestBuilders";
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
-import type {
-  TurnInterruptParams,
-  TurnInterruptResponse,
-  TurnStartParams,
-  TurnStartResponse,
-  TurnSteerParams,
-  TurnSteerResponse,
-} from "@codex-protocol/v2";
-import { createComposerInputQueueCoordinator } from "../composerInputQueueCoordinator";
-import { composerCapture, composerDraftCapture } from "./composerInputQueueTestFixtures";
-
-type StartTurn = (params: TurnStartParams) => Promise<TurnStartResponse>;
-type SteerTurn = (params: TurnSteerParams) => Promise<TurnSteerResponse>;
-type InterruptTurn = (params: TurnInterruptParams) => Promise<TurnInterruptResponse>;
-type CoordinatorInput = Parameters<typeof createComposerInputQueueCoordinator>[0];
-const createCoordinator = (
-  options: Omit<CoordinatorInput, "interruptTurn"> & { interruptTurn?: InterruptTurn },
-) =>
-  createComposerInputQueueCoordinator({
-    ...options,
-    interruptTurn: options.interruptTurn ?? vi.fn<InterruptTurn>(),
-  });
-const input = composerCapture;
-const live = (notification: typeof eventItemStarted) => ({
-  notification: eventWithEnvelope(notification, { threadId: "thread-1" }),
-  replay: "live" as const,
-});
-const pendingItem = (
-  coordinator: ReturnType<typeof createComposerInputQueueCoordinator>,
-  lane: "ordinary" | "steer",
-  index = 0,
-) => {
-  const page = coordinator.readPendingInputPage({
-    lane,
-    revision: coordinator.getSnapshot().detailRevision,
-    cursor: null,
-    limit: 10,
-  });
-  if (page.type !== "page" || page.items[index] == null) {
-    throw new Error(`expected pending ${lane} item at index ${String(index)}`);
-  }
-  return page.items[index];
-};
-const flush = (): Promise<void> => Promise.resolve();
+import type { TurnStartResponse, TurnSteerResponse } from "@codex-protocol/v2";
+import {
+  createCoordinator,
+  live,
+  nextMicrotask,
+  pendingItem,
+  type InterruptTurn,
+  type StartTurn,
+  type SteerTurn,
+} from "./composerInputQueueCoordinatorTestFixtures";
+import { composerCapture as input, composerDraftCapture } from "./composerInputQueueTestFixtures";
 describe("ComposerInputQueueCoordinator", () => {
   it("owns an ordinary edit across revision changes and blocks stop and release", () => {
     const startTurn = vi.fn<StartTurn>().mockResolvedValue({ turn: baseTurn("turn-earlier") });
@@ -281,7 +243,7 @@ describe("ComposerInputQueueCoordinator", () => {
         },
       }),
     );
-    await flush();
+    await nextMicrotask();
     const invalidation = {
       type: "unavailable",
       scope: "liveOwner",

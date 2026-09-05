@@ -1,4 +1,4 @@
-import type { ReadonlyComposerInputPayload } from "./composerInputPayload";
+import type { ReadonlyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 import type {
   ComposerPendingInputManagement,
   ComposerPendingInputMoveDestination,

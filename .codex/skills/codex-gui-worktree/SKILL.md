@@ -43,17 +43,9 @@ codex-rs/gui-host/schema/typescript
 codex-rs/gui-host/schema/json
 ```
 
-These paths form the fixed task control plane for GUI worktrees: they keep the
-repository-local skills, project work documents, GUI sources, and generated
-protocol schemas available without depending on another checkout. The schema
-paths are direct inputs to GUI type-checking, Vite, and protocol validators.
+These paths keep the GUI worktree's skills, work documents, sources, and schemas independent of another checkout. The schemas feed GUI type-checking, Vite, and protocol validators.
 
-Use `--include` only for additional task-specific source or tool paths outside
-that fixed control plane, for example:
-
-```text
-codex-rs/app-server
-```
+Use `--include` only for task-specific source or tool paths outside this fixed set, as in the script example below.
 
 ## Script
 

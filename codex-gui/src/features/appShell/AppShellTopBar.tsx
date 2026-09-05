@@ -1,7 +1,7 @@
 import { Button, Drawer } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { History, House, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useState } from "react";
 import { useAppSelector } from "@/app/hooks";
 import {
@@ -67,26 +67,84 @@ export function AppShellTopBar() {
                 <Trans>Navigation</Trans>
               </Drawer.Heading>
             </Drawer.Header>
-            <Drawer.Body>
+            <Drawer.Body className="-mx-1 -my-px p-1">
               <nav aria-label={t`Main navigation`} className="flex flex-col gap-1">
                 <Button
+                  aria-describedby="current-task-navigation-description"
                   aria-current={isCurrentTask ? "page" : undefined}
-                  className="justify-start"
+                  aria-labelledby="current-task-navigation-label"
+                  className="h-auto min-h-9 justify-start gap-3 rounded-2xl px-2 py-1.5 text-start whitespace-normal md:h-auto"
+                  fullWidth
                   isDisabled={activeThreadId == null}
-                  variant={isCurrentTask ? "secondary" : "tertiary"}
+                  variant="ghost"
                   onPress={navigateToCurrentTask}
                 >
-                  <House aria-hidden="true" className="size-5" />
-                  <Trans>Current task</Trans>
+                  <span
+                    aria-hidden="true"
+                    className="flex w-4 shrink-0 items-center justify-center self-stretch"
+                  >
+                    {isCurrentTask ? (
+                      <span
+                        aria-hidden="true"
+                        className="size-2 rounded-full bg-muted"
+                        data-current-page-indicator="true"
+                      />
+                    ) : null}
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col items-start">
+                    <span
+                      className="text-sm font-medium text-foreground"
+                      id="current-task-navigation-label"
+                    >
+                      <Trans>Current task</Trans>
+                    </span>
+                    <span
+                      className="text-xs font-normal text-wrap wrap-break-word text-muted"
+                      id="current-task-navigation-description"
+                    >
+                      <Trans comment="Description for the current task destination in the navigation drawer">
+                        Open current task
+                      </Trans>
+                    </span>
+                  </span>
                 </Button>
                 <Button
+                  aria-describedby="history-navigation-description"
                   aria-current={!isCurrentTask ? "page" : undefined}
-                  className="justify-start"
-                  variant={!isCurrentTask ? "secondary" : "tertiary"}
+                  aria-labelledby="history-navigation-label"
+                  className="h-auto min-h-9 justify-start gap-3 rounded-2xl px-2 py-1.5 text-start whitespace-normal md:h-auto"
+                  fullWidth
+                  variant="ghost"
                   onPress={navigateToHistory}
                 >
-                  <History aria-hidden="true" className="size-5" />
-                  <Trans>History</Trans>
+                  <span
+                    aria-hidden="true"
+                    className="flex w-4 shrink-0 items-center justify-center self-stretch"
+                  >
+                    {!isCurrentTask ? (
+                      <span
+                        aria-hidden="true"
+                        className="size-2 rounded-full bg-muted"
+                        data-current-page-indicator="true"
+                      />
+                    ) : null}
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col items-start">
+                    <span
+                      className="text-sm font-medium text-foreground"
+                      id="history-navigation-label"
+                    >
+                      <Trans>History</Trans>
+                    </span>
+                    <span
+                      className="text-xs font-normal text-wrap wrap-break-word text-muted"
+                      id="history-navigation-description"
+                    >
+                      <Trans comment="Description for the task history destination in the navigation drawer">
+                        Browse task history
+                      </Trans>
+                    </span>
+                  </span>
                 </Button>
               </nav>
             </Drawer.Body>

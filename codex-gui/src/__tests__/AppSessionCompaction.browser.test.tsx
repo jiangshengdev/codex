@@ -63,7 +63,7 @@ test("App routes compression through the session and reuses transcript context p
     name: "Context compression in progress",
     exact: true,
   });
-  await expect.element(pendingTrigger).toHaveTextContent("Compressing");
+  expect(pendingTrigger.element().textContent).toBe("");
   await expect
     .element(dialog.getByRole("button", { name: "Compressing", exact: true }))
     .toBeDisabled();
@@ -79,7 +79,7 @@ test("App routes compression through the session and reuses transcript context p
     itemStarted(eventItemStarted, eventItemStarted.commitId, turnId, contextCompaction(itemId)),
   );
 
-  await expect.element(pendingTrigger).toHaveTextContent("Compressing");
+  expect(pendingTrigger.element().textContent).toBe("");
 
   emitProjectionEvent(
     options,

@@ -10,15 +10,9 @@ import {
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
 } from "../appBrowserTestSupport";
+import { readPendingTextPreviews, startTurnParamsAt } from "../appComposerQueueBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "../appBrowserRenderHarness";
-import {
-  createComposerInputQueueCoordinator,
-  type ComposerInputQueueCoordinator,
-} from "@/features/composerInputQueue/composerInputQueueCoordinator";
-import type {
-  ComposerPendingInputLane,
-  ComposerPendingInputPageItem,
-} from "@/features/composerInputQueue/composerInputQueueContracts";
+import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type {
   GuiHostCommands,
   StartGuiHostConnectionOptions,
@@ -44,7 +38,7 @@ import {
   selectTranscriptEntry,
   transcriptEntryIdFor,
 } from "@/features/transcriptState/transcriptStateSlice";
-import { renderWithProviders } from "@/utils/test-utils";
+import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
 
 const guiHostClientMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -57,6 +51,7 @@ vi.mock("@/features/composerInputQueue/composerInputQueueCoordinator", { spy: tr
 
 const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
+let restoreMotion: (() => void) | undefined;
 
 beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
@@ -66,6 +61,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  restoreMotion?.();
+  restoreMotion = undefined;
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
 });
 
@@ -113,17 +110,6 @@ const renderActiveApp = async () => {
   };
 };
 
-const startTurnParamsAt = (
-  startTurn: Mock<GuiHostCommands["startTurn"]>,
-  index: number,
-): Parameters<GuiHostCommands["startTurn"]>[0] => {
-  const call = startTurn.mock.calls.at(index);
-  if (call == null) {
-    throw new Error(`startTurn call ${String(index + 1)} must be recorded`);
-  }
-  return call[0];
-};
-
 const expectStartTurnCalledOnceWithText = (
   startTurn: Mock<GuiHostCommands["startTurn"]>,
   text: string,
@@ -138,32 +124,6 @@ const expectStartTurnCalledOnceWithText = (
     input: [{ type: "text", text, text_elements: [] }],
   });
 };
-
-const readPendingItems = (
-  coordinator: ComposerInputQueueCoordinator,
-  lane: ComposerPendingInputLane,
-  limit = 20,
-): readonly ComposerPendingInputPageItem[] => {
-  const snapshot = coordinator.getSnapshot();
-  const result = coordinator.readPendingInputPage({
-    lane,
-    revision: snapshot.detailRevision,
-    cursor: null,
-    limit,
-  });
-  if (result.type !== "page") {
-    throw new Error(`expected ${lane} pending-input page, received ${result.type}`);
-  }
-  return result.items;
-};
-
-const readPendingTextPreviews = (
-  coordinator: ComposerInputQueueCoordinator,
-  lane: ComposerPendingInputLane,
-): string[] =>
-  readPendingItems(coordinator, lane).map(({ preview }) =>
-    preview.type === "text" ? preview.text : "nonText",
-  );
 
 test("App sends ordinary Enter through start identity and renders only its live commit", async () => {
   const text = "Ordinary Enter through App";
@@ -235,6 +195,7 @@ test("App sends ordinary Enter through start identity and renders only its live 
 });
 
 test("App queues during an active turn and starts exactly once after its live terminal event", async () => {
+  restoreMotion = disableMotionForTest();
   const { activeTurn, options, queueCoordinator, screen, startTurn } = await renderActiveApp();
   const transcript = screen.getByRole("region", { name: "Committed transcript" });
 

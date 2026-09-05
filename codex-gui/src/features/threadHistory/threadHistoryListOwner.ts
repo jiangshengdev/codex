@@ -1,4 +1,5 @@
 import type { RequestParams, RequestResponse } from "@/features/guiHost/appServerProtocol";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 import type { Thread } from "@codex-protocol/v2";
 
 const THREAD_HISTORY_PAGE_LIMIT = 25;
@@ -39,7 +40,7 @@ type ThreadHistoryListOwnerOptions = Readonly<{
 export class ThreadHistoryListOwner {
   private readonly cwd: string;
   private readonly listThreads: ListThreads;
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = createListenerSet();
   private state: ThreadHistoryListState = initialThreadHistoryListState;
   private generation = 0;
   private started = false;
@@ -57,10 +58,7 @@ export class ThreadHistoryListOwner {
       return () => undefined;
     }
 
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.listeners.subscribe(listener);
   };
 
   start(): boolean {
@@ -162,9 +160,7 @@ export class ThreadHistoryListOwner {
     }
 
     this.state = state;
-    for (const listener of this.listeners) {
-      listener();
-    }
+    this.listeners.notify();
   }
 }
 

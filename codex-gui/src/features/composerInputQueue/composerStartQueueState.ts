@@ -5,7 +5,7 @@ import type {
   ComposerQueueMessage,
   RuntimeObservation,
 } from "./composerInputQueueContracts";
-import type { ReadonlyComposerInputPayload } from "./composerInputPayload";
+import type { ReadonlyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 import type { RejectedSteerTransfer } from "./composerSteerQueueState";
 
 const startClaimCapability: unique symbol = Symbol("StartClaim");

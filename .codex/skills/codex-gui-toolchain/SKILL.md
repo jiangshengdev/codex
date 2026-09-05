@@ -13,18 +13,11 @@ frontend-specific delta; they do not replace or duplicate the general contract.
 
 Before writing a frontend command in a plan, verification step, or implementation note:
 
-1. Read the live `codex-gui/package.json` and any repository-owned fixed entrypoint or recipe required by the applicable instructions or confirmed plan.
-2. Trace the live CI and consumer chain, then confirm the named script or fixed entrypoint exists and that its target or discovery rules include the intended file, package, test, or generated target. Existing scripts, configuration, and history are evidence, not proof of authority; overlapping formatters must have one authoritative owner and must not impose conflicting gates.
-3. Use the repository-owned entrypoint when one exists. Do not reconstruct or bypass it with an equivalent lower-level command.
+Read the live `codex-gui/package.json` and required repository-owned entrypoints or recipes. Trace their CI and consumer chain to confirm authority and intended target discovery under the general preflight. Existing scripts, configuration, and history alone do not establish authority; overlapping formatters must have one authoritative owner without conflicting gates. Use the repository-owned entrypoint when one exists; do not reconstruct or bypass it with a lower-level command.
 
 ## Execution Preflight
 
-Immediately before running a frontend command, apply the general preflight and repeat the command planning check against the current worktree. Then:
-
-1. Confirm the intended repository and `codex-gui` working directory. Do not rely on an earlier command's directory.
-2. Verify the active Node and `pnpm` come from the user's fnm environment as described below.
-3. Resolve the frontend-specific inputs, including referenced paths, generated schemas, validators, schema fixtures, and other tracked or generated inputs required by the selected target.
-4. For Vitest Browser Mode, Playwright, or another frontend verification entrypoint, confirm that discovery actually collects and exercises the intended target and that output is written to the expected location. A successful command that skipped the target is not verification.
+Immediately before execution, repeat the planning check and general preflight against the current worktree: confirm the repository and `codex-gui` cwd, required paths, generated schemas, validators and fixtures, actual target collection and execution, and output location. Do not rely on an earlier command's directory. Verify that Node and `pnpm` use the fnm environment below.
 
 If an input is absent because a sparse worktree may be incomplete, use `codex-gui-worktree` only to inspect it. Repair it only when the user's current request or a confirmed plan explicitly authorizes that repair; otherwise stop and report the missing input. Do not duplicate the worktree skill's path list or setup procedure here.
 
@@ -102,8 +95,6 @@ If no script, repository-owned fixed entrypoint, or recipe exists, use the expli
 ```bash
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run <path>
 ```
-
-Do not copy `pnpm run <script>` from old plans or memory without checking the live `package.json`.
 
 ## Local Frontend Dependency Docs
 

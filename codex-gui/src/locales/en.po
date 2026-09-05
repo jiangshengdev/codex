@@ -61,7 +61,7 @@ msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {I
 msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 msgstr "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:85
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:80
 msgid "{percentageLabel} used"
 msgstr "{percentageLabel} used"
 
@@ -70,15 +70,15 @@ msgstr "{percentageLabel} used"
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:88
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:83
 msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:80
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:75
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:192
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:191
 msgid "Active"
 msgstr "Active"
 
@@ -94,24 +94,29 @@ msgstr "Admin"
 msgid "Agent spawn failed"
 msgstr "Agent spawn failed"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:194
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:45
 msgid "An unexpected error occurred while continuing the task."
 msgstr "An unexpected error occurred while continuing the task."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:288
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:95
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:58
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:62
 msgid "Back to history"
 msgstr "Back to history"
+
+#. Description for the task history destination in the navigation drawer
+#: src/features/appShell/AppShellTopBar.tsx:143
+msgid "Browse task history"
+msgstr "Browse task history"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:273
 msgid "Cancel"
 msgstr "Cancel"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:376
-#: src/features/threadHistory/ContinueTaskAction.tsx:400
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:188
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:214
 msgid "Cleanup diagnostic:"
 msgstr "Cleanup diagnostic:"
 
@@ -129,7 +134,7 @@ msgid "Collapse pending message: {previewText}"
 msgstr "Collapse pending message: {previewText}"
 
 #. Accessible name for the region containing committed transcript turns
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:74
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:75
 msgid "Committed transcript"
 msgstr "Committed transcript"
 
@@ -151,18 +156,16 @@ msgid "Completed <0/> <1/>"
 msgstr "Completed <0/> <1/>"
 
 #. Button that starts compression for the current conversation context
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:111
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:106
 msgid "Compress context"
 msgstr "Compress context"
 
 #. Status shown while the current conversation context is compressed
-#. Status shown while the current conversation context is compressed
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:47
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:106
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:101
 msgid "Compressing"
 msgstr "Compressing"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:92
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:93
 msgid "Connection interrupted. Reconnect required."
 msgstr "Connection interrupted. Reconnect required."
 
@@ -170,11 +173,11 @@ msgstr "Connection interrupted. Reconnect required."
 msgid "Contact support"
 msgstr "Contact support"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:103
+#: src/features/committedTranscriptSurface/TranscriptContextBoundary.tsx:20
 msgid "Context compressed"
 msgstr "Context compressed"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:118
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:113
 msgid "Context compression could not be started."
 msgstr "Context compression could not be started."
 
@@ -190,8 +193,8 @@ msgstr "Context page {item}"
 
 #. Accessible label for the context usage progress indicator
 #. Heading for context usage and compression controls
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:54
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:73
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:49
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:68
 msgid "Context usage"
 msgstr "Context usage"
 
@@ -205,25 +208,16 @@ msgstr "Context usage details, {percentageLabel} used, {usedTokensLabel} of {con
 msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 
-#. Accessible name for context controls when usage data is unavailable
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:23
-#~ msgid "Context usage details, usage unavailable"
-#~ msgstr "Context usage details, usage unavailable"
-
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:84
-#~ msgid "Context usage is unavailable."
-#~ msgstr "Context usage is unavailable."
-
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:132
 msgid "Continue sending"
 msgstr "Continue sending"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:231
+#: src/features/threadHistory/ContinueTaskAction.tsx:250
 msgid "Continue this task"
 msgstr "Continue this task"
 
 #: src/features/appShell/AppShellTopBar.tsx:28
-#: src/features/appShell/AppShellTopBar.tsx:80
+#: src/features/appShell/AppShellTopBar.tsx:99
 #: src/features/documentTitle/DocumentTitleOwner.tsx:43
 msgid "Current task"
 msgstr "Current task"
@@ -273,7 +267,7 @@ msgstr "Delete"
 msgid "Delete this pending message?"
 msgstr "Delete this pending message?"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:197
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:49
 msgid "Diagnostic:"
 msgstr "Diagnostic:"
 
@@ -339,7 +333,7 @@ msgstr "Finished waiting"
 msgid "Go back home"
 msgstr "Go back home"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:236
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:237
 msgid "Guide"
 msgstr "Guide"
 
@@ -360,23 +354,23 @@ msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 
 #: src/features/appShell/AppShellTopBar.tsx:28
-#: src/features/appShell/AppShellTopBar.tsx:89
+#: src/features/appShell/AppShellTopBar.tsx:137
 #: src/features/documentTitle/DocumentTitleOwner.tsx:44
 msgid "History"
 msgstr "History"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:64
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:66
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
 #: src/features/documentTitle/DocumentTitleOwner.tsx:45
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:36
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:39
 msgid "History detail"
 msgstr "History detail"
 
 #. Short idle-state label for the current task beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:31
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:191
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:190
 msgid "Idle"
 msgstr "Idle"
 
@@ -411,7 +405,7 @@ msgstr "Interrupted."
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:41
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:90
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:95
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:96
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
@@ -419,12 +413,12 @@ msgstr "Invalid skill"
 msgid "Keep"
 msgstr "Keep"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:125
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:127
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:46
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:97
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:48
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:99
 msgid "Loading history…"
 msgstr "Loading history…"
 
@@ -432,7 +426,7 @@ msgstr "Loading history…"
 msgid "Loading skills…"
 msgstr "Loading skills…"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:72
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:76
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
@@ -448,12 +442,12 @@ msgstr "Menu"
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:172
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:180
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:173
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:181
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:159
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:160
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -515,11 +509,11 @@ msgstr "Next context page"
 msgid "No agents completed yet"
 msgstr "No agents completed yet"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:111
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:105
 msgid "No committed messages yet."
 msgstr "No committed messages yet."
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:105
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:107
 msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
 
@@ -538,15 +532,20 @@ msgstr "Not found"
 
 #. Short label for a current task that is not loaded beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:23
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:190
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:189
 msgid "Not loaded"
 msgstr "Not loaded"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:67
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:69
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:396
+#. Description for the current task destination in the navigation drawer
+#: src/features/appShell/AppShellTopBar.tsx:105
+msgid "Open current task"
+msgstr "Open current task"
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:210
 msgid "Operation diagnostic:"
 msgstr "Operation diagnostic:"
 
@@ -621,7 +620,7 @@ msgstr "Queued {ordinaryQueuedCount}"
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "Queued message moved to position {movedPosition} of {movedCount}."
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:66
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:70
 msgid "Read-only history"
 msgstr "Read-only history"
 
@@ -659,13 +658,13 @@ msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:405
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:119
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:226
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:118
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:221
 msgid "Retry"
 msgstr "Retry"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:313
-#: src/features/threadHistory/ContinueTaskAction.tsx:342
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:122
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:153
 msgid "Return to current task"
 msgstr "Return to current task"
 
@@ -683,7 +682,7 @@ msgstr "Save"
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:248
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:249
 msgid "Send"
 msgstr "Send"
 
@@ -747,11 +746,11 @@ msgstr "Spawned {receiver} ({reasoningEffort})"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:224
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:225
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:215
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:216
 msgid "Stop failed"
 msgstr "Stop failed"
 
@@ -767,24 +766,24 @@ msgstr "Structured input"
 msgid "System"
 msgstr "System"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:193
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:192
 msgid "System error"
 msgstr "System error"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:47
-#: src/features/threadHistory/ContinueTaskAction.tsx:51
+#: src/features/threadHistory/ContinueTaskAction.tsx:48
+#: src/features/threadHistory/ContinueTaskAction.tsx:52
 msgid "Task opened"
 msgstr "Task opened"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:357
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:168
 msgid "Task switched, but cannot be opened"
 msgstr "Task switched, but cannot be opened"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:363
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:174
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "The connection was interrupted before the task switch completed. Reconnect and try again."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:330
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:140
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
 
@@ -800,7 +799,7 @@ msgstr "The pending-message order did not change, and the refreshed order could 
 msgid "The pending-message order did not change. Refresh complete; try again."
 msgstr "The pending-message order did not change. Refresh complete; try again."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:52
+#: src/features/threadHistory/ContinueTaskAction.tsx:53
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "The previous task connection could not be fully cleaned up. Later state may be affected."
 
@@ -808,8 +807,8 @@ msgstr "The previous task connection could not be fully cleaned up. Later state 
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:422
-#: src/features/threadHistory/ContinueTaskAction.tsx:424
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:266
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:268
 msgid "The task connection could not be prepared."
 msgstr "The task connection could not be prepared."
 
@@ -817,21 +816,21 @@ msgstr "The task connection could not be prepared."
 msgid "The task connection was closed."
 msgstr "The task connection was closed."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:211
-#: src/features/threadHistory/ContinueTaskAction.tsx:303
-#: src/features/threadHistory/ContinueTaskAction.tsx:426
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:65
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:111
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:270
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:420
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:264
 msgid "The task could not be resumed."
 msgstr "The task could not be resumed."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:48
+#: src/features/threadHistory/ContinueTaskAction.tsx:49
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:368
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:179
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 
@@ -851,7 +850,7 @@ msgstr "This message is being edited."
 msgid "This pending message cannot be edited."
 msgstr "This pending message cannot be edited."
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:78
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:82
 msgid "This task has no messages."
 msgstr "This task has no messages."
 
@@ -865,19 +864,19 @@ msgstr "Transcript context pages"
 msgid "Turn {resolvedTurnId}"
 msgstr "Turn {resolvedTurnId}"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:190
-#: src/features/threadHistory/ContinueTaskAction.tsx:208
-#: src/features/threadHistory/ContinueTaskAction.tsx:300
-#: src/features/threadHistory/ContinueTaskAction.tsx:355
-#: src/features/threadHistory/ContinueTaskAction.tsx:389
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:41
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:62
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:107
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:166
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:202
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:217
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:216
 msgid "Unable to load history"
 msgstr "Unable to load history"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:114
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:113
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
@@ -885,12 +884,12 @@ msgstr "Unable to load task history"
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
-#: src/features/appShell/AppShell.tsx:22
+#: src/features/appShell/AppShell.tsx:21
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:285
-#: src/features/threadHistory/ContinueTaskAction.tsx:327
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:92
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:136
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
@@ -899,8 +898,8 @@ msgstr "Unable to switch tasks yet"
 msgid "Unknown"
 msgstr "Unknown"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:36
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:46
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:137
 msgid "Untitled task"
 msgstr "Untitled task"
@@ -916,9 +915,14 @@ msgstr "Updated pending order could not be loaded"
 msgid "User"
 msgstr "User"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:181
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:180
 msgid "View"
 msgstr "View"
+
+#. Button in a history continuation error that expands raw diagnostic details
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:235
+msgid "View diagnostic information"
+msgstr "View diagnostic information"
 
 #. Short label for a current task awaiting approval and input beside the QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:63

@@ -1,9 +1,7 @@
 import { $createParagraphNode, $createTextNode, $getRoot, createEditor } from "lexical";
 
-import {
-  captureComposerDraft,
-  type ComposerDraftCapture,
-} from "@/features/composerEditor/composerDraft";
+import { captureComposerDraft } from "@/features/composerEditor/composerDraft";
+import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
 import {
   $createSkillNode,
   SkillNode,

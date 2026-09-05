@@ -1,4 +1,5 @@
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 import type { SkillMetadata, SkillsListResponse } from "@codex-protocol/v2";
 
 export type SkillCatalogCandidate = Readonly<
@@ -30,7 +31,7 @@ type SkillCatalogOwnerOptions = Readonly<{
 export class SkillCatalogOwner {
   private readonly cwd: string;
   private readonly listSkills: GuiHostCommands["listSkills"];
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = createListenerSet();
   private state: SkillCatalogState = { type: "initialLoading", ...emptyContents() };
   private generation = 0;
   private started = false;
@@ -51,10 +52,7 @@ export class SkillCatalogOwner {
       return () => undefined;
     }
 
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.listeners.subscribe(listener);
   };
 
   start(): boolean {
@@ -175,9 +173,7 @@ export class SkillCatalogOwner {
     }
 
     this.state = state;
-    for (const listener of this.listeners) {
-      listener();
-    }
+    this.listeners.notify();
   }
 }
 

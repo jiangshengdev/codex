@@ -43,6 +43,29 @@ type ExtendedRenderOptions = Omit<RenderOptions, "wrapper"> & {
   store?: AppStore;
 };
 
+const DISABLE_MOTION_CSS = `
+*, *::before, *::after {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}
+`;
+
+/**
+ * Disables CSS motion across the test document, including portal content.
+ * Call the returned function after the test to restore the document.
+ */
+export function disableMotionForTest(): () => void {
+  const style = document.createElement("style");
+  style.textContent = DISABLE_MOTION_CSS;
+  document.head.append(style);
+
+  return () => {
+    style.remove();
+  };
+}
+
 /**
  * Renders the given React element with Redux Provider and custom store.
  * This function is useful for testing components that are connected to the Redux store.

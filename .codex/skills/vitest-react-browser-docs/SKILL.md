@@ -19,14 +19,11 @@ Treat the resolved absolute path as `<vitest-docs-root>`. Do not resolve `../vit
 
 ## Minimal Lookup
 
-1. Resolve `<vitest-docs-root>` from the Git repository root, then apply the shared local documentation contract to it.
-2. Search the docs before answering, reviewing, or editing React Browser Mode tests.
-3. Prefer searching these subtrees first:
-   - `<vitest-docs-root>/api/browser`
-   - `<vitest-docs-root>/config/browser`
-   - `<vitest-docs-root>/guide/browser`
-4. Read only the documents directly relevant to the task.
-5. Base recommendations and code changes on the local docs you read.
+Before answering, reviewing, or editing React Browser Mode tests, apply the shared lookup contract to `<vitest-docs-root>` and base recommendations and changes on the documents read. Prefer searching these subtrees first:
+
+- `<vitest-docs-root>/api/browser`
+- `<vitest-docs-root>/config/browser`
+- `<vitest-docs-root>/guide/browser`
 
 ## Domain Rules
 

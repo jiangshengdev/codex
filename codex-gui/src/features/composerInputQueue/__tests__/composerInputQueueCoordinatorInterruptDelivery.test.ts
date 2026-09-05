@@ -9,38 +9,18 @@ import {
   turnCompleted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
-import type {
-  TurnInterruptParams,
-  TurnInterruptResponse,
-  TurnStartParams,
-  TurnStartResponse,
-  TurnSteerParams,
-  TurnSteerResponse,
-} from "@codex-protocol/v2";
-import { createComposerInputQueueCoordinator } from "../composerInputQueueCoordinator";
-import { composerCapture } from "./composerInputQueueTestFixtures";
+import type { TurnInterruptResponse } from "@codex-protocol/v2";
+import {
+  createCoordinator,
+  deferredStart,
+  live,
+  nextMicrotask,
+  type InterruptTurn,
+  type StartTurn,
+  type SteerTurn,
+} from "./composerInputQueueCoordinatorTestFixtures";
+import { composerCapture as input } from "./composerInputQueueTestFixtures";
 
-type StartTurn = (params: TurnStartParams) => Promise<TurnStartResponse>;
-type SteerTurn = (params: TurnSteerParams) => Promise<TurnSteerResponse>;
-type InterruptTurn = (params: TurnInterruptParams) => Promise<TurnInterruptResponse>;
-type CoordinatorInput = Parameters<typeof createComposerInputQueueCoordinator>[0];
-const createCoordinator = (
-  options: Omit<CoordinatorInput, "interruptTurn"> & { interruptTurn?: InterruptTurn },
-) =>
-  createComposerInputQueueCoordinator({
-    ...options,
-    interruptTurn: options.interruptTurn ?? vi.fn<InterruptTurn>(),
-  });
-const input = composerCapture;
-const deferredStart = () => {
-  let resolve!: (response: TurnStartResponse) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<TurnStartResponse>((yes, no) => {
-    resolve = yes;
-    reject = no;
-  });
-  return { promise, resolve, reject };
-};
 const deferredInterrupt = () => {
   let resolve!: (response: TurnInterruptResponse) => void;
   let reject!: (error: unknown) => void;
@@ -50,11 +30,6 @@ const deferredInterrupt = () => {
   });
   return { promise, resolve, reject };
 };
-const live = (notification: typeof eventItemStarted) => ({
-  notification: eventWithEnvelope(notification, { threadId: "thread-1" }),
-  replay: "live" as const,
-});
-const flush = (): Promise<void> => Promise.resolve();
 describe("ComposerInputQueueCoordinator", () => {
   it("owns local stop through explicit FIFO recovery and auto-drains non-local interruption", async () => {
     const startTurn = vi.fn<StartTurn>(({ input }) =>
@@ -118,7 +93,7 @@ describe("ComposerInputQueueCoordinator", () => {
       ],
     });
     coordinator.submitSteer(input("steer"));
-    await flush();
+    await nextMicrotask();
     const beforeLocalStop = coordinator.getSnapshot();
     coordinator.observeAcceptedEvent(
       live(
@@ -149,14 +124,14 @@ describe("ComposerInputQueueCoordinator", () => {
     expect(coordinator.recover()).toBe(true);
     expect(startTurn).toHaveBeenCalledTimes(1);
     expect(startTurn.mock.calls[0]?.[0].input).toEqual(input("steer").input);
-    await flush();
+    await nextMicrotask();
     coordinator.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "commit-steer", baseTurn("steer"))),
     );
     coordinator.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "commit-one", baseTurn("one"))),
     );
-    await flush();
+    await nextMicrotask();
     expect(startTurn.mock.calls.map(([params]) => params.input)).toEqual([
       input("steer").input,
       input("one").input,
@@ -198,7 +173,7 @@ describe("ComposerInputQueueCoordinator", () => {
     });
     nonLocal.submit(input("ordinary"));
     nonLocal.submitSteer(input("rejected-steer"));
-    await flush();
+    await nextMicrotask();
     expect(nonLocal.getSnapshot().recovery).toEqual({
       reason: "steerDefinitelyNotAccepted",
       count: 1,
@@ -214,7 +189,7 @@ describe("ComposerInputQueueCoordinator", () => {
     expect(nonLocalStart.mock.calls.map(([params]) => params.input)).toEqual([
       input("rejected-steer").input,
     ]);
-    await flush();
+    await nextMicrotask();
     nonLocal.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "rejected-terminal", baseTurn("rejected-steer"))),
     );
@@ -262,7 +237,7 @@ describe("ComposerInputQueueCoordinator", () => {
       expect(startTurn).not.toHaveBeenCalled();
       if (error == null) request.resolve({});
       else request.reject(error);
-      await flush();
+      await nextMicrotask();
       expect({
         recovery: coordinator.getSnapshot().recovery?.reason ?? null,
         starts: startTurn.mock.calls.length,
@@ -299,7 +274,7 @@ describe("ComposerInputQueueCoordinator", () => {
       interruptTurn,
     });
     coordinator.interruptActiveTurn();
-    await flush();
+    await nextMicrotask();
     expect(coordinator.getSnapshot().interrupt).toEqual({ phase });
     coordinator.observeAcceptedEvent(
       live(
@@ -329,7 +304,7 @@ describe("ComposerInputQueueCoordinator", () => {
     const terminalSnapshot = coordinator.getSnapshot();
     expect(terminalSnapshot).toMatchObject({ canStop: false, interrupt: null });
     request.resolve({});
-    await flush();
+    await nextMicrotask();
     expect(coordinator.getSnapshot()).toBe(terminalSnapshot);
     expect(coordinator.getReleaseReadiness()).toEqual({ type: "safe" });
   });
@@ -365,7 +340,7 @@ describe("ComposerInputQueueCoordinator", () => {
     );
     expect(startTurn).toHaveBeenCalledTimes(1);
     request.resolve({ turn: baseTurn("turn-1") });
-    await flush();
+    await nextMicrotask();
     expect(coordinator.submit(input("late"))).toEqual({ type: "rejected", reason: "disposed" });
     expect(coordinator.getReleaseReadiness()).toEqual(readinessAtDisposal);
     expect(listener).not.toHaveBeenCalled();
@@ -386,7 +361,7 @@ describe("ComposerInputQueueCoordinator", () => {
     const interruptSnapshot = interrupted.getSnapshot();
     const notificationsAtDisposal = interruptListener.mock.calls.length;
     interruptRequest.resolve({});
-    await flush();
+    await nextMicrotask();
     expect(interrupted.getSnapshot()).toBe(interruptSnapshot);
     expect(interrupted.getReleaseReadiness()).toEqual({
       type: "blocked",

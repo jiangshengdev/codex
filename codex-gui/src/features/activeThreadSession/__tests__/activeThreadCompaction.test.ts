@@ -17,7 +17,7 @@ import {
   turnStarted,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import type { ActiveThreadProjectionAcceptedQueueFact } from "../activeThreadProjection";
+import type { ActiveThreadProjectionAcceptedEvent } from "../activeThreadProjectionFacts";
 import {
   createActiveThreadCompaction,
   type ActiveThreadCompactionClaim,
@@ -32,8 +32,8 @@ const reservation = () => {
 };
 
 const live = (
-  notification: ActiveThreadProjectionAcceptedQueueFact["notification"],
-): ActiveThreadProjectionAcceptedQueueFact => ({ notification, replay: "live" });
+  notification: ActiveThreadProjectionAcceptedEvent["notification"],
+): ActiveThreadProjectionAcceptedEvent => ({ notification, replay: "live" });
 
 const startedTurn = (turnId: string) =>
   live(turnStarted(eventTurnStarted, `commit-start-${turnId}`, inProgressTurn(turnId)));

@@ -5,57 +5,22 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   baseTurn,
-  eventWithEnvelope,
   itemStarted,
   turnCompleted,
-  userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
-import type {
-  ThreadItem,
-  TurnInterruptParams,
-  TurnInterruptResponse,
-  TurnStartParams,
-  TurnStartResponse,
-  TurnSteerParams,
-  TurnSteerResponse,
-} from "@codex-protocol/v2";
-import { copyComposerInputPayload } from "../composerInputPayload";
-import { createComposerInputQueueCoordinator } from "../composerInputQueueCoordinator";
-import { composerCapture, composerDraftCapture } from "./composerInputQueueTestFixtures";
-
-type StartTurn = (params: TurnStartParams) => Promise<TurnStartResponse>;
-type SteerTurn = (params: TurnSteerParams) => Promise<TurnSteerResponse>;
-type InterruptTurn = (params: TurnInterruptParams) => Promise<TurnInterruptResponse>;
-type CoordinatorInput = Parameters<typeof createComposerInputQueueCoordinator>[0];
-const createCoordinator = (
-  options: Omit<CoordinatorInput, "interruptTurn"> & { interruptTurn?: InterruptTurn },
-) =>
-  createComposerInputQueueCoordinator({
-    ...options,
-    interruptTurn: options.interruptTurn ?? vi.fn<InterruptTurn>(),
-  });
-const input = composerCapture;
-const deferredStart = () => {
-  let resolve!: (response: TurnStartResponse) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<TurnStartResponse>((yes, no) => {
-    resolve = yes;
-    reject = no;
-  });
-  return { promise, resolve, reject };
-};
-type UserMessage = Extract<ThreadItem, { type: "userMessage" }>;
-const committedUserMessage = (clientId: string): UserMessage => {
-  const item = userMessage("item-1", []);
-  if (item.type !== "userMessage") throw new Error("userMessage builder returned another variant");
-  return { ...item, clientId };
-};
-const live = (notification: typeof eventItemStarted) => ({
-  notification: eventWithEnvelope(notification, { threadId: "thread-1" }),
-  replay: "live" as const,
-});
-const flush = (): Promise<void> => Promise.resolve();
+import type { TurnSteerParams, TurnSteerResponse } from "@codex-protocol/v2";
+import { copyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
+import {
+  committedUserMessage,
+  createCoordinator,
+  deferredStart,
+  live,
+  nextMicrotask,
+  type StartTurn,
+  type SteerTurn,
+} from "./composerInputQueueCoordinatorTestFixtures";
+import { composerCapture as input, composerDraftCapture } from "./composerInputQueueTestFixtures";
 describe("ComposerInputQueueCoordinator", () => {
   it("sends exact steer identities, issues an accepted successor, and releases only its commit", async () => {
     const responses: {
@@ -113,7 +78,7 @@ describe("ComposerInputQueueCoordinator", () => {
     expect(serializedSnapshot).not.toContain("clientUserMessageId");
 
     responses[0]?.resolve({ turnId: "turn-1" });
-    await flush();
+    await nextMicrotask();
     expect(steerTurn).toHaveBeenCalledTimes(2);
     expect(steerTurn.mock.calls[1]?.[0].input).toEqual(input("second").input);
     coordinator.observeAcceptedEvent(
@@ -139,7 +104,7 @@ describe("ComposerInputQueueCoordinator", () => {
 
     coordinator.dispose();
     responses[1]?.resolve({ turnId: "turn-1" });
-    await flush();
+    await nextMicrotask();
     expect(steerTurn).toHaveBeenCalledTimes(2);
   });
 
@@ -225,7 +190,7 @@ describe("ComposerInputQueueCoordinator", () => {
     } else {
       reject(new Error("delivery is unknown"));
     }
-    await flush();
+    await nextMicrotask();
 
     expect(steerTurn).toHaveBeenCalledTimes(1);
     expect(coordinator.getSnapshot()).toMatchObject({
@@ -291,7 +256,7 @@ describe("ComposerInputQueueCoordinator", () => {
         },
       }),
     );
-    await flush();
+    await nextMicrotask();
     expect(coordinator.getSnapshot().rejectedSteers.map(({ preview }) => preview)).toEqual([
       { type: "text", text: "steer-a", truncated: false },
       { type: "text", text: "steer-b", truncated: false },
@@ -312,7 +277,7 @@ describe("ComposerInputQueueCoordinator", () => {
         error: new Error("start rejected"),
       }),
     );
-    await flush();
+    await nextMicrotask();
     expect(coordinator.getSnapshot()).toMatchObject({
       ordinaryQueuedCount: 1,
       rejectedSteers: [

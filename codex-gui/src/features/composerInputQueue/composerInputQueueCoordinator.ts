@@ -8,8 +8,9 @@ import type {
   TurnSteerResponse,
 } from "@codex-protocol/v2";
 import { isGuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
-import type { ThreadRuntimeProjectionEventPayload } from "@/features/threadRuntime/threadRuntimeSlice";
-import type { ComposerDraftCapture } from "@/features/composerEditor/composerDraft";
+import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 import {
   createComposerInputQueue,
   type ComposerInputQueue,
@@ -38,7 +39,7 @@ import type {
 import { createComposerInterruptState, type InterruptClaim } from "./composerInterruptState";
 import type { InterruptPhase, InterruptSettlement } from "./composerInterruptState";
 import type { SteerClaim } from "./composerSteerQueueState";
-import { copyComposerInputPayload } from "./composerInputPayload";
+import { copyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 import { runtimeObservationFromAcceptedProjectionEvent } from "./composerInputQueueRuntimeObservation";
 import {
   createComposerPendingInputLiveManagement,
@@ -120,7 +121,7 @@ export type ComposerInputQueueCoordinator = Readonly<{
   promoteOrdinaryFrontToSteer(): boolean;
   interruptActiveTurn(): boolean;
   recover(): boolean;
-  observeAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void;
+  observeAcceptedEvent(payload: Readonly<ActiveThreadProjectionAcceptedEvent>): void;
   getReleaseReadiness(): ComposerInputQueueCoordinatorReleaseReadiness;
   reserveRelease(): ComposerInputQueueCoordinatorReserveReleaseResult;
   readPendingInputPage(request: ComposerPendingInputPageRequest): ComposerPendingInputPageResult;
@@ -178,7 +179,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   private readonly steerTurn: CreateComposerInputQueueCoordinatorInput["steerTurn"];
   private readonly interruptTurn: CreateComposerInputQueueCoordinatorInput["interruptTurn"];
   private interruptState = createComposerInterruptState();
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = createListenerSet();
   private recovery: RecoveryBatch | null = null;
   private deferredEffects: readonly ComposerInputQueueEffect[] = [];
   private snapshot: ComposerInputQueueCoordinatorSnapshot;
@@ -317,11 +318,11 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.publishSnapshot();
     return true;
   }
-  observeAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void {
+  observeAcceptedEvent(payload: Readonly<ActiveThreadProjectionAcceptedEvent>): void {
     if (this.disposed || payload.notification.threadId !== this.threadId) return;
     this.liveManagement.observeAcceptedEvent(payload);
   }
-  private applyAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void {
+  private applyAcceptedEvent(payload: Readonly<ActiveThreadProjectionAcceptedEvent>): void {
     const observation = runtimeObservationFromAcceptedProjectionEvent(payload);
     if (observation == null) return;
     if (observation.type === "turnCompleted") {
@@ -408,10 +409,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   };
   subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return (): void => undefined;
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.listeners.subscribe(listener);
   };
   dispose(cause: ComposerPendingInputOwnerGoneCause = "disposed"): void {
     if (this.disposed) return;
@@ -631,7 +629,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     };
     if (JSON.stringify(next) === JSON.stringify(this.snapshot)) return;
     this.snapshot = next;
-    for (const listener of this.listeners) listener();
+    this.listeners.notify();
   }
   private canInterrupt(turnId: Turn["id"] | null): turnId is Turn["id"] {
     return (

@@ -5,7 +5,7 @@ description: Govern Codex GUI Lingui message extraction, catalog diffs, translat
 
 # Lingui Catalog 工作流
 
-本 skill 是 Codex GUI Lingui catalog 字段分类、生成物边界、完整 diff 审查和二次 extraction stability 的项目 owner。它不授权运行命令或修改 catalog，也不复制工作阶段、计划文档、动作授权或执行图规则。
+本 skill 管理 Codex GUI Lingui catalog 的字段分类、生成物边界、完整 diff 审查和二次 extraction stability，不授予命令执行或 catalog 修改权限，不复制阶段、计划文档、授权或执行图规则。
 
 ## 与其他 Lingui skills 的边界
 
@@ -13,7 +13,7 @@ description: Govern Codex GUI Lingui message extraction, catalog diffs, translat
 - 用 `$enhanced-message-context` 决定哪些 message 需要 translator comment，以及 comment 内容是否准确。
 - 用本 skill 判断 extraction 后 catalog 中各字段的意义、哪些变化可能是纯生成元数据、完整 catalog 边界是否保持，以及生成链是否稳定。
 
-这些 skills 可以同时适用，但不得用“符合 Lingui 惯例”替代本 skill 的字段级 diff 审查。
+上述 skills 可同时适用；Lingui 惯例不能替代字段级 diff 审查。
 
 ## 先核验项目权威入口与边界
 
@@ -71,13 +71,10 @@ fuzzy/obsolete 状态影响翻译可用性和 catalog 完整性，不是纯 meta
 
 ## 必须停止 catalog 后继的情况
 
-出现以下任一情况时，不得把变化包装成 metadata closure：
+任一字段不满足上述分类条件或二次 extraction 不稳定（包括覆盖 comments、翻译及其他人工内容）时，停止 catalog 后继，不得归为 metadata closure。以下情况同样必须停止：
 
 - 新增 locale、catalog、目录、格式、配置输出或其他边界外文件；
-- 计划外 `msgid`、`msgstr`、fuzzy/obsolete 或无法解释的 `#.` 语义变化；
-- `#:` 不能证明 source 与 message 映射正确、属于配置边界且确定稳定；
 - extraction 入口、输入、配置、工具来源或完整输出集合不明确；
-- 再次 extraction 仍产生 drift，或覆盖 comments、翻译及其他人工内容；
 - 接受 diff 需要跳过稳定性验证、放宽检查、修改基线或手工保留生成器已归一化的旧元数据。
 
-此时返回具体字段、文件、来源证据和受影响的 catalog 后继；是否更新计划或回到其他门禁由 `$managing-work-stages` 判断。
+返回具体字段、文件、来源证据和受影响的 catalog 后继；由 `$managing-work-stages` 判断是否更新计划或回到其他门禁。

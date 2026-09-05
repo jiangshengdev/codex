@@ -16,10 +16,11 @@ import {
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import { createDeferred as deferred } from "./testDeferred";
-import type * as ActiveThreadSessionModule from "@/features/activeThreadSession/activeThreadSession";
 import type {
   ActiveThreadActivationOutcome,
   ActiveThreadSessionController,
+  createActiveThreadSession,
+  CreateActiveThreadSessionInput,
 } from "@/features/activeThreadSession/activeThreadSession";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import { consumeBrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
@@ -33,12 +34,11 @@ const activeThreadSessionFactoryState: {
 } = vi.hoisted(() => ({ controller: null }));
 
 vi.mock("@/features/activeThreadSession/activeThreadSession", async (importOriginal) => {
-  const actual = await importOriginal<typeof ActiveThreadSessionModule>();
+  const actual = await importOriginal<{
+    createActiveThreadSession: typeof createActiveThreadSession;
+  }>();
   return {
-    ...actual,
-    createActiveThreadSession: (
-      input: Parameters<typeof ActiveThreadSessionModule.createActiveThreadSession>[0],
-    ) => {
+    createActiveThreadSession: (input: CreateActiveThreadSessionInput) => {
       const controller = activeThreadSessionFactoryState.controller;
       return controller ?? actual.createActiveThreadSession(input);
     },
@@ -552,9 +552,11 @@ test("pure read-only history detail preserves its route when first activation fa
     await expect
       .element(alert.getByText("The task connection could not be prepared.", { exact: true }))
       .toBeVisible();
-    await expect
-      .element(alert.getByText("Operation diagnostic:", { exact: false }))
-      .toHaveTextContent("attach failed");
+    const operationDiagnostic = alert.getByText("Operation diagnostic:", { exact: false });
+    await expect.element(operationDiagnostic).not.toBeInTheDocument();
+    await alert.getByRole("button", { name: "View diagnostic information" }).click();
+    await expect.element(operationDiagnostic).toHaveTextContent("attach failed");
+    await expect.element(operationDiagnostic).toBeVisible();
     expect(commands.resumeThread).not.toHaveBeenCalled();
     expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
       threadId: historyThreadId,

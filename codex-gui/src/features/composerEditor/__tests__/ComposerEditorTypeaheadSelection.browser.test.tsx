@@ -9,12 +9,7 @@ import {
   type ComposerEditorController,
   type ComposerEditorProps,
 } from "../ComposerEditor";
-import {
-  catalog,
-  getController,
-  renderEditor,
-  skill,
-} from "./composerEditorTypeaheadBrowserTestSupport";
+import { catalog, getController, renderEditor, skill } from "./composerEditorBrowserTestSupport";
 
 beforeEach(async () => {
   await userEvent.unhover(document.body);
