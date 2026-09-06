@@ -172,6 +172,7 @@ test("attaches with the latest committed facts", async () => {
 });
 
 test("reports an attachment failure through the React error boundary", async () => {
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
   const { props, attach } = createFixture();
   const controller = createController();
   const failure = new Error("Draft restoration failed");
@@ -196,4 +197,6 @@ test("reports an attachment failure through the React error boundary", async () 
   expect(onCatch).toHaveBeenCalledOnce();
   expect(onCatch.mock.calls[0]?.[0]).toBe(failure);
   expect(props.controllerRef.current).toBeNull();
+  expect(consoleError).toHaveBeenCalledOnce();
+  expect(consoleError.mock.calls[0]).toContain(failure);
 });
