@@ -70,6 +70,7 @@ export async function createMultiSessionHarness(
   let commitSequence = 0;
   const subscriptions = new Map<string, string>();
   const heads = new Map<string, string | null>();
+  const resumeErrors = new Map<string, string>();
 
   const thread = (id: string): Thread => {
     const value = threads.get(id);
@@ -138,6 +139,17 @@ export async function createMultiSessionHarness(
           return;
         case "thread/resume": {
           const value = requestedThread();
+          const error = resumeErrors.get(value.id);
+          if (error != null) {
+            socket.send(
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id: request.id,
+                error: { code: -32000, message: error },
+              }),
+            );
+            return;
+          }
           reply({
             thread: value,
             model: "test-model",
@@ -201,6 +213,14 @@ export async function createMultiSessionHarness(
   });
   return {
     requests,
+    setResumeError(id: string, error: string | null) {
+      if (error == null) resumeErrors.delete(id);
+      else resumeErrors.set(id, error);
+    },
+    resumes: (id: string) =>
+      requests.filter(
+        (request) => request.method === "thread/resume" && request.params?.threadId === id,
+      ),
     sends: (id: string) =>
       requests.filter(
         (request) =>
@@ -250,11 +270,21 @@ export async function selectTask(page: Page, id: string) {
   await openMenu(page);
   await activeRow(page, id)
     .getByRole("button", {
-      name: id === firstThreadId ? new RegExp(firstTitle) : new RegExp(secondTitle),
+      name: id === firstThreadId ? firstTitle : secondTitle,
+      exact: true,
     })
     .click();
   await expect(page).toHaveURL(new RegExp(`/task/${id}$`));
   await ready(page);
+}
+export async function openTaskActions(page: Page, id: string) {
+  const title = id === firstThreadId ? firstTitle : secondTitle;
+  await activeRow(page, id)
+    .getByRole("button", { name: `More options for ${title}`, exact: true })
+    .click();
+  await expect(
+    page.getByRole("menu", { name: `More options for ${title}`, exact: true }),
+  ).toBeVisible();
 }
 export async function continueSecondTask(page: Page) {
   await openMenu(page);
