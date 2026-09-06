@@ -4,13 +4,21 @@ import {
   eventTurnCompleted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
+  attachWithSnapshotThread,
   attachWithTurns,
   baseTurn,
   eventWithEnvelope,
   inProgressTurn,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import type { InitializeResponse } from "@codex-protocol/InitializeResponse";
-import type { SkillsListResponse } from "@codex-protocol/v2";
+import type {
+  SkillsListResponse,
+  Thread,
+  ThreadProjectionDetachResponse,
+  ThreadReadResponse,
+  ThreadResumeResponse,
+  ThreadStatusChangedNotification,
+} from "@codex-protocol/v2";
 
 export const persistenceThreadId = attachBaseline.snapshot.thread.id;
 const subscriptionId = "persistence-e2e-subscription";
@@ -23,6 +31,11 @@ export async function createPersistenceHarness(page: Page, initiallyActive = fal
   let active = initiallyActive;
   let connection: WebSocketRoute | undefined;
   let headCommitId: string | null = null;
+  const currentThread = (): Thread => ({
+    ...attachWithTurns(attachBaseline, active ? [inProgressTurn(activeTurnId)] : []).snapshot
+      .thread,
+    status: active ? { type: "active", activeFlags: [] } : { type: "idle" },
+  });
 
   await page.routeWebSocket("/ws", (socket) => {
     connection = socket;
@@ -49,11 +62,29 @@ export async function createPersistenceHarness(page: Page, initiallyActive = fal
           // Every attachment returns the host's current state, including after reload.
           // Replaying an old turnStarted event after an empty snapshot is not that state.
           headCommitId = attachBaseline.snapshot.headCommitId;
-          reply({
-            ...attachWithTurns(attachBaseline, active ? [inProgressTurn(activeTurnId)] : []),
-            subscriptionId,
-          });
+          reply(attachWithSnapshotThread(attachBaseline, currentThread(), subscriptionId));
           return;
+        case "thread/read":
+          reply({ thread: currentThread() } satisfies ThreadReadResponse);
+          return;
+        case "thread/resume": {
+          const thread = currentThread();
+          reply({
+            thread,
+            model: "test-model",
+            modelProvider: thread.modelProvider,
+            serviceTier: null,
+            cwd: thread.cwd,
+            instructionSources: [],
+            approvalPolicy: "never",
+            approvalsReviewer: "user",
+            sandbox: { type: "dangerFullAccess" },
+            reasoningEffort: null,
+            turnsBackwardsCursor: null,
+            itemsBackwardsCursor: null,
+          } satisfies ThreadResumeResponse);
+          return;
+        }
         case "skills/list":
           reply({
             data: [{ cwd: attachBaseline.snapshot.thread.cwd, skills: [], errors: [] }],
@@ -62,6 +93,8 @@ export async function createPersistenceHarness(page: Page, initiallyActive = fal
         case "initialized":
           return;
         case "thread/projection/detach":
+          reply({ status: "detached" } satisfies ThreadProjectionDetachResponse);
+          return;
         case "turn/interrupt":
           reply({});
           return;
@@ -93,6 +126,16 @@ export async function createPersistenceHarness(page: Page, initiallyActive = fal
     finishActiveTurn() {
       if (!connection) throw new Error("Expected an attached WebSocket");
       active = false;
+      connection.send(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          method: "thread/status/changed",
+          params: {
+            threadId: persistenceThreadId,
+            status: currentThread().status,
+          } satisfies ThreadStatusChangedNotification,
+        }),
+      );
       const event = eventWithEnvelope(eventTurnCompleted, {
         subscriptionId,
         parentCommitId: headCommitId,
