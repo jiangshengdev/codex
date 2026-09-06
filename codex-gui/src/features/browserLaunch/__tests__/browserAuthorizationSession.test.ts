@@ -62,7 +62,7 @@ describe("consumeBrowserAuthorizationSession", () => {
     }).toEqual({
       operations: ["set", "replace"],
       snapshot: { token: "fresh token+value", activeThreadId: null },
-      stored: { token: "fresh token+value" },
+      stored: { token: "fresh token+value", persistenceContext: session.getPersistenceContext() },
       replacedWith: [[historyState, "", `/task/${firstThreadId}`]],
     });
   });
@@ -84,8 +84,13 @@ describe("consumeBrowserAuthorizationSession", () => {
 
     expect({ snapshot: restored.getSnapshot(), stored: storage.onlyStoredRecord() }).toEqual({
       snapshot: { token: "secret", activeThreadId: firstThreadId },
-      stored: { token: "secret", activeThreadId: firstThreadId },
+      stored: {
+        token: "secret",
+        activeThreadId: firstThreadId,
+        persistenceContext: first.getPersistenceContext(),
+      },
     });
+    expect(restored.getPersistenceContext()).toBe(first.getPersistenceContext());
   });
 
   it("consumes an empty token fragment without replacing the stored session or recovery", () => {
@@ -127,7 +132,11 @@ describe("consumeBrowserAuthorizationSession", () => {
     }).toEqual({
       operations: ["get", "replace"],
       snapshot: { token: "secret", activeThreadId: firstThreadId },
-      stored: { token: "secret", activeThreadId: firstThreadId },
+      stored: {
+        token: "secret",
+        activeThreadId: firstThreadId,
+        persistenceContext: existing.getPersistenceContext(),
+      },
       replacedWith: [[historyState, "", `/history/${secondThreadId}`]],
     });
   });
@@ -162,8 +171,9 @@ describe("consumeBrowserAuthorizationSession", () => {
 
     expect({ snapshot: replacement.getSnapshot(), stored: storage.onlyStoredRecord() }).toEqual({
       snapshot: { token: "new", activeThreadId: null },
-      stored: { token: "new" },
+      stored: { token: "new", persistenceContext: replacement.getPersistenceContext() },
     });
+    expect(replacement.getPersistenceContext()).not.toBe(existing.getPersistenceContext());
   });
 
   it("commits and clears active recovery only through explicit APIs", () => {
@@ -185,10 +195,14 @@ describe("consumeBrowserAuthorizationSession", () => {
     }).toEqual({
       committed: {
         snapshot: { token: "secret", activeThreadId: secondThreadId },
-        stored: { token: "secret", activeThreadId: secondThreadId },
+        stored: {
+          token: "secret",
+          activeThreadId: secondThreadId,
+          persistenceContext: session.getPersistenceContext(),
+        },
       },
       cleared: { token: "secret", activeThreadId: null },
-      stored: { token: "secret" },
+      stored: { token: "secret", persistenceContext: session.getPersistenceContext() },
     });
   });
 
@@ -210,6 +224,14 @@ describe("consumeBrowserAuthorizationSession", () => {
     ],
     [
       JSON.stringify({ token: "secret", extra: true }),
+      "Stored browser authorization session is malformed",
+    ],
+    [
+      JSON.stringify({ token: "secret", persistenceContext: null }),
+      "Stored browser authorization session is malformed",
+    ],
+    [
+      JSON.stringify({ token: "secret", persistenceContext: "not-a-uuid" }),
       "Stored browser authorization session is malformed",
     ],
   ])("fails closed for invalid stored record %s", (stored, message) => {
@@ -236,6 +258,72 @@ describe("consumeBrowserAuthorizationSession", () => {
         replaceState,
         storage: {
           getItem: () => null,
+          setItem: () => {
+            throw new Error("write failed");
+          },
+        },
+      }),
+    ).toThrow(new Error("Unable to write browser authorization session"));
+    expect(replaceState).not.toHaveBeenCalled();
+  });
+
+  it.each([{}, { activeThreadId: firstThreadId }])(
+    "initializes a durable context for a legacy authorization record %j",
+    (recovery) => {
+      const storage = new MemoryStorage();
+      storage.values.set(
+        "codex-gui.browserAuthorizationSession.v1",
+        JSON.stringify({ token: "secret", ...recovery }),
+      );
+      const session = consumeBrowserAuthorizationSession({
+        location: new URL("https://codex.test/history"),
+        replaceState: vi.fn<History["replaceState"]>(),
+        storage,
+      });
+
+      expect(session.getSnapshot()).toEqual({
+        token: "secret",
+        activeThreadId: recovery.activeThreadId ?? null,
+      });
+      expect(storage.onlyStoredRecord()).toEqual({
+        token: "secret",
+        ...recovery,
+        persistenceContext: session.getPersistenceContext(),
+      });
+      const restored = consumeBrowserAuthorizationSession({
+        location: new URL("https://codex.test/history"),
+        replaceState: vi.fn<History["replaceState"]>(),
+        storage,
+      });
+      expect(restored.getPersistenceContext()).toBe(session.getPersistenceContext());
+      expect(storage.operations).toEqual(["get", "set", "get"]);
+    },
+  );
+
+  it("creates a new persistence context even when a fresh launch uses the same token", () => {
+    const storage = new MemoryStorage();
+    const launch = () =>
+      consumeBrowserAuthorizationSession({
+        location: new URL("https://codex.test/history#token=secret"),
+        replaceState: vi.fn<History["replaceState"]>(),
+        storage,
+      });
+    const first = launch();
+    first.commitActiveThread(firstThreadId);
+    const second = launch();
+
+    expect(second.getPersistenceContext()).not.toBe(first.getPersistenceContext());
+    expect(second.getSnapshot()).toEqual({ token: "secret", activeThreadId: null });
+  });
+
+  it("fails closed when a legacy record cannot persist its new context", () => {
+    const replaceState = vi.fn<History["replaceState"]>();
+    expect(() =>
+      consumeBrowserAuthorizationSession({
+        location: new URL("https://codex.test/history#token="),
+        replaceState,
+        storage: {
+          getItem: () => JSON.stringify({ token: "secret", activeThreadId: firstThreadId }),
           setItem: () => {
             throw new Error("write failed");
           },

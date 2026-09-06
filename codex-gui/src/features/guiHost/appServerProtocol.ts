@@ -36,4 +36,8 @@ export const APP_SERVER_NOTIFICATION_METHODS = [
   "thread/projection/closed",
 ] as const satisfies readonly ServerNotification["method"][];
 
-export const APP_SERVER_AUXILIARY_SCHEMA_IDS = ["v2/TurnError"] as const;
+export const APP_SERVER_AUXILIARY_SCHEMA_IDS = [
+  "v2/TurnError",
+  "v2/TurnStartParams",
+  "v2/TurnSteerParams",
+] as const;

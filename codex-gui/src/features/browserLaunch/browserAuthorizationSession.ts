@@ -13,26 +13,34 @@ export type BrowserAuthorizationSessionSnapshot = Readonly<{
 export class BrowserAuthorizationSession {
   private readonly storage: AuthorizationSessionStorage;
   private snapshot: BrowserAuthorizationSessionSnapshot;
+  private readonly persistenceContext: string;
 
-  constructor(storage: AuthorizationSessionStorage, snapshot: BrowserAuthorizationSessionSnapshot) {
+  constructor(
+    storage: AuthorizationSessionStorage,
+    snapshot: BrowserAuthorizationSessionSnapshot,
+    persistenceContext: string,
+  ) {
     this.storage = storage;
     this.snapshot = snapshot;
+    this.persistenceContext = persistenceContext;
   }
 
   getSnapshot = (): BrowserAuthorizationSessionSnapshot => this.snapshot;
+
+  getPersistenceContext = (): string => this.persistenceContext;
 
   commitActiveThread = (threadId: string): void => {
     if (!isValidThreadId(threadId)) {
       throw new Error("Active thread ID must be a UUID");
     }
     const next = { token: this.snapshot.token, activeThreadId: threadId };
-    writeStoredSession(this.storage, next);
+    writeStoredSession(this.storage, next, this.persistenceContext);
     this.snapshot = next;
   };
 
   clearActiveThread = (): void => {
     const next = { token: this.snapshot.token, activeThreadId: null };
-    writeStoredSession(this.storage, next);
+    writeStoredSession(this.storage, next, this.persistenceContext);
     this.snapshot = next;
   };
 }
@@ -53,16 +61,21 @@ export function consumeBrowserAuthorizationSession({
 
   if (fragmentToken != null && fragmentToken.length > 0) {
     const snapshot = { token: fragmentToken, activeThreadId: null };
-    writeStoredSession(resolvedStorage, snapshot);
+    const persistenceContext = crypto.randomUUID();
+    writeStoredSession(resolvedStorage, snapshot, persistenceContext);
     replaceState(readHistoryState(), "", `${location.pathname}${location.search}`);
-    return new BrowserAuthorizationSession(resolvedStorage, snapshot);
+    return new BrowserAuthorizationSession(resolvedStorage, snapshot, persistenceContext);
   }
 
-  const snapshot = readStoredSession(resolvedStorage);
+  const { snapshot, persistenceContext: storedContext } = readStoredSession(resolvedStorage);
+  const persistenceContext = storedContext ?? crypto.randomUUID();
+  if (storedContext == null) {
+    writeStoredSession(resolvedStorage, snapshot, persistenceContext);
+  }
   if (fragmentToken != null) {
     replaceState(readHistoryState(), "", `${location.pathname}${location.search}`);
   }
-  return new BrowserAuthorizationSession(resolvedStorage, snapshot);
+  return new BrowserAuthorizationSession(resolvedStorage, snapshot, persistenceContext);
 }
 
 function readSessionStorage(): AuthorizationSessionStorage {
@@ -75,7 +88,7 @@ function readSessionStorage(): AuthorizationSessionStorage {
 
 function readStoredSession(
   storage: AuthorizationSessionStorage,
-): BrowserAuthorizationSessionSnapshot {
+): ReturnType<typeof parseStoredSession> {
   let stored: string | null;
   try {
     stored = storage.getItem(authorizationSessionStorageKey);
@@ -96,7 +109,10 @@ function readStoredSession(
   return parseStoredSession(parsed);
 }
 
-function parseStoredSession(value: unknown): BrowserAuthorizationSessionSnapshot {
+function parseStoredSession(value: unknown): {
+  snapshot: BrowserAuthorizationSessionSnapshot;
+  persistenceContext: string | null;
+} {
   if (typeof value !== "object" || value == null || Array.isArray(value)) {
     throw new Error("Stored browser authorization session is malformed");
   }
@@ -104,18 +120,25 @@ function parseStoredSession(value: unknown): BrowserAuthorizationSessionSnapshot
   const record = value as Record<string, unknown>;
   const keys = Object.keys(record);
   const hasActiveThreadId = Object.hasOwn(record, "activeThreadId");
+  const hasPersistenceContext = Object.hasOwn(record, "persistenceContext");
   if (
-    keys.some((key) => key !== "token" && key !== "activeThreadId") ||
+    keys.some(
+      (key) => key !== "token" && key !== "activeThreadId" && key !== "persistenceContext",
+    ) ||
     typeof record.token !== "string" ||
     record.token.length === 0 ||
-    (hasActiveThreadId && !isValidThreadId(record.activeThreadId))
+    (hasActiveThreadId && !isValidThreadId(record.activeThreadId)) ||
+    (hasPersistenceContext && !isValidThreadId(record.persistenceContext))
   ) {
     throw new Error("Stored browser authorization session is malformed");
   }
 
   return {
-    token: record.token,
-    activeThreadId: hasActiveThreadId ? (record.activeThreadId as string) : null,
+    snapshot: {
+      token: record.token,
+      activeThreadId: hasActiveThreadId ? (record.activeThreadId as string) : null,
+    },
+    persistenceContext: hasPersistenceContext ? (record.persistenceContext as string) : null,
   };
 }
 
@@ -129,11 +152,12 @@ function readHistoryState(): unknown {
 function writeStoredSession(
   storage: AuthorizationSessionStorage,
   snapshot: BrowserAuthorizationSessionSnapshot,
+  persistenceContext: string,
 ): void {
   const stored =
     snapshot.activeThreadId == null
-      ? { token: snapshot.token }
-      : { token: snapshot.token, activeThreadId: snapshot.activeThreadId };
+      ? { token: snapshot.token, persistenceContext }
+      : { token: snapshot.token, activeThreadId: snapshot.activeThreadId, persistenceContext };
   try {
     storage.setItem(authorizationSessionStorageKey, JSON.stringify(stored));
   } catch (error: unknown) {

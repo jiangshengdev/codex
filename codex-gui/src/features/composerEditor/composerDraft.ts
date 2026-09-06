@@ -2,6 +2,7 @@ import {
   $getRoot,
   $isElementNode,
   CLEAR_HISTORY_COMMAND,
+  createEditor,
   type EditorState,
   type LexicalEditor,
   type LexicalNode,
@@ -10,7 +11,7 @@ import {
 
 import type { ReadonlyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 
-import { $isSkillNode, type SkillNodeState } from "./SkillNode";
+import { $isSkillNode, SkillNode, type SkillNodeState } from "./SkillNode";
 
 const composerDraftBrand: unique symbol = Symbol("ComposerDraft");
 const composerDraftCaptureBrand: unique symbol = Symbol("ComposerDraftCapture");
@@ -37,6 +38,16 @@ export type ComposerDraftProjection = Readonly<{
   selectedSkillPaths: readonly string[];
 }>;
 
+// The editor owns the JSON payload; persistence consumers retain it unchanged.
+export type PersistedComposerDraft = Readonly<{
+  version: typeof composerDraftVersion;
+  editorStateJson: string;
+}>;
+
+export type ComposerDraftImportResult =
+  | Readonly<{ type: "imported"; draft: ComposerDraft }>
+  | Readonly<{ type: "invalidDraft" }>;
+
 type ComposerDraftRecord = Readonly<{
   version: number;
   serializedEditorState: SerializedEditorState;
@@ -44,6 +55,47 @@ type ComposerDraftRecord = Readonly<{
 
 const composerDraftRecords = new WeakMap<ComposerDraft, ComposerDraftRecord>();
 const composerDraftCaptureStates = new WeakMap<ComposerDraftCapture, EditorState>();
+
+export function exportComposerDraft(draft: ComposerDraft): PersistedComposerDraft {
+  const record = composerDraftRecords.get(draft);
+  if (record?.version !== composerDraftVersion) {
+    throw new Error("Cannot export an invalid composer draft");
+  }
+  return {
+    version: composerDraftVersion,
+    editorStateJson: JSON.stringify(record.serializedEditorState),
+  };
+}
+
+export function importComposerDraft(value: unknown): ComposerDraftImportResult {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("version" in value) ||
+    value.version !== composerDraftVersion ||
+    !("editorStateJson" in value) ||
+    typeof value.editorStateJson !== "string"
+  ) {
+    return { type: "invalidDraft" };
+  }
+
+  try {
+    // Parsing has no live editor to mutate and invokes each registered node's
+    // importJSON, including SkillNode's own version and field validation.
+    const editor = createEditor({
+      namespace: "codex-composer-draft-import",
+      nodes: [SkillNode],
+      onError(error) {
+        throw error;
+      },
+    });
+    const editorState = editor.parseEditorState(value.editorStateJson);
+    const capture = captureComposerDraft(editorState);
+    return { type: "imported", draft: capture.draft };
+  } catch {
+    return { type: "invalidDraft" };
+  }
+}
 
 export function captureComposerDraft(editorState: EditorState): ComposerDraftCapture {
   const serializedEditorState = editorState.toJSON();

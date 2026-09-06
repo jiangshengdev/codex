@@ -63,6 +63,8 @@ export type ComposerEditorProps = Readonly<{
   disabled: boolean;
   guardCompositionEndEnter: boolean;
   onControllerChange?: (controller: ComposerEditorController | null) => void;
+  initialDraft?: ComposerDraft | null;
+  onDraftChange?: (draft: ComposerDraft) => void;
   onRetrySkillCatalog?: () => void;
   onSubmit: (capture: ComposerDraftCapture, intent: ComposerEditorSubmitIntent) => void;
   placeholder: string;
@@ -81,6 +83,8 @@ export function ComposerEditor({
   disabled,
   guardCompositionEndEnter,
   onControllerChange,
+  initialDraft,
+  onDraftChange,
   onRetrySkillCatalog,
   onSubmit,
   placeholder,
@@ -157,6 +161,8 @@ export function ComposerEditor({
           activeControllerRef={activeControllerRef}
           controllerRef={controllerRef}
           onControllerChange={onControllerChange}
+          initialDraft={initialDraft}
+          onDraftChange={onDraftChange}
         />
         <EditablePlugin disabled={disabled} />
         <ComposerAtomicNodePlugin />
@@ -252,29 +258,55 @@ function ComposerControllerPlugin({
   activeControllerRef,
   controllerRef,
   onControllerChange,
+  initialDraft,
+  onDraftChange,
 }: Readonly<{
   activeControllerRef: { current: ComposerEditorController | null };
   controllerRef?: Ref<ComposerEditorController>;
   onControllerChange?: (controller: ComposerEditorController | null) => void;
+  initialDraft?: ComposerDraft | null;
+  onDraftChange?: (draft: ComposerDraft) => void;
 }>): null {
   const [editor] = useLexicalComposerContext();
   const controller = useMemo(() => new ComposerEditorControllerImpl(editor), [editor]);
+  const initializedController = useRef<ComposerEditorController | null>(null);
+  const onDraftChangeRef = useRef(onDraftChange);
+  useEffect(() => {
+    onDraftChangeRef.current = onDraftChange;
+  }, [onDraftChange]);
 
   useEffect(() => {
+    if (initializedController.current !== controller) {
+      initializedController.current = controller;
+      if (initialDraft != null && controller.restore(initialDraft).type !== "restored") {
+        throw new Error("Unable to restore the persisted composer draft");
+      }
+    }
     activeControllerRef.current = controller;
     assignRef(controllerRef, controller);
     onControllerChange?.(controller);
     const unregister = controller.start();
+    const unregisterDraft = editor.registerUpdateListener(
+      ({ editorState, dirtyElements, dirtyLeaves, tags }) => {
+        if (
+          (dirtyElements.size === 0 && dirtyLeaves.size === 0) ||
+          tags.has("composer-accepted-clear")
+        )
+          return;
+        onDraftChangeRef.current?.(captureComposerDraft(editorState).draft);
+      },
+    );
 
     return () => {
       unregister();
+      unregisterDraft();
       if (activeControllerRef.current === controller) {
         activeControllerRef.current = null;
       }
       assignRef(controllerRef, null);
       onControllerChange?.(null);
     };
-  }, [activeControllerRef, controller, controllerRef, onControllerChange]);
+  }, [activeControllerRef, controller, controllerRef, editor, initialDraft, onControllerChange]);
 
   return null;
 }
@@ -318,7 +350,7 @@ class ComposerEditorControllerImpl implements ComposerEditorController {
       () => {
         $getRoot().clear().append($createParagraphNode());
       },
-      { discrete: true },
+      { discrete: true, tag: "composer-accepted-clear" },
     );
     return true;
   };

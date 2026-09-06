@@ -1,6 +1,6 @@
 // GENERATED CODE! DO NOT MODIFY BY HAND!
 import type { ServerNotification } from "@codex-protocol/ServerNotification";
-import type { TurnError } from "@codex-protocol/v2";
+import type { TurnError, TurnStartParams, TurnSteerParams } from "@codex-protocol/v2";
 import type { ProtocolValidator, RequestResponse } from "../../features/guiHost/appServerProtocol";
 export declare const validateInitializeResponse: ProtocolValidator<RequestResponse<"initialize">>;
 export declare const validateV2SkillsChangedNotification: ProtocolValidator<
@@ -70,5 +70,12 @@ export declare const validateV2TurnError: ProtocolValidator<
 export declare const validateV2TurnInterruptResponse: ProtocolValidator<
   RequestResponse<"turn/interrupt">
 >;
+export declare const validateV2TurnStartParams: ProtocolValidator<
+  Partial<TurnStartParams> & Required<Pick<TurnStartParams, "input" | "threadId">>
+>;
 export declare const validateV2TurnStartResponse: ProtocolValidator<RequestResponse<"turn/start">>;
+export declare const validateV2TurnSteerParams: ProtocolValidator<
+  Partial<TurnSteerParams> &
+    Required<Pick<TurnSteerParams, "expectedTurnId" | "input" | "threadId">>
+>;
 export declare const validateV2TurnSteerResponse: ProtocolValidator<RequestResponse<"turn/steer">>;
