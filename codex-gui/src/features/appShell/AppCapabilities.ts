@@ -3,6 +3,7 @@ import type {
   ActiveThreadSession,
   ActiveThreadSessionSnapshot,
 } from "@/features/activeThreadSession/activeThreadSession";
+import type { ActiveThreadCollectionSnapshot } from "@/features/activeThreadSession/activeThreadSessionCollectionContracts";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 
@@ -41,7 +42,7 @@ export function useActiveThreadSessionSnapshot(): ActiveThreadSessionSnapshot {
 export function useActiveThreadId(): string | null {
   const session = useActiveThreadSession();
   const getActiveThreadId = useCallback(
-    () => (session == null ? null : activeThreadId(session.getSnapshot())),
+    () => session?.getCollectionSnapshot().viewedThreadId ?? null,
     [session],
   );
   return useSyncExternalStore(
@@ -64,17 +65,22 @@ export function useActiveThreadSessionPhase(): ActiveThreadSessionSnapshot["phas
   );
 }
 
-function activeThreadId(snapshot: ActiveThreadSessionSnapshot): string | null {
-  switch (snapshot.phase) {
-    case "active":
-    case "projectionUnavailable":
-      return snapshot.threadId;
-    case "empty":
-    case "disposed":
-      return null;
-  }
+export function useActiveThreadCollectionSnapshot(): ActiveThreadCollectionSnapshot {
+  const session = useActiveThreadSession();
+  return useSyncExternalStore(
+    session?.subscribe ?? subscribeToUnavailableSession,
+    session?.getCollectionSnapshot ?? getUnavailableCollectionSnapshot,
+    session?.getCollectionSnapshot ?? getUnavailableCollectionSnapshot,
+  );
 }
 
+const unavailableCollectionSnapshot: ActiveThreadCollectionSnapshot = {
+  viewedThreadId: null,
+  members: [],
+  error: null,
+};
+const getUnavailableCollectionSnapshot = (): ActiveThreadCollectionSnapshot =>
+  unavailableCollectionSnapshot;
 const unavailableSessionSnapshot = { phase: "empty", revision: 0 } as const;
 const subscribeToUnavailableSession = (): (() => void) => () => undefined;
 const getUnavailableSessionSnapshot = (): ActiveThreadSessionSnapshot => unavailableSessionSnapshot;

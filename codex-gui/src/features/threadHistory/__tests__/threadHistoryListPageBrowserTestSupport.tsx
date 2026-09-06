@@ -10,7 +10,10 @@ import { StrictMode } from "react";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
@@ -40,6 +43,10 @@ export const baselineAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) =>
   activeThreadReadModelTransitionApplied({
+    identity: {
+      threadId: response.snapshot.thread.id,
+      instanceId: `history-${response.snapshot.thread.id}`,
+    },
     sessionRevision: ++sessionRevision,
     facts: [{ type: "baselineAttached", response }],
   });
@@ -108,6 +115,12 @@ export const renderHistory = async (
   const app = <RouterProvider router={router} />;
   const screen = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app);
   if (runtimeThreadId != null) {
+    screen.store.dispatch(
+      activeThreadReadModelSlotCreated({
+        threadId: runtimeThreadId,
+        instanceId: `history-${runtimeThreadId}`,
+      }),
+    );
     screen.store.dispatch(
       baselineAttached({
         ...attachResponse,

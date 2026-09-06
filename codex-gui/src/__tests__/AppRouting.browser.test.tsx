@@ -135,7 +135,7 @@ test("suspends restored queues before rebuilding the connection after a cached p
   expect(controller.dispose).toHaveBeenCalledOnce();
 });
 
-test("history waits for startup activation before publishing a settled empty session", async () => {
+test("history subscribes to the collection while startup activation is pending", async () => {
   seedBrowserAuthorizationSession({ token: "history-secret" });
   const startup = deferred<ActiveThreadActivationOutcome>();
   const sessionHarness = createActiveThreadSessionHarness();
@@ -148,8 +148,7 @@ test("history waits for startup activation before publishing a settled empty ses
   initializeHost(options, commands);
 
   await expect.poll(() => vi.mocked(controller.activateRecoveryThread).mock.calls.length).toBe(1);
-  await expect.element(screen.getByText("Loading history…", { exact: true })).toBeVisible();
-  await expect.poll(sessionHarness.listenerCount).toBe(0);
+  await expect.poll(sessionHarness.listenerCount).toBeGreaterThan(0);
   await expect.poll(() => router.state.location.pathname).toBe("/history");
 
   startup.resolve({ type: "empty" });
@@ -646,7 +645,7 @@ test("pure read-only history detail activates its first task and replaces the ro
     await expect
       .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
       .toBeVisible();
-    expect(commands.resumeThread).not.toHaveBeenCalled();
+    expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: historyThreadId });
     expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
       threadId: historyThreadId,
     });
@@ -719,11 +718,15 @@ test("pure read-only history detail preserves its route when first activation fa
     await expect
       .element(page.getByRole("dialog", { name: "Diagnostic information" }))
       .not.toBeInTheDocument();
-    expect(commands.resumeThread).not.toHaveBeenCalled();
+    expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: historyThreadId });
     expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
       threadId: historyThreadId,
     });
-    expect(storageSetItem).not.toHaveBeenCalled();
+    expect(
+      storageSetItem.mock.calls.filter(
+        ([key]) => key === "codex-gui.browserAuthorizationSession.v1",
+      ),
+    ).toHaveLength(0);
     await expect
       .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
       .not.toBeInTheDocument();
@@ -734,7 +737,7 @@ test("pure read-only history detail preserves its route when first activation fa
   }
 });
 
-test("opens a historical task and keeps its cleanup warning visible after replacing the detail route", async () => {
+test("opens a historical task and retains the previous task without detaching", async () => {
   seedBrowserAuthorizationSession({ token: "detail-secret" });
   const router = createAppRouter(
     createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
@@ -771,18 +774,12 @@ test("opens a historical task and keeps its cleanup warning visible after replac
     .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
     .toBeVisible();
   expectCanonicalRoute(router.state.location.href, `/task/${historyThreadId}`, 1);
-  await expect.element(screen.getByText("Task opened", { exact: true })).toBeVisible();
-  await expect
-    .element(
-      screen.getByText(
-        "The previous task connection could not be fully cleaned up. Later state may be affected.",
-        { exact: true },
-      ),
-    )
-    .toBeVisible();
-  expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
-    threadId: launchThreadId,
-  });
-  expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: historyThreadId });
+  expect(commands.detachThreadProjection).not.toHaveBeenCalled();
+  expect(commands.resumeThread).toHaveBeenLastCalledWith({ threadId: historyThreadId });
   expect(commands.attachThreadProjection).toHaveBeenLastCalledWith({ threadId: historyThreadId });
+  await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
+  await expect
+    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+    .toBeVisible();
+  expect(getAttachProjectionThreadIds(commands)).toEqual([launchThreadId, historyThreadId]);
 });

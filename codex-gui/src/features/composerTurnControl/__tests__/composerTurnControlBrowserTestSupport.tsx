@@ -10,7 +10,11 @@ import {
   type ActiveThreadSessionHarness,
 } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import { createActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
 import type {
   ActiveThreadComposerRole,
   ActiveThreadSession,
@@ -244,6 +248,7 @@ export async function renderComposerTurnControl({
       ? capturePendingInputEditReservations(controller)
       : [];
   let revision = 1;
+  const identity = createActiveThreadSessionIdentity(threadId);
   const sessionHarness = createActiveThreadSessionHarness({
     composerRole: composerRoleFor(controller, () => revision),
     skillsRole: skillsRoleFor(skills),
@@ -255,6 +260,7 @@ export async function renderComposerTurnControl({
     revision += 1;
     sessionHarness.publish(
       sessionHarness.activeSnapshot({
+        identity,
         revision,
         threadId,
         subscriptionId: attachResponse.subscriptionId,
@@ -266,6 +272,7 @@ export async function renderComposerTurnControl({
   };
   sessionHarness.publish(
     sessionHarness.activeSnapshot({
+      identity,
       revision,
       threadId,
       subscriptionId: attachResponse.subscriptionId,
@@ -288,9 +295,13 @@ export async function renderComposerTurnControl({
   const screen = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app, {
     locale,
   });
+  screen.store.dispatch(activeThreadReadModelSlotCreated(identity));
   const dispatchProjectionFacts = (facts: readonly ActiveThreadProjectionReadModelFact[]): void => {
-    const sessionRevision = screen.store.getState().threadRuntime.sessionRevision + 1;
-    screen.store.dispatch(activeThreadReadModelTransitionApplied({ sessionRevision, facts }));
+    const sessionRevision =
+      (screen.store.getState().threadRuntime.byThreadId[threadId]?.sessionRevision ?? 0) + 1;
+    screen.store.dispatch(
+      activeThreadReadModelTransitionApplied({ identity, sessionRevision, facts }),
+    );
   };
   dispatchProjectionFacts([{ type: "baselineAttached", response: attachResponse }]);
   return {

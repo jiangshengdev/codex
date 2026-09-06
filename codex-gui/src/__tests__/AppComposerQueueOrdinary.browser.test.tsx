@@ -127,7 +127,7 @@ test("App drains ordinary inputs in the authoritative order selected through Pen
     listSkills: 1,
     listThreads: 0,
     readThread: 0,
-    resumeThread: 0,
+    resumeThread: 1,
     detachThreadProjection: 0,
     startTurn: 0,
     steerTurn: 1,

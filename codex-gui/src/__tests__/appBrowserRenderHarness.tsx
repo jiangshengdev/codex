@@ -4,14 +4,16 @@ import {
   createRoute,
   createRouter,
   RouterProvider,
+  useMatches,
   type RouteComponent,
 } from "@tanstack/react-router";
-import { useState } from "react";
+import { createContext, use, useState } from "react";
 import RootApp from "@/App";
 import {
   CURRENT_TASK_ROUTE_PATH,
   HISTORY_DETAIL_ROUTE_PATH,
   HISTORY_LIST_ROUTE_PATH,
+  selectGuiRouteTarget,
   type GuiRouteTarget,
 } from "@/features/browserLaunch/guiRouteTarget";
 import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
@@ -19,10 +21,20 @@ import { ThreadHistoryDetailPage } from "@/features/threadHistory/ThreadHistoryD
 import { ThreadHistoryListPage } from "@/features/threadHistory/ThreadHistoryListPage";
 import { launchThreadId } from "./appBrowserTestSupport";
 
+const HarnessRouteTargetContext = createContext<GuiRouteTarget | undefined>(undefined);
+
+function HarnessAppBoundary() {
+  const routeTarget = use(HarnessRouteTargetContext);
+  const matchedTarget = useMatches({ select: selectGuiRouteTarget });
+  const target = routeTarget ?? matchedTarget;
+  if (target == null) throw new Error("Expected a valid App harness route");
+  return <RootApp routeTarget={target} />;
+}
+
 export function AppBrowserRenderHarness({
   currentTaskComponent = CurrentTaskPage,
   initialEntry = CURRENT_TASK_ROUTE_PATH.replace("$threadId", launchThreadId),
-  routeTarget = { type: "currentTask", threadId: launchThreadId },
+  routeTarget,
 }: Readonly<{
   currentTaskComponent?: RouteComponent;
   initialEntry?: string;
@@ -33,7 +45,7 @@ export function AppBrowserRenderHarness({
     const appRoute = createRoute({
       getParentRoute: () => rootRoute,
       id: "app",
-      component: () => <RootApp routeTarget={routeTarget} />,
+      component: HarnessAppBoundary,
     });
     const currentTaskRoute = createRoute({
       getParentRoute: () => appRoute,
@@ -59,5 +71,9 @@ export function AppBrowserRenderHarness({
     });
   });
 
-  return <RouterProvider router={router} />;
+  return (
+    <HarnessRouteTargetContext value={routeTarget}>
+      <RouterProvider router={router} />
+    </HarnessRouteTargetContext>
+  );
 }

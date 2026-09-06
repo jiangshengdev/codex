@@ -10,7 +10,11 @@ import {
 } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import { createActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
 import type {
   ActiveThreadComposerRole,
   ActiveThreadSession,
@@ -110,10 +114,12 @@ async function renderAttached(
     skillsRole: skillsRoleFor(activeSkillCatalogController),
   });
   let revision = 1;
+  const identity = createActiveThreadSessionIdentity(launchThreadId);
   const publish = (): void => {
     revision += 1;
     sessionHarness.publish(
       sessionHarness.activeSnapshot({
+        identity,
         revision,
         threadId: launchThreadId,
         subscriptionId: attachResponse.subscriptionId,
@@ -131,8 +137,10 @@ async function renderAttached(
       <SessionComposerTurnControl session={sessionHarness.session} />
     </>,
   );
+  result.store.dispatch(activeThreadReadModelSlotCreated(identity));
   result.store.dispatch(
     activeThreadReadModelTransitionApplied({
+      identity,
       sessionRevision: 1,
       facts: [{ type: "baselineAttached", response: attachResponse }],
     }),

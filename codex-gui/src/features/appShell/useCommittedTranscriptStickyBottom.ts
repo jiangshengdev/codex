@@ -10,11 +10,17 @@ const documentScroller = (): HTMLElement | null => {
   return scroller instanceof HTMLElement ? scroller : null;
 };
 
-export function useCommittedTranscriptStickyBottom(): RefObject<HTMLDivElement | null> {
+export function useCommittedTranscriptStickyBottom(
+  threadId: string,
+): RefObject<HTMLDivElement | null> {
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const previousMaxScrollTopRef = useRef<number | null>(null);
-  const scrollCommitKey = useAppSelector(selectCommittedTranscriptScrollCommitKey);
-  const liveScrollPulse = useAppSelector(selectTranscriptLiveScrollPulse);
+  const scrollCommitKey = useAppSelector((state) =>
+    selectCommittedTranscriptScrollCommitKey(state, threadId),
+  );
+  const liveScrollPulse = useAppSelector((state) =>
+    selectTranscriptLiveScrollPulse(state, threadId),
+  );
 
   const reconcileStickyBottom = useCallback(() => {
     const scroller = documentScroller();

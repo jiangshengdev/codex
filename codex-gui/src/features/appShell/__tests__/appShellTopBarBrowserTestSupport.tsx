@@ -91,5 +91,5 @@ export const renderTopBar = async ({
     routeTree: rootRoute.addChildren([currentTaskRoute, historyRoute, historyDetailRoute]),
   });
   const screen = await renderWithProviders(<RouterProvider router={router} />);
-  return { router, screen };
+  return { router, screen, activeThreadSessionHarness };
 };

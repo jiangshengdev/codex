@@ -58,7 +58,12 @@ export function ComposerTurnControl({
   const composerShellRef = useRef<HTMLElement | null>(null);
   const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
   const composerFocusVisible = useComposerFocusVisible(composerShellRef);
-  const tokenUsage = useAppSelector(selectThreadRuntimeTokenUsage);
+  const tokenUsage = useAppSelector((state) =>
+    state.threadRuntime.byThreadId[sessionSnapshot.threadId]?.identity.instanceId ===
+    sessionSnapshot.identity.instanceId
+      ? selectThreadRuntimeTokenUsage(state, sessionSnapshot.threadId)
+      : null,
+  );
   const contextUsage = contextUsageModelFromTokenUsage(tokenUsage);
   const {
     activeTurnId,

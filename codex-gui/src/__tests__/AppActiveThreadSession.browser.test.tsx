@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
 import { StrictMode, useEffect } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   attachResponse,
   createDeferred,
@@ -73,6 +74,7 @@ let threadSwitchProbeSession: ActiveThreadSession | null = null;
 let threadSwitchProbePromise: ReturnType<ActiveThreadSession["activate"]> | null = null;
 
 function ThreadSwitchCapabilityProbe() {
+  const navigate = useNavigate();
   const session = useActiveThreadSession();
   const snapshot = useActiveThreadSessionSnapshot();
   const available = snapshot.phase === "active" || snapshot.phase === "projectionUnavailable";
@@ -85,7 +87,12 @@ function ThreadSwitchCapabilityProbe() {
       <button
         disabled={session == null || !available}
         onClick={() => {
-          threadSwitchProbePromise = session?.activate(candidateThreadId) ?? null;
+          threadSwitchProbePromise =
+            session?.activate(candidateThreadId).then(async (outcome) => {
+              if (outcome.type === "ready")
+                await navigate({ to: "/task/$threadId", params: { threadId: candidateThreadId } });
+              return outcome;
+            }) ?? null;
         }}
         type="button"
       >
@@ -362,16 +369,10 @@ test("App releases an edited owner only after its marker settles and drains", as
   });
 
   const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
-  const blockedCandidateAttach = attachWithThreadId(attachResponse, candidateThreadId);
-  queueAttachProjectionResponse(commands, blockedCandidateAttach);
-  threadSwitchProbePromise = activeThreadSession.activate(candidateThreadId);
-  await expect(threadSwitchProbePromise).resolves.toMatchObject({
-    type: "unavailable",
-    failure: { type: "currentThreadUnresolved" },
+  await expect(activeThreadSession.remove(launchThreadId)).resolves.toMatchObject({
+    type: "blocked",
   });
-  expect(commands.detachThreadProjection).toHaveBeenNthCalledWith(1, {
-    threadId: candidateThreadId,
-  });
+  expect(commands.detachThreadProjection).not.toHaveBeenCalled();
   await expect.element(oldEditor).toBeVisible();
   expect(oldCoordinator.getReleaseReadiness()).toEqual({
     type: "blocked",
@@ -400,15 +401,10 @@ test("App releases an edited owner only after its marker settles and drains", as
     blockers: [{ type: "ordinaryQueued", count: 1 }],
   });
 
-  queueAttachProjectionResponse(commands, blockedCandidateAttach);
-  threadSwitchProbePromise = activeThreadSession.activate(candidateThreadId);
-  await expect(threadSwitchProbePromise).resolves.toMatchObject({
-    type: "unavailable",
-    failure: { type: "currentThreadUnresolved" },
+  await expect(activeThreadSession.remove(launchThreadId)).resolves.toMatchObject({
+    type: "blocked",
   });
-  expect(commands.detachThreadProjection).toHaveBeenNthCalledWith(2, {
-    threadId: candidateThreadId,
-  });
+  expect(commands.detachThreadProjection).not.toHaveBeenCalled();
   expect(startTurn).not.toHaveBeenCalled();
   await expect.element(oldEditor).toBeVisible();
 
@@ -439,6 +435,10 @@ test("App releases an edited owner only after its marker settles and drains", as
   }
   releaseProbe.reservation.release();
   await expect.poll(() => oldCoordinator.getReleaseReadiness()).toEqual({ type: "safe" });
+  await oldListDialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect.element(oldListDialog).not.toBeInTheDocument();
+  // Closing the drained drawer restores focus before navigation mounts another composer.
+  await expect.element(composer).toHaveFocus();
   const callsBeforeOwnerReplacement = {
     beginEdit: beginEdit.mock.calls.length,
     cancel: cancel.mock.calls.length,
@@ -455,10 +455,9 @@ test("App releases an edited owner only after its marker settles and drains", as
     candidateThreadId,
   );
   queueAttachProjectionResponse(commands, candidateAttach);
-  threadSwitchProbePromise = activeThreadSession.activate(candidateThreadId);
+  await screen.getByRole("button", { name: "Continue candidate thread", exact: true }).click();
   await threadSwitchProbePromise;
-  await expect.poll(() => vi.mocked(createComposerInputQueueCoordinator).mock.calls.length).toBe(4);
-  await expect.element(composer).toHaveFocus();
+  await expect.poll(() => vi.mocked(createComposerInputQueueCoordinator).mock.calls.length).toBe(2);
   await expect.element(composer).toHaveAttribute("contenteditable", "true");
   await expect
     .poll(() => {
@@ -474,7 +473,8 @@ test("App releases an edited owner only after its marker settles and drains", as
   const replacementCoordinator = replacementResult.value;
   expect(replacementCoordinator.ownerThreadId).toBe(candidateThreadId);
   const replacementSnapshot = replacementCoordinator.getSnapshot();
-  const replacementTranscript = screen.store.getState().transcriptState;
+  const replacementTranscript =
+    screen.store.getState().transcriptState.byThreadId[candidateThreadId];
   expect(
     replacementCoordinator.readPendingInputPage({
       lane: "ordinary",
@@ -506,6 +506,19 @@ test("App releases an edited owner only after its marker settles and drains", as
     save: save.mock.calls.length,
   }).toEqual(callsBeforeOwnerReplacement);
 
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(
+      turnCompleted(eventTurnCompleted, "commit-old-owner-drained-completed", {
+        ...drainedTurn,
+        status: "completed",
+      }),
+      { parentCommitId: drainedStarted.commitId },
+    ),
+  );
+  await expect(activeThreadSession.remove(launchThreadId)).resolves.toMatchObject({
+    type: "removed",
+  });
   expect(oldCoordinator.getReleaseReadiness()).toEqual({
     type: "blocked",
     blockers: [{ type: "disposed" }],
@@ -528,7 +541,9 @@ test("App releases an edited owner only after its marker settles and drains", as
   expect(deletePendingInput).not.toHaveBeenCalled();
   expect(startTurn).toHaveBeenCalledOnce();
   expect(replacementCoordinator.getSnapshot()).toBe(replacementSnapshot);
-  expect(screen.store.getState().transcriptState).toBe(replacementTranscript);
+  expect(screen.store.getState().transcriptState.byThreadId[candidateThreadId]).toBe(
+    replacementTranscript,
+  );
 
   for (const text of ["Replacement owner order A", "Replacement owner order B"]) {
     await composer.fill(text);
@@ -692,7 +707,7 @@ test("App publishes compaction command and canonical lifecycle through its sessi
   await expect.element(phase).toHaveTextContent("running");
 });
 
-test("App keeps the initial session when its queue blocks a thread switch", async () => {
+test("App keeps a queued initial session in the background and blocks its removal", async () => {
   const initialQueue = createQueueCoordinatorMock(launchThreadId, {
     type: "blocked",
     blockers: [{ type: "ordinaryQueued", count: 1 }],
@@ -703,27 +718,30 @@ test("App keeps the initial session when its queue blocks a thread switch", asyn
   );
   const commands = createGuiHostCommands();
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
-  const { session: activeThreadSession, snapshot: initialSnapshot } =
-    await waitForThreadSwitchProbeSession();
+  const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
   queueAttachProjectionResponse(commands, attachWithThreadId(attachReplacement, candidateThreadId));
 
   await continueButton.click();
   await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({
-    type: "unavailable",
-    failure: { type: "currentThreadUnresolved" },
-  });
-
-  expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: candidateThreadId });
-  expect(commands.attachThreadProjection).toHaveBeenCalledTimes(2);
-  expect(activeThreadSession.getSnapshot()).toBe(initialSnapshot);
-  await expect
-    .element(screen.getByLabelText("Active thread session"))
-    .toHaveTextContent(launchThreadId);
-  expect(initialQueue.dispose).not.toHaveBeenCalled();
-  expect(candidateQueue.dispose).toHaveBeenCalledOnce();
-  expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+    type: "ready",
     threadId: candidateThreadId,
   });
+
+  expect(commands.resumeThread).toHaveBeenLastCalledWith({ threadId: candidateThreadId });
+  expect(commands.attachThreadProjection).toHaveBeenCalledTimes(2);
+  expect(activeThreadSession.getSnapshot()).toMatchObject({
+    phase: "active",
+    threadId: candidateThreadId,
+  });
+  await expect
+    .element(screen.getByLabelText("Active thread session"))
+    .toHaveTextContent(candidateThreadId);
+  expect(initialQueue.dispose).not.toHaveBeenCalled();
+  expect(candidateQueue.dispose).not.toHaveBeenCalled();
+  await expect(activeThreadSession.remove(launchThreadId)).resolves.toMatchObject({
+    type: "blocked",
+  });
+  expect(commands.detachThreadProjection).not.toHaveBeenCalled();
 });
 
 test("App cleans up once on unmount and ignores a late switch candidate completion", async () => {
@@ -757,11 +775,11 @@ test("App cleans up once on unmount and ignores a late switch candidate completi
   expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
     threadId: candidateThreadId,
   });
-  expect(selectThreadRuntimeRecord(screen.store.getState())?.threadId).toBe(launchThreadId);
-  expect(screen.store.getState().transcriptState.threadId).toBe(launchThreadId);
+  expect(selectThreadRuntimeRecord(screen.store.getState(), launchThreadId)).toBeNull();
+  expect(screen.store.getState().transcriptState.byThreadId[launchThreadId]).toBeUndefined();
 });
 
-test("App reports connection loss after commit when unmounted during previous owner detach", async () => {
+test("App cleans up every owner when unmounted during explicit background removal", async () => {
   const initialQueue = createQueueCoordinatorMock(launchThreadId);
   const candidateQueue = createQueueCoordinatorMock(candidateThreadId);
   vi.mocked(createComposerInputQueueCoordinator).mockImplementation(({ threadId }) =>
@@ -778,6 +796,7 @@ test("App reports connection loss after commit when unmounted during previous ow
 
   await continueButton.click();
   const switching = requireThreadSwitchProbePromise();
+  await expect(switching).resolves.toMatchObject({ type: "ready", threadId: candidateThreadId });
   await expect
     .poll(() => {
       const snapshot = activeThreadSession.getSnapshot();
@@ -786,6 +805,8 @@ test("App reports connection loss after commit when unmounted during previous ow
         : null;
     })
     .toBe(candidateThreadId);
+  expect(commands.detachThreadProjection).not.toHaveBeenCalled();
+  const removing = activeThreadSession.remove(launchThreadId);
   await expect.poll(() => vi.mocked(commands.detachThreadProjection).mock.calls.length).toBe(1);
   expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
     threadId: launchThreadId,
@@ -794,14 +815,7 @@ test("App reports connection loss after commit when unmounted during previous ow
   await screen.unmount();
   pendingDetach.resolve({ status: "detached" });
 
-  await expect(switching).resolves.toMatchObject({
-    type: "unavailable",
-    failure: {
-      type: "connectionLost",
-      progress: "afterCommit",
-      threadId: candidateThreadId,
-    },
-  });
+  await expect(removing).resolves.toMatchObject({ type: "unavailable", threadId: launchThreadId });
   expect(initialQueue.dispose).toHaveBeenCalledOnce();
   expect(candidateQueue.dispose).toHaveBeenCalledOnce();
   expect(getCleanupConnectionCallCount()).toBe(1);

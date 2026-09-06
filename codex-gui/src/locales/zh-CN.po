@@ -78,9 +78,14 @@ msgstr "已用 {usedTokensLabel} tokens，共 {contextWindowLabel}"
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:231
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:233
 msgid "Active"
 msgstr "活动中"
+
+#. Tasks kept open in this GUI, including idle tasks; not only running turns
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:31
+msgid "Active tasks"
+msgstr "已激活任务"
 
 #. Source label for a skill installed by an administrator
 #. Source label for a skill installed by an administrator
@@ -102,8 +107,13 @@ msgstr "继续此任务时发生意外错误。"
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
+#. Accessible description of the navigation menu; backgroundStatus lists the statuses of open tasks other than the one being viewed
+#: src/features/appShell/AppShellTopBar.tsx:87
+msgid "Background tasks: {backgroundStatus}"
+msgstr "后台任务：{backgroundStatus}"
+
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:153
+#: src/features/appShell/AppShellTopBar.tsx:179
 msgid "Browse task history"
 msgstr "浏览历史任务"
 
@@ -174,9 +184,17 @@ msgstr "压缩上下文"
 msgid "Compressing"
 msgstr "正在压缩"
 
+#: src/features/appShell/activeThreadCollectionMessages.ts:14
+msgid "Connection cleanup needs retry"
+msgstr "连接清理需要重试"
+
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:93
 msgid "Connection interrupted. Reconnect required."
 msgstr "连接已中断，需要重新连接。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:23
+msgid "Connection needs recovery"
+msgstr "连接需要恢复"
 
 #: src/NotFoundPage.tsx:35
 msgid "Contact support"
@@ -225,9 +243,9 @@ msgstr "继续发送"
 msgid "Continue this task"
 msgstr "继续此任务"
 
-#: src/features/appShell/AppShellTopBar.tsx:32
-#: src/features/appShell/AppShellTopBar.tsx:109
-#: src/features/documentTitle/DocumentTitleOwner.tsx:44
+#: src/features/appShell/AppShellTopBar.tsx:47
+#: src/features/appShell/AppShellTopBar.tsx:135
+#: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "当前任务"
 
@@ -266,6 +284,11 @@ msgstr "当前任务状态未知"
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:98
 msgid "Currently unable to guide; added to queue"
 msgstr "当前无法引导，已加入队列"
+
+#. Marks the task selected for viewing in the active task list
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:151
+msgid "Currently viewed"
+msgstr "当前查看"
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:294
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:374
@@ -347,7 +370,7 @@ msgstr "等待结束"
 msgid "Go back home"
 msgstr "返回首页"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:245
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:250
 msgid "Guide"
 msgstr "引导"
 
@@ -367,25 +390,27 @@ msgstr "引导中"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
-#: src/features/appShell/AppShellTopBar.tsx:35
-#: src/features/appShell/AppShellTopBar.tsx:147
-#: src/features/documentTitle/DocumentTitleOwner.tsx:45
+#: src/features/appShell/AppShellTopBar.tsx:50
+#: src/features/appShell/AppShellTopBar.tsx:173
+#: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "历史记录"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:72
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:74
 msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
-#: src/features/appShell/AppShellTopBar.tsx:34
-#: src/features/documentTitle/DocumentTitleOwner.tsx:46
+#: src/features/appShell/AppShellTopBar.tsx:49
+#: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:33
 msgid "History detail"
 msgstr "历史详情"
 
+#. Backend task status: no turn is running
 #. Short idle-state label for the current task beside the composer QR button
+#: src/features/appShell/activeThreadCollectionMessages.ts:40
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:31
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:230
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:232
 msgid "Idle"
 msgstr "空闲"
 
@@ -420,7 +445,7 @@ msgstr "已中断。"
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:41
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:90
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:100
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:105
 msgid "Invalid skill"
 msgstr "无效技能"
 
@@ -428,12 +453,12 @@ msgstr "无效技能"
 msgid "Keep"
 msgstr "保留"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:166
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:168
 msgid "Load more"
 msgstr "加载更多"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:54
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:114
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:56
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:116
 msgid "Loading history…"
 msgstr "正在加载历史记录…"
 
@@ -445,11 +470,17 @@ msgstr "正在加载技能…"
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
-#: src/features/appShell/AppShellTopBar.tsx:81
+#: src/features/appShell/activeThreadCollectionMessages.ts:10
+#: src/features/currentTask/CurrentTaskPage.tsx:112
+#: src/features/currentTask/CurrentTaskPage.tsx:120
+msgid "Loading task…"
+msgstr "正在加载任务…"
+
+#: src/features/appShell/AppShellTopBar.tsx:107
 msgid "Main navigation"
 msgstr "主导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:64
+#: src/features/appShell/AppShellTopBar.tsx:80
 msgid "Menu"
 msgstr "菜单"
 
@@ -457,14 +488,18 @@ msgstr "菜单"
 msgid "Message cannot be empty"
 msgstr "消息不能为空"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:178
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:188
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:183
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:193
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:164
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:169
 msgid "Message composer"
 msgstr "消息输入区"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:31
+msgid "Messages need review"
+msgstr "有消息需要检查"
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:325
 msgid "More move options for pending message: {previewText}"
@@ -506,7 +541,7 @@ msgstr "上移"
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:77
+#: src/features/appShell/AppShellTopBar.tsx:103
 msgid "Navigation"
 msgstr "导航"
 
@@ -528,7 +563,7 @@ msgstr "尚无智能体完成任务"
 msgid "No committed messages yet."
 msgstr "暂无已提交的消息。"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:122
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:124
 msgid "No history for the current working directory."
 msgstr "当前工作目录没有历史记录。"
 
@@ -547,16 +582,16 @@ msgstr "未找到"
 
 #. Short label for a current task that is not loaded beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:23
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:229
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:231
 msgid "Not loaded"
 msgstr "未加载"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:75
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:77
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:115
+#: src/features/appShell/AppShellTopBar.tsx:141
 msgid "Open current task"
 msgstr "打开当前任务"
 
@@ -564,7 +599,7 @@ msgstr "打开当前任务"
 msgid "Operation diagnostic:"
 msgstr "操作诊断信息："
 
-#: src/features/documentTitle/DocumentTitleOwner.tsx:47
+#: src/features/documentTitle/DocumentTitleOwner.tsx:51
 #: src/NotFoundPage.tsx:20
 msgid "Page not found"
 msgstr "找不到页面"
@@ -635,6 +670,10 @@ msgstr "排队 {ordinaryQueuedCount}"
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "已将已排队消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
+#: src/features/appShell/activeThreadCollectionMessages.ts:60
+msgid "Recover this task's connection before removing it."
+msgstr "请先恢复此任务的连接，再将其移出列表。"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:330
 msgid "Refresh complete. Try the action again."
 msgstr "已刷新，请重试此操作。"
@@ -642,6 +681,11 @@ msgstr "已刷新，请重试此操作。"
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:417
 msgid "Refreshing skills…"
 msgstr "正在刷新技能…"
+
+#. Remove only from the active GUI task list; history and draft are kept
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:183
+msgid "Remove from list"
+msgstr "移出列表"
 
 #. Drops only this local unknown-send record, without retracting server work
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:96
@@ -651,6 +695,14 @@ msgstr "移除本地记录"
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:93
 msgid "Remove or replace invalid skills before saving."
 msgstr "保存前请移除或替换无效技能。"
+
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:36
+msgid "Removing a task from this list keeps its history and draft."
+msgstr "将任务移出此列表会保留其历史记录和草稿。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:16
+msgid "Removing from active tasks…"
+msgstr "正在移出已激活任务列表…"
 
 #. Source label for a skill provided by the current repository
 #. Source label for a skill provided by the current repository
@@ -677,9 +729,12 @@ msgstr "已恢复 {receiver}"
 msgid "Resuming {receiver}"
 msgstr "正在恢复 {receiver}"
 
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:172
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:405
+#: src/features/currentTask/CurrentTaskPage.tsx:98
+#: src/features/currentTask/CurrentTaskPage.tsx:141
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:85
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:261
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:263
 msgid "Retry"
 msgstr "重试"
 
@@ -687,6 +742,10 @@ msgstr "重试"
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:38
 msgid "Retry saving"
 msgstr "重试保存"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:82
+msgid "Retry saving this task's state before removing it."
+msgstr "请先重试保存此任务的状态，再将其移出列表。"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:122
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:153
@@ -698,7 +757,21 @@ msgstr "返回当前任务"
 msgid "Review and continue"
 msgstr "检查后继续"
 
+#: src/features/appShell/activeThreadCollectionMessages.ts:64
+msgid "Review and continue this task after reload before removing it."
+msgstr "刷新后，请先检查并继续此任务，再将其移出列表。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:25
+msgid "Review required after reload"
+msgstr "刷新后需要检查"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:73
+msgid "Review unresolved messages in this task before removing it."
+msgstr "请先检查此任务中尚未处理完的消息，再将其移出列表。"
+
+#. Backend task status: a turn is running
 #. Status of a collaborating agent that is currently working
+#: src/features/appShell/activeThreadCollectionMessages.ts:44
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:82
 msgid "Running"
 msgstr "运行中"
@@ -712,7 +785,7 @@ msgstr "保存"
 msgid "Scan with phone"
 msgstr "使用手机扫描"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:257
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:262
 msgid "Send"
 msgstr "发送"
 
@@ -780,11 +853,16 @@ msgstr "已启动 {receiver}（{reasoningEffort}）"
 msgid "Started <0/> <1/>"
 msgstr "已启动 <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:233
+#: src/features/appShell/activeThreadCollectionMessages.ts:22
+#: src/features/appShell/activeThreadCollectionMessages.ts:33
+msgid "Status unavailable"
+msgstr "状态不可用"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:238
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:224
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:229
 msgid "Stop failed"
 msgstr "停止失败"
 
@@ -800,9 +878,17 @@ msgstr "结构化输入"
 msgid "System"
 msgstr "系统"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:232
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:234
 msgid "System error"
 msgstr "系统错误"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:38
+msgid "Task error"
+msgstr "任务出错"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:36
+msgid "Task not loaded"
+msgstr "任务未加载"
 
 #: src/features/threadHistory/ContinueTaskAction.tsx:48
 #: src/features/threadHistory/ContinueTaskAction.tsx:52
@@ -840,6 +926,10 @@ msgstr "上一个任务连接未能完全清理，后续状态可能受到影响
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:322
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:62
+msgid "The task changed. Review its current state and try again."
+msgstr "任务状态已变化。请检查当前状态后重试。"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:273
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:275
@@ -892,8 +982,24 @@ msgstr "无法编辑这条待处理消息。"
 msgid "This task has no messages."
 msgstr "此任务没有消息。"
 
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:128
+msgid "This task is no longer available."
+msgstr "此任务已不可用。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:84
+msgid "This task is no longer connected."
+msgstr "此任务已断开连接。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:56
+msgid "This task is still running."
+msgstr "此任务仍在运行。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:67
+msgid "This task still has queued messages."
+msgstr "此任务仍有排队消息。"
+
 #. History date group: tasks last active on the current local day
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:126
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:128
 msgid "Today"
 msgstr "今天"
 
@@ -915,17 +1021,39 @@ msgstr "轮次 {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:256
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:258
 msgid "Unable to load history"
 msgstr "无法加载历史记录"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:12
+msgid "Unable to load task"
+msgstr "无法加载任务"
 
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:80
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:34
+#: src/features/currentTask/CurrentTaskPage.tsx:83
+#: src/features/currentTask/CurrentTaskPage.tsx:130
 msgid "Unable to load the current task"
 msgstr "无法加载当前任务"
+
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:120
+msgid "Unable to remove this task. Retry when its state is ready."
+msgstr "无法移出此任务。请等待任务状态就绪后重试。"
+
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:107
+#: src/features/currentTask/CurrentTaskPage.tsx:65
+msgid "Unable to retry this task. Review its current state and try again."
+msgstr "无法重试此任务。请检查当前状态后再试。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:24
+msgid "Unable to save task state"
+msgstr "无法保存任务状态"
+
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:40
+msgid "Unable to save the active task list. Retry the task operation."
+msgstr "无法保存已激活任务列表。请重试任务操作。"
 
 #: src/features/appShell/AppShell.tsx:21
 msgid "Unable to start Codex GUI"
@@ -942,7 +1070,7 @@ msgid "Unknown"
 msgstr "状态未知"
 
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:34
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:175
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:177
 msgid "Untitled task"
 msgstr "未命名任务"
 
@@ -957,7 +1085,7 @@ msgstr "无法加载更新后的待处理顺序"
 msgid "User"
 msgstr "用户"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:219
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:221
 msgid "View"
 msgstr "查看"
 
@@ -965,6 +1093,34 @@ msgstr "查看"
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:234
 msgid "View diagnostic information"
 msgstr "查看诊断信息"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:58
+msgid "Wait for context compaction to finish."
+msgstr "请等待上下文压缩完成。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:70
+msgid "Wait for pending message delivery to finish or review its outcome."
+msgstr "请等待消息发送完成，或检查发送结果。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:78
+msgid "Wait for the current task operation to finish."
+msgstr "请等待当前任务操作完成。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:80
+msgid "Wait for the stop request to finish or review its outcome."
+msgstr "请等待停止请求完成，或检查请求结果。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:52
+msgid "Wait for this task to finish loading before removing it."
+msgstr "请等待此任务加载完成，再将其移出列表。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:75
+msgid "Wait for this task's recovery to finish."
+msgstr "请等待此任务恢复完成。"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:54
+msgid "Wait until the task's running state is available."
+msgstr "请等待任务的运行状态可用。"
 
 #. Short label for a current task awaiting approval and input beside the QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:63
@@ -985,11 +1141,13 @@ msgid "Waiting for agents"
 msgstr "正在等待智能体"
 
 #. Short label for a current task awaiting approval beside the composer QR button
+#: src/features/appShell/activeThreadCollectionMessages.ts:42
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:47
 msgid "Waiting for approval"
 msgstr "等待批准"
 
 #. Short label for a current task awaiting user input beside the composer QR button
+#: src/features/appShell/activeThreadCollectionMessages.ts:43
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:55
 msgid "Waiting for input"
 msgstr "等待输入"
@@ -999,7 +1157,7 @@ msgid "Will send first"
 msgstr "将优先发送"
 
 #. History date group: tasks last active on the previous local day
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:130
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:132
 msgid "Yesterday"
 msgstr "昨天"
 

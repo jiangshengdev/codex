@@ -28,7 +28,11 @@ const HistoryDetailDocumentTitleContext =
 export function DocumentTitleOwner({ children }: PropsWithChildren) {
   const { t } = useLingui();
   const routeTarget = useMatches({ select: selectGuiRouteTarget });
-  const runtime = useAppSelector(selectThreadRuntimeRecord);
+  const runtime = useAppSelector((state) =>
+    routeTarget?.type === "currentTask"
+      ? selectThreadRuntimeRecord(state, routeTarget.threadId)
+      : null,
+  );
   const [historyDetailFacts, setHistoryDetailFacts] = useState<HistoryDetailDocumentTitleFact[]>(
     [],
   );

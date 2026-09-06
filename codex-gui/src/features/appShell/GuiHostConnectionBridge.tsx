@@ -115,12 +115,12 @@ export function GuiHostConnectionBridge({
             persistence: { authorizationContext: authorizationSession.getPersistenceContext() },
           });
           activeThreadController = controller;
+          setActiveThreadSession(controller.session);
           const generation = ++activationGeneration;
           const target = frozenStartupTarget.current;
-          const activation =
-            target.type === "currentTask"
-              ? controller.session.activate(target.threadId)
-              : controller.activateRecoveryThread();
+          const activation = controller.activateRecoveryThread(
+            target.type === "currentTask" ? target.threadId : undefined,
+          );
           void activation.then((outcome) => {
             if (
               !isMounted ||
@@ -129,7 +129,6 @@ export function GuiHostConnectionBridge({
             ) {
               return;
             }
-            setActiveThreadSession(controller.session);
             const activationError = startupActivationError(outcome);
             setActiveThreadStartupError(activationError);
             const warning = activationWarning(outcome);

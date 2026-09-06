@@ -27,7 +27,9 @@ export function ThreadHistoryListPage() {
   const { activeThreadSession, activeThreadStartupError, commands, status } = useAppCapabilities();
   const activeThreadId = useActiveThreadId();
   const activeThreadSessionPhase = useActiveThreadSessionPhase();
-  const runtime = useAppSelector(selectThreadRuntimeRecord);
+  const runtime = useAppSelector((state) =>
+    activeThreadId == null ? null : selectThreadRuntimeRecord(state, activeThreadId),
+  );
   const cwd =
     activeThreadId != null && runtime?.thread.id === activeThreadId ? runtime.thread.cwd : null;
   const historyContextUnavailable =

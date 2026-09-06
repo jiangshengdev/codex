@@ -174,6 +174,7 @@ test("App sends ordinary Enter through start identity and renders only its live 
   expect(
     selectTranscriptEntry(
       screen.store.getState(),
+      launchThreadId,
       transcriptEntryIdFor(startedTurn.id, committedUserMessage.id),
     ),
   ).toBeNull();

@@ -10,7 +10,13 @@ import {
 } from "@/features/browserLaunch/guiRouteTarget";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import { useHistoryDetailTitle } from "@/features/documentTitle/historyDetailTitleContext";
-import { useActiveThreadId, useAppCapabilities } from "./AppCapabilities";
+import {
+  useActiveThreadCollectionSnapshot,
+  useActiveThreadId,
+  useAppCapabilities,
+} from "./AppCapabilities";
+import { ActiveThreadCollectionMenu } from "./ActiveThreadCollectionMenu";
+import { activeThreadMemberStatus } from "./activeThreadCollectionMessages";
 
 export function AppShellTopBar() {
   const { t } = useLingui();
@@ -18,7 +24,16 @@ export function AppShellTopBar() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const { routeTarget } = useAppCapabilities();
   const activeThreadId = useActiveThreadId();
-  const runtime = useAppSelector(selectThreadRuntimeRecord);
+  const collection = useActiveThreadCollectionSnapshot();
+  const runtime = useAppSelector((state) =>
+    routeTarget.type === "currentTask"
+      ? selectThreadRuntimeRecord(state, routeTarget.threadId)
+      : null,
+  );
+  const backgroundStatus = collection.members
+    .filter((member) => member.threadId !== collection.viewedThreadId)
+    .map((member) => t(activeThreadMemberStatus(member)))
+    .join(", ");
   const isCurrentTask = routeTarget.type === "currentTask";
   const isHistoryDetail = routeTarget.type === "historyDetail";
   const historyDetailTitle = useHistoryDetailTitle();
@@ -55,6 +70,7 @@ export function AppShellTopBar() {
       <div className="app-shell-content-boundary flex h-full items-center gap-2 sm:gap-3">
         <Button
           className="shrink-0"
+          aria-describedby={backgroundStatus.length > 0 ? "background-tasks-status" : undefined}
           variant="secondary"
           onPress={() => {
             setIsDrawerOpen(true);
@@ -62,7 +78,17 @@ export function AppShellTopBar() {
         >
           <Menu aria-hidden="true" className="size-5" />
           <Trans>Menu</Trans>
+          {backgroundStatus.length > 0 ? (
+            <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
+          ) : null}
         </Button>
+        {backgroundStatus.length > 0 ? (
+          <span className="sr-only" id="background-tasks-status">
+            <Trans comment="Accessible description of the navigation menu; backgroundStatus lists the statuses of open tasks other than the one being viewed">
+              Background tasks: {backgroundStatus}
+            </Trans>
+          </span>
+        ) : null}
         <h1 className="min-w-0 flex-1 truncate text-base font-semibold" title={title}>
           {title}
         </h1>
@@ -77,7 +103,7 @@ export function AppShellTopBar() {
                 <Trans>Navigation</Trans>
               </Drawer.Heading>
             </Drawer.Header>
-            <Drawer.Body className="-mx-1 -my-px p-1">
+            <Drawer.Body className="-mx-1 -my-px min-h-0 overflow-y-auto p-1">
               <nav aria-label={t`Main navigation`} className="flex flex-col gap-1">
                 <Button
                   aria-describedby="current-task-navigation-description"
@@ -157,6 +183,11 @@ export function AppShellTopBar() {
                   </span>
                 </Button>
               </nav>
+              <ActiveThreadCollectionMenu
+                close={() => {
+                  setIsDrawerOpen(false);
+                }}
+              />
             </Drawer.Body>
           </Drawer.Dialog>
         </Drawer.Content>

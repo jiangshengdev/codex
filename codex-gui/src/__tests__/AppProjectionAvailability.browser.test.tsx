@@ -156,7 +156,7 @@ test("App stops forwarding runtime events after backpressure requires manual rec
   if (unavailableSnapshot.phase !== "projectionUnavailable") {
     throw new Error("expected projectionUnavailable");
   }
-  const runtimeAfterClose = selectThreadRuntimeRecord(store.getState());
+  const runtimeAfterClose = selectThreadRuntimeRecord(store.getState(), launchThreadId);
   emitProjectionEvent(options, projectionEvent);
 
   expect(unavailableSnapshot).toMatchObject({
@@ -165,7 +165,7 @@ test("App stops forwarding runtime events after backpressure requires manual rec
     recovery: "connectionRestartRequired",
     threadId: launchThreadId,
   });
-  expect(selectThreadRuntimeRecord(store.getState())).toBe(runtimeAfterClose);
+  expect(selectThreadRuntimeRecord(store.getState(), launchThreadId)).toBe(runtimeAfterClose);
 });
 
 test("App disables composer after projection backpressure requires reconnect", async () => {

@@ -430,7 +430,7 @@ test("App keeps host lifecycle status stable while projection events update runt
     throw new Error("fixture must contain a turnStarted projection event");
   }
   await expect
-    .poll(() => selectThreadRuntimeRecord(store.getState())?.threadId)
+    .poll(() => selectThreadRuntimeRecord(store.getState(), launchThreadId)?.threadId)
     .toBe(launchThreadId);
   const { session } = await waitForThreadSwitchProbeSession();
   emitProjectionEvent(options, eventTurnStarted);
