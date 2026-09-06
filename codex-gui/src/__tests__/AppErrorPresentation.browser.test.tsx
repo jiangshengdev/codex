@@ -46,6 +46,20 @@ function requireSession(): ActiveThreadSession {
   return observedSession;
 }
 
+async function expectDiagnostic(trigger: ReturnType<typeof page.getByRole>, ...details: string[]) {
+  for (const detail of details) {
+    await expect.element(page.getByText(detail)).not.toBeInTheDocument();
+  }
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "Diagnostic information", exact: true });
+  for (const detail of details) {
+    await expect.element(dialog).toHaveTextContent(detail);
+    await expect.poll(() => page.getByText(detail).elements().length).toBe(1);
+  }
+  await dialog.getByRole("button", { name: "Close diagnostics", exact: true }).click();
+  await expect.element(dialog).not.toBeInTheDocument();
+}
+
 beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
   observedSession = null;
@@ -60,7 +74,18 @@ test.each([`/task/${launchThreadId}`, "/history", `/history/${launchThreadId}`])
     getHostOptions(startGuiHostConnectionMock).onStatus?.({ label: "error", message: detail });
 
     await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
-    await expect.poll(() => page.getByText(detail).elements().length).toBe(1);
+    await expect.element(screen.getByText("Codex GUI could not be started.")).toBeVisible();
+    await expect
+      .element(
+        screen
+          .getByRole("main")
+          .getByRole("button", { name: "View diagnostic information", exact: true }),
+      )
+      .not.toBeInTheDocument();
+    await expectDiagnostic(
+      page.getByRole("button", { name: "View diagnostic information", exact: true }),
+      detail,
+    );
     await expect.element(screen.getByRole("main").getByText(detail)).not.toBeInTheDocument();
   },
 );
@@ -87,8 +112,15 @@ test("a late background failure does not replace the foreground and remains avai
     .getByRole("region", { name: "Active tasks" })
     .getByRole("button", { name: backgroundThreadId, exact: true })
     .click();
-  await expect.element(screen.getByRole("main").getByText(detail)).toBeVisible();
-  await expect.poll(() => page.getByText(detail).elements().length).toBe(1);
+  await expect
+    .element(screen.getByRole("main").getByText("The current task could not be loaded."))
+    .toBeVisible();
+  await expectDiagnostic(
+    screen
+      .getByRole("main")
+      .getByRole("button", { name: "View diagnostic information", exact: true }),
+    detail,
+  );
 });
 
 test("independent global and task operations with identical details remain independently visible", async () => {
@@ -102,15 +134,40 @@ test("independent global and task operations with identical details remain indep
   session.setOperationError(missingThreadId, "navigation", new Error(detail));
   session.setOperationError(launchThreadId, "navigation", new Error(detail));
   session.setOperationError(launchThreadId, "remove", new Error(detail));
-  await expect.poll(() => page.getByText(detail, { exact: true }).elements().length).toBe(3);
+  const diagnostics = page.getByRole("button", {
+    name: "View diagnostic information",
+    exact: true,
+  });
+  const taskDiagnostics = screen
+    .getByRole("main")
+    .getByRole("button", { name: "View diagnostic information", exact: true });
+  await expect.poll(() => diagnostics.elements().length).toBe(3);
+  await expect.poll(() => taskDiagnostics.elements().length).toBe(2);
+  const navigationNotice = screen
+    .getByRole("main")
+    .getByRole("alert")
+    .filter({ hasText: "The task could not be opened." });
+  const removalNotice = screen
+    .getByRole("main")
+    .getByRole("alert")
+    .filter({ hasText: "The task could not be removed." });
   await expect
-    .poll(() => screen.getByRole("main").getByText(detail, { exact: true }).elements().length)
-    .toBe(2);
+    .element(navigationNotice.getByRole("button", { name: "Retry", exact: true }))
+    .toHaveClass("button--primary");
+  await expect
+    .element(removalNotice.getByRole("button", { name: "Retry", exact: true }))
+    .toHaveClass("button--danger");
+  for (let index = 0; index < 3; index += 1) {
+    await expectDiagnostic(diagnostics.nth(index), detail);
+  }
   session.setOperationError(launchThreadId, "navigation", null);
-  await expect.poll(() => page.getByText(detail, { exact: true }).elements().length).toBe(2);
-  await expect
-    .poll(() => screen.getByRole("main").getByText(detail, { exact: true }).elements().length)
-    .toBe(1);
+  await expect.poll(() => diagnostics.elements().length).toBe(2);
+  await expect.poll(() => taskDiagnostics.elements().length).toBe(1);
+  await expect.element(navigationNotice).not.toBeInTheDocument();
+  await expect.element(removalNotice).toBeVisible();
+  for (let index = 0; index < 2; index += 1) {
+    await expectDiagnostic(diagnostics.nth(index), detail);
+  }
 });
 
 test.each(["notLoaded", "systemError"] as const)(
@@ -131,6 +188,7 @@ test.each(["notLoaded", "systemError"] as const)(
     initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
     const retry = screen.getByRole("main").getByRole("button", { name: "Retry", exact: true });
     await expect.element(retry).toBeEnabled();
+    await expect.element(retry).toHaveClass("button--primary");
     await retry.click();
     await expect.poll(() => vi.mocked(commands.readThread).mock.calls.length).toBeGreaterThan(0);
     await expect.element(retry).not.toBeInTheDocument();
@@ -153,10 +211,16 @@ test("initialization and cleanup failures both remain visible in the task page",
   initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
   const main = screen.getByRole("main");
   const primaryDetail = "thread/projection/attach returned a different thread identity";
-  await expect.element(main.getByText(primaryDetail)).toBeVisible();
-  await expect.element(main.getByText(cleanupDetail)).toBeVisible();
-  await expect.poll(() => page.getByText(primaryDetail).elements().length).toBe(1);
-  await expect.poll(() => page.getByText(cleanupDetail).elements().length).toBe(1);
+  const notice = main.getByRole("alert");
+  await expect.element(notice).toHaveTextContent("The current task could not be loaded.");
+  await expect
+    .element(notice.getByRole("button", { name: "Retry", exact: true }))
+    .toHaveClass("button--primary");
+  await expectDiagnostic(
+    notice.getByRole("button", { name: "View diagnostic information", exact: true }),
+    primaryDetail,
+    cleanupDetail,
+  );
 });
 
 test("history continuation leaves collection diagnostics global and can retry the operation", async () => {
@@ -171,19 +235,30 @@ test("history continuation leaves collection diagnostics global and can retry th
   try {
     await continueTask.click();
     const detail = "Session collection persistence failed: write";
-    await expect.poll(() => page.getByText(detail).elements().length).toBe(1);
+    await expect.element(screen.getByText("The task list could not be updated.")).toBeVisible();
+    await expectDiagnostic(
+      page.getByRole("button", { name: "View diagnostic information", exact: true }),
+      detail,
+    );
     expect(storageWrite.mock.calls.length).toBeGreaterThan(0);
     expect(storageWrite.mock.calls.every(([key]) => key === "codex-gui.sessionCollection")).toBe(
       true,
     );
     await expect.element(screen.getByRole("main").getByText(detail)).not.toBeInTheDocument();
     await expect
-      .element(page.getByRole("button", { name: "View diagnostic information", exact: true }))
+      .element(
+        screen
+          .getByRole("main")
+          .getByRole("button", { name: "View diagnostic information", exact: true }),
+      )
       .not.toBeInTheDocument();
     storageWrite.mockRestore();
     await continueTask.click();
     await expect.element(screen.getByRole("region", { name: "Message composer" })).toBeVisible();
     await expect.element(page.getByText(detail)).not.toBeInTheDocument();
+    await expect
+      .element(page.getByRole("button", { name: "View diagnostic information", exact: true }))
+      .not.toBeInTheDocument();
   } finally {
     storageWrite.mockRestore();
   }
@@ -216,19 +291,28 @@ test("App keeps a membership save failure global before the task exists and reta
   try {
     initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
     const detail = "Session collection persistence failed: write";
-    await expect.element(page.getByText(detail)).toBeVisible();
+    await expect.element(screen.getByText("The task list could not be updated.")).toBeVisible();
     expect(storageWrite.mock.calls.length).toBeGreaterThan(0);
     expect(storageWrite.mock.calls.every(([key]) => key === "codex-gui.sessionCollection")).toBe(
       true,
     );
-    await expect.poll(() => page.getByText(detail).elements().length).toBe(1);
+    await expectDiagnostic(
+      page.getByRole("button", { name: "View diagnostic information", exact: true }),
+      detail,
+    );
     await expect.element(screen.getByRole("main").getByText(detail)).not.toBeInTheDocument();
     await expect.element(screen.getByRole("button", { name: "Retry", exact: true })).toBeEnabled();
+    await expect
+      .element(screen.getByRole("button", { name: "Retry", exact: true }))
+      .toHaveClass("button--primary");
     expect(commands.resumeThread).not.toHaveBeenCalled();
     storageWrite.mockRestore();
     await screen.getByRole("button", { name: "Retry", exact: true }).click();
     await expect.element(screen.getByRole("region", { name: "Message composer" })).toBeVisible();
     await expect.element(page.getByText(detail)).not.toBeInTheDocument();
+    await expect
+      .element(page.getByRole("button", { name: "View diagnostic information", exact: true }))
+      .not.toBeInTheDocument();
   } finally {
     storageWrite.mockRestore();
   }
@@ -243,7 +327,15 @@ test.each([false, true])(
     const screen = await renderWithProviders(<App />);
     initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
 
-    await expect.element(screen.getByRole("main").getByText(detail, { exact: true })).toBeVisible();
+    const notice = screen.getByRole("main").getByRole("alert");
+    await expect.element(notice).toHaveTextContent("The current task could not be loaded.");
+    await expect
+      .element(notice.getByRole("button", { name: "Retry", exact: true }))
+      .toHaveClass("button--primary");
+    await expectDiagnostic(
+      notice.getByRole("button", { name: "View diagnostic information", exact: true }),
+      detail,
+    );
     if (openMenu) {
       await screen.getByRole("button", { name: "Menu", exact: true }).click();
     }
@@ -256,8 +348,20 @@ test.each([false, true])(
       )
       .toBe(openMenu);
 
-    // Include the Drawer portal, obscured page, and details prefixed with an activation phase.
-    await expect.poll(() => page.getByText(detail).elements().length).toBe(1);
+    // Include the Drawer portal and obscured page: the task owns the only diagnostic entry.
+    await expect
+      .poll(
+        () =>
+          page
+            .getByRole("button", {
+              name: "View diagnostic information",
+              exact: true,
+              includeHidden: true,
+            })
+            .elements().length,
+      )
+      .toBe(1);
+    await expect.element(page.getByText(detail)).not.toBeInTheDocument();
     await expect
       .element(page.getByText("Unable to start Codex GUI", { exact: true }))
       .not.toBeInTheDocument();

@@ -44,7 +44,7 @@ test("history continuation keeps background queues advancing and output owned by
   ]);
 });
 
-test("reload restores the collection, selected task and drafts while each queue needs its own review", async ({
+test("reload restores the collection, selected task and drafts while each queue needs its own Continue sending", async ({
   page,
 }) => {
   const host = await createMultiSessionHarness(page);
@@ -76,16 +76,16 @@ test("reload restores the collection, selected task and drafts while each queue 
   await expect(page.getByText("Restored messages are paused", { exact: true })).toBeVisible();
   expect(host.sends(firstThreadId)).toHaveLength(0);
   expect(host.sends(secondThreadId)).toHaveLength(0);
-  await page.getByRole("button", { name: "Review and continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue sending", exact: true }).click();
   await expect.poll(() => host.sends(firstThreadId).length).toBe(1);
   await selectTask(page, secondThreadId);
   await expect(page.getByText("Restored messages are paused", { exact: true })).toBeVisible();
   expect(host.sends(secondThreadId)).toHaveLength(0);
-  await page.getByRole("button", { name: "Review and continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue sending", exact: true }).click();
   await expect.poll(() => host.sends(secondThreadId).length).toBe(1);
 });
 
-test("an unknown send stays isolated and is not resent by another task's review or its own", async ({
+test("an unknown send stays isolated and is not resent by Continue sending in another task or its own", async ({
   page,
 }) => {
   const host = await createMultiSessionHarness(page, true, false);
@@ -99,12 +99,12 @@ test("an unknown send stays isolated and is not resent by another task's review 
   await ready(page);
   await expect.poll(() => host.attachments(firstThreadId).length).toBe(2);
   host.finish(secondThreadId);
-  await page.getByRole("button", { name: "Review and continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue sending", exact: true }).click();
   await expect.poll(() => host.sends(secondThreadId).length).toBe(1);
   expect(host.sends(firstThreadId)).toEqual([original]);
   await selectTask(page, firstThreadId);
   await expect(page.getByText("Sending result unknown", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Review and continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue sending", exact: true }).click();
   await settledRender(page);
   expect(host.sends(firstThreadId)).toEqual([original]);
   await page.reload();
@@ -198,8 +198,14 @@ test("a background resume failure stays in its task and viewing it does not retr
     .getByRole("button", { name: firstThreadId, exact: true })
     .click();
   await expect(page).toHaveURL(new RegExp(`/task/${firstThreadId}$`));
-  await expect(page.getByText(errorMessage)).toHaveCount(1);
-  await expect(page.locator("main")).toContainText(failure);
+  await expect(page.getByText(errorMessage)).toHaveCount(0);
+  await page.locator("main").getByRole("button", { name: "View diagnostic information" }).click();
+  const diagnostics = page.getByRole("dialog", { name: "Diagnostic information" });
+  await expect(diagnostics.getByText(errorMessage)).toHaveCount(1);
+  await expect(diagnostics).toContainText(failure);
+  await diagnostics.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect(diagnostics).toHaveCount(0);
+  await expect(page.getByText(errorMessage)).toHaveCount(0);
   await expect(page.getByText("Unable to start Codex GUI", { exact: true })).toHaveCount(0);
   expect(host.resumes(firstThreadId)).toHaveLength(2);
   await expect(page.locator('[data-menu-error-indicator="true"]')).toBeVisible();
@@ -232,8 +238,14 @@ test("recovering one of two tasks with identical errors preserves the other's de
   host.setResumeError(secondThreadId, failure);
   await page.reload();
   await expect.poll(() => host.resumes(firstThreadId).length).toBe(2);
-  await expect(page.getByText(errorMessage)).toHaveCount(1);
-  await expect(page.locator("main")).toContainText(failure);
+  await expect(page.getByText(errorMessage)).toHaveCount(0);
+  await page.locator("main").getByRole("button", { name: "View diagnostic information" }).click();
+  const diagnostics = page.getByRole("dialog", { name: "Diagnostic information" });
+  await expect(diagnostics.getByText(errorMessage)).toHaveCount(1);
+  await expect(diagnostics).toContainText(failure);
+  await diagnostics.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect(diagnostics).toHaveCount(0);
+  await expect(page.getByText(errorMessage)).toHaveCount(0);
   await openMenu(page);
   for (const id of [firstThreadId, secondThreadId]) {
     await expect(activeRow(page, id).locator('[data-task-error-indicator="true"]')).toBeVisible();
@@ -255,7 +267,12 @@ test("recovering one of two tasks with identical errors preserves the other's de
   await activeRow(page, firstThreadId)
     .getByRole("button", { name: firstThreadId, exact: true })
     .click();
-  await expect(page.getByText(errorMessage)).toHaveCount(1);
+  await expect(page.getByText(errorMessage)).toHaveCount(0);
+  await page.locator("main").getByRole("button", { name: "View diagnostic information" }).click();
+  await expect(diagnostics.getByText(errorMessage)).toHaveCount(1);
+  await diagnostics.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect(diagnostics).toHaveCount(0);
+  await expect(page.getByText(errorMessage)).toHaveCount(0);
   expect(host.resumes(firstThreadId)).toHaveLength(2);
   host.setResumeError(firstThreadId, null);
   await page.getByRole("button", { name: "Retry", exact: true }).click();

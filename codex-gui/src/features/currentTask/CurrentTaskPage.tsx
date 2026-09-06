@@ -19,6 +19,7 @@ import { useCommittedTranscriptStickyBottom } from "@/features/appShell/useCommi
 import type { ActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
 import type { ActiveThreadMemberOperationError } from "@/features/activeThreadSession/activeThreadSessionCollectionContracts";
 import { errorText } from "@/text/errorText";
+import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 
 function isMacAppleWebKitRuntime(): boolean {
   return (
@@ -111,15 +112,28 @@ export function CurrentTaskPage() {
         <Alert.Title>
           <Trans>Task action failed</Trans>
         </Alert.Title>
-        <Alert.Description>{taskErrorText(error)}</Alert.Description>
-        <Button
-          variant="secondary"
-          onPress={() => {
-            void retryOperation(member.threadId, operation);
-          }}
-        >
-          <Trans>Retry</Trans>
-        </Button>
+        <Alert.Description>
+          {operation === "navigation" ? (
+            <Trans>The task could not be opened.</Trans>
+          ) : (
+            <Trans>The task could not be removed.</Trans>
+          )}
+        </Alert.Description>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button
+            variant={operation === "remove" ? "danger" : "primary"}
+            onPress={() => {
+              void retryOperation(member.threadId, operation);
+            }}
+          >
+            <Trans>Retry</Trans>
+          </Button>
+          {taskErrorText(error) !== "" ? (
+            <FailureDiagnosticModal triggerClassName="">
+              {taskErrorText(error)}
+            </FailureDiagnosticModal>
+          ) : null}
+        </div>
       </Alert.Content>
     </Alert>
   ));
@@ -129,6 +143,17 @@ export function CurrentTaskPage() {
     (sessionPhase === "empty" || targetMembershipFailed) &&
     (collection.errors.length > 0 || retryError != null)
   ) {
+    const retryAction =
+      routeTarget.type === "currentTask" ? (
+        <Button
+          variant="primary"
+          onPress={() => {
+            void retry(routeTarget.threadId, true);
+          }}
+        >
+          <Trans>Retry</Trans>
+        </Button>
+      ) : null;
     return (
       <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label}>
         {retryError != null ? (
@@ -138,20 +163,19 @@ export function CurrentTaskPage() {
               <Alert.Title>
                 <Trans>Unable to load the current task</Trans>
               </Alert.Title>
-              <Alert.Description>{retryError}</Alert.Description>
+              <Alert.Description>
+                <Trans>The current task could not be loaded.</Trans>
+              </Alert.Description>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {retryAction}
+                {retryError !== "" ? (
+                  <FailureDiagnosticModal triggerClassName="">{retryError}</FailureDiagnosticModal>
+                ) : null}
+              </div>
             </Alert.Content>
           </Alert>
         ) : null}
-        {routeTarget.type === "currentTask" ? (
-          <Button
-            variant="secondary"
-            onPress={() => {
-              void retry(routeTarget.threadId, true);
-            }}
-          >
-            <Trans>Retry</Trans>
-          </Button>
-        ) : null}
+        {retryError == null ? retryAction : null}
       </main>
     );
   }
@@ -175,6 +199,16 @@ export function CurrentTaskPage() {
         </main>
       );
     }
+    const retryAction = (
+      <Button
+        variant="primary"
+        onPress={() => {
+          void retry(snapshot.threadId, false);
+        }}
+      >
+        <Trans>Retry</Trans>
+      </Button>
+    );
     return (
       <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label}>
         {snapshot.error != null || retryError != null ? (
@@ -184,22 +218,44 @@ export function CurrentTaskPage() {
               <Alert.Title>
                 <Trans>Unable to load the current task</Trans>
               </Alert.Title>
-              <Alert.Description>{retryError ?? taskErrorText(snapshot.error)}</Alert.Description>
+              <Alert.Description>
+                <Trans>The current task could not be loaded.</Trans>
+              </Alert.Description>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {retryAction}
+                {(retryError ?? taskErrorText(snapshot.error)) !== "" ? (
+                  <FailureDiagnosticModal triggerClassName="">
+                    {retryError ?? taskErrorText(snapshot.error)}
+                  </FailureDiagnosticModal>
+                ) : null}
+              </div>
             </Alert.Content>
           </Alert>
         ) : null}
         {operationNotices}
-        <Button
-          variant="secondary"
-          onPress={() => {
-            void retry(snapshot.threadId, false);
-          }}
-        >
-          <Trans>Retry</Trans>
-        </Button>
+        {snapshot.error == null && retryError == null ? retryAction : null}
       </main>
     );
   }
+
+  const recoveryAction =
+    member != null &&
+    (member.phase === "cleanupPending" ||
+      member.phase === "removalPending" ||
+      member.removalBlockers.includes("statusUnknown")) ? (
+      <Button
+        variant={
+          member.phase === "cleanupPending" || member.phase === "removalPending"
+            ? "danger"
+            : "primary"
+        }
+        onPress={() => {
+          void retry(member.threadId, false);
+        }}
+      >
+        <Trans>Retry</Trans>
+      </Button>
+    ) : null;
 
   return (
     <CurrentTaskReady
@@ -218,26 +274,45 @@ export function CurrentTaskPage() {
                 <Alert.Title>
                   <Trans>Task action failed</Trans>
                 </Alert.Title>
-                <Alert.Description>{taskErrorText(member.error)}</Alert.Description>
+                <Alert.Description>
+                  <Trans>The task action could not be completed.</Trans>
+                </Alert.Description>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {retryError == null ? recoveryAction : null}
+                  {taskErrorText(member.error) !== "" ? (
+                    <FailureDiagnosticModal triggerClassName="">
+                      {taskErrorText(member.error)}
+                    </FailureDiagnosticModal>
+                  ) : null}
+                </div>
               </Alert.Content>
             </Alert>
           ) : null}
           {operationNotices}
-          {member != null &&
-          (member.phase === "cleanupPending" ||
-            member.phase === "removalPending" ||
-            member.removalBlockers.includes("statusUnknown")) ? (
-            <>
-              {retryError != null ? <p role="alert">{retryError}</p> : null}
-              <Button
-                variant="secondary"
-                onPress={() => {
-                  void retry(member.threadId, false);
-                }}
-              >
-                <Trans>Retry</Trans>
-              </Button>
-            </>
+          {recoveryAction != null ? (
+            retryError != null ? (
+              <Alert role="alert" status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>
+                    <Trans>Unable to recover the current task</Trans>
+                  </Alert.Title>
+                  <Alert.Description>
+                    <Trans>The task recovery could not be completed.</Trans>
+                  </Alert.Description>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {recoveryAction}
+                    {retryError !== "" ? (
+                      <FailureDiagnosticModal triggerClassName="">
+                        {retryError}
+                      </FailureDiagnosticModal>
+                    ) : null}
+                  </div>
+                </Alert.Content>
+              </Alert>
+            ) : member?.error == null ? (
+              recoveryAction
+            ) : null
           ) : null}
         </>
       }

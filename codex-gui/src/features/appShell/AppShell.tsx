@@ -1,6 +1,7 @@
 import { Alert, Toast } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import type { ReactNode } from "react";
+import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { errorText } from "@/text/errorText";
@@ -21,7 +22,10 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
         <Alert.Title>
           <Trans>Unable to start Codex GUI</Trans>
         </Alert.Title>
-        <Alert.Description>{status.message}</Alert.Description>
+        <Alert.Description>
+          <Trans>Codex GUI could not be started.</Trans>
+        </Alert.Description>
+        {status.message ? <FailureDiagnosticModal>{status.message}</FailureDiagnosticModal> : null}
       </Alert.Content>
     </Alert>
   );
@@ -51,17 +55,26 @@ export function AppShell({ children }: AppShellProps) {
       {hasTopNotice ? (
         <AppShellTopNotices>
           <GuiHostErrorAlert status={status} />
-          {collection.errors.map(({ operation, threadId, error }) => (
-            <Alert key={`${operation}:${threadId ?? ""}`} role="alert" status="danger">
-              <Alert.Indicator />
-              <Alert.Content>
-                <Alert.Title>
-                  <Trans>Unable to update the task list</Trans>
-                </Alert.Title>
-                <Alert.Description>{collectionErrorText(error)}</Alert.Description>
-              </Alert.Content>
-            </Alert>
-          ))}
+          {collection.errors.map(({ operation, threadId, error }) => {
+            const diagnostic = collectionErrorText(error);
+
+            return (
+              <Alert key={`${operation}:${threadId ?? ""}`} role="alert" status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>
+                    <Trans>Unable to update the task list</Trans>
+                  </Alert.Title>
+                  <Alert.Description>
+                    <Trans>The task list could not be updated.</Trans>
+                  </Alert.Description>
+                  {diagnostic ? (
+                    <FailureDiagnosticModal>{diagnostic}</FailureDiagnosticModal>
+                  ) : null}
+                </Alert.Content>
+              </Alert>
+            );
+          })}
         </AppShellTopNotices>
       ) : null}
       {children}

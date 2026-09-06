@@ -334,6 +334,7 @@ test("keeps a long history continuation failure visible beside the retry action"
   await expect.element(cleanupDiagnostic).not.toBeInTheDocument();
   const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
   await expect.element(disclosure).toBeVisible();
+  await expect.element(disclosure).toHaveClass("button--secondary");
   disclosure.element().focus();
   await expect.element(disclosure).toHaveFocus();
   await userEvent.keyboard("{Enter}");

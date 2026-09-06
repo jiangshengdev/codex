@@ -201,8 +201,23 @@ test("history leaves collection startup failure details in the global notice", a
   await expect
     .element(alert)
     .toHaveTextContent("Open an active task in this browser tab before viewing its history.");
-  await expect.element(screen.getByText("startup recovery failed", { exact: true })).toBeVisible();
-  expect(screen.getByText("startup recovery failed", { exact: true }).elements()).toHaveLength(1);
+  await expect
+    .element(screen.getByText("startup recovery failed", { exact: true }))
+    .not.toBeInTheDocument();
+  const diagnostics = screen.getByRole("button", {
+    name: "View diagnostic information",
+    exact: true,
+  });
+  expect(diagnostics.element().closest("[data-app-shell-top-notices]")).not.toBeNull();
+  await expect
+    .element(alert.getByRole("button", { name: "View diagnostic information" }))
+    .not.toBeInTheDocument();
+  await diagnostics.click();
+  const dialog = page.getByRole("dialog", { name: "Diagnostic information", exact: true });
+  await expect.element(dialog.getByText("startup recovery failed", { exact: true })).toBeVisible();
+  expect(page.getByText("startup recovery failed", { exact: true }).elements()).toHaveLength(1);
+  await dialog.getByRole("button", { name: "Close diagnostics", exact: true }).click();
+  await expect.element(dialog).not.toBeInTheDocument();
   await expect
     .element(screen.getByText("Unable to start Codex GUI", { exact: true }))
     .not.toBeInTheDocument();

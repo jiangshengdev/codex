@@ -1,6 +1,7 @@
 import { Alert, Button } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import type { ActiveThreadSessionSnapshot } from "@/features/activeThreadSession/activeThreadSession";
+import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 
 export function ComposerPersistenceStatus({
   sessionSnapshot,
@@ -28,17 +29,24 @@ export function ComposerPersistenceStatus({
             <Alert.Description>
               <Trans>Your input is still here. Sending is blocked until saving succeeds.</Trans>
             </Alert.Description>
-            <Button
-              variant="secondary"
-              isDisabled={!enabled}
-              onPress={() => {
-                composerRole.retryPersistence(revision);
-              }}
-            >
-              <Trans comment="Retries saving the composer draft and queue in this browser tab">
-                Retry saving
-              </Trans>
-            </Button>
+            <div className="mt-2 flex flex-wrap items-start gap-2">
+              <Button
+                variant="primary"
+                isDisabled={!enabled}
+                onPress={() => {
+                  composerRole.retryPersistence(revision);
+                }}
+              >
+                <Trans comment="Retries saving the composer draft and queue in this browser tab">
+                  Retry saving
+                </Trans>
+              </Button>
+              {persistence.error !== "" ? (
+                <FailureDiagnosticModal triggerClassName="">
+                  {persistence.error}
+                </FailureDiagnosticModal>
+              ) : null}
+            </div>
           </Alert.Content>
         </Alert>
       ) : null}
@@ -56,14 +64,15 @@ export function ComposerPersistenceStatus({
               </Trans>
             </Alert.Description>
             <Button
+              className="mt-2"
               variant="primary"
               isDisabled={!enabled || persistence.error != null}
               onPress={() => {
                 composerRole.resumeRestored(revision, persistence.revision);
               }}
             >
-              <Trans comment="Allows this page to advance its restored queue after the user checks it">
-                Review and continue
+              <Trans comment="Resumes sending this page's restored queue; does not open the queue">
+                Continue sending
               </Trans>
             </Button>
           </Alert.Content>

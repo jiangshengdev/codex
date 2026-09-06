@@ -1,4 +1,5 @@
 import { beforeEach, expect, test, vi } from "vitest";
+import { page } from "vitest/browser";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import {
   attachResponse,
@@ -93,8 +94,19 @@ test("a failed membership write shows the requested task error and retries witho
     await router.navigate({ to: "/task/$threadId", params: { threadId: secondThreadId } });
     await expect
       .element(screen.getByRole("alert"))
-      .toHaveTextContent("Session collection persistence failed: write");
+      .toHaveTextContent("The task list could not be updated.");
     await expect.element(screen.getByRole("main").getByRole("alert")).not.toBeInTheDocument();
+    await expect
+      .element(page.getByText("Session collection persistence failed: write"))
+      .not.toBeInTheDocument();
+    await screen
+      .getByRole("alert")
+      .getByRole("button", { name: "View diagnostic information", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", { name: "Diagnostic information", exact: true });
+    await expect.element(dialog).toHaveTextContent("Session collection persistence failed: write");
+    await dialog.getByRole("button", { name: "Close diagnostics", exact: true }).click();
+    await expect.element(dialog).not.toBeInTheDocument();
     const retry = screen.getByRole("button", { name: "Retry", exact: true });
     await expect.element(retry).toBeVisible();
     await expect.element(composer).not.toBeInTheDocument();
@@ -119,6 +131,9 @@ test("a failed membership write shows the requested task error and retries witho
     await expect.poll(() => document.title).toBe("Recovered second task · Codex");
     await expect.element(composer).toBeVisible();
     await expect.element(screen.getByRole("main").getByRole("alert")).not.toBeInTheDocument();
+    await expect
+      .element(screen.getByRole("button", { name: "View diagnostic information", exact: true }))
+      .not.toBeInTheDocument();
     expect(screen.store.getState().transcriptState.byThreadId[launchThreadId]?.identity).toBe(
       firstSlot.identity,
     );

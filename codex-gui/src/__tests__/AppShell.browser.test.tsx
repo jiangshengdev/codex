@@ -541,7 +541,7 @@ test("App displays GUI host startup errors in the top notices region", async () 
   const banner = screen.getByRole("banner").element();
   const main = screen.getByRole("main").element();
   const errorTitle = screen.getByText("Unable to start Codex GUI").element();
-  const errorMessage = screen.getByText("Missing launch token fragment").element();
+  const errorMessage = screen.getByText("Codex GUI could not be started.").element();
 
   if (!(topNotices instanceof HTMLElement)) {
     throw new Error("top notices region must render");
@@ -553,7 +553,8 @@ test("App displays GUI host startup errors in the top notices region", async () 
 
   await expect.element(screen.getByRole("main")).toHaveAttribute("data-gui-host-status", "error");
   await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
-  await expect.element(screen.getByText("Missing launch token fragment")).toBeVisible();
+  await expect.element(screen.getByText("Codex GUI could not be started.")).toBeVisible();
+  await expect.element(page.getByText("Missing launch token fragment")).not.toBeInTheDocument();
   await expect
     .element(screen.getByText("Unable to load the current task", { exact: true }))
     .not.toBeInTheDocument();
@@ -562,6 +563,16 @@ test("App displays GUI host startup errors in the top notices region", async () 
   expect(topNotices.contains(errorTitle)).toBe(true);
   expect(topNotices.contains(errorMessage)).toBe(true);
   await expect.element(getAppComposer(screen)).not.toBeInTheDocument();
+  const diagnostics = screen.getByRole("button", {
+    name: "View diagnostic information",
+    exact: true,
+  });
+  expect(topNotices.contains(diagnostics.element())).toBe(true);
+  await diagnostics.click();
+  const dialog = page.getByRole("dialog", { name: "Diagnostic information", exact: true });
+  await expect.element(dialog).toHaveTextContent("Missing launch token fragment");
+  await dialog.getByRole("button", { name: "Close diagnostics", exact: true }).click();
+  await expect.element(dialog).not.toBeInTheDocument();
 });
 
 test("App aligns history startup errors with their responsive shell owners", async () => {
@@ -595,7 +606,13 @@ test("App aligns history startup errors with their responsive shell owners", asy
     }
 
     await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
-    await expect.element(screen.getByText("Missing launch token fragment")).toBeVisible();
+    await expect.element(screen.getByText("Codex GUI could not be started.")).toBeVisible();
+    await expect.element(page.getByText("Missing launch token fragment")).not.toBeInTheDocument();
+    await screen.getByRole("button", { name: "View diagnostic information", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Diagnostic information", exact: true });
+    await expect.element(dialog).toHaveTextContent("Missing launch token fragment");
+    await dialog.getByRole("button", { name: "Close diagnostics", exact: true }).click();
+    await expect.element(dialog).not.toBeInTheDocument();
     await expect.element(historyAlert).toHaveTextContent("Unable to load history");
     await expect.element(getAppComposer(screen)).not.toBeInTheDocument();
 
@@ -641,7 +658,12 @@ test("App localizes the GUI host startup error title without translating its det
   const screen = await renderWithProviders(<App />, { locale: "zh-CN" });
 
   await expect.element(screen.getByText("无法启动 Codex GUI")).toBeVisible();
-  await expect.element(screen.getByText("Missing launch token fragment")).toBeVisible();
+  await expect.element(page.getByText("Missing launch token fragment")).not.toBeInTheDocument();
+  await screen.getByRole("button", { name: "查看诊断信息", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "诊断信息", exact: true });
+  await expect.element(dialog).toHaveTextContent("Missing launch token fragment");
+  await dialog.getByRole("button", { name: "关闭诊断信息", exact: true }).click();
+  await expect.element(dialog).not.toBeInTheDocument();
 });
 
 test("App fails closed on history when the authorization session has no active task", async () => {

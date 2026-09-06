@@ -121,11 +121,11 @@ msgstr "Browse task history"
 msgid "Cancel"
 msgstr "Cancel"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:26
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:27
 msgid "Changes could not be saved"
 msgstr "Changes could not be saved"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:53
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:61
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 
@@ -134,8 +134,8 @@ msgstr "Check the queue, other open pages, and conversation history before conti
 msgid "Cleanup diagnostic:"
 msgstr "Cleanup diagnostic:"
 
-#. Accessible label for closing the history continuation diagnostics dialog
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:256
+#. Accessible label for closing the failure diagnostics dialog
+#: src/feedback/FailureDiagnosticModal.tsx:22
 msgid "Close diagnostics"
 msgstr "Close diagnostics"
 
@@ -143,6 +143,10 @@ msgstr "Close diagnostics"
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:240
 msgid "Closed {receiver}"
 msgstr "Closed {receiver}"
+
+#: src/features/appShell/AppShell.tsx:26
+msgid "Codex GUI could not be started."
+msgstr "Codex GUI could not be started."
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:243
 msgid "Collapse"
@@ -235,7 +239,9 @@ msgstr "Context usage details, {percentageLabel} used, {usedTokensLabel} of {con
 msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 
+#. Resumes sending this page's restored queue; does not open the queue
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:132
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:74
 msgid "Continue sending"
 msgstr "Continue sending"
 
@@ -299,8 +305,8 @@ msgstr "Delete"
 msgid "Delete this pending message?"
 msgstr "Delete this pending message?"
 
-#. Title of the dialog showing raw history continuation errors
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:263
+#. Title of the dialog showing raw failure details
+#: src/feedback/FailureDiagnosticModal.tsx:29
 msgid "Diagnostic information"
 msgstr "Diagnostic information"
 
@@ -468,8 +474,8 @@ msgstr "Loading skills…"
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:166
-#: src/features/currentTask/CurrentTaskPage.tsx:174
+#: src/features/currentTask/CurrentTaskPage.tsx:190
+#: src/features/currentTask/CurrentTaskPage.tsx:198
 msgid "Loading task…"
 msgstr "Loading task…"
 
@@ -691,7 +697,7 @@ msgid "Remove from list"
 msgstr "Remove from list"
 
 #. Drops only this local unknown-send record, without retracting server work
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:96
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:105
 msgid "Remove local record"
 msgstr "Remove local record"
 
@@ -722,7 +728,7 @@ msgstr "Request failed"
 msgid "Resolve the task list error above, then try again."
 msgstr "Resolve the task list error above, then try again."
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:50
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:58
 msgid "Restored messages are paused"
 msgstr "Restored messages are paused"
 
@@ -737,17 +743,17 @@ msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:405
-#: src/features/currentTask/CurrentTaskPage.tsx:121
-#: src/features/currentTask/CurrentTaskPage.tsx:152
-#: src/features/currentTask/CurrentTaskPage.tsx:198
-#: src/features/currentTask/CurrentTaskPage.tsx:238
+#: src/features/currentTask/CurrentTaskPage.tsx:129
+#: src/features/currentTask/CurrentTaskPage.tsx:154
+#: src/features/currentTask/CurrentTaskPage.tsx:209
+#: src/features/currentTask/CurrentTaskPage.tsx:256
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:85
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:257
 msgid "Retry"
 msgstr "Retry"
 
 #. Retries saving the composer draft and queue in this browser tab
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:38
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:40
 msgid "Retry saving"
 msgstr "Retry saving"
 
@@ -762,8 +768,8 @@ msgstr "Return to current task"
 
 #. Allows this page to advance its restored queue after the user checks it
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:65
-msgid "Review and continue"
-msgstr "Review and continue"
+#~ msgid "Review and continue"
+#~ msgstr "Review and continue"
 
 #: src/features/appShell/activeThreadCollectionMessages.ts:20
 msgid "Review and continue this task after reload before removing it."
@@ -795,7 +801,7 @@ msgstr "Scan with phone"
 msgid "Send"
 msgstr "Send"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:77
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:86
 msgid "Sending result unknown"
 msgstr "Sending result unknown"
 
@@ -888,8 +894,8 @@ msgstr "System"
 msgid "System error"
 msgstr "System error"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:112
-#: src/features/currentTask/CurrentTaskPage.tsx:219
+#: src/features/currentTask/CurrentTaskPage.tsx:113
+#: src/features/currentTask/CurrentTaskPage.tsx:275
 msgid "Task action failed"
 msgstr "Task action failed"
 
@@ -928,6 +934,11 @@ msgstr "Tasks or the connection need attention."
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "The connection was interrupted before the task switch completed. Reconnect and try again."
 
+#: src/features/currentTask/CurrentTaskPage.tsx:167
+#: src/features/currentTask/CurrentTaskPage.tsx:222
+msgid "The current task could not be loaded."
+msgstr "The current task could not be loaded."
+
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:154
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
@@ -952,12 +963,16 @@ msgstr "The previous task connection could not be fully cleaned up. Later state 
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
+#: src/features/currentTask/CurrentTaskPage.tsx:278
+msgid "The task action could not be completed."
+msgstr "The task action could not be completed."
+
 #: src/features/appShell/activeThreadCollectionMessages.ts:18
 msgid "The task changed. Review its current state and try again."
 msgstr "The task changed. Review its current state and try again."
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:287
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:289
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:251
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:253
 msgid "The task connection could not be prepared."
 msgstr "The task connection could not be prepared."
 
@@ -967,23 +982,39 @@ msgstr "The task connection could not be prepared."
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:65
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:125
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:291
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:255
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:285
+#: src/features/currentTask/CurrentTaskPage.tsx:117
+msgid "The task could not be opened."
+msgstr "The task could not be opened."
+
+#: src/features/currentTask/CurrentTaskPage.tsx:119
+msgid "The task could not be removed."
+msgstr "The task could not be removed."
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:249
 msgid "The task could not be resumed."
 msgstr "The task could not be resumed."
+
+#: src/features/appShell/AppShell.tsx:69
+msgid "The task list could not be updated."
+msgstr "The task list could not be updated."
 
 #: src/features/threadHistory/ContinueTaskAction.tsx:49
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
+#: src/features/currentTask/CurrentTaskPage.tsx:301
+msgid "The task recovery could not be completed."
+msgstr "The task recovery could not be completed."
+
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:193
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:80
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:89
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 
@@ -1063,16 +1094,20 @@ msgstr "Unable to load history"
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:139
-#: src/features/currentTask/CurrentTaskPage.tsx:185
+#: src/features/currentTask/CurrentTaskPage.tsx:164
+#: src/features/currentTask/CurrentTaskPage.tsx:219
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
+
+#: src/features/currentTask/CurrentTaskPage.tsx:298
+msgid "Unable to recover the current task"
+msgstr "Unable to recover the current task"
 
 #: src/features/appShell/ActiveThreadCollectionMenu.tsx:120
 #~ msgid "Unable to remove this task. Retry when its state is ready."
 #~ msgstr "Unable to remove this task. Retry when its state is ready."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:75
+#: src/features/currentTask/CurrentTaskPage.tsx:76
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "Unable to retry this task. Review its current state and try again."
 
@@ -1084,7 +1119,7 @@ msgstr "Unable to retry this task. Review its current state and try again."
 #~ msgid "Unable to save the active task list. Retry the task operation."
 #~ msgstr "Unable to save the active task list. Retry the task operation."
 
-#: src/features/appShell/AppShell.tsx:22
+#: src/features/appShell/AppShell.tsx:23
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
@@ -1093,7 +1128,7 @@ msgstr "Unable to start Codex GUI"
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
-#: src/features/appShell/AppShell.tsx:59
+#: src/features/appShell/AppShell.tsx:66
 msgid "Unable to update the task list"
 msgstr "Unable to update the task list"
 
@@ -1122,8 +1157,8 @@ msgstr "User"
 msgid "View"
 msgstr "View"
 
-#. Button in a history continuation error that opens a dialog with raw diagnostic details
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:248
+#. Opens raw diagnostic details for the associated failure
+#: src/feedback/FailureDiagnosticModal.tsx:14
 msgid "View diagnostic information"
 msgstr "View diagnostic information"
 
@@ -1192,6 +1227,6 @@ msgstr "Will send first"
 msgid "Yesterday"
 msgstr "Yesterday"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:29
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:30
 msgid "Your input is still here. Sending is blocked until saving succeeds."
 msgstr "Your input is still here. Sending is blocked until saving succeeds."

@@ -30,7 +30,7 @@ test("restores an ordinary draft after a real reload without sending it", async 
   expect(host.sends()).toHaveLength(0);
 });
 
-test("restored queues stay paused across terminal events and send only after review", async ({
+test("restored queues stay paused across terminal events and queue viewing until Continue sending", async ({
   page,
 }) => {
   const host = await createPersistenceHarness(page, true);
@@ -45,21 +45,30 @@ test("restored queues stay paused across terminal events and send only after rev
   await expect(page.getByRole("status", { name: "Current task is idle" })).toBeVisible();
   await settledRender(page);
   expect(host.sends()).toHaveLength(0);
-  await page.getByRole("button", { name: "Review and continue", exact: true }).click();
+  await page.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  const pending = page.getByRole("dialog", { name: "Pending details", exact: true });
+  await expect(pending).toContainText("Queued before reload");
+  expect(host.sends()).toHaveLength(0);
+  await page.keyboard.press("Escape");
+  await expect(pending).toHaveCount(0);
+  await settledRender(page);
+  expect(host.sends()).toHaveLength(0);
+  await expect(page.getByText("Restored messages are paused", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continue sending", exact: true }).click();
   await expect.poll(() => host.sends().length).toBe(1);
   expect(host.sends()[0]?.params).toMatchObject({
     input: [{ type: "text", text: "Queued before reload" }],
   });
 });
 
-test("review permission does not survive another reload", async ({ page }) => {
+test("permission to continue sending does not survive another reload", async ({ page }) => {
   const host = await createPersistenceHarness(page, true);
   await host.open();
   await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeEnabled();
   await submit(page, "Still queued behind the active turn");
   await page.reload();
   await ready(page);
-  await page.getByRole("button", { name: "Review and continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue sending", exact: true }).click();
   await expect(page.getByText("Restored messages are paused", { exact: true })).toHaveCount(0);
   await page.reload();
   await ready(page);
@@ -112,7 +121,7 @@ test("a sessionStorage write failure preserves input and blocks RPC until retry"
 });
 
 for (const action of ["Send", "Guide"] as const) {
-  test(`an unknown ${action === "Send" ? "start" : "steer"} is not resent by reload or review`, async ({
+  test(`an unknown ${action === "Send" ? "start" : "steer"} is not resent by reload or Continue sending`, async ({
     page,
   }) => {
     const host = await createPersistenceHarness(page, action === "Guide");
@@ -123,7 +132,7 @@ for (const action of ["Send", "Guide"] as const) {
     await page.reload();
     await ready(page);
     await expect(page.getByText("Sending result unknown", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Review and continue", exact: true }).click();
+    await page.getByRole("button", { name: "Continue sending", exact: true }).click();
     await settledRender(page);
     expect(host.sends()).toEqual([originalRequest]);
     await page.reload();
@@ -161,7 +170,7 @@ test("an opener's old sessionStorage copy remains paused after the original page
   expect(copied.sends()).toHaveLength(0);
 });
 
-test("page lifecycle restoration invalidates review permission before reconnecting", async ({
+test("page lifecycle restoration invalidates permission to continue sending before reconnecting", async ({
   page,
 }) => {
   const host = await createPersistenceHarness(page, true);
@@ -170,7 +179,7 @@ test("page lifecycle restoration invalidates review permission before reconnecti
   await submit(page, "Await lifecycle restoration");
   await page.reload();
   await ready(page);
-  await page.getByRole("button", { name: "Review and continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue sending", exact: true }).click();
   await expect(page.getByText("Restored messages are paused", { exact: true })).toHaveCount(0);
   const attachments = host.requests.filter(
     ({ method }) => method === "thread/projection/attach",
