@@ -287,3 +287,11 @@ export async function renderComposerTurnControl({
     turn,
   };
 }
+
+export const getComposerPanel = (screen: RenderedComposerTurnControl): HTMLElement => {
+  const composerPanel = screen.container.querySelector(".composer-panel");
+  if (!(composerPanel instanceof HTMLElement)) {
+    throw new Error("composer panel must render");
+  }
+  return composerPanel;
+};

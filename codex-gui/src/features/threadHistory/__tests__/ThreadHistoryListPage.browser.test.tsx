@@ -1,51 +1,16 @@
 import { expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRoute,
-  createRouter,
-  Outlet,
-  RouterProvider,
-} from "@tanstack/react-router";
-import { StrictMode } from "react";
-import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import { page } from "vitest/browser";
+import { attachResponse } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
-import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
-import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
-import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
-import { renderWithProviders } from "@/utils/test-utils";
-import type { Thread, ThreadListResponse } from "@codex-protocol/v2";
-import { ThreadHistoryListPage } from "../ThreadHistoryListPage";
-
-const thread = (
-  id: string,
-  overrides: Partial<Pick<Thread, "name" | "preview" | "recencyAt" | "status" | "updatedAt">>,
-): Thread => ({
-  ...attachResponse.snapshot.thread,
-  id,
-  turns: [],
-  ...overrides,
-});
-
-const response = (data: Thread[], nextCursor: string | null): ThreadListResponse => ({
-  data,
-  nextCursor,
-  backwardsCursor: null,
-});
-
-let sessionRevision = 0;
-const baselineAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) =>
-  activeThreadReadModelTransitionApplied({
-    sessionRevision: ++sessionRevision,
-    facts: [{ type: "baselineAttached", response }],
-  });
+import type { ThreadListResponse } from "@codex-protocol/v2";
+import {
+  baselineAttached,
+  renderHistory,
+  response,
+  thread,
+} from "./threadHistoryListPageBrowserTestSupport";
 
 const historyCards = (container: Element): HTMLElement[] =>
   Array.from(container.querySelectorAll<HTMLElement>('article, [role="article"]'));
@@ -60,84 +25,6 @@ const historyGrid = (card: HTMLElement): HTMLElement => {
 
 const fitsWithinOwnWidth = (element: HTMLElement): boolean =>
   element.scrollWidth <= element.clientWidth + 1;
-
-const HistoryDetailPlaceholder = () => <main aria-label="History detail">History detail</main>;
-
-type RenderHistoryOptions = {
-  activeThreadSession?: ActiveThreadSession | null;
-  activeThreadStartupError?: string | null;
-  commandsAvailable?: boolean;
-  initialEntry?: string;
-  runtimeThreadId?: string | null;
-  strictMode?: boolean;
-};
-
-const renderHistory = async (
-  listThreads: GuiHostCommands["listThreads"],
-  {
-    activeThreadSession: suppliedActiveThreadSession,
-    activeThreadStartupError = null,
-    commandsAvailable = true,
-    initialEntry = "/history",
-    runtimeThreadId = attachResponse.snapshot.thread.id,
-    strictMode = false,
-  }: RenderHistoryOptions = {},
-) => {
-  const activeThreadSessionHarness = createActiveThreadSessionHarness();
-  activeThreadSessionHarness.publish(
-    activeThreadSessionHarness.activeSnapshot({
-      threadId: attachResponse.snapshot.thread.id,
-      subscriptionId: attachResponse.subscriptionId,
-    }),
-  );
-  const activeThreadSession =
-    suppliedActiveThreadSession === undefined
-      ? activeThreadSessionHarness.session
-      : suppliedActiveThreadSession;
-  const target = { type: "historyList" } as const;
-  const capabilities: AppCapabilities = {
-    activeThreadSession,
-    activeThreadStartupError,
-    authorizationToken: null,
-    commands: commandsAvailable ? { ...createGuiHostCommands(), listThreads } : null,
-    routeTarget: target,
-    status: { label: "initialized" },
-  };
-  const Root = () => (
-    <AppCapabilitiesProvider capabilities={capabilities}>
-      <Outlet />
-    </AppCapabilitiesProvider>
-  );
-  const rootRoute = createRootRoute({ component: Root });
-  const historyRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/history",
-    component: ThreadHistoryListPage,
-  });
-  const detailRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/history/$threadId",
-    component: HistoryDetailPlaceholder,
-  });
-  const router = createRouter({
-    history: createMemoryHistory({ initialEntries: [initialEntry] }),
-    routeTree: rootRoute.addChildren([historyRoute, detailRoute]),
-  });
-  const app = <RouterProvider router={router} />;
-  const screen = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app);
-  if (runtimeThreadId != null) {
-    screen.store.dispatch(
-      baselineAttached({
-        ...attachResponse,
-        snapshot: {
-          ...attachResponse.snapshot,
-          thread: { ...attachResponse.snapshot.thread, id: runtimeThreadId },
-        },
-      }),
-    );
-  }
-  return { router, screen };
-};
 
 test("settles the initial history request and renders its result under StrictMode", async () => {
   const listThreads = vi
@@ -510,45 +397,6 @@ test.each(["summary", "blank space"])("opens a card by clicking its %s", async (
     const rect = link.element().getBoundingClientRect();
     await link.click({ position: { x: rect.width / 2, y: 8 } });
   }
-  await expect.element(screen.getByRole("main", { name: "History detail" })).toBeVisible();
-  expect(router.state.location.pathname).toBe(`/history/${threadId}`);
-  expect(router.state.location.search).toEqual({});
-  expect(router.state.location.hash).toBe("");
-});
-
-test("has one keyboard stop per card with visible focus and Enter navigation", async () => {
-  const threadId = "00000000-0000-0000-0000-000000000093";
-  const listThreads = vi
-    .fn<GuiHostCommands["listThreads"]>()
-    .mockResolvedValue(
-      response(
-        [
-          thread("first-focus", { name: "First focus task", preview: "First summary" }),
-          thread(threadId, { name: "Second focus task", preview: "Second summary" }),
-        ],
-        null,
-      ),
-    );
-  const { router, screen } = await renderHistory(listThreads);
-  const firstLink = screen.getByRole("link", { name: "First focus task", exact: true });
-  const secondLink = screen.getByRole("link", { name: "Second focus task", exact: true });
-  await expect.element(firstLink).toBeVisible();
-  await userEvent.tab();
-  await expect.element(firstLink).toHaveFocus();
-  await expect
-    .poll(() => {
-      const element = firstLink.element();
-      const style = getComputedStyle(element);
-      return (
-        element.matches(":focus-visible") &&
-        ((style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0) ||
-          style.boxShadow !== "none")
-      );
-    })
-    .toBe(true);
-  await userEvent.tab();
-  await expect.element(secondLink).toHaveFocus();
-  await userEvent.keyboard("{Enter}");
   await expect.element(screen.getByRole("main", { name: "History detail" })).toBeVisible();
   expect(router.state.location.pathname).toBe(`/history/${threadId}`);
   expect(router.state.location.search).toEqual({});
