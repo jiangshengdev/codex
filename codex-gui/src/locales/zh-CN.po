@@ -78,7 +78,7 @@ msgstr "已用 {usedTokensLabel} tokens，共 {contextWindowLabel}"
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:191
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:231
 msgid "Active"
 msgstr "活动中"
 
@@ -102,12 +102,8 @@ msgstr "继续此任务时发生意外错误。"
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:62
-msgid "Back to history"
-msgstr "返回历史记录"
-
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:143
+#: src/features/appShell/AppShellTopBar.tsx:153
 msgid "Browse task history"
 msgstr "浏览历史任务"
 
@@ -119,6 +115,11 @@ msgstr "取消"
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:214
 msgid "Cleanup diagnostic:"
 msgstr "清理诊断信息："
+
+#. Accessible label for closing the history continuation diagnostics dialog
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:242
+msgid "Close diagnostics"
+msgstr "关闭诊断信息"
 
 #. Collaboration activity showing the raw receiver value of the closed agent
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:240
@@ -212,13 +213,13 @@ msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗�
 msgid "Continue sending"
 msgstr "继续发送"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:250
+#: src/features/threadHistory/ContinueTaskAction.tsx:253
 msgid "Continue this task"
 msgstr "继续此任务"
 
-#: src/features/appShell/AppShellTopBar.tsx:28
-#: src/features/appShell/AppShellTopBar.tsx:99
-#: src/features/documentTitle/DocumentTitleOwner.tsx:43
+#: src/features/appShell/AppShellTopBar.tsx:32
+#: src/features/appShell/AppShellTopBar.tsx:109
+#: src/features/documentTitle/DocumentTitleOwner.tsx:44
 msgid "Current task"
 msgstr "当前任务"
 
@@ -266,6 +267,11 @@ msgstr "删除"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:275
 msgid "Delete this pending message?"
 msgstr "删除这条待处理消息？"
+
+#. Title of the dialog showing raw history continuation errors
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:249
+msgid "Diagnostic information"
+msgstr "诊断信息"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:49
 msgid "Diagnostic:"
@@ -353,24 +359,25 @@ msgstr "引导中"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
-#: src/features/appShell/AppShellTopBar.tsx:28
-#: src/features/appShell/AppShellTopBar.tsx:137
-#: src/features/documentTitle/DocumentTitleOwner.tsx:44
+#: src/features/appShell/AppShellTopBar.tsx:35
+#: src/features/appShell/AppShellTopBar.tsx:147
+#: src/features/documentTitle/DocumentTitleOwner.tsx:45
 msgid "History"
 msgstr "历史记录"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:66
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:72
 msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
-#: src/features/documentTitle/DocumentTitleOwner.tsx:45
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:39
+#: src/features/appShell/AppShellTopBar.tsx:34
+#: src/features/documentTitle/DocumentTitleOwner.tsx:46
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:33
 msgid "History detail"
 msgstr "历史详情"
 
 #. Short idle-state label for the current task beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:31
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:190
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:230
 msgid "Idle"
 msgstr "空闲"
 
@@ -413,12 +420,12 @@ msgstr "无效技能"
 msgid "Keep"
 msgstr "保留"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:127
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:166
 msgid "Load more"
 msgstr "加载更多"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:48
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:99
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:54
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:114
 msgid "Loading history…"
 msgstr "正在加载历史记录…"
 
@@ -426,15 +433,15 @@ msgstr "正在加载历史记录…"
 msgid "Loading skills…"
 msgstr "正在加载技能…"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:76
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:43
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
-#: src/features/appShell/AppShellTopBar.tsx:71
+#: src/features/appShell/AppShellTopBar.tsx:81
 msgid "Main navigation"
 msgstr "主导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:56
+#: src/features/appShell/AppShellTopBar.tsx:64
 msgid "Menu"
 msgstr "菜单"
 
@@ -491,7 +498,7 @@ msgstr "上移"
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:67
+#: src/features/appShell/AppShellTopBar.tsx:77
 msgid "Navigation"
 msgstr "导航"
 
@@ -513,7 +520,7 @@ msgstr "尚无智能体完成任务"
 msgid "No committed messages yet."
 msgstr "暂无已提交的消息。"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:107
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:122
 msgid "No history for the current working directory."
 msgstr "当前工作目录没有历史记录。"
 
@@ -532,16 +539,16 @@ msgstr "未找到"
 
 #. Short label for a current task that is not loaded beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:23
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:189
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:229
 msgid "Not loaded"
 msgstr "未加载"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:69
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:75
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:105
+#: src/features/appShell/AppShellTopBar.tsx:115
 msgid "Open current task"
 msgstr "打开当前任务"
 
@@ -549,7 +556,7 @@ msgstr "打开当前任务"
 msgid "Operation diagnostic:"
 msgstr "操作诊断信息："
 
-#: src/features/documentTitle/DocumentTitleOwner.tsx:46
+#: src/features/documentTitle/DocumentTitleOwner.tsx:47
 #: src/NotFoundPage.tsx:20
 msgid "Page not found"
 msgstr "找不到页面"
@@ -620,10 +627,6 @@ msgstr "排队 {ordinaryQueuedCount}"
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "已将已排队消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:70
-msgid "Read-only history"
-msgstr "只读历史记录"
-
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:330
 msgid "Refresh complete. Try the action again."
 msgstr "已刷新，请重试此操作。"
@@ -658,8 +661,8 @@ msgid "Resuming {receiver}"
 msgstr "正在恢复 {receiver}"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:405
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:118
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:221
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:85
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:261
 msgid "Retry"
 msgstr "重试"
 
@@ -766,7 +769,7 @@ msgstr "结构化输入"
 msgid "System"
 msgstr "系统"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:192
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:232
 msgid "System error"
 msgstr "系统错误"
 
@@ -807,8 +810,8 @@ msgstr "上一个任务连接未能完全清理，后续状态可能受到影响
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:266
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:268
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:273
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:275
 msgid "The task connection could not be prepared."
 msgstr "无法准备任务连接。"
 
@@ -818,11 +821,11 @@ msgstr "任务连接已关闭。"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:65
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:111
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:270
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:277
 msgid "The task could not be activated."
 msgstr "无法激活任务。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:264
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:271
 msgid "The task could not be resumed."
 msgstr "无法恢复任务。"
 
@@ -850,9 +853,14 @@ msgstr "这条消息正在编辑。"
 msgid "This pending message cannot be edited."
 msgstr "无法编辑这条待处理消息。"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:82
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:49
 msgid "This task has no messages."
 msgstr "此任务没有消息。"
+
+#. History date group: tasks last active on the current local day
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:126
+msgid "Today"
+msgstr "今天"
 
 #. Accessible name for pagination between transcript context generations
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:47
@@ -872,11 +880,11 @@ msgstr "轮次 {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:216
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:256
 msgid "Unable to load history"
 msgstr "无法加载历史记录"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:113
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:80
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
@@ -898,9 +906,8 @@ msgstr "暂时无法切换任务"
 msgid "Unknown"
 msgstr "状态未知"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:137
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:34
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:175
 msgid "Untitled task"
 msgstr "未命名任务"
 
@@ -915,12 +922,12 @@ msgstr "无法加载更新后的待处理顺序"
 msgid "User"
 msgstr "用户"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:180
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:219
 msgid "View"
 msgstr "查看"
 
-#. Button in a history continuation error that expands raw diagnostic details
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:235
+#. Button in a history continuation error that opens a dialog with raw diagnostic details
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:234
 msgid "View diagnostic information"
 msgstr "查看诊断信息"
 
@@ -955,3 +962,8 @@ msgstr "等待输入"
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:91
 msgid "Will send first"
 msgstr "将优先发送"
+
+#. History date group: tasks last active on the previous local day
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:130
+msgid "Yesterday"
+msgstr "昨天"

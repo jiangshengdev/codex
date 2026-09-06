@@ -7,6 +7,7 @@ import { createActiveThreadSessionHarness } from "@/features/activeThreadSession
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import {
+  agentMessage,
   attachWithTurns,
   baseTurn,
   textInput,
@@ -24,6 +25,32 @@ const historyThread = (
 });
 
 const emptyHistoryThread = () => historyThread([]);
+
+const waitForActionLayout = async (surface: Element) => {
+  await expect
+    .poll(async () => {
+      const sample = () => [
+        surface.getBoundingClientRect().height,
+        document.documentElement.scrollHeight,
+        window.scrollY,
+      ];
+      const before = sample();
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            resolve();
+          }),
+        ),
+      );
+      return (
+        surface
+          .getAnimations({ subtree: true })
+          .every((animation) => animation.playState !== "running" && !animation.pending) &&
+        sample().every((value, index) => value === before[index])
+      );
+    })
+    .toBe(true);
+};
 
 afterEach(() => {
   toast.clear();
@@ -300,8 +327,9 @@ test("keeps a long history continuation failure visible beside the retry action"
   await expect.element(action).toHaveAccessibleName("Continue this task");
   await expect.element(action).toHaveAccessibleDescription(summary);
 
-  const operationDiagnostic = alert.getByText("Operation diagnostic:", { exact: false });
-  const cleanupDiagnostic = alert.getByText("Cleanup diagnostic:", { exact: false });
+  const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
+  const operationDiagnostic = page.getByText("Operation diagnostic:", { exact: false });
+  const cleanupDiagnostic = page.getByText("Cleanup diagnostic:", { exact: false });
   await expect.element(operationDiagnostic).not.toBeInTheDocument();
   await expect.element(cleanupDiagnostic).not.toBeInTheDocument();
   const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
@@ -314,18 +342,28 @@ test("keeps a long history continuation failure visible beside the retry action"
   await expect.element(cleanupDiagnostic).toHaveTextContent(cleanupError.message);
   await expect.element(cleanupDiagnostic).toBeVisible();
 
-  disclosure.element().focus();
+  await dialog.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect.element(dialog).not.toBeInTheDocument();
   await expect.element(disclosure).toHaveFocus();
-  await userEvent.keyboard("{Enter}");
   await expect.element(operationDiagnostic).not.toBeInTheDocument();
   await expect.element(cleanupDiagnostic).not.toBeInTheDocument();
+
+  await disclosure.click();
+  await expect.element(dialog).toBeVisible();
+  const backdrop = dialog.element().closest('[data-slot="modal-backdrop"]');
+  if (!(backdrop instanceof HTMLElement)) {
+    throw new Error("Expected diagnostic modal backdrop");
+  }
+  await userEvent.click(backdrop, { position: { x: 2, y: 2 } });
+  await expect.element(dialog).not.toBeInTheDocument();
+  await expect.element(disclosure).toHaveFocus();
 
   await action.click();
   expect(activate).toHaveBeenCalledTimes(2);
   expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
 });
 
-test("preserves document scroll position when expanding diagnostics at the bottom", async () => {
+test("preserves document scroll position when opening and dismissing diagnostics at the bottom", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
   const originalScrollTop = window.scrollY;
   try {
@@ -368,15 +406,7 @@ test("preserves document scroll position when expanding diagnostics at the botto
     if (!(actionBar instanceof HTMLElement)) {
       throw new Error("Expected continuation action to be rendered in an aside");
     }
-    const actionSpace = document.querySelector("[data-thread-history-continuation-action-space]");
-    if (!(actionSpace instanceof HTMLElement)) {
-      throw new Error("Expected continuation action space");
-    }
-    // Keep the measured spacer out of document scroll anchoring while its height changes.
-    expect(getComputedStyle(actionSpace).overflowAnchor).toBe("none");
-    await expect
-      .poll(() => Math.abs(actionSpace.getBoundingClientRect().height - actionBar.offsetHeight))
-      .toBeLessThanOrEqual(1);
+    await waitForActionLayout(actionBar);
 
     const documentScroller = document.scrollingElement;
     if (!(documentScroller instanceof HTMLElement)) {
@@ -392,15 +422,18 @@ test("preserves document scroll position when expanding diagnostics at the botto
           documentScroller.scrollTop,
       )
       .toBeLessThanOrEqual(1);
-    const scrollTopBeforeExpand = documentScroller.scrollTop;
-
     disclosure.element().focus();
     await expect.element(disclosure).toHaveFocus();
+    await waitForActionLayout(actionBar);
+    const scrollTopBeforeExpand = documentScroller.scrollTop;
     await userEvent.keyboard("{Enter}");
-    await expect.element(alert.getByText(diagnostic, { exact: false })).toBeVisible();
-    await expect
-      .poll(() => Math.abs(actionSpace.getBoundingClientRect().height - actionBar.offsetHeight))
-      .toBeLessThanOrEqual(1);
+    const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
+    await expect.element(dialog.getByText(diagnostic, { exact: false })).toBeVisible();
+    await waitForActionLayout(dialog.element());
+    expect(dialog.element().contains(document.activeElement)).toBe(true);
+    expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
+    await userEvent.keyboard("{Escape}");
+    await expect.element(dialog).not.toBeInTheDocument();
     await expect.element(disclosure).toHaveFocus();
     expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
   } finally {
@@ -409,7 +442,7 @@ test("preserves document scroll position when expanding diagnostics at the botto
   }
 });
 
-test("keeps long continuation diagnostics within a narrow action surface", async () => {
+test("scrolls long continuation diagnostics in a narrow modal while locking the background", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
   const originalScrollTop = window.scrollY;
   try {
@@ -426,6 +459,10 @@ test("keeps long continuation diagnostics within a narrow action surface", async
     const thread = historyThread([
       baseTurn("narrow-diagnostic-turn", [
         userMessage("narrow-diagnostic-user", [textInput(historyText)]),
+        agentMessage(
+          "narrow-diagnostic-answer",
+          "[Last history message](https://example.invalid/last-history-message)",
+        ),
       ]),
     ]);
     const commands = {
@@ -446,11 +483,18 @@ test("keeps long continuation diagnostics within a narrow action surface", async
     });
     const action = screen.getByRole("button", { name: "Continue this task" });
 
+    await expect.element(action).toBeVisible();
+    const actionPanel = action.element().closest(".task-bottom-panel");
+    if (!(actionPanel instanceof HTMLElement)) {
+      throw new Error("Expected continuation card");
+    }
+
     await action.click();
     const alert = screen.getByRole("alert");
     await expect.element(alert.getByText("The task could not be resumed.")).toBeVisible();
     const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
     await expect.element(disclosure).toBeInViewport({ ratio: 1 });
+    await waitForActionLayout(actionPanel);
 
     const documentScroller = document.scrollingElement;
     if (!(documentScroller instanceof HTMLElement)) {
@@ -458,46 +502,177 @@ test("keeps long continuation diagnostics within a narrow action surface", async
     }
     window.scrollTo({ top: Math.min(120, documentScroller.scrollHeight - window.innerHeight) });
     await expect.poll(() => documentScroller.scrollTop).toBeGreaterThan(0);
+    await waitForActionLayout(actionPanel);
     const scrollTopBeforeExpand = documentScroller.scrollTop;
 
     await disclosure.click();
 
-    const diagnosticRegion = alert
-      .element()
-      .querySelector("[data-history-continuation-diagnostics-scroll-region]");
+    const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
+    await expect.element(dialog).toBeVisible();
+    const diagnosticRegion = dialog.element().querySelector('[data-slot="modal-body"]');
     if (!(diagnosticRegion instanceof HTMLElement)) {
       throw new Error("Expected continuation diagnostics to own an internal scroll region");
     }
     await expect
       .element(
-        alert.getByText("Raw continuation diagnostic line 100 with enough detail to wrap.", {
+        dialog.getByText("Raw continuation diagnostic line 100 with enough detail to wrap.", {
           exact: false,
         }),
       )
       .toBeVisible();
-    await expect.element(action).toBeInViewport({ ratio: 1 });
-    await expect.element(disclosure).toHaveFocus();
+    await expect.element(dialog).toBeInViewport({ ratio: 1 });
+    await waitForActionLayout(dialog.element());
+    expect(dialog.element().contains(document.activeElement)).toBe(true);
+    expect(diagnosticRegion.scrollWidth).toBeLessThanOrEqual(diagnosticRegion.clientWidth + 1);
     await expect
       .poll(() => ({
         documentScrollTopStable: Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand) <= 1,
         hasInternalOverflow: diagnosticRegion.scrollHeight > diagnosticRegion.clientHeight + 1,
-        usesInternalScrolling: ["auto", "scroll"].includes(
-          getComputedStyle(diagnosticRegion).overflowY,
-        ),
       }))
       .toEqual({
         documentScrollTopStable: true,
         hasInternalOverflow: true,
-        usesInternalScrolling: true,
       });
-    diagnosticRegion.scrollTo({ top: diagnosticRegion.scrollHeight });
-    await expect.poll(() => diagnosticRegion.scrollTop).toBeGreaterThan(0);
+    const lastDiagnosticLineVisible = () => {
+      const walker = document.createTreeWalker(diagnosticRegion, NodeFilter.SHOW_TEXT);
+      const text = "Raw continuation diagnostic line 100 with enough detail to wrap.";
+      let node = walker.nextNode();
+      while (node != null) {
+        const offset = node.textContent?.indexOf(text) ?? -1;
+        if (offset >= 0) {
+          const range = document.createRange();
+          range.setStart(node, offset);
+          range.setEnd(node, offset + text.length);
+          const regionBounds = diagnosticRegion.getBoundingClientRect();
+          return Array.from(range.getClientRects()).every(
+            (bounds) => bounds.top >= regionBounds.top && bounds.bottom <= regionBounds.bottom,
+          );
+        }
+        node = walker.nextNode();
+      }
+      return false;
+    };
+    while (!lastDiagnosticLineVisible()) {
+      const before = diagnosticRegion.scrollTop;
+      await userEvent.wheel(diagnosticRegion, { delta: { y: diagnosticRegion.clientHeight } });
+      await expect
+        .poll(() => ({
+          diagnosticScrolled: diagnosticRegion.scrollTop > before,
+          documentStayedStill: Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand) <= 1,
+        }))
+        .toEqual({ diagnosticScrolled: true, documentStayedStill: true });
+      await expect
+        .poll(async () => {
+          const scrollTop = diagnosticRegion.scrollTop;
+          await new Promise<void>((resolve) =>
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                resolve();
+              }),
+            ),
+          );
+          return diagnosticRegion.scrollTop === scrollTop;
+        })
+        .toBe(true);
+    }
+    expect(lastDiagnosticLineVisible()).toBe(true);
+    await userEvent.wheel(diagnosticRegion, { delta: { y: diagnosticRegion.scrollHeight } });
+    await expect
+      .poll(
+        () =>
+          diagnosticRegion.scrollHeight -
+          diagnosticRegion.clientHeight -
+          diagnosticRegion.scrollTop,
+      )
+      .toBeLessThanOrEqual(1);
+    const scrollTopAtEnd = diagnosticRegion.scrollTop;
+    await userEvent.wheel(diagnosticRegion, { delta: { y: diagnosticRegion.clientHeight } });
+    await waitForActionLayout(dialog.element());
+    expect(diagnosticRegion.scrollTop).toBe(scrollTopAtEnd);
     expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
+    await dialog.getByRole("button", { name: "Close diagnostics" }).click();
+    await expect.element(dialog).not.toBeInTheDocument();
     await expect.element(disclosure).toHaveFocus();
+    expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
+
+    await expect.element(disclosure).toBeInViewport({ ratio: 1 });
+    await userEvent.wheel(disclosure, { delta: { y: 180 } });
+    await expect.poll(() => documentScroller.scrollTop).toBeGreaterThan(scrollTopBeforeExpand);
+
+    await waitForActionLayout(actionPanel);
+    const lastMessage = screen.getByRole("link", { name: "Last history message" });
+    lastMessage.element().focus();
+    window.scrollTo({ top: documentScroller.scrollHeight });
+    await expect.element(lastMessage).toHaveFocus();
+    await expect.element(lastMessage).toBeInViewport({ ratio: 1 });
+    await expect
+      .poll(
+        () =>
+          actionPanel.getBoundingClientRect().top -
+          lastMessage.element().getBoundingClientRect().bottom,
+      )
+      .toBeGreaterThanOrEqual(0);
+    const lastBounds = lastMessage.element().getBoundingClientRect();
+    expect(
+      lastMessage
+        .element()
+        .contains(
+          document.elementFromPoint(lastBounds.left + 1, lastBounds.top + lastBounds.height / 2),
+        ),
+    ).toBe(true);
+    expect(documentScroller.scrollWidth).toBeLessThanOrEqual(documentScroller.clientWidth + 1);
   } finally {
     window.scrollTo({ top: originalScrollTop });
     await page.viewport(originalViewport.width, originalViewport.height);
   }
+});
+
+test("releases the diagnostic modal scroll lock when the history detail unmounts", async () => {
+  const historyText = Array.from(
+    { length: 80 },
+    (_, index) => `Unmount history line ${String(index + 1)}`,
+  ).join("\n");
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi.fn<GuiHostCommands["readThread"]>().mockResolvedValue({
+      thread: historyThread([
+        baseTurn("unmount-history-turn", [
+          userMessage("unmount-history-user", [textInput(historyText)]),
+        ]),
+      ]),
+    }),
+  };
+  const { screen } = await renderDetail({
+    commands,
+    activate: {
+      type: "unavailable",
+      failure: {
+        type: "operationFailed",
+        phase: "resume",
+        error: new Error("Diagnostic retained until unmount"),
+        cleanupError: null,
+      },
+    },
+  });
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+  await screen.getByRole("button", { name: "View diagnostic information" }).click();
+  const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
+  await expect.element(dialog).toBeVisible();
+
+  await screen.unmount();
+
+  await expect.element(dialog).not.toBeInTheDocument();
+  const next = await renderDetail({ commands });
+  const action = next.screen.getByRole("button", { name: "Continue this task" });
+  await expect.element(action).toBeInViewport({ ratio: 1 });
+  window.scrollTo({ top: 0 });
+  await expect.poll(() => window.scrollY).toBe(0);
+  const scrollTopBeforeWheel = window.scrollY;
+  await expect
+    .poll(() => document.documentElement.scrollHeight - window.innerHeight - window.scrollY)
+    .toBeGreaterThan(180);
+  await userEvent.wheel(action, { delta: { y: 180 } });
+  await expect.poll(() => window.scrollY).toBeGreaterThan(scrollTopBeforeWheel);
 });
 
 test.each([
@@ -604,7 +779,7 @@ test("renders a synchronous activation exception as an unexpected failure", asyn
   const summary = "An unexpected error occurred while continuing the task.";
   await expect.element(alert.getByText(summary, { exact: true })).toBeVisible();
   await expect.element(action).toHaveAccessibleDescription(summary);
-  const diagnostic = alert.getByText("Diagnostic:", { exact: false });
+  const diagnostic = page.getByText("Diagnostic:", { exact: false });
   await expect.element(diagnostic).not.toBeInTheDocument();
   const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
   await expect.element(disclosure).toBeVisible();

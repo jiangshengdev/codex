@@ -18,6 +18,7 @@ import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesCont
 import { AppShell } from "@/features/appShell/AppShell";
 import { CURRENT_TASK_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import { DocumentTitleOwner } from "@/features/documentTitle/DocumentTitleOwner";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ThreadHistoryDetailPage } from "../ThreadHistoryDetailPage";
 
@@ -129,6 +130,7 @@ export const renderDetail = async ({
     component: Origin,
   });
   const router = createRouter({
+    InnerWrap: DocumentTitleOwner,
     history: createMemoryHistory({ initialEntries }),
     routeTree: rootRoute.addChildren([
       appRoute.addChildren([currentTaskRoute, historyRoute, detailRoute]),

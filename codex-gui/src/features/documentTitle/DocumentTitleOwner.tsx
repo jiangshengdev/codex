@@ -12,6 +12,7 @@ import { useAppSelector } from "@/app/hooks";
 import { selectGuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import { formatDocumentTitle, formatTaskDocumentTitle } from "./documentTitle";
+import { HistoryDetailTitleContext } from "./historyDetailTitleContext";
 
 type HistoryDetailDocumentTitleFact = Readonly<{
   registration: symbol;
@@ -44,6 +45,11 @@ export function DocumentTitleOwner({ children }: PropsWithChildren) {
   const historyLabel = t`History`;
   const historyDetailLabel = t`History detail`;
   const notFoundLabel = t`Page not found`;
+  const historyDetailTitle =
+    routeTarget?.type === "historyDetail"
+      ? (historyDetailFacts.findLast((fact) => fact.threadId === routeTarget.threadId)?.title ??
+        null)
+      : null;
   let title: string;
 
   switch (routeTarget?.type) {
@@ -61,9 +67,7 @@ export function DocumentTitleOwner({ children }: PropsWithChildren) {
       title = formatDocumentTitle(historyLabel);
       break;
     case "historyDetail":
-      title =
-        historyDetailFacts.findLast((fact) => fact.threadId === routeTarget.threadId)?.title ??
-        formatDocumentTitle(historyDetailLabel);
+      title = formatDocumentTitle(historyDetailTitle ?? historyDetailLabel);
       break;
     default:
       title = formatDocumentTitle(notFoundLabel);
@@ -75,7 +79,7 @@ export function DocumentTitleOwner({ children }: PropsWithChildren) {
 
   return (
     <HistoryDetailDocumentTitleContext value={registerHistoryDetailFact}>
-      {children}
+      <HistoryDetailTitleContext value={historyDetailTitle}>{children}</HistoryDetailTitleContext>
     </HistoryDetailDocumentTitleContext>
   );
 }

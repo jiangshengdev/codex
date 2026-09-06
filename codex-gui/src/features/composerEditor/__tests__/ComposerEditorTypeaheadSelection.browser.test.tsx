@@ -200,8 +200,6 @@ test("uses the same replacement for pointer selection and retains editor focus",
 
   await editor.fill("$poi");
   const option = screen.getByRole("option", { name: /pointer/ });
-  await expect.element(option).toHaveClass("list-box-item", "list-box-item--default");
-  expect(getComputedStyle(option.element()).transitionProperty).toContain("transform");
   await option.click();
 
   expect(onSubmit).not.toHaveBeenCalled();

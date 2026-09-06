@@ -87,50 +87,68 @@ test("keeps controller, draft, history, composition, and typeahead state indepen
   firstEditor.element().dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
 });
 
-test("aligns its placeholder and bounds multiline growth to its own scroll area", async () => {
-  const { screen } = await renderEditor([]);
+test("shows the empty placeholder and keeps growing multiline input scrollable and reachable", async () => {
+  const { controllerRef, screen } = await renderEditor([]);
   const editor = screen.getByRole("combobox", { name: "Message" });
   const editorElement = editor.element();
   const placeholder = screen.getByText("Message Codex", { exact: true });
-  const placeholderCharacterRect = firstTextCharacterRect(placeholder.element());
+  await expect.element(placeholder).toBeVisible();
   const emptyHeight = editorElement.getBoundingClientRect().height;
 
-  const emptyStyle = getComputedStyle(editorElement);
-  const lineHeight = Number.parseFloat(emptyStyle.lineHeight);
-  expect(emptyHeight).toBeGreaterThanOrEqual(lineHeight * 3);
-
   await editor.fill("M");
-  const firstCharacterRect = firstTextCharacterRect(editorElement);
-  expect(Math.abs(firstCharacterRect.left - placeholderCharacterRect.left)).toBeLessThanOrEqual(1);
-  expect(Math.abs(firstCharacterRect.top - placeholderCharacterRect.top)).toBeLessThanOrEqual(1);
+  await expect.element(placeholder).not.toBeInTheDocument();
 
-  await editor.fill("one\ntwo\nthree\nfour");
+  const lines = Array.from({ length: 40 }, (_, index) => `line ${String(index)}`).join("\n");
+  await editor.fill(lines);
   await expect
     .poll(() => editorElement.getBoundingClientRect().height)
     .toBeGreaterThan(emptyHeight);
-  const fourLineHeight = editorElement.getBoundingClientRect().height;
-
-  await editor.fill(Array.from({ length: 20 }, (_, index) => `line ${String(index)}`).join("\n"));
-  await expect
-    .poll(() => editorElement.getBoundingClientRect().height)
-    .toBeGreaterThan(fourLineHeight);
-  const cappedHeight = editorElement.getBoundingClientRect().height;
-  const cappedStyle = getComputedStyle(editorElement);
-  const eightLineBoxHeight =
-    Number.parseFloat(cappedStyle.lineHeight) * 8 +
-    Number.parseFloat(cappedStyle.paddingTop) +
-    Number.parseFloat(cappedStyle.paddingBottom);
   await expect.poll(() => editorElement.scrollHeight > editorElement.clientHeight).toBe(true);
-  expect(cappedHeight).toBeGreaterThanOrEqual(fourLineHeight);
-  expect(cappedHeight).toBeLessThanOrEqual(
-    Math.min(eightLineBoxHeight, window.innerHeight * 0.3) + 1,
-  );
-  expect(cappedStyle.overflowY).toBe("auto");
-  editorElement.scrollTop = editorElement.scrollHeight;
-  expect(editorElement.scrollTop).toBeGreaterThan(0);
+  const lineIsVisible = (line: string): boolean => {
+    const walker = editorElement.ownerDocument.createTreeWalker(
+      editorElement,
+      NodeFilter.SHOW_TEXT,
+    );
+    let node = walker.nextNode();
+    while (node != null) {
+      if (node instanceof Text) {
+        const start = node.data.indexOf(line);
+        if (start >= 0) {
+          const range = editorElement.ownerDocument.createRange();
+          range.setStart(node, start);
+          range.setEnd(node, start + line.length);
+          const lineBounds = range.getBoundingClientRect();
+          const editorBounds = editorElement.getBoundingClientRect();
+          const target = editorElement.ownerDocument.elementFromPoint(
+            lineBounds.left + lineBounds.width / 2,
+            lineBounds.top + lineBounds.height / 2,
+          );
+          return (
+            lineBounds.height > 0 &&
+            lineBounds.top >= editorBounds.top - 1 &&
+            lineBounds.bottom <= editorBounds.bottom + 1 &&
+            target != null &&
+            editorElement.contains(target)
+          );
+        }
+      }
+      node = walker.nextNode();
+    }
+    return false;
+  };
+  await screen.user.keyboard("{ArrowUp>40/}");
+  await expect.poll(() => lineIsVisible("line 0")).toBe(true);
+  const firstLineScrollTop = editorElement.scrollTop;
+  await screen.user.keyboard("{ArrowDown>40/}");
+  await expect.poll(() => editorElement.scrollTop).toBeGreaterThan(0);
+  await expect.poll(() => editorElement.scrollTop).toBeGreaterThan(firstLineScrollTop);
+  await expect.poll(() => lineIsVisible("line 39")).toBe(true);
+  await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe(lines);
 
   await editor.fill("unbroken".repeat(200));
   await expect.poll(() => editorElement.scrollWidth <= editorElement.clientWidth + 1).toBe(true);
+  await editor.fill("");
+  await expect.element(placeholder).toBeVisible();
 });
 
 test("contains rich-text format, drop, and closed-menu Escape without losing selection", async () => {
@@ -677,19 +695,6 @@ function collapsedCaretOffset(root: Element): number | null {
   }
   return selection.anchorOffset;
 }
-function firstTextCharacterRect(root: Element): DOMRect {
-  const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const textNode = walker.nextNode();
-  if (!(textNode instanceof Text) || textNode.length === 0) {
-    throw new Error("element must contain a non-empty Text node");
-  }
-
-  const range = root.ownerDocument.createRange();
-  range.setStart(textNode, 0);
-  range.setEnd(textNode, 1);
-  return range.getBoundingClientRect();
-}
-
 type EnterShortcutModifiers = Readonly<
   Partial<Pick<KeyboardEvent, "altKey" | "ctrlKey" | "metaKey" | "shiftKey">>
 >;

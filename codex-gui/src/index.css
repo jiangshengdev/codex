@@ -18,7 +18,25 @@
   margin-inline: auto;
   width: 100%;
   max-width: var(--app-shell-content-max-width);
-  padding-inline: calc(var(--spacing) * 4);
+  padding-inline: var(--app-shell-content-gutter);
+}
+
+.task-reading-boundary {
+  margin-inline: auto;
+  width: calc(100% - var(--app-shell-content-gutter) * 2);
+  max-width: calc(var(--container-3xl) - var(--app-shell-content-gutter) * 2);
+}
+
+.task-bottom-shell {
+  padding-bottom: calc(var(--spacing) * 3);
+}
+
+@layer components {
+  .task-bottom-panel {
+    @apply rounded-3xl border bg-field p-2 text-field-foreground shadow-field;
+    border-color: var(--field-border);
+    border-width: var(--border-width-field);
+  }
 }
 
 .committed-transcript-entry-markdown p {
@@ -30,6 +48,7 @@
 }
 
 :root {
+  --app-shell-content-gutter: calc(var(--spacing) * 4);
   background-color: var(--background);
   color: var(--foreground);
   font-variant-numeric: tabular-nums;

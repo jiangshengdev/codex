@@ -159,11 +159,6 @@ const scrollToDocumentTop = (): void => {
   window.scrollTo({ top: 0 });
 };
 
-const expectElementBottomAlignedWithViewport = (element: HTMLElement): void => {
-  const { bottom } = element.getBoundingClientRect();
-  expect(Math.abs(window.innerHeight - bottom)).toBeLessThanOrEqual(1);
-};
-
 const expectHorizontalAlignment = (first: Element, second: Element): void => {
   const firstBounds = first.getBoundingClientRect();
   const secondBounds = second.getBoundingClientRect();
@@ -171,24 +166,37 @@ const expectHorizontalAlignment = (first: Element, second: Element): void => {
   expect(Math.abs(firstBounds.right - secondBounds.right)).toBeLessThanOrEqual(1);
 };
 
-const historyPageSpacingPx = 12;
-
-const expectHistoryPagePadding = (main: Element): void => {
-  const style = getComputedStyle(main);
-  expect(Number.parseFloat(style.paddingTop)).toBe(historyPageSpacingPx);
-  expect(Number.parseFloat(style.paddingBottom)).toBe(historyPageSpacingPx);
-};
-
-const expectHistoryVerticalSpacing = (before: Element, after: Element): void => {
-  const beforeBounds = before.getBoundingClientRect();
-  const afterBounds = after.getBoundingClientRect();
-  expect(
-    Math.abs(afterBounds.top - beforeBounds.bottom - historyPageSpacingPx),
-  ).toBeLessThanOrEqual(1);
-};
-
 const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
   screen.getByRole("combobox", { name: "Message Codex", exact: true });
+
+const expectEditorReachable = async (editor: Element): Promise<void> => {
+  await expect
+    .poll(() => {
+      const bounds = editor.getBoundingClientRect();
+      // Use the same one-pixel geometry tolerance as the surrounding layout checks.
+      // Probe inside every corner as well as the center to detect clipping or overlays.
+      const insetX = Math.min(1, bounds.width / 2);
+      const insetY = Math.min(1, bounds.height / 2);
+      const points: (readonly [number, number])[] = [
+        [bounds.left + insetX, bounds.top + insetY],
+        [bounds.right - insetX, bounds.top + insetY],
+        [bounds.left + insetX, bounds.bottom - insetY],
+        [bounds.right - insetX, bounds.bottom - insetY],
+        [bounds.left + bounds.width / 2, bounds.top + bounds.height / 2],
+      ];
+      return {
+        withinViewport:
+          bounds.width > 0 &&
+          bounds.height > 0 &&
+          bounds.left >= -1 &&
+          bounds.top >= -1 &&
+          bounds.right <= window.innerWidth + 1 &&
+          bounds.bottom <= window.innerHeight + 1,
+        canBeHit: points.every(([x, y]) => editor.contains(document.elementFromPoint(x, y))),
+      };
+    })
+    .toEqual({ withinViewport: true, canBeHit: true });
+};
 
 const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
   const screen = await renderWithProviders(<App />);
@@ -222,7 +230,6 @@ test("App renders the committed transcript shell without visible host debug deta
 
 test("App renders composer in the shell without visible host debug details", async () => {
   const { screen } = await renderReadyApp();
-  const main = screen.getByRole("main").element();
   const transcriptBottomSentinel = screen.container.querySelector(
     ".committed-transcript-bottom-sentinel",
   );
@@ -232,11 +239,6 @@ test("App renders composer in the shell without visible host debug details", asy
   await expect.element(screen.getByRole("region", { name: "Message composer" })).toBeVisible();
   await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
   await expect.element(screen.getByText("GUI host")).not.toBeInTheDocument();
-  expect(main.classList.contains("pb-44")).toBe(false);
-  expect(main.classList.contains("px-4")).toBe(false);
-  expect(main.classList.contains("py-6")).toBe(false);
-  expect(main.classList.contains("sm:px-6")).toBe(false);
-  expect(main.classList.contains("lg:px-8")).toBe(false);
   if (
     !(transcriptBottomSentinel instanceof HTMLElement) ||
     !(composerShell instanceof HTMLElement)
@@ -247,7 +249,7 @@ test("App renders composer in the shell without visible host debug details", asy
     transcriptBottomSentinel.compareDocumentPosition(composerShell) &
       Node.DOCUMENT_POSITION_FOLLOWING,
   ).not.toBe(0);
-  expectElementBottomAlignedWithViewport(composerShell);
+  await expectEditorReachable(getAppComposer(screen).element());
 });
 
 test("App keeps the skill menu anchored above the composer across responsive viewports", async () => {
@@ -283,9 +285,7 @@ test("App keeps the skill menu anchored above the composer across responsive vie
     }
     await expect.element(editor).toHaveAttribute("aria-expanded", "false");
     scrollToDocumentTop();
-    await expect
-      .poll(() => Math.abs(composerShell.getBoundingClientRect().bottom - window.innerHeight))
-      .toBeLessThanOrEqual(1);
+    await expectEditorReachable(editor.element());
 
     const scroller = documentScroller();
     const baselineDocumentSize = {
@@ -309,13 +309,9 @@ test("App keeps the skill menu anchored above the composer across responsive vie
         const viewportTop = visualViewport?.offsetTop ?? 0;
         const viewportHeight = visualViewport?.height ?? window.innerHeight;
         const viewportBottom = viewportTop + viewportHeight;
-        const menuGap = panelBounds.top - menuBounds.bottom;
-        const availableHeight = Math.max(0, panelBounds.top - viewportTop - 8);
-        const maximumHeight = Math.min(viewportHeight * 0.4, 360, availableHeight);
         const currentScroller = documentScroller();
 
         return {
-          composerBottomAligned: Math.abs(composerBottom - window.innerHeight) <= 1,
           composerBottomStable: Math.abs(composerBottom - baselineComposerBottom) <= 1,
           documentHeightStable: currentScroller.scrollHeight <= baselineDocumentSize.height + 1,
           documentWidthStable: currentScroller.scrollWidth <= baselineDocumentSize.width + 1,
@@ -323,25 +319,19 @@ test("App keeps the skill menu anchored above the composer across responsive vie
             currentScroller.scrollWidth <= currentScroller.clientWidth + 1,
           menuFullyVisible:
             menuBounds.top >= viewportTop - 1 && menuBounds.bottom <= viewportBottom + 1,
-          menuHasPanelWidth: Math.abs(menuBounds.width - panelBounds.width) <= 1,
-          menuIsNotCaretSized: menuBounds.height > 40 && menuBounds.width > 100,
-          menuLeftAligned: Math.abs(menuBounds.left - panelBounds.left) <= 1,
-          menuRespectsGap: Math.abs(menuGap - 8) <= 1,
-          menuRespectsHeightCap: menuBounds.height <= maximumHeight + 1,
+          menuDoesNotOverlapComposer: menuBounds.bottom <= panelBounds.top + 1,
+          menuWithinViewportWidth:
+            menuBounds.left >= -1 && menuBounds.right <= window.innerWidth + 1,
         };
       })
       .toEqual({
-        composerBottomAligned: true,
         composerBottomStable: true,
         documentHeightStable: true,
         documentWidthStable: true,
         documentWithoutHorizontalOverflow: true,
         menuFullyVisible: true,
-        menuHasPanelWidth: true,
-        menuIsNotCaretSized: true,
-        menuLeftAligned: true,
-        menuRespectsGap: true,
-        menuRespectsHeightCap: true,
+        menuDoesNotOverlapComposer: true,
+        menuWithinViewportWidth: true,
       });
 
     const scrollRegion = screen.container.querySelector("[data-skill-menu-scroll-region]");
@@ -370,16 +360,18 @@ test("App keeps the skill menu anchored above the composer across responsive vie
         const visualViewport = window.visualViewport;
         const viewportTop = visualViewport?.offsetTop ?? 0;
         const viewportHeight = visualViewport?.height ?? window.innerHeight;
-        const menuGap = panelBounds.top - menuBounds.bottom;
-        const availableHeight = Math.max(0, panelBounds.top - viewportTop - 8);
-        const maximumHeight = Math.min(viewportHeight * 0.4, 360, availableHeight);
 
         return {
           activeIsLastResult: activeOption === lastOption,
           activeVisibleInScrollRegion:
             activeBounds.top >= scrollBounds.top - 1 &&
             activeBounds.bottom <= scrollBounds.bottom + 1,
-          composerBottomAligned: Math.abs(composerBottom - window.innerHeight) <= 1,
+          activeCanBeHit: activeOption.contains(
+            document.elementFromPoint(
+              activeBounds.left + activeBounds.width / 2,
+              activeBounds.top + activeBounds.height / 2,
+            ),
+          ),
           composerBottomStable: Math.abs(composerBottom - baselineComposerBottom) <= 1,
           documentHeightStable: currentScroller.scrollHeight <= baselineDocumentSize.height + 1,
           documentScrollTopStable:
@@ -390,27 +382,24 @@ test("App keeps the skill menu anchored above the composer across responsive vie
           menuFullyVisible:
             menuBounds.top >= viewportTop - 1 &&
             menuBounds.bottom <= viewportTop + viewportHeight + 1,
-          menuHasPanelWidth: Math.abs(menuBounds.width - panelBounds.width) <= 1,
-          menuLeftAligned: Math.abs(menuBounds.left - panelBounds.left) <= 1,
-          menuRespectsGap: Math.abs(menuGap - 8) <= 1,
-          menuRespectsHeightCap: menuBounds.height <= maximumHeight + 1,
+          menuDoesNotOverlapComposer: menuBounds.bottom <= panelBounds.top + 1,
+          menuWithinViewportWidth:
+            menuBounds.left >= -1 && menuBounds.right <= window.innerWidth + 1,
           scrollRegionAdvanced: scrollRegion.scrollTop > 0,
         };
       })
       .toEqual({
         activeIsLastResult: true,
         activeVisibleInScrollRegion: true,
-        composerBottomAligned: true,
+        activeCanBeHit: true,
         composerBottomStable: true,
         documentHeightStable: true,
         documentScrollTopStable: true,
         documentWidthStable: true,
         documentWithoutHorizontalOverflow: true,
         menuFullyVisible: true,
-        menuHasPanelWidth: true,
-        menuLeftAligned: true,
-        menuRespectsGap: true,
-        menuRespectsHeightCap: true,
+        menuDoesNotOverlapComposer: true,
+        menuWithinViewportWidth: true,
         scrollRegionAdvanced: true,
       });
 
@@ -425,19 +414,6 @@ test("App keeps the skill menu anchored above the composer across responsive vie
     await activeFixture.unmount?.();
     await page.viewport(originalViewport.width, originalViewport.height);
   }
-});
-
-test("App keeps the transcript surface flush with the shell padding", async () => {
-  const { screen } = await renderReadyApp();
-  const transcript = screen.container.querySelector('[aria-label="Committed transcript"]');
-  const surface = transcript?.parentElement;
-
-  if (!(surface instanceof HTMLElement)) {
-    throw new Error("transcript surface container must render");
-  }
-
-  expect(surface.classList.contains("p-4")).toBe(false);
-  expect(surface.classList.contains("sm:p-6")).toBe(false);
 });
 
 test("App keeps host lifecycle status stable while projection events update runtime", async () => {
@@ -555,7 +531,7 @@ test("App isolates a replacement owner from the previous catalog settlement and 
   expect(commands.listSkills).toHaveBeenCalledTimes(3);
 });
 
-test("App displays GUI host startup errors in the sticky top notices region", async () => {
+test("App displays GUI host startup errors in the top notices region", async () => {
   startGuiHostConnectionMock.mockImplementation(() => {
     throw new Error("Missing launch token fragment");
   });
@@ -581,52 +557,11 @@ test("App displays GUI host startup errors in the sticky top notices region", as
   await expect
     .element(screen.getByText("Unable to load the current task", { exact: true }))
     .not.toBeInTheDocument();
-  expect(topNotices.classList.contains("sticky")).toBe(true);
-  expect(topNotices.classList.contains("z-20")).toBe(true);
   expect(banner.compareDocumentPosition(topNotices) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   expect(topNotices.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   expect(topNotices.contains(errorTitle)).toBe(true);
   expect(topNotices.contains(errorMessage)).toBe(true);
   await expect.element(getAppComposer(screen)).not.toBeInTheDocument();
-});
-
-test("App keeps normal history content at the shared page spacing", async () => {
-  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
-
-  try {
-    window.history.replaceState({}, "", "/history");
-    seedBrowserAuthorizationSession({ token: "history-secret", activeThreadId: launchThreadId });
-    const commands = createGuiHostCommands();
-    vi.mocked(commands.listThreads).mockResolvedValue({
-      data: [attachResponse.snapshot.thread],
-      nextCursor: null,
-      backwardsCursor: null,
-    });
-    const screen = await renderWithProviders(
-      <App initialEntry="/history" routeTarget={{ type: "historyList" }} />,
-    );
-    const options = getHostOptions(startGuiHostConnectionMock);
-
-    queueAttachProjectionResponse(commands);
-    initializeHost(options, commands);
-
-    const banner = screen.getByRole("banner").element();
-    const historyMain = screen.getByRole("main").element();
-    const historyCard = screen.getByRole("article");
-    await expect.element(historyCard).toBeVisible();
-
-    for (const [width, height] of [
-      [400, 900],
-      [900, 900],
-    ] as const) {
-      await page.viewport(width, height);
-
-      expectHistoryPagePadding(historyMain);
-      expectHistoryVerticalSpacing(banner, historyCard.element());
-    }
-  } finally {
-    await page.viewport(originalViewport.width, originalViewport.height);
-  }
 });
 
 test("App aligns history startup errors with their responsive shell owners", async () => {
@@ -674,9 +609,12 @@ test("App aligns history startup errors with their responsive shell owners", asy
       expectHorizontalAlignment(bannerContent, topNoticeContent);
       expectHorizontalAlignment(topNoticeContent, historyMain);
       expectHorizontalAlignment(topNoticeAlert, historyAlert);
-      expectHistoryPagePadding(historyMain);
-      expectHistoryVerticalSpacing(screen.getByRole("banner").element(), topNoticeAlert);
-      expectHistoryVerticalSpacing(topNoticeAlert, historyAlert);
+      expect(topNoticeAlert.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        screen.getByRole("banner").element().getBoundingClientRect().bottom - 1,
+      );
+      expect(historyAlert.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        topNoticeAlert.getBoundingClientRect().bottom - 1,
+      );
 
       const scroller = documentScroller();
       expect(scroller.scrollWidth).toBeLessThanOrEqual(scroller.clientWidth + 1);

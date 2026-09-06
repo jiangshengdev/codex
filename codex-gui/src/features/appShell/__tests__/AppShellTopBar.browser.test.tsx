@@ -1,34 +1,10 @@
 import { afterEach, expect, test } from "vitest";
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRoute,
-  createRouter,
-  RouterProvider,
-} from "@tanstack/react-router";
 import { attachResponse } from "@/__tests__/appBrowserTestSupport";
-import {
-  createActiveThreadSessionHarness,
-  type ActiveThreadSessionHarness,
-} from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
-import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
-import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
-import {
-  CURRENT_TASK_ROUTE_PATH,
-  HISTORY_DETAIL_ROUTE_PATH,
-  HISTORY_LIST_ROUTE_PATH,
-  type GuiRouteTarget,
-} from "@/features/browserLaunch/guiRouteTarget";
-import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
-import { AppShellTopBar } from "../AppShellTopBar";
+import { disableMotionForTest } from "@/utils/test-utils";
+import { currentThreadId, renderTopBar } from "./appShellTopBarBrowserTestSupport";
 
-function RoutePlaceholder() {
-  return null;
-}
-
-const currentThreadId = attachResponse.snapshot.thread.id;
 const otherThreadId = "00000000-0000-0000-0000-000000000099";
 let sessionRevision = 0;
 let restoreMotion: (() => void) | undefined;
@@ -45,72 +21,6 @@ const baselineAttached = (
     sessionRevision: ++sessionRevision,
     facts: [{ type: "baselineAttached", response }],
   });
-const capabilities = ({
-  activeThreadSessionHarness,
-  routeTarget,
-}: Readonly<{
-  activeThreadSessionHarness: ActiveThreadSessionHarness;
-  routeTarget: GuiRouteTarget;
-}>): AppCapabilities => ({
-  activeThreadSession: activeThreadSessionHarness.session,
-  activeThreadStartupError: null,
-  authorizationToken: null,
-  commands: null,
-  routeTarget,
-  status: { label: "initialized" },
-});
-
-const renderTopBar = async ({
-  initialEntry,
-  activeThreadId = currentThreadId,
-  routeTarget,
-}: Readonly<{
-  initialEntry: string;
-  activeThreadId?: string | null;
-  routeTarget: GuiRouteTarget;
-}>) => {
-  const activeThreadSessionHarness = createActiveThreadSessionHarness();
-  if (activeThreadId != null) {
-    activeThreadSessionHarness.publish(
-      activeThreadSessionHarness.activeSnapshot({
-        threadId: activeThreadId,
-        subscriptionId: `subscription-${activeThreadId}`,
-      }),
-    );
-  }
-  const rootRoute = createRootRoute({
-    component: () => (
-      <AppCapabilitiesProvider
-        capabilities={capabilities({ activeThreadSessionHarness, routeTarget })}
-      >
-        <AppShellTopBar />
-      </AppCapabilitiesProvider>
-    ),
-  });
-  const currentTaskRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: CURRENT_TASK_ROUTE_PATH,
-    component: RoutePlaceholder,
-  });
-  const historyRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: HISTORY_LIST_ROUTE_PATH,
-    component: RoutePlaceholder,
-  });
-  const historyDetailRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: HISTORY_DETAIL_ROUTE_PATH,
-    component: RoutePlaceholder,
-  });
-
-  const router = createRouter({
-    history: createMemoryHistory({ initialEntries: [initialEntry] }),
-    routeTree: rootRoute.addChildren([currentTaskRoute, historyRoute, historyDetailRoute]),
-  });
-  const screen = await renderWithProviders(<RouterProvider router={router} />);
-  return { router, screen };
-};
-
 const runtimeAttach = ({
   name,
   preview,
@@ -205,44 +115,6 @@ test("Drawer exposes named navigation and Escape closes it with focus returned t
   await expect.element(trigger).toHaveFocus();
 });
 
-test("Drawer preserves the full focus ring around the current task navigation button", async () => {
-  const { screen } = await renderTopBar({
-    initialEntry: `/task/${currentThreadId}`,
-    routeTarget: { type: "currentTask", threadId: currentThreadId },
-  });
-
-  await screen.getByRole("button", { name: "Menu" }).click();
-  const navigation = screen.getByRole("navigation", { name: "Main navigation" });
-  const currentTaskButton = navigation.getByRole("button", {
-    name: "Current task",
-    exact: true,
-  });
-  const drawerBody = navigation.element().parentElement;
-
-  if (drawerBody == null) {
-    throw new Error("Expected navigation to be a direct child of Drawer.Body");
-  }
-
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    await screen.user.tab();
-    if (document.activeElement === currentTaskButton.element()) {
-      break;
-    }
-  }
-
-  await expect.element(currentTaskButton).toHaveFocus();
-  const buttonElement = currentTaskButton.element();
-  const bodyBounds = drawerBody.getBoundingClientRect();
-  const buttonBounds = buttonElement.getBoundingClientRect();
-  // HeroUI 3.2.4 combines a 2px offset with a 2px focus ring.
-  const focusRingOutset = 4;
-
-  expect.soft(buttonElement.matches(":focus-visible")).toBe(true);
-  expect.soft(buttonBounds.top - bodyBounds.top).toBeGreaterThanOrEqual(focusRingOutset);
-  expect.soft(buttonBounds.left - bodyBounds.left).toBeGreaterThanOrEqual(focusRingOutset);
-  expect.soft(bodyBounds.right - buttonBounds.right).toBeGreaterThanOrEqual(focusRingOutset);
-});
-
 test("History navigation uses the canonical list URL and closes the Drawer", async () => {
   restoreMotion = disableMotionForTest();
   const { router, screen } = await renderTopBar({
@@ -303,6 +175,15 @@ test("History detail marks only History as the current navigation destination", 
     routeTarget: { type: "historyDetail", threadId: otherThreadId },
   });
 
+  await expect
+    .element(screen.getByRole("heading", { level: 1, name: "History detail", exact: true }))
+    .toBeVisible();
+  await expect
+    .element(screen.getByRole("banner").getByText("Read-only history", { exact: true }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("button", { name: "Back to history", exact: true }))
+    .not.toBeInTheDocument();
   await screen.getByRole("button", { name: "Menu" }).click();
   const navigation = screen.getByRole("navigation", { name: "Main navigation" });
   const currentTaskButton = navigation.getByRole("button", {

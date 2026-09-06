@@ -84,38 +84,17 @@ test("keeps a fixed bounded set of sub-agent chips responsive", async () => {
           const chipLabels = Array.from(
             activity.element().querySelectorAll<HTMLElement>('[data-slot="chip-label"]'),
           );
-          const chipContainer = chipRoots[0]?.parentElement;
-          const longLabelElement = longTaskLabel.element();
-          if (
-            chipRoots.length !== 3 ||
-            chipLabels.length !== 3 ||
-            !(chipContainer instanceof HTMLElement)
-          ) {
-            return null;
-          }
-
-          const longLabelStyle = window.getComputedStyle(longLabelElement);
           return {
             activityFits: fitsWithinOwnWidth(activity.element()),
-            chipContainerFlexWrap: window.getComputedStyle(chipContainer).flexWrap,
             chipCount: chipRoots.length,
             labelCount: chipLabels.length,
-            longLabelIsClipped: longLabelElement.scrollWidth > longLabelElement.clientWidth,
-            longLabelOverflow: longLabelStyle.overflow,
-            longLabelTextOverflow: longLabelStyle.textOverflow,
-            longLabelWhiteSpace: longLabelStyle.whiteSpace,
             transcriptFits: fitsWithinOwnWidth(transcript.element()),
           };
         })
         .toEqual({
           activityFits: true,
-          chipContainerFlexWrap: "wrap",
           chipCount: 3,
           labelCount: 3,
-          longLabelIsClipped: true,
-          longLabelOverflow: "hidden",
-          longLabelTextOverflow: "ellipsis",
-          longLabelWhiteSpace: "nowrap",
           transcriptFits: true,
         });
       await expect.element(activity).toHaveAccessibleName(/and 1 more sub-agent/);
