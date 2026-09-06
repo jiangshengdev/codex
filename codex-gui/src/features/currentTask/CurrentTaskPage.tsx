@@ -108,18 +108,18 @@ export function CurrentTaskPage() {
   const operationNotices = member?.operationErrors.map(({ operation, error }) => (
     <Alert key={operation} role="alert" status="danger">
       <Alert.Indicator />
-      <Alert.Content>
+      <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
         <Alert.Title>
           <Trans>Task action failed</Trans>
         </Alert.Title>
-        <Alert.Description>
+        <Alert.Description className="col-start-1">
           {operation === "navigation" ? (
             <Trans>The task could not be opened.</Trans>
           ) : (
             <Trans>The task could not be removed.</Trans>
           )}
         </Alert.Description>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
           <Button
             variant={operation === "remove" ? "danger" : "primary"}
             onPress={() => {
@@ -159,14 +159,14 @@ export function CurrentTaskPage() {
         {retryError != null ? (
           <Alert role="alert" status="danger">
             <Alert.Indicator />
-            <Alert.Content>
+            <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
               <Alert.Title>
                 <Trans>Unable to load the current task</Trans>
               </Alert.Title>
-              <Alert.Description>
+              <Alert.Description className="col-start-1">
                 <Trans>The current task could not be loaded.</Trans>
               </Alert.Description>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
                 {retryAction}
                 {retryError !== "" ? (
                   <FailureDiagnosticModal triggerClassName="">{retryError}</FailureDiagnosticModal>
@@ -214,14 +214,14 @@ export function CurrentTaskPage() {
         {snapshot.error != null || retryError != null ? (
           <Alert role="alert" status="danger">
             <Alert.Indicator />
-            <Alert.Content>
+            <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
               <Alert.Title>
                 <Trans>Unable to load the current task</Trans>
               </Alert.Title>
-              <Alert.Description>
+              <Alert.Description className="col-start-1">
                 <Trans>The current task could not be loaded.</Trans>
               </Alert.Description>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
                 {retryAction}
                 {(retryError ?? taskErrorText(snapshot.error)) !== "" ? (
                   <FailureDiagnosticModal triggerClassName="">
@@ -270,14 +270,14 @@ export function CurrentTaskPage() {
           {member?.error != null ? (
             <Alert role="alert" status="danger">
               <Alert.Indicator />
-              <Alert.Content>
+              <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <Alert.Title>
                   <Trans>Task action failed</Trans>
                 </Alert.Title>
-                <Alert.Description>
+                <Alert.Description className="col-start-1">
                   <Trans>The task action could not be completed.</Trans>
                 </Alert.Description>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
                   {retryError == null ? recoveryAction : null}
                   {taskErrorText(member.error) !== "" ? (
                     <FailureDiagnosticModal triggerClassName="">
@@ -293,14 +293,14 @@ export function CurrentTaskPage() {
             retryError != null ? (
               <Alert role="alert" status="danger">
                 <Alert.Indicator />
-                <Alert.Content>
+                <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
                   <Alert.Title>
                     <Trans>Unable to recover the current task</Trans>
                   </Alert.Title>
-                  <Alert.Description>
+                  <Alert.Description className="col-start-1">
                     <Trans>The task recovery could not be completed.</Trans>
                   </Alert.Description>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
                     {recoveryAction}
                     {retryError !== "" ? (
                       <FailureDiagnosticModal triggerClassName="">

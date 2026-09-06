@@ -220,6 +220,23 @@ test("aligns the saving retry and diagnostics actions in the wide layout", async
     expect(diagnostics.element().getBoundingClientRect().left).toBeGreaterThan(
       retry.element().getBoundingClientRect().right,
     );
+    const description = screen.getByText(
+      "Your input is still here. Sending is blocked until saving succeeds.",
+      { exact: true },
+    );
+    expect(retry.element().getBoundingClientRect().left).toBeGreaterThan(
+      description.element().getBoundingClientRect().right,
+    );
+    await page.viewport(375, 720);
+    await expect
+      .poll(
+        () =>
+          retry.element().getBoundingClientRect().top >=
+          description.element().getBoundingClientRect().bottom,
+      )
+      .toBe(true);
+    const alert = screen.getByRole("alert").element();
+    expect(alert.scrollWidth).toBeLessThanOrEqual(alert.clientWidth);
   } finally {
     await page.viewport(originalViewport.width, originalViewport.height);
   }

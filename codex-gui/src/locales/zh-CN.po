@@ -99,11 +99,11 @@ msgstr "管理员"
 msgid "Agent spawn failed"
 msgstr "启动智能体失败"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:45
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:46
 msgid "An unexpected error occurred while continuing the task."
 msgstr "继续此任务时发生意外错误。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:109
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:111
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
@@ -129,8 +129,8 @@ msgstr "无法保存更改"
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "继续前，请检查队列、其他打开的页面和会话历史。发送结果未知的消息仍会阻塞后续发送。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:202
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:228
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:211
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:239
 msgid "Cleanup diagnostic:"
 msgstr "清理诊断信息："
 
@@ -310,7 +310,7 @@ msgstr "删除这条待处理消息？"
 msgid "Diagnostic information"
 msgstr "诊断信息"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:49
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:52
 msgid "Diagnostic:"
 msgstr "诊断信息："
 
@@ -603,7 +603,7 @@ msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其
 msgid "Open current task"
 msgstr "打开当前任务"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:224
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:235
 msgid "Operation diagnostic:"
 msgstr "操作诊断信息："
 
@@ -724,7 +724,7 @@ msgstr "仓库"
 msgid "Request failed"
 msgstr "请求失败"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:95
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:97
 msgid "Resolve the task list error above, then try again."
 msgstr "请先处理上方的任务列表错误，然后重试。"
 
@@ -761,8 +761,8 @@ msgstr "重试保存"
 msgid "Retry saving this task's state before removing it."
 msgstr "请先重试保存此任务的状态，再将其移出列表。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:136
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:167
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:140
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:173
 msgid "Return to current task"
 msgstr "返回当前任务"
 
@@ -921,7 +921,7 @@ msgstr "连接恢复前无法查看任务历史。"
 msgid "Task opened"
 msgstr "任务已打开"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:182
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:189
 msgid "Task switched, but cannot be opened"
 msgstr "任务已切换，但当前无法打开"
 
@@ -930,7 +930,7 @@ msgstr "任务已切换，但当前无法打开"
 msgid "Tasks or the connection need attention."
 msgstr "任务或连接存在待处理的异常。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:188
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:195
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "连接在任务切换完成前中断。重新连接后请重试。"
 
@@ -939,7 +939,7 @@ msgstr "连接在任务切换完成前中断。重新连接后请重试。"
 msgid "The current task could not be loaded."
 msgstr "当前任务未能加载。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:154
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:159
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当前任务再切换。"
 
@@ -971,8 +971,8 @@ msgstr "任务操作未能完成。"
 msgid "The task changed. Review its current state and try again."
 msgstr "任务状态已变化。请检查当前状态后重试。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:251
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:253
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:261
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:263
 msgid "The task connection could not be prepared."
 msgstr "无法准备任务连接。"
 
@@ -980,9 +980,9 @@ msgstr "无法准备任务连接。"
 #~ msgid "The task connection was closed."
 #~ msgstr "任务连接已关闭。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:65
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:125
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:255
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:67
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:128
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:265
 msgid "The task could not be activated."
 msgstr "无法激活任务。"
 
@@ -994,11 +994,11 @@ msgstr "任务未能打开。"
 msgid "The task could not be removed."
 msgstr "任务未能移出列表。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:249
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:259
 msgid "The task could not be resumed."
 msgstr "无法恢复任务。"
 
-#: src/features/appShell/AppShell.tsx:69
+#: src/features/appShell/AppShell.tsx:73
 msgid "The task list could not be updated."
 msgstr "任务列表未能更新。"
 
@@ -1010,7 +1010,7 @@ msgstr "任务已打开，但部分状态同步未完成。"
 msgid "The task recovery could not be completed."
 msgstr "任务恢复未能完成。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:193
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:200
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "任务切换已提交，但连接已中断。重新连接后请确认当前任务。"
 
@@ -1073,12 +1073,12 @@ msgstr "上下文分页"
 msgid "Turn {resolvedTurnId}"
 msgstr "轮次 {resolvedTurnId}"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:41
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:62
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:92
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:121
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:180
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:216
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:42
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:64
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:94
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:124
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:187
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:225
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
@@ -1123,12 +1123,12 @@ msgstr "无法重试此任务。请检查当前状态后再试。"
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:106
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:150
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:108
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:155
 msgid "Unable to switch tasks yet"
 msgstr "暂时无法切换任务"
 
-#: src/features/appShell/AppShell.tsx:66
+#: src/features/appShell/AppShell.tsx:70
 msgid "Unable to update the task list"
 msgstr "无法更新任务列表"
 

@@ -221,6 +221,33 @@ test("initialization and cleanup failures both remain visible in the task page",
     primaryDetail,
     cleanupDetail,
   );
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  try {
+    for (const width of [1280, 375]) {
+      await page.viewport(width, 720);
+      const retry = notice.getByRole("button", { name: "Retry", exact: true });
+      const title = notice.getByText("Unable to load the current task", { exact: true });
+      const description = notice.getByText("The current task could not be loaded.", {
+        exact: true,
+      });
+      await expect
+        .poll(() => {
+          const action = retry.element().getBoundingClientRect();
+          const heading = title.element().getBoundingClientRect();
+          const text = description.element().getBoundingClientRect();
+          return width >= 640
+            ? action.left > text.right && Math.abs(action.top - heading.top) <= 1
+            : action.top >= text.bottom;
+        })
+        .toBe(true);
+      expect(notice.element().scrollWidth).toBeLessThanOrEqual(notice.element().clientWidth);
+      expect(
+        notice.getByRole("button", { name: "View diagnostic information", exact: true }).elements(),
+      ).toHaveLength(1);
+    }
+  } finally {
+    await page.viewport(viewport.width, viewport.height);
+  }
 });
 
 test("history continuation leaves collection diagnostics global and can retry the operation", async () => {

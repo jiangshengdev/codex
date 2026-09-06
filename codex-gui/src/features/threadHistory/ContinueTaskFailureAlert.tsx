@@ -36,20 +36,22 @@ export function ContinueTaskFailureAlert({
       return (
         <Alert role="alert" status="danger">
           <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans>Unable to continue this task</Trans>
-            </Alert.Title>
-            <Alert.Description>
-              <span className="block" id={descriptionId}>
-                <Trans>An unexpected error occurred while continuing the task.</Trans>
-              </span>
-              <FailureDiagnosticModal>
-                <span className="block">
-                  <Trans>Diagnostic:</Trans> {errorText(state.error)}
+          <Alert.Content className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="min-w-0">
+              <Alert.Title>
+                <Trans>Unable to continue this task</Trans>
+              </Alert.Title>
+              <Alert.Description>
+                <span className="block" id={descriptionId}>
+                  <Trans>An unexpected error occurred while continuing the task.</Trans>
                 </span>
-              </FailureDiagnosticModal>
-            </Alert.Description>
+              </Alert.Description>
+            </div>
+            <FailureDiagnosticModal triggerClassName="justify-self-start">
+              <span className="block">
+                <Trans>Diagnostic:</Trans> {errorText(state.error)}
+              </span>
+            </FailureDiagnosticModal>
           </Alert.Content>
         </Alert>
       );
@@ -116,18 +118,20 @@ function ContinueTaskUnavailableAlert({
       return (
         <Alert role="alert" status="warning">
           <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans>Unable to continue this task</Trans>
-            </Alert.Title>
-            <Alert.Description>
-              <span className="block" id={descriptionId}>
-                <Trans>The task could not be activated.</Trans>
-              </span>
-            </Alert.Description>
+          <Alert.Content className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="min-w-0">
+              <Alert.Title>
+                <Trans>Unable to continue this task</Trans>
+              </Alert.Title>
+              <Alert.Description>
+                <span className="block" id={descriptionId}>
+                  <Trans>The task could not be activated.</Trans>
+                </span>
+              </Alert.Description>
+            </div>
             {activeThreadId == null ? null : (
               <Button
-                className="mt-3"
+                className="justify-self-start"
                 onPress={() => {
                   navigateToCurrentTask(activeThreadId);
                 }}
@@ -145,20 +149,22 @@ function ContinueTaskUnavailableAlert({
       return (
         <Alert role="alert" status="warning">
           <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans>Unable to switch tasks yet</Trans>
-            </Alert.Title>
-            <Alert.Description>
-              <span className="block" id={descriptionId}>
-                <Trans>
-                  The current task still has queued or unresolved messages. Return to it before
-                  switching.
-                </Trans>
-              </span>
-            </Alert.Description>
+          <Alert.Content className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="min-w-0">
+              <Alert.Title>
+                <Trans>Unable to switch tasks yet</Trans>
+              </Alert.Title>
+              <Alert.Description>
+                <span className="block" id={descriptionId}>
+                  <Trans>
+                    The current task still has queued or unresolved messages. Return to it before
+                    switching.
+                  </Trans>
+                </span>
+              </Alert.Description>
+            </div>
             <Button
-              className="mt-3"
+              className="justify-self-start"
               onPress={() => {
                 navigateToCurrentTask(activeThreadId);
               }}
@@ -174,36 +180,38 @@ function ContinueTaskUnavailableAlert({
       return (
         <Alert role="alert" status="danger">
           <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              {failure.progress === "beforeCommit" ? (
-                <Trans>Unable to continue this task</Trans>
-              ) : (
-                <Trans>Task switched, but cannot be opened</Trans>
-              )}
-            </Alert.Title>
-            <Alert.Description>
-              <span className="block" id={descriptionId}>
+          <Alert.Content className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="min-w-0">
+              <Alert.Title>
                 {failure.progress === "beforeCommit" ? (
-                  <Trans>
-                    The connection was interrupted before the task switch completed. Reconnect and
-                    try again.
-                  </Trans>
+                  <Trans>Unable to continue this task</Trans>
                 ) : (
-                  <Trans>
-                    The task switch was committed, but the connection was interrupted. Reconnect and
-                    confirm the current task.
-                  </Trans>
+                  <Trans>Task switched, but cannot be opened</Trans>
                 )}
-              </span>
-              {failure.cleanupError == null ? null : (
-                <FailureDiagnosticModal>
-                  <span className="block">
-                    <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
-                  </span>
-                </FailureDiagnosticModal>
-              )}
-            </Alert.Description>
+              </Alert.Title>
+              <Alert.Description>
+                <span className="block" id={descriptionId}>
+                  {failure.progress === "beforeCommit" ? (
+                    <Trans>
+                      The connection was interrupted before the task switch completed. Reconnect and
+                      try again.
+                    </Trans>
+                  ) : (
+                    <Trans>
+                      The task switch was committed, but the connection was interrupted. Reconnect
+                      and confirm the current task.
+                    </Trans>
+                  )}
+                </span>
+              </Alert.Description>
+            </div>
+            {failure.cleanupError == null ? null : (
+              <FailureDiagnosticModal triggerClassName="justify-self-start">
+                <span className="block">
+                  <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
+                </span>
+              </FailureDiagnosticModal>
+            )}
           </Alert.Content>
         </Alert>
       );
@@ -211,25 +219,27 @@ function ContinueTaskUnavailableAlert({
       return (
         <Alert role="alert" status="danger">
           <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans>Unable to continue this task</Trans>
-            </Alert.Title>
-            <Alert.Description>
-              <span className="block" id={descriptionId}>
-                <OperationFailureSummary phase={failure.phase} />
-              </span>
-              <FailureDiagnosticModal>
-                <span className="block">
-                  <Trans>Operation diagnostic:</Trans> {errorText(failure.error)}
+          <Alert.Content className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="min-w-0">
+              <Alert.Title>
+                <Trans>Unable to continue this task</Trans>
+              </Alert.Title>
+              <Alert.Description>
+                <span className="block" id={descriptionId}>
+                  <OperationFailureSummary phase={failure.phase} />
                 </span>
-                {failure.cleanupError == null ? null : (
-                  <span className="block">
-                    <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
-                  </span>
-                )}
-              </FailureDiagnosticModal>
-            </Alert.Description>
+              </Alert.Description>
+            </div>
+            <FailureDiagnosticModal triggerClassName="justify-self-start">
+              <span className="block">
+                <Trans>Operation diagnostic:</Trans> {errorText(failure.error)}
+              </span>
+              {failure.cleanupError == null ? null : (
+                <span className="block">
+                  <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
+                </span>
+              )}
+            </FailureDiagnosticModal>
           </Alert.Content>
         </Alert>
       );

@@ -18,14 +18,18 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
   return (
     <Alert className="w-full" status="danger">
       <Alert.Indicator />
-      <Alert.Content>
+      <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
         <Alert.Title>
           <Trans>Unable to start Codex GUI</Trans>
         </Alert.Title>
-        <Alert.Description>
+        <Alert.Description className="col-start-1">
           <Trans>Codex GUI could not be started.</Trans>
         </Alert.Description>
-        {status.message ? <FailureDiagnosticModal>{status.message}</FailureDiagnosticModal> : null}
+        {status.message ? (
+          <FailureDiagnosticModal triggerClassName="mt-2 justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
+            {status.message}
+          </FailureDiagnosticModal>
+        ) : null}
       </Alert.Content>
     </Alert>
   );
@@ -61,15 +65,17 @@ export function AppShell({ children }: AppShellProps) {
             return (
               <Alert key={`${operation}:${threadId ?? ""}`} role="alert" status="danger">
                 <Alert.Indicator />
-                <Alert.Content>
+                <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
                   <Alert.Title>
                     <Trans>Unable to update the task list</Trans>
                   </Alert.Title>
-                  <Alert.Description>
+                  <Alert.Description className="col-start-1">
                     <Trans>The task list could not be updated.</Trans>
                   </Alert.Description>
                   {diagnostic ? (
-                    <FailureDiagnosticModal>{diagnostic}</FailureDiagnosticModal>
+                    <FailureDiagnosticModal triggerClassName="mt-2 justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
+                      {diagnostic}
+                    </FailureDiagnosticModal>
                   ) : null}
                 </Alert.Content>
               </Alert>

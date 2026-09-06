@@ -22,14 +22,14 @@ export function ComposerPersistenceStatus({
       {persistence.error != null ? (
         <Alert status="danger" role="alert">
           <Alert.Indicator />
-          <Alert.Content>
+          <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
             <Alert.Title>
               <Trans>Changes could not be saved</Trans>
             </Alert.Title>
-            <Alert.Description>
+            <Alert.Description className="col-start-1">
               <Trans>Your input is still here. Sending is blocked until saving succeeds.</Trans>
             </Alert.Description>
-            <div className="mt-2 flex flex-wrap items-start gap-2">
+            <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
               <Button
                 variant="primary"
                 isDisabled={!enabled}
@@ -53,18 +53,18 @@ export function ComposerPersistenceStatus({
       {persistence.restoredPaused ? (
         <Alert status="warning" role="status">
           <Alert.Indicator />
-          <Alert.Content>
+          <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
             <Alert.Title>
               <Trans>Restored messages are paused</Trans>
             </Alert.Title>
-            <Alert.Description>
+            <Alert.Description className="col-start-1">
               <Trans>
                 Check the queue, other open pages, and conversation history before continuing.
                 Messages with an unknown sending result remain blocked.
               </Trans>
             </Alert.Description>
             <Button
-              className="mt-2"
+              className="mt-2 justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0"
               variant="primary"
               isDisabled={!enabled || persistence.error != null}
               onPress={() => {
