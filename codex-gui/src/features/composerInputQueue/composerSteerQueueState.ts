@@ -1,4 +1,5 @@
 import type { Turn, TurnSteerParams } from "@codex-protocol/v2";
+import { randomUuid } from "@/identity/randomUuid";
 import {
   copyComposerInputPayload,
   type ReadonlyComposerInputPayload,
@@ -845,7 +846,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
       },
       threadId: input.threadId,
       expectedTurnId: input.expectedTurnId,
-      clientUserMessageId: `composer-steer-${crypto.randomUUID()}`,
+      clientUserMessageId: `composer-steer-${randomUuid()}`,
       source: input.source,
     };
     this.nextIntentOrder += 1;

@@ -1,4 +1,5 @@
 import type { Turn, TurnStartParams } from "@codex-protocol/v2";
+import { randomUuid } from "@/identity/randomUuid";
 import type {
   ComposerInputQueuePendingStartPhase,
   ComposerInputQueueResult,
@@ -268,7 +269,7 @@ export class ComposerStartQueueState {
     const claim: StartClaim = {
       type: "start",
       message,
-      clientUserMessageId: `composer-input-queue-${crypto.randomUUID()}`,
+      clientUserMessageId: `composer-input-queue-${randomUuid()}`,
       [startClaimCapability]: true as const,
     };
     this.pendingStart = { phase: "issuing", claim };

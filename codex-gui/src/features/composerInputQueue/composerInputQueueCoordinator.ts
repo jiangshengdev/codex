@@ -11,6 +11,7 @@ import { isGuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway"
 import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
 import { createListenerSet } from "@/subscriptions/listenerSet";
+import { randomUuid } from "@/identity/randomUuid";
 import { BrowserPersistenceStore } from "@/features/browserPersistence/browserPersistenceStore";
 import {
   exportComposerDraft,
@@ -780,7 +781,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     if (this.recovery != null) return { type: "rejected", reason: "recoveryPending" };
     const message: ComposerQueueMessage = {
       type: "recoverable",
-      id: `composer-message-${crypto.randomUUID()}`,
+      id: `composer-message-${randomUuid()}`,
       draft: capture.draft,
       input: capture.input,
     };

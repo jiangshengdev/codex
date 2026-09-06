@@ -1,4 +1,5 @@
 import { TOKEN_FRAGMENT_KEY } from "@codex-gui-host-contract";
+import { randomUuid } from "@/identity/randomUuid";
 import { isValidThreadId } from "./guiRouteTarget";
 
 const authorizationSessionStorageKey = "codex-gui.browserAuthorizationSession.v1";
@@ -61,14 +62,14 @@ export function consumeBrowserAuthorizationSession({
 
   if (fragmentToken != null && fragmentToken.length > 0) {
     const snapshot = { token: fragmentToken, activeThreadId: null };
-    const persistenceContext = crypto.randomUUID();
+    const persistenceContext = randomUuid();
     writeStoredSession(resolvedStorage, snapshot, persistenceContext);
     replaceState(readHistoryState(), "", `${location.pathname}${location.search}`);
     return new BrowserAuthorizationSession(resolvedStorage, snapshot, persistenceContext);
   }
 
   const { snapshot, persistenceContext: storedContext } = readStoredSession(resolvedStorage);
-  const persistenceContext = storedContext ?? crypto.randomUUID();
+  const persistenceContext = storedContext ?? randomUuid();
   if (storedContext == null) {
     writeStoredSession(resolvedStorage, snapshot, persistenceContext);
   }

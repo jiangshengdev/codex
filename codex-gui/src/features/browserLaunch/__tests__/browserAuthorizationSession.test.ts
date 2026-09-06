@@ -28,6 +28,29 @@ class MemoryStorage {
 }
 
 describe("consumeBrowserAuthorizationSession", () => {
+  it("creates and restores an authorization context without randomUUID", () => {
+    const storage = new MemoryStorage();
+    vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
+    try {
+      const session = consumeBrowserAuthorizationSession({
+        location: new URL(`http://192.0.2.1/task/${firstThreadId}#token=test-token`),
+        replaceState: vi.fn<History["replaceState"]>(),
+        storage,
+      });
+      expect(session.getPersistenceContext()).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+      const restored = consumeBrowserAuthorizationSession({
+        location: new URL(`http://192.0.2.1/task/${firstThreadId}`),
+        replaceState: vi.fn<History["replaceState"]>(),
+        storage,
+      });
+      expect(restored.getPersistenceContext()).toBe(session.getPersistenceContext());
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("stores a decoded fragment token before clearing the fragment", () => {
     const storage = new MemoryStorage();
     const operations = storage.operations;

@@ -8,6 +8,17 @@ import {
   submit,
 } from "./persistenceHarness";
 
+// Ordinary HTTP origins do not expose randomUUID. Exercise the entire
+// persistence flow with that API absent, including after every reload.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Crypto.prototype, "randomUUID", {
+      configurable: true,
+      value: undefined,
+    });
+  });
+});
+
 test("restores an ordinary draft after a real reload without sending it", async ({ page }) => {
   const host = await createPersistenceHarness(page);
   await host.open();

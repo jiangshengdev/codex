@@ -1,4 +1,5 @@
 import type { Turn, TurnInterruptParams } from "@codex-protocol/v2";
+import { randomUuid } from "@/identity/randomUuid";
 import { validateV2TurnSteerParams } from "@/generated/appServerProtocol/appServerPayloadValidators.js";
 import { persistedArray, persistedRecord } from "./composerLanePersistenceValidation";
 
@@ -210,7 +211,7 @@ class ComposerInterruptStateImpl implements ComposerInterruptState {
         type: "interrupt",
         params: { ...state.pending.params },
         generation,
-        requestId: `composer-interrupt-${crypto.randomUUID()}`,
+        requestId: `composer-interrupt-${randomUuid()}`,
         [interruptClaimCapability]: token,
       };
       candidate.pending = {
