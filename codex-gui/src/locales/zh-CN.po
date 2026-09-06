@@ -509,7 +509,7 @@ msgid "More move options for pending message: {previewText}"
 msgstr "待处理消息的更多移动选项：{previewText}"
 
 #. Accessible name of the active task row actions button; title is the task name or UUID
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:120
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:135
 msgid "More options for {title}"
 msgstr "{title} 的更多操作"
 
@@ -691,8 +691,8 @@ msgid "Refreshing skills…"
 msgstr "正在刷新技能…"
 
 #. Remove only from the active GUI task list; history and draft are kept
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:143
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:147
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:157
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:161
 msgid "Remove from list"
 msgstr "移出列表"
 
@@ -900,7 +900,7 @@ msgid "Task action failed"
 msgstr "任务操作失败"
 
 #. Accessible label for the active task row dropdown containing Remove from list
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:131
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:145
 msgid "Task actions"
 msgstr "任务操作"
 
@@ -1050,7 +1050,7 @@ msgstr "此任务已断开连接。"
 msgid "This task is still running."
 msgstr "此任务仍在运行。"
 
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:162
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:172
 msgid "This task needs attention."
 msgstr "此任务存在待处理的异常。"
 

@@ -1,4 +1,4 @@
-import { Badge, Button, ButtonGroup, Dropdown, Label } from "@heroui/react";
+import { Badge, Button, Dropdown, Label } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { Ellipsis } from "lucide-react";
@@ -21,15 +21,15 @@ export function ActiveThreadCollectionMenu({ close }: Readonly<{ close(): void }
   const collection = useActiveThreadCollectionSnapshot();
   return (
     <section
-      className="mt-4 min-w-0 border-t border-separator pt-3"
+      className="mt-3 min-w-0 border-t border-separator pt-3"
       aria-labelledby="active-tasks-heading"
     >
-      <h2 className="mb-2 px-2 text-sm font-semibold" id="active-tasks-heading">
+      <h2 className="mb-2 px-2 text-xs font-medium text-muted" id="active-tasks-heading">
         <Trans comment="Tasks kept open in this GUI, including idle tasks; not only running turns">
           Active tasks
         </Trans>
       </h2>
-      <ul className="flex min-w-0 flex-col gap-1 py-2">
+      <ul className="flex min-w-0 flex-col gap-1">
         {collection.members.map((member) => (
           <ActiveThreadCollectionRow
             key={member.threadId}
@@ -100,63 +100,73 @@ function ActiveThreadCollectionRow({
     }
   };
   return (
-    <li className="min-w-0 px-2 py-1" data-active-thread-id={member.threadId}>
-      <Badge.Anchor className="w-full min-w-0">
-        <ButtonGroup variant="ghost" className="w-full min-w-0" aria-label={title}>
+    <li className="min-w-0" data-active-thread-id={member.threadId}>
+      <div className="flex min-w-0 items-center gap-1">
+        <Button
+          className="h-auto min-h-9 min-w-0 flex-1 justify-start gap-3 rounded-2xl px-2 py-1.5 text-start md:h-auto"
+          variant="ghost"
+          aria-current={viewed ? "true" : undefined}
+          aria-describedby={hasError ? errorId : undefined}
+          onPress={select}
+        >
+          <span aria-hidden="true" className="flex w-4 shrink-0 items-center justify-center">
+            {viewed ? (
+              <span className="size-2 rounded-full bg-muted" data-current-task-indicator="true" />
+            ) : null}
+          </span>
+          <span className="min-w-0 flex-1 truncate" title={title}>
+            {title}
+          </span>
+          {hasError ? (
+            <Badge
+              className="static size-2 min-h-0 min-w-0 transform-none border-0"
+              color="danger"
+              size="sm"
+              aria-hidden="true"
+              data-task-error-indicator="true"
+            />
+          ) : null}
+        </Button>
+        <Dropdown>
           <Button
-            className="min-w-0 flex-1 justify-start text-start"
-            aria-current={viewed ? "true" : undefined}
-            aria-describedby={hasError ? errorId : undefined}
-            onPress={select}
+            isIconOnly
+            className="size-9 shrink-0 rounded-2xl text-muted md:size-9"
+            variant="ghost"
+            aria-label={t({
+              message: `More options for ${title}`,
+              comment:
+                "Accessible name of the active task row actions button; title is the task name or UUID",
+            })}
           >
-            <span className="min-w-0 truncate" title={title}>
-              {title}
-            </span>
+            <Ellipsis aria-hidden="true" className="size-4" />
           </Button>
-          <Dropdown>
-            <Button
-              isIconOnly
-              className="shrink-0"
+          <Dropdown.Popover placement="bottom end">
+            <Dropdown.Menu
               aria-label={t({
-                message: `More options for ${title}`,
+                message: "Task actions",
                 comment:
-                  "Accessible name of the active task row actions button; title is the task name or UUID",
+                  "Accessible label for the active task row dropdown containing Remove from list",
               })}
+              disabledKeys={member.canRemove ? [] : ["remove"]}
+              onAction={() => {
+                void remove();
+              }}
             >
-              <ButtonGroup.Separator />
-              <Ellipsis aria-hidden="true" className="size-4" />
-            </Button>
-            <Dropdown.Popover placement="bottom end">
-              <Dropdown.Menu
-                aria-label={t({
-                  message: "Task actions",
-                  comment:
-                    "Accessible label for the active task row dropdown containing Remove from list",
-                })}
-                disabledKeys={member.canRemove ? [] : ["remove"]}
-                onAction={() => {
-                  void remove();
-                }}
+              <Dropdown.Item
+                id="remove"
+                textValue={t`Remove from list`}
+                aria-describedby={!member.canRemove ? blockerId : undefined}
               >
-                <Dropdown.Item
-                  id="remove"
-                  textValue={t`Remove from list`}
-                  aria-describedby={!member.canRemove ? blockerId : undefined}
-                >
-                  <Label>
-                    <Trans comment="Remove only from the active GUI task list; history and draft are kept">
-                      Remove from list
-                    </Trans>
-                  </Label>
-                </Dropdown.Item>
-              </Dropdown.Menu>
-            </Dropdown.Popover>
-          </Dropdown>
-        </ButtonGroup>
-        {hasError ? (
-          <Badge color="danger" size="sm" aria-hidden="true" data-task-error-indicator="true" />
-        ) : null}
-      </Badge.Anchor>
+                <Label>
+                  <Trans comment="Remove only from the active GUI task list; history and draft are kept">
+                    Remove from list
+                  </Trans>
+                </Label>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+      </div>
       {hasError ? (
         <span id={errorId} className="sr-only">
           <Trans>This task needs attention.</Trans>

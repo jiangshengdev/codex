@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { attachResponse } from "@/__tests__/appBrowserTestSupport";
 import {
   activeThreadReadModelSlotCreated,
@@ -299,7 +299,7 @@ test("a long title keeps both actions reachable inside a narrow menu and falls b
         threadId: currentThreadId,
         phase: "ready",
         snapshot,
-        error: null,
+        error: new Error("Task needs attention"),
         operationErrors: [],
         canRemove: true,
         removalBlockers: [],
@@ -320,6 +320,49 @@ test("a long title keeps both actions reachable inside a narrow menu and falls b
   });
   const titleButton = dialog.getByRole("button", { name: title.trim(), exact: true });
   await expect.element(titleButton).toHaveAttribute("aria-current", "true");
+  await expect.element(titleButton).toHaveAccessibleDescription("This task needs attention.");
+  await expect.element(more).toHaveClass("button--ghost");
+  const label = titleButton.element().querySelector<HTMLElement>("[title]");
+  const indicator = titleButton
+    .element()
+    .querySelector<HTMLElement>('[data-current-task-indicator="true"]');
+  const error = titleButton
+    .element()
+    .querySelector<HTMLElement>('[data-task-error-indicator="true"]');
+  expect(label).not.toBeNull();
+  expect(indicator).not.toBeNull();
+  expect(error).not.toBeNull();
+  if (label == null || indicator == null || error == null)
+    throw new Error("Task row contents missing");
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  try {
+    for (const width of [1280, 375]) {
+      await page.viewport(width, 720);
+      await expect
+        .poll(() => {
+          const navigationLabel = dialog
+            .getByText("Current task", { exact: true })
+            .element()
+            .getBoundingClientRect();
+          const titleBounds = label.getBoundingClientRect();
+          const errorBounds = error.getBoundingClientRect();
+          const moreBounds = more.element().getBoundingClientRect();
+          return (
+            Math.abs(titleBounds.left - navigationLabel.left) < 1 &&
+            titleBounds.right <= errorBounds.left &&
+            errorBounds.right <= moreBounds.left &&
+            errorBounds.width > 0 &&
+            label.scrollWidth > label.clientWidth &&
+            Math.abs(
+              errorBounds.top + errorBounds.height / 2 - moreBounds.top - moreBounds.height / 2,
+            ) < 1
+          );
+        })
+        .toBe(true);
+    }
+  } finally {
+    await page.viewport(viewport.width, viewport.height);
+  }
   await expect
     .poll(() => {
       const bounds = section.getBoundingClientRect();
