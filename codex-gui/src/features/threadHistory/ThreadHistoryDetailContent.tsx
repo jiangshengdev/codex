@@ -1,13 +1,8 @@
 import { Alert, Button, Typography } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useNavigate } from "@tanstack/react-router";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
-import {
-  HISTORY_LIST_ROUTE_PATH,
-  type GuiRouteTarget,
-} from "@/features/browserLaunch/guiRouteTarget";
+import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import { ReadOnlyCommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
-import { formatTaskDocumentTitle } from "@/features/documentTitle/documentTitle";
 import { HistoryDetailDocumentTitleFactPublisher } from "@/features/documentTitle/DocumentTitleOwner";
 import { errorText } from "@/text/errorText";
 import { ContinueTaskAction } from "./ContinueTaskAction";
@@ -32,7 +27,6 @@ export function ThreadHistoryDetailContent({
   threadId,
 }: ThreadHistoryDetailContentProps) {
   const { t } = useLingui();
-  const navigate = useNavigate();
   const thread = state.type === "ready" ? state.thread : null;
   const title =
     thread == null
@@ -42,35 +36,8 @@ export function ThreadHistoryDetailContent({
   return (
     <>
       {state.type === "ready" ? (
-        <HistoryDetailDocumentTitleFactPublisher
-          threadId={state.thread.id}
-          title={formatTaskDocumentTitle({
-            name: state.thread.name,
-            preview: state.thread.preview,
-            fallback: t`Untitled task`,
-          })}
-        />
+        <HistoryDetailDocumentTitleFactPublisher threadId={state.thread.id} title={title} />
       ) : null}
-      <header className="grid gap-3">
-        <div>
-          <Button
-            onPress={() => {
-              void navigate({ to: HISTORY_LIST_ROUTE_PATH });
-            }}
-            variant="secondary"
-          >
-            <Trans>Back to history</Trans>
-          </Button>
-        </div>
-        <div className="grid gap-1">
-          <Typography className="wrap-break-word" type="h1">
-            {title}
-          </Typography>
-          <Typography color="muted" type="body-sm">
-            <Trans>Read-only history</Trans>
-          </Typography>
-        </div>
-      </header>
       {state.type === "loading" ? (
         <Typography color="muted" role="status" type="body-sm">
           <Trans>Loading task history…</Trans>

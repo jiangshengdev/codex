@@ -1,7 +1,8 @@
 import { Alert, Button, Card, Chip } from "@heroui/react";
+import { cardVariants } from "@heroui/styles";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { useAppSelector } from "@/app/hooks";
 import {
   useActiveThreadId,
@@ -13,6 +14,11 @@ import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import { errorText } from "@/text/errorText";
 import type { Thread } from "@codex-protocol/v2";
+import {
+  formatThreadHistoryDateLabel,
+  getThreadHistoryActivityDate,
+  groupThreadHistoryByDate,
+} from "./threadHistoryDateGroups";
 import { ThreadHistoryListOwner, type ThreadHistoryListState } from "./threadHistoryListOwner";
 import { resolveThreadHistoryPresentation } from "./threadHistoryPresentation";
 import { useStrictModeSafeOwner } from "./useStrictModeSafeOwner";
@@ -94,7 +100,16 @@ type HistoryListContentProps = {
   retry: () => boolean | undefined;
 };
 
+// Read the wall clock again on render without scheduling background date updates.
+const subscribeToHistoryDay = () => () => undefined;
+const getHistoryDaySnapshot = () => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+};
+
 function HistoryListContent({ state, loadMore, retry }: HistoryListContentProps) {
+  const { i18n, t } = useLingui();
+  const now = new Date(useSyncExternalStore(subscribeToHistoryDay, getHistoryDaySnapshot));
   if (state.type === "initialLoading") {
     return renderHistoryMessage(<Trans>Loading history…</Trans>);
   }
@@ -107,10 +122,34 @@ function HistoryListContent({ state, loadMore, retry }: HistoryListContentProps)
     return renderHistoryMessage(<Trans>No history for the current working directory.</Trans>);
   }
 
+  const labels = {
+    today: t({
+      message: "Today",
+      comment: "History date group: tasks last active on the current local day",
+    }),
+    yesterday: t({
+      message: "Yesterday",
+      comment: "History date group: tasks last active on the previous local day",
+    }),
+  };
+
   return (
-    <section className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {state.threads.map((thread) => (
-        <ThreadHistoryCard key={thread.id} thread={thread} />
+    <div className="grid min-w-0 gap-6">
+      {groupThreadHistoryByDate(state.threads).map((group) => (
+        <section
+          key={group.key}
+          aria-labelledby={`thread-history-date-${group.key}`}
+          className="grid min-w-0 gap-3"
+        >
+          <h2 id={`thread-history-date-${group.key}`} className="text-sm font-medium text-muted">
+            {formatThreadHistoryDateLabel(group.date, now, i18n.locale, labels)}
+          </h2>
+          <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {group.threads.map((thread) => (
+              <ThreadHistoryCard key={thread.id} thread={thread} />
+            ))}
+          </div>
+        </section>
       ))}
       {state.type === "appendError" ? (
         <div className="col-span-full">
@@ -127,60 +166,61 @@ function HistoryListContent({ state, loadMore, retry }: HistoryListContentProps)
           <Trans>Load more</Trans>
         </Button>
       ) : null}
-    </section>
+    </div>
   );
 }
 
 function ThreadHistoryCard({ thread }: { thread: Thread }) {
   const { i18n, t } = useLingui();
-  const navigate = useNavigate();
   const { title, summary } = resolveThreadHistoryPresentation(thread, t`Untitled task`);
   const dateFormatter = useMemo(
-    () => new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium", timeStyle: "short" }),
+    () => new Intl.DateTimeFormat(i18n.locale, { timeStyle: "short" }),
     [i18n.locale],
   );
-  const activityTime = dateFormatter.format(
-    new Date((thread.recencyAt ?? thread.updatedAt) * 1000),
-  );
+  const activityDate = getThreadHistoryActivityDate(thread);
+  const activityTime = dateFormatter.format(activityDate);
+  const slots = cardVariants({ variant: "default" });
 
   return (
-    <Card
-      aria-labelledby={`thread-history-title-${thread.id}`}
-      className="h-full min-w-0"
-      role="article"
-      variant="default"
-    >
-      <Card.Header className="min-w-0">
-        <Card.Title
-          className="line-clamp-2 min-w-0 [overflow-wrap:anywhere]"
-          id={`thread-history-title-${thread.id}`}
-        >
-          {title}
-        </Card.Title>
-        {summary == null ? null : (
-          <Card.Description className="line-clamp-3 min-w-0 [overflow-wrap:anywhere]">
-            {summary}
-          </Card.Description>
-        )}
-      </Card.Header>
-      <Card.Content className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-        <span className="text-sm text-muted">{activityTime}</span>
-        <ThreadStatusChip status={thread.status} />
-      </Card.Content>
-      <Card.Footer className="mt-auto justify-end">
-        <Button
-          variant="secondary"
-          onPress={() => {
-            void navigate({
-              to: HISTORY_DETAIL_ROUTE_PATH,
-              params: { threadId: thread.id },
-            });
-          }}
-        >
-          <Trans>View</Trans>
-        </Button>
-      </Card.Footer>
-    </Card>
+    <article aria-labelledby={`thread-history-title-${thread.id}`} className="h-full min-w-0">
+      <Link
+        to={HISTORY_DETAIL_ROUTE_PATH}
+        params={{ threadId: thread.id }}
+        tabIndex={0}
+        aria-labelledby={`thread-history-title-${thread.id}`}
+        className={slots.base({
+          className:
+            "h-full min-w-0 gap-3 text-foreground no-underline transition-colors hover:bg-surface-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+        })}
+      >
+        <Card.Header className={slots.header({ className: "min-w-0 gap-1" })}>
+          <Card.Title
+            className={slots.title({ className: "line-clamp-2 min-w-0 [overflow-wrap:anywhere]" })}
+            id={`thread-history-title-${thread.id}`}
+          >
+            {title}
+          </Card.Title>
+          {summary == null ? null : (
+            <Card.Description
+              className={slots.description({
+                className: "line-clamp-2 min-w-0 [overflow-wrap:anywhere]",
+              })}
+            >
+              {summary}
+            </Card.Description>
+          )}
+        </Card.Header>
+        <Card.Footer className={slots.footer({ className: "mt-auto min-w-0 flex-wrap gap-2" })}>
+          <time className="text-sm text-muted" dateTime={activityDate.toISOString()}>
+            {activityTime}
+          </time>
+          <ThreadStatusChip status={thread.status} />
+          <span className="ms-auto text-sm text-muted">
+            <Trans>View</Trans>
+          </span>
+        </Card.Footer>
+      </Link>
+    </article>
   );
 }
 

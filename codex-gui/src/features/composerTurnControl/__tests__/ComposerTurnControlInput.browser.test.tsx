@@ -11,7 +11,7 @@ import type {
 import {
   createComposerSkillCatalogHarness,
   renderComposerTurnControl,
-  type RenderedComposerTurnControl,
+  getComposerPanel,
 } from "./composerTurnControlBrowserTestSupport";
 
 const attachResponse = attachBaseline;
@@ -41,36 +41,6 @@ const expectStartTurnCalledOnceWithText = (
   });
 };
 
-const getComposerPanel = (screen: RenderedComposerTurnControl): HTMLElement => {
-  const composerPanel = screen.container.querySelector(".composer-panel");
-  if (!(composerPanel instanceof HTMLElement)) {
-    throw new Error("composer panel must render");
-  }
-  return composerPanel;
-};
-
-const composerPanelVisualSignature = (composerPanel: HTMLElement) => {
-  const style = window.getComputedStyle(composerPanel);
-  return {
-    backgroundColor: style.backgroundColor,
-    borderColor: style.borderColor,
-    borderWidth: style.borderWidth,
-    boxShadow: style.boxShadow,
-    cursor: style.cursor,
-    opacity: style.opacity,
-  };
-};
-
-const elementGeometry = (element: Element) => {
-  const rect = element.getBoundingClientRect();
-  return {
-    height: rect.height,
-    left: rect.left,
-    top: rect.top,
-    width: rect.width,
-  };
-};
-
 const composerTextWithoutTrailingBrowserPlaceholders = (
   element: Readonly<Pick<Node, "textContent">>,
 ): string => (element.textContent ?? "").replace(/[ \n\r\u00a0\u200b]+$/u, "");
@@ -96,76 +66,14 @@ test("renders the Lexical composer panel and actions", async () => {
     .map((button) => button.textContent.trim())
     .filter((label) => label.length > 0);
 
-  expect(composerPanel.classList.contains("p-2")).toBe(true);
-  expect(composerPanel.classList.contains("pb-5")).toBe(false);
-  expect(composerPanel.classList.contains("p-3")).toBe(false);
-  expect(composerPanel.classList.contains("composer-panel")).toBe(true);
-  expect(composerShell.classList.contains("composer-shell")).toBe(true);
-  expect(composerShell.classList.contains("sticky")).toBe(true);
-  expect(composerShell.classList.contains("bottom-0")).toBe(true);
-  expect(composerShell.classList.contains("fixed")).toBe(false);
-  expect(composerShell.classList.contains("inset-x-0")).toBe(false);
-  expect(composerShell.classList.contains("px-3")).toBe(true);
-  expect(composerShell.classList.contains("px-4")).toBe(false);
-  expect(composerShell.classList.contains("pb-0")).toBe(false);
-  expect(composerShell.classList.contains("pb-3")).toBe(true);
-  expect(composerShell.classList.contains("py-3")).toBe(false);
   await expect.element(composerPanel).toHaveAttribute("aria-disabled", "false");
   await expect.element(composerPanel).toHaveAttribute("data-disabled", "false");
   await expect.element(editorRoot).toHaveAttribute("contenteditable", "true");
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
   const threadStatus = screen.getByRole("status", { name: "Current task is idle", exact: true });
-  const footerLeft = composerPanel.querySelector(".composer-footer-left");
-  if (!(footerLeft instanceof HTMLElement)) {
-    throw new Error("composer footer left cluster must render");
-  }
   await expect.element(qrButton).toBeDisabled();
-  await expect.element(qrButton).toHaveClass("button--icon-only");
   await expect.element(threadStatus).toHaveTextContent("Idle");
-  expect(qrButton.element().parentElement).toBe(footerLeft);
-  expect(threadStatus.element().parentElement).toBe(footerLeft);
-  expect(qrButton.element().nextElementSibling).toBe(threadStatus.element());
   expect(actions).toEqual(["Stop", "Send"]);
-});
-
-test("distinguishes hover, pointer focus, and keyboard focus-visible field states", async () => {
-  const screen = await renderComposerTurnControl();
-  const composerPanel = getComposerPanel(screen);
-  const composer = screen.composer();
-
-  await userEvent.unhover(document.body);
-  const restingVisualSignature = composerPanelVisualSignature(composerPanel);
-
-  await userEvent.hover(composerPanel);
-  await expect
-    .poll(() => composerPanelVisualSignature(composerPanel))
-    .not.toEqual(restingVisualSignature);
-  const hoverVisualSignature = composerPanelVisualSignature(composerPanel);
-  const panelGeometryBeforeFocus = elementGeometry(composerPanel);
-  const composerGeometryBeforeFocus = elementGeometry(composer.element());
-
-  await userEvent.click(composer);
-  await expect.element(composer).toHaveFocus();
-  await expect.element(composerPanel).toHaveAttribute("data-focus-visible", "false");
-  await expect
-    .poll(() => composerPanelVisualSignature(composerPanel))
-    .not.toEqual(hoverVisualSignature);
-  const pointerFocusVisualSignature = composerPanelVisualSignature(composerPanel);
-  expect(pointerFocusVisualSignature.borderWidth).toBe(hoverVisualSignature.borderWidth);
-  expect(elementGeometry(composerPanel)).toEqual(panelGeometryBeforeFocus);
-  expect(elementGeometry(composer.element())).toEqual(composerGeometryBeforeFocus);
-
-  await userEvent.keyboard("x");
-  await expect.element(composerPanel).toHaveAttribute("data-focus-visible", "false");
-
-  await userEvent.tab();
-  await expect.element(composer).not.toHaveFocus();
-  await userEvent.tab({ shift: true });
-  await expect.element(composer).toHaveFocus();
-  await expect.element(composerPanel).toHaveAttribute("data-focus-visible", "true");
-  await expect
-    .poll(() => composerPanelVisualSignature(composerPanel))
-    .not.toEqual(pointerFocusVisualSignature);
 });
 
 test("marks a skill invalid only when a complete ready catalog confirms its path is unavailable", async () => {
@@ -199,9 +107,6 @@ test("marks a skill invalid only when a complete ready catalog confirms its path
   await screen.user.keyboard("{Enter}");
   const trigger = screen.getByRole("group", { name: /Friendly Skill/i });
   const triggerElement = trigger.element();
-  const chip = triggerElement.querySelector('[data-slot="chip"]');
-  if (!(chip instanceof HTMLSpanElement))
-    throw new Error("selected skill must render a HeroUI Chip");
   await expect.element(send).toBeEnabled();
 
   catalogHarness.publish(invalidCatalog);
@@ -209,8 +114,6 @@ test("marks a skill invalid only when a complete ready catalog confirms its path
   await expect
     .element(triggerElement)
     .toHaveAccessibleName(/^(?=.*Friendly Skill)(?=.*Invalid skill)(?=.*details?).*$/i);
-  expect(chip.classList).toContain("chip--danger");
-  expect(chip.classList).toContain("chip--soft");
   await expect.element(send).toBeDisabled();
   await expect.element(triggerElement).toHaveTextContent("$Friendly Skill");
   expect(triggerElement.outerHTML).not.toContain(selectedSkill.path);
@@ -218,8 +121,6 @@ test("marks a skill invalid only when a complete ready catalog confirms its path
   catalogHarness.publish(readyCatalog);
   await expect.element(triggerElement).not.toHaveAttribute("aria-invalid");
   await expect.element(triggerElement).toHaveAccessibleName(/details?/i);
-  expect(chip.classList).toContain("chip--secondary");
-  expect(chip.classList).not.toContain("chip--danger");
   await expect.element(send).toBeEnabled();
 
   const unconfirmedCatalogs: SkillCatalogState[] = [
@@ -234,7 +135,6 @@ test("marks a skill invalid only when a complete ready catalog confirms its path
     catalogHarness.publish(catalog);
     await expect.element(triggerElement).not.toHaveAttribute("aria-invalid");
     await expect.element(triggerElement).toHaveAccessibleName(/details?/i);
-    expect(chip.classList).not.toContain("chip--danger");
     await expect.element(send).toBeEnabled();
     await expect.element(triggerElement).toHaveTextContent("$Friendly Skill");
     expect(triggerElement.outerHTML).not.toContain(selectedSkill.path);

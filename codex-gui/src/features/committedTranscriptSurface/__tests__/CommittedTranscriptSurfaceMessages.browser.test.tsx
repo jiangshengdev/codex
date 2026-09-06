@@ -92,14 +92,9 @@ test("renders committed user and assistant messages from an attached baseline", 
   await expect.element(screen.getByText("assistant")).not.toBeInTheDocument();
 
   const entries = Array.from(document.querySelectorAll<HTMLElement>(".committed-transcript-entry"));
-  expect(
-    entries.map((entry) => ({
-      isSecondary: entry.classList.contains("card--secondary"),
-      text: entry.textContent,
-    })),
-  ).toStrictEqual([
-    { isSecondary: true, text: "Hello surface" },
-    { isSecondary: false, text: "Committed response" },
+  expect(entries.map((entry) => entry.textContent)).toStrictEqual([
+    "Hello surface",
+    "Committed response",
   ]);
 });
 
@@ -253,8 +248,26 @@ test("renders assistant transcript markdown", async () => {
     paragraph.textContent.includes("Soft line one"),
   );
   expect(softBreakParagraph?.textContent).toContain("Soft line one\nSoft line two");
-  expect(softBreakParagraph ? window.getComputedStyle(softBreakParagraph).whiteSpace : null).toBe(
-    "pre-wrap",
+  const characterBounds = (root: Element, text: string) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node != null) {
+      const offset = node.textContent?.indexOf(text) ?? -1;
+      if (offset >= 0) {
+        const range = document.createRange();
+        range.setStart(node, offset);
+        range.setEnd(node, offset + 1);
+        return range.getBoundingClientRect();
+      }
+      node = walker.nextNode();
+    }
+    throw new Error(`Expected rendered text: ${text}`);
+  };
+  if (softBreakParagraph == null) {
+    throw new Error("Expected soft-break paragraph");
+  }
+  expect(characterBounds(softBreakParagraph, "Soft line two").top).toBeGreaterThanOrEqual(
+    characterBounds(softBreakParagraph, "Soft line one").bottom,
   );
   const inlineCode = markdown.querySelector("p code");
   expect(inlineCode?.textContent).toContain("inline code");
@@ -267,13 +280,9 @@ test("renders assistant transcript markdown", async () => {
   if (!fencedCode) {
     throw new Error("Expected fenced code element to render");
   }
-  expect(fencedCode.className).not.toContain("counter-reset:line");
-  const codeLines = Array.from(fencedCode.querySelectorAll<HTMLElement>(":scope > span"));
-  expect(codeLines.length).toBeGreaterThanOrEqual(2);
-  for (const codeLine of codeLines) {
-    expect(codeLine.className).not.toContain("before:content-[counter(line)]");
-    expect(window.getComputedStyle(codeLine).display).toBe("block");
-  }
+  expect(characterBounds(fencedCode, "console").top).toBeGreaterThanOrEqual(
+    characterBounds(fencedCode, "const").bottom,
+  );
   const clipboardWriteAvailable =
     window.isSecureContext &&
     typeof (navigator as Partial<Pick<Navigator, "clipboard">>).clipboard?.writeText === "function";

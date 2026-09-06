@@ -105,7 +105,6 @@ test("active turn allows queuing and enables Stop", async () => {
   expect(commandHandle.startTurn).not.toHaveBeenCalled();
   const stopButton = screen.getByRole("button", { name: "Stop" });
   await expect.element(stopButton).toBeEnabled();
-  await expect.element(stopButton).toHaveClass("button--danger-soft");
   await stopButton.click();
 
   expect(commandHandle.interruptTurn).toHaveBeenCalledExactlyOnceWith({

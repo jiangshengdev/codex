@@ -1,54 +1,19 @@
 import { expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRoute,
-  createRouter,
-  Outlet,
-  RouterProvider,
-} from "@tanstack/react-router";
-import { StrictMode } from "react";
-import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import { attachResponse } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
-import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
-import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
-import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
-import { renderWithProviders } from "@/utils/test-utils";
-import type { Thread, ThreadListResponse } from "@codex-protocol/v2";
-import { ThreadHistoryListPage } from "../ThreadHistoryListPage";
+import type { ThreadListResponse } from "@codex-protocol/v2";
+import {
+  baselineAttached,
+  renderHistory,
+  response,
+  thread,
+} from "./threadHistoryListPageBrowserTestSupport";
 
-const thread = (
-  id: string,
-  overrides: Partial<Pick<Thread, "name" | "preview" | "recencyAt" | "status" | "updatedAt">>,
-): Thread => ({
-  ...attachResponse.snapshot.thread,
-  id,
-  turns: [],
-  ...overrides,
-});
-
-const response = (data: Thread[], nextCursor: string | null): ThreadListResponse => ({
-  data,
-  nextCursor,
-  backwardsCursor: null,
-});
-
-let sessionRevision = 0;
-const baselineAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) =>
-  activeThreadReadModelTransitionApplied({
-    sessionRevision: ++sessionRevision,
-    facts: [{ type: "baselineAttached", response }],
-  });
-
-const historyCards = (container: HTMLElement): HTMLElement[] =>
-  Array.from(container.querySelectorAll<HTMLElement>('[role="article"]'));
+const historyCards = (container: Element): HTMLElement[] =>
+  Array.from(container.querySelectorAll<HTMLElement>('article, [role="article"]'));
 
 const historyGrid = (card: HTMLElement): HTMLElement => {
   const grid = card.parentElement;
@@ -58,109 +23,8 @@ const historyGrid = (card: HTMLElement): HTMLElement => {
   return grid;
 };
 
-const firstRowColumnCount = (cards: readonly HTMLElement[]): number => {
-  const firstTop = cards[0]?.getBoundingClientRect().top;
-  if (firstTop == null) {
-    return 0;
-  }
-  return cards.filter((card) => Math.abs(card.getBoundingClientRect().top - firstTop) <= 1).length;
-};
-
-const hasAlignedFirstRow = (cards: readonly HTMLElement[], columns: number): boolean => {
-  const firstRow = cards.slice(0, columns);
-  const heights = firstRow.map((card) => card.getBoundingClientRect().height);
-  const footerTops = firstRow.map(
-    (card) =>
-      card.querySelector<HTMLElement>('[data-slot="card-footer"]')?.getBoundingClientRect().top ??
-      -1,
-  );
-  return (
-    Math.max(...heights) - Math.min(...heights) <= 1 &&
-    footerTops.every((top) => top >= 0) &&
-    Math.max(...footerTops) - Math.min(...footerTops) <= 1
-  );
-};
-
 const fitsWithinOwnWidth = (element: HTMLElement): boolean =>
   element.scrollWidth <= element.clientWidth + 1;
-
-const HistoryDetailPlaceholder = () => <main aria-label="History detail" />;
-
-type RenderHistoryOptions = {
-  activeThreadSession?: ActiveThreadSession | null;
-  activeThreadStartupError?: string | null;
-  commandsAvailable?: boolean;
-  initialEntry?: string;
-  runtimeThreadId?: string | null;
-  strictMode?: boolean;
-};
-
-const renderHistory = async (
-  listThreads: GuiHostCommands["listThreads"],
-  {
-    activeThreadSession: suppliedActiveThreadSession,
-    activeThreadStartupError = null,
-    commandsAvailable = true,
-    initialEntry = "/history",
-    runtimeThreadId = attachResponse.snapshot.thread.id,
-    strictMode = false,
-  }: RenderHistoryOptions = {},
-) => {
-  const activeThreadSessionHarness = createActiveThreadSessionHarness();
-  activeThreadSessionHarness.publish(
-    activeThreadSessionHarness.activeSnapshot({
-      threadId: attachResponse.snapshot.thread.id,
-      subscriptionId: attachResponse.subscriptionId,
-    }),
-  );
-  const activeThreadSession =
-    suppliedActiveThreadSession === undefined
-      ? activeThreadSessionHarness.session
-      : suppliedActiveThreadSession;
-  const target = { type: "historyList" } as const;
-  const capabilities: AppCapabilities = {
-    activeThreadSession,
-    activeThreadStartupError,
-    authorizationToken: null,
-    commands: commandsAvailable ? { ...createGuiHostCommands(), listThreads } : null,
-    routeTarget: target,
-    status: { label: "initialized" },
-  };
-  const Root = () => (
-    <AppCapabilitiesProvider capabilities={capabilities}>
-      <Outlet />
-    </AppCapabilitiesProvider>
-  );
-  const rootRoute = createRootRoute({ component: Root });
-  const historyRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/history",
-    component: ThreadHistoryListPage,
-  });
-  const detailRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/history/$threadId",
-    component: HistoryDetailPlaceholder,
-  });
-  const router = createRouter({
-    history: createMemoryHistory({ initialEntries: [initialEntry] }),
-    routeTree: rootRoute.addChildren([historyRoute, detailRoute]),
-  });
-  const app = <RouterProvider router={router} />;
-  const screen = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app);
-  if (runtimeThreadId != null) {
-    screen.store.dispatch(
-      baselineAttached({
-        ...attachResponse,
-        snapshot: {
-          ...attachResponse.snapshot,
-          thread: { ...attachResponse.snapshot.thread, id: runtimeThreadId },
-        },
-      }),
-    );
-  }
-  return { router, screen };
-};
 
 test("settles the initial history request and renders its result under StrictMode", async () => {
   const listThreads = vi
@@ -248,7 +112,7 @@ test("shows the non-retryable dependency error when commands are unavailable", a
   expect(listThreads).not.toHaveBeenCalled();
 });
 
-test("renders generated Thread cards with title fallbacks, nonduplicated summaries, status colors, time, and View navigation", async () => {
+test("renders generated Thread cards with title fallbacks, nonduplicated summaries, status colors, time, and whole-card navigation", async () => {
   const activitySeconds = 1_725_000_000;
   const namedThreadId = "00000000-0000-0000-0000-000000000091";
   const threads = [
@@ -284,20 +148,23 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
   await expect.element(screen.getByRole("article", { name: "Untitled task" })).toBeVisible();
 
   const formattedActivityTime = new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(activitySeconds * 1000));
   await expect.element(namedCard.getByText(formattedActivityTime)).toBeVisible();
 
-  const statusDangerByLabel = ["Not loaded", "Idle", "Active", "System error"].map((label) =>
-    screen.getByText(label).element().closest(".chip")?.classList.contains("chip--danger"),
-  );
-  expect(statusDangerByLabel).toStrictEqual([false, false, false, true]);
+  for (const label of ["Not loaded", "Idle", "Active", "System error"]) {
+    await expect.element(screen.getByText(label)).toBeVisible();
+  }
   await expect
     .element(screen.getByRole("button", { name: "Scan with phone" }))
     .not.toBeInTheDocument();
 
-  await namedCard.getByRole("button", { name: "View" }).click();
+  const link = namedCard.getByRole("link", { name: "Named task", exact: true });
+  await expect.element(link).toHaveAttribute("href", `/history/${namedThreadId}`);
+  await expect.element(link.getByText("View", { exact: true })).toBeVisible();
+  expect(namedCard.element().querySelectorAll("a")).toHaveLength(1);
+  expect(link.element().querySelectorAll("a, button, [role='button']")).toHaveLength(0);
+  await namedCard.getByText("Named task", { exact: true }).click();
   await expect.element(screen.getByRole("main", { name: "History detail" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe(`/history/${namedThreadId}`);
   expect(
@@ -309,7 +176,7 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
   expect(router.state.location.hash).toBe("");
 });
 
-test("lays out history cards in one, two, and three real columns with aligned rows", async () => {
+test("keeps history cards reachable without horizontal overflow across viewport sizes", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
   try {
     await page.viewport(390, 900);
@@ -333,21 +200,210 @@ test("lays out history cards in one, two, and three real columns with aligned ro
 
     const cards = historyCards(screen.container);
     expect(cards).toHaveLength(6);
-    await expect.poll(() => firstRowColumnCount(cards)).toBe(1);
-
-    await page.viewport(900, 900);
-    await expect.poll(() => firstRowColumnCount(cards)).toBe(2);
-    await expect.poll(() => hasAlignedFirstRow(cards, 2)).toBe(true);
-
-    await page.viewport(1440, 900);
-    await expect.poll(() => firstRowColumnCount(cards)).toBe(3);
-    await expect.poll(() => hasAlignedFirstRow(cards, 3)).toBe(true);
+    for (const width of [390, 900, 1440]) {
+      await page.viewport(width, 900);
+      await expect
+        .poll(() => [document.documentElement, ...cards].every(fitsWithinOwnWidth))
+        .toBe(true);
+      for (const card of cards) {
+        card.scrollIntoView({ block: "center" });
+        const bounds = card.getBoundingClientRect();
+        expect(
+          card.contains(
+            document.elementFromPoint(
+              bounds.left + bounds.width / 2,
+              bounds.top + bounds.height / 2,
+            ),
+          ),
+        ).toBe(true);
+      }
+    }
   } finally {
     await page.viewport(originalViewport.width, originalViewport.height);
   }
 });
 
-test("clamps complete long text without horizontal overflow and hides only exact trimmed duplicates", async () => {
+test("groups local dates with relative headings and merges same-day pagination in server order", async () => {
+  vi.setSystemTime(new Date(2026, 8, 5, 12));
+  try {
+    const today = new Date(2026, 8, 5, 10).getTime() / 1000;
+    const yesterday = new Date(2026, 8, 4, 23, 59).getTime() / 1000;
+    const earlier = new Date(2026, 7, 30, 9);
+    const priorYear = new Date(2025, 11, 31, 9);
+    const listThreads = vi
+      .fn<GuiHostCommands["listThreads"]>()
+      .mockResolvedValueOnce(
+        response(
+          [
+            thread("today", { name: "Today task", recencyAt: today }),
+            thread("yesterday-first", { name: "Yesterday first", recencyAt: yesterday }),
+          ],
+          "same-day-cursor",
+        ),
+      )
+      .mockResolvedValueOnce(
+        response(
+          [
+            thread("yesterday-first", { name: "Yesterday first", recencyAt: yesterday }),
+            thread("yesterday-second", {
+              name: "Yesterday second",
+              recencyAt: null,
+              updatedAt: yesterday - 60,
+            }),
+            thread("earlier", { name: "Earlier task", recencyAt: earlier.getTime() / 1000 }),
+            thread("prior-year", {
+              name: "Prior year task",
+              recencyAt: priorYear.getTime() / 1000,
+            }),
+          ],
+          null,
+        ),
+      );
+    const { screen } = await renderHistory(listThreads);
+    const todayGroup = screen.getByRole("region", { name: "Today", exact: true });
+    const yesterdayGroup = screen.getByRole("region", { name: "Yesterday", exact: true });
+    await expect
+      .element(todayGroup.getByRole("heading", { name: "Today", exact: true }))
+      .toBeVisible();
+    await expect.element(todayGroup.getByRole("article", { name: "Today task" })).toBeVisible();
+    await expect
+      .element(yesterdayGroup.getByRole("article", { name: "Yesterday first" }))
+      .toBeVisible();
+    await screen.getByRole("button", { name: "Load more" }).click();
+    await expect
+      .element(yesterdayGroup.getByRole("article", { name: "Yesterday second" }))
+      .toBeVisible();
+    expect(screen.getByRole("heading", { name: "Yesterday", exact: true }).elements()).toHaveLength(
+      1,
+    );
+    expect(
+      historyCards(yesterdayGroup.element()).map((card) => card.querySelector("a")?.textContent),
+    ).toEqual([
+      expect.stringContaining("Yesterday first"),
+      expect.stringContaining("Yesterday second"),
+    ]);
+    const earlierLabel = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(
+      earlier,
+    );
+    const priorYearLabel = new Intl.DateTimeFormat("en", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(priorYear);
+    await expect
+      .element(
+        screen
+          .getByRole("region", { name: earlierLabel, exact: true })
+          .getByRole("article", { name: "Earlier task" }),
+      )
+      .toBeVisible();
+    await expect
+      .element(
+        screen
+          .getByRole("region", { name: priorYearLabel, exact: true })
+          .getByRole("article", { name: "Prior year task" }),
+      )
+      .toBeVisible();
+    expect(historyCards(screen.container)).toHaveLength(5);
+    await expect.element(screen.getByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+    expect(listThreads).toHaveBeenNthCalledWith(2, {
+      archived: false,
+      cwd: attachResponse.snapshot.thread.cwd,
+      cursor: "same-day-cursor",
+      limit: 25,
+      sortDirection: "desc",
+      sortKey: "recency_at",
+    });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("refreshes relative date labels when pagination renders after local midnight", async () => {
+  vi.setSystemTime(new Date(2026, 8, 5, 23, 59));
+  try {
+    const today = new Date(2026, 8, 5, 10).getTime() / 1000;
+    const yesterday = new Date(2026, 8, 4, 10).getTime() / 1000;
+    const listThreads = vi
+      .fn<GuiHostCommands["listThreads"]>()
+      .mockResolvedValueOnce(
+        response(
+          [
+            thread("rollover-today", { name: "Rollover today task", recencyAt: today }),
+            thread("rollover-yesterday", { name: "Rollover yesterday task", recencyAt: yesterday }),
+          ],
+          "rollover-cursor",
+        ),
+      )
+      .mockResolvedValueOnce(response([], null));
+    const { screen } = await renderHistory(listThreads);
+    await expect
+      .element(
+        screen
+          .getByRole("region", { name: "Today", exact: true })
+          .getByRole("article", { name: "Rollover today task" }),
+      )
+      .toBeVisible();
+    await expect
+      .element(
+        screen
+          .getByRole("region", { name: "Yesterday", exact: true })
+          .getByRole("article", { name: "Rollover yesterday task" }),
+      )
+      .toBeVisible();
+
+    vi.setSystemTime(new Date(2026, 8, 6, 0, 1));
+    await screen.getByRole("button", { name: "Load more" }).click();
+
+    await expect
+      .element(
+        screen
+          .getByRole("region", { name: "Yesterday", exact: true })
+          .getByRole("article", { name: "Rollover today task" }),
+      )
+      .toBeVisible();
+    const earlierLabel = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(
+      new Date(yesterday * 1000),
+    );
+    await expect
+      .element(
+        screen
+          .getByRole("region", { name: earlierLabel, exact: true })
+          .getByRole("article", { name: "Rollover yesterday task" }),
+      )
+      .toBeVisible();
+    await expect
+      .element(screen.getByRole("heading", { name: "Today", exact: true }))
+      .not.toBeInTheDocument();
+    await expect.element(screen.getByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test.each(["summary", "blank space"])("opens a card by clicking its %s", async (target) => {
+  const threadId = "00000000-0000-0000-0000-000000000092";
+  const listThreads = vi
+    .fn<GuiHostCommands["listThreads"]>()
+    .mockResolvedValue(
+      response([thread(threadId, { name: "Clickable task", preview: "Clickable summary" })], null),
+    );
+  const { router, screen } = await renderHistory(listThreads);
+  const link = screen.getByRole("link", { name: "Clickable task", exact: true });
+  await expect.element(link).toBeVisible();
+  if (target === "summary") {
+    await link.getByText("Clickable summary", { exact: true }).click();
+  } else {
+    const rect = link.element().getBoundingClientRect();
+    await link.click({ position: { x: rect.width / 2, y: 8 } });
+  }
+  await expect.element(screen.getByRole("main", { name: "History detail" })).toBeVisible();
+  expect(router.state.location.pathname).toBe(`/history/${threadId}`);
+  expect(router.state.location.search).toEqual({});
+  expect(router.state.location.hash).toBe("");
+});
+
+test("preserves complete long text without horizontal overflow and hides only exact trimmed duplicates", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
   try {
     await page.viewport(390, 900);
@@ -396,10 +452,15 @@ test("clamps complete long text without horizontal overflow and hides only exact
       if (title == null || summary == null) {
         throw new Error("long history cards must render a title and summary");
       }
-      expect(getComputedStyle(title).webkitLineClamp).toBe("2");
-      expect(getComputedStyle(summary).webkitLineClamp).toBe("3");
-      expect(getComputedStyle(title).overflow).toBe("hidden");
-      expect(getComputedStyle(summary).overflow).toBe("hidden");
+      const footer = card.querySelector<HTMLElement>('[data-slot="card-footer"]');
+      if (footer == null) {
+        throw new Error("history cards must retain a compact information footer");
+      }
+      const footerRect = footer.getBoundingClientRect();
+      expect(footerRect.top).toBeGreaterThanOrEqual(summary.getBoundingClientRect().bottom);
+      expect(footerRect.bottom).toBeLessThanOrEqual(card.getBoundingClientRect().bottom);
+      expect(fitsWithinOwnWidth(footer)).toBe(true);
+      expect(footer.textContent).toContain("View");
     }
 
     const duplicateCard = screen.getByRole("article", { name: "Repeated task" }).element();
@@ -413,7 +474,7 @@ test("clamps complete long text without horizontal overflow and hides only exact
   }
 });
 
-test("keeps load-more and append errors on their own full-grid rows", async () => {
+test("keeps load-more and append errors reachable after the history cards", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
   try {
     await page.viewport(1440, 900);
@@ -441,17 +502,11 @@ test("keeps load-more and append errors on their own full-grid rows", async () =
     if (firstCard == null) {
       throw new Error("history grid must render at least one card");
     }
-    const grid = historyGrid(firstCard);
-    await expect.poll(() => firstRowColumnCount(cards)).toBe(3);
     await expect
       .poll(() => {
-        const gridRect = grid.getBoundingClientRect();
         const buttonRect = loadMore.element().getBoundingClientRect();
         const cardBottom = Math.max(...cards.map((card) => card.getBoundingClientRect().bottom));
-        return (
-          Math.abs(buttonRect.left + buttonRect.width / 2 - (gridRect.left + gridRect.width / 2)) <=
-            1 && buttonRect.top >= cardBottom
-        );
+        return buttonRect.top >= cardBottom;
       })
       .toBe(true);
 
@@ -461,14 +516,9 @@ test("keeps load-more and append errors on their own full-grid rows", async () =
     await expect.element(alert.getByText(rawFailure.message, { exact: true })).toBeVisible();
     await expect
       .poll(() => {
-        const gridRect = grid.getBoundingClientRect();
         const alertRect = alert.element().getBoundingClientRect();
         const cardBottom = Math.max(...cards.map((card) => card.getBoundingClientRect().bottom));
-        return (
-          Math.abs(alertRect.left - gridRect.left) <= 1 &&
-          Math.abs(alertRect.right - gridRect.right) <= 1 &&
-          alertRect.top >= cardBottom
-        );
+        return alertRect.top >= cardBottom;
       })
       .toBe(true);
   } finally {

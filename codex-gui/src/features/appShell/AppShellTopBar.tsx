@@ -9,6 +9,7 @@ import {
   HISTORY_LIST_ROUTE_PATH,
 } from "@/features/browserLaunch/guiRouteTarget";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
+import { useHistoryDetailTitle } from "@/features/documentTitle/historyDetailTitleContext";
 import { useActiveThreadId, useAppCapabilities } from "./AppCapabilities";
 
 export function AppShellTopBar() {
@@ -19,13 +20,19 @@ export function AppShellTopBar() {
   const activeThreadId = useActiveThreadId();
   const runtime = useAppSelector(selectThreadRuntimeRecord);
   const isCurrentTask = routeTarget.type === "currentTask";
+  const isHistoryDetail = routeTarget.type === "historyDetail";
+  const historyDetailTitle = useHistoryDetailTitle();
   const currentTaskTitle =
     isCurrentTask && runtime?.threadId === routeTarget.threadId
       ? [runtime.thread.name, runtime.thread.preview].find(
           (candidate) => candidate != null && candidate.length > 0,
         )
       : undefined;
-  const title = isCurrentTask ? (currentTaskTitle ?? t`Current task`) : t`History`;
+  const title = isCurrentTask
+    ? (currentTaskTitle ?? t`Current task`)
+    : isHistoryDetail
+      ? (historyDetailTitle ?? t`History detail`)
+      : t`History`;
 
   const navigateToCurrentTask = (): void => {
     if (activeThreadId == null) {
@@ -45,8 +52,9 @@ export function AppShellTopBar() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-30 h-14 border-b border-separator bg-surface text-foreground">
-      <div className="app-shell-content-boundary flex h-full items-center gap-3">
+      <div className="app-shell-content-boundary flex h-full items-center gap-2 sm:gap-3">
         <Button
+          className="shrink-0"
           variant="secondary"
           onPress={() => {
             setIsDrawerOpen(true);
@@ -55,7 +63,9 @@ export function AppShellTopBar() {
           <Menu aria-hidden="true" className="size-5" />
           <Trans>Menu</Trans>
         </Button>
-        <h1 className="min-w-0 truncate text-base font-semibold">{title}</h1>
+        <h1 className="min-w-0 flex-1 truncate text-base font-semibold" title={title}>
+          {title}
+        </h1>
       </div>
 
       <Drawer.Backdrop isOpen={isDrawerOpen} onOpenChange={setIsDrawerOpen}>

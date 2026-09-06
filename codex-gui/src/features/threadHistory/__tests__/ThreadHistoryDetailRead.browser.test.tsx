@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vitest";
+import { page } from "vitest/browser";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
@@ -138,6 +139,12 @@ test("settles a deferred read into ready after StrictMode effect replay", async 
 
   await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
   await expect.element(screen.getByRole("status")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("banner").getByRole("heading", { level: 1 }))
+    .toHaveTextContent("Historical task");
+  expect(screen.getByRole("heading", { level: 1 }).elements()).toHaveLength(1);
+  await expect.poll(() => document.title).toBe("Historical task · Codex");
+  expect(readThread).toHaveBeenCalledTimes(1);
   expect(commands.resumeThread).not.toHaveBeenCalled();
   expect(commands.attachThreadProjection).not.toHaveBeenCalled();
 });
@@ -161,6 +168,11 @@ test("settles a deferred read into error after StrictMode effect replay", async 
   await expect.element(alert.getByText("Unable to load task history")).toBeVisible();
   await expect.element(alert.getByText(failure.message, { exact: true })).toBeVisible();
   await expect.element(screen.getByRole("status")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("banner").getByRole("heading", { level: 1 }))
+    .toHaveTextContent("History detail");
+  await expect.poll(() => document.title).toBe("History detail · Codex");
+  expect(readThread).toHaveBeenCalledTimes(1);
   expect(commands.resumeThread).not.toHaveBeenCalled();
   expect(commands.attachThreadProjection).not.toHaveBeenCalled();
 });
@@ -178,10 +190,14 @@ test("shows a terminal connection error without an invalid Retry before commands
   await expect.element(screen.getByText("Loading task history…")).not.toBeInTheDocument();
 });
 
-test("returns to the canonical history list without search or fragment", async () => {
+test("opens the canonical history list from the menu without search or fragment", async () => {
   const { router, screen } = await renderDetail();
 
-  await screen.getByRole("button", { name: "Back to history" }).click();
+  await screen.getByRole("button", { name: "Menu", exact: true }).click();
+  await screen
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "History", exact: true })
+    .click();
 
   await expect.element(screen.getByRole("main", { name: "History list" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/history");
@@ -334,60 +350,33 @@ test("keeps the transcript end above the measured continuation action surface", 
   const action = screen.getByRole("button", { name: "Continue this task" });
   const qrAction = screen.getByRole("button", { name: "Scan with phone" });
   const actionBar = action.element().closest("aside");
-  const appShellBottomSpace = screen.container.querySelector(
-    "[data-app-shell-bottom-action-space]",
-  );
-  expect(action.element().classList.contains("button--primary")).toBe(true);
   expect(qrAction.element().closest("aside")).toBe(actionBar);
-  expect(actionBar?.classList.contains("fixed")).toBe(true);
-  expect(appShellBottomSpace).toBeNull();
-
-  const localBottomSpace = screen.container.querySelector(
-    "[data-thread-history-continuation-action-space]",
-  );
-  if (!(actionBar instanceof HTMLElement) || !(localBottomSpace instanceof HTMLElement)) {
-    throw new Error("History continuation action must own its measured bottom space");
+  if (!(actionBar instanceof HTMLElement)) {
+    throw new Error("Expected history continuation actions");
   }
-  expect(localBottomSpace.getAttribute("aria-hidden")).toBe("true");
-  await expect
-    .poll(() =>
-      Math.abs(
-        localBottomSpace.getBoundingClientRect().height - actionBar.getBoundingClientRect().height,
-      ),
-    )
-    .toBeLessThanOrEqual(1);
-  const idleSurfaceHeight = actionBar.getBoundingClientRect().height;
 
   await action.click();
   await expect
     .element(screen.getByText("The task could not be resumed.", { exact: true }))
     .toBeVisible();
-  await expect
-    .poll(() => actionBar.getBoundingClientRect().height)
-    .toBeGreaterThan(idleSurfaceHeight);
-  await expect
-    .poll(() =>
-      Math.abs(
-        localBottomSpace.getBoundingClientRect().height - actionBar.getBoundingClientRect().height,
-      ),
-    )
-    .toBeLessThanOrEqual(1);
-  const collapsedSurfaceHeight = actionBar.getBoundingClientRect().height;
 
   await screen.getByRole("button", { name: "View diagnostic information" }).click();
+  const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
   await expect
-    .element(screen.getByText("Continuation diagnostic line 80", { exact: false }))
+    .element(dialog.getByText("Continuation diagnostic line 80", { exact: false }))
     .toBeVisible();
+  await dialog.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect.element(dialog).not.toBeInTheDocument();
   await expect
-    .poll(() => actionBar.getBoundingClientRect().height)
-    .toBeGreaterThan(collapsedSurfaceHeight);
-  await expect
-    .poll(() =>
-      Math.abs(
-        localBottomSpace.getBoundingClientRect().height - actionBar.getBoundingClientRect().height,
-      ),
+    .poll(
+      () =>
+        actionBar
+          .getAnimations({ subtree: true })
+          .filter((animation) => animation.playState === "running" || animation.pending).length,
     )
-    .toBeLessThanOrEqual(1);
+    .toBe(0);
+  await expect.element(action).toBeInViewport({ ratio: 1 });
+  await expect.element(qrAction).toBeInViewport({ ratio: 1 });
 
   window.scrollTo(0, document.documentElement.scrollHeight);
   const transcriptEnd = screen.getByText("End of read-only history", { exact: false });
@@ -411,7 +400,11 @@ test("preserves detail and list entries across browser back and forward navigati
   const { router, screen } = await renderDetail({ commands });
 
   await expect.element(screen.getByRole("heading", { name: "Historical task" })).toBeVisible();
-  await screen.getByRole("button", { name: "Back to history" }).click();
+  await screen.getByRole("button", { name: "Menu", exact: true }).click();
+  await screen
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "History", exact: true })
+    .click();
   await expect.element(screen.getByRole("main", { name: "History list" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/history");
 

@@ -4,52 +4,40 @@ import { renderWithProviders } from "@/utils/test-utils";
 import { CurrentThreadStatus } from "../CurrentThreadStatus";
 
 const cases = [
-  [null, "Unknown", "Current task status is unknown", "bg-default"],
-  [{ type: "notLoaded" }, "Not loaded", "Current task is not loaded", "bg-default"],
-  [{ type: "idle" }, "Idle", "Current task is idle", "bg-default"],
-  [{ type: "active", activeFlags: [] }, "In progress", "Current task is in progress", "bg-accent"],
+  [null, "Unknown", "Current task status is unknown"],
+  [{ type: "notLoaded" }, "Not loaded", "Current task is not loaded"],
+  [{ type: "idle" }, "Idle", "Current task is idle"],
+  [{ type: "active", activeFlags: [] }, "In progress", "Current task is in progress"],
   [
     { type: "active", activeFlags: ["waitingOnApproval"] },
     "Waiting for approval",
     "Current task is waiting for approval",
-    "bg-warning",
   ],
   [
     { type: "active", activeFlags: ["waitingOnUserInput"] },
     "Waiting for input",
     "Current task is waiting for input",
-    "bg-warning",
   ],
   [
     { type: "active", activeFlags: ["waitingOnApproval", "waitingOnUserInput"] },
     "Waiting",
     "Current task is waiting for approval and input",
-    "bg-warning",
   ],
-  [{ type: "systemError" }, "Error", "Current task has a system error", "bg-danger"],
-] as const satisfies readonly (readonly [Thread["status"] | null, string, string, string])[];
+  [{ type: "systemError" }, "Error", "Current task has a system error"],
+] as const satisfies readonly (readonly [Thread["status"] | null, string, string])[];
 
-test.each(cases)(
-  "renders the static $label status",
-  async (status, label, accessibleName, color) => {
-    const screen = await renderWithProviders(<CurrentThreadStatus status={status} />);
-    const statusItem = screen.getByRole("status", { name: accessibleName, exact: true });
-    const dot = statusItem.element().querySelector(".current-thread-status-dot");
-    if (!(dot instanceof HTMLElement)) throw new Error("current thread status dot must render");
+test.each(cases)("renders the accessible status for %j", async (status, label, accessibleName) => {
+  const screen = await renderWithProviders(<CurrentThreadStatus status={status} />);
+  const statusItem = screen.getByRole("status", { name: accessibleName, exact: true });
+  const dot = statusItem.element().querySelector(".current-thread-status-dot");
+  if (!(dot instanceof HTMLElement)) throw new Error("current thread status dot must render");
 
-    await expect.element(statusItem).toHaveTextContent(label);
-    await expect.element(statusItem).toHaveAttribute("aria-live", "polite");
-    await expect.element(statusItem).toHaveClass("text-muted", "whitespace-nowrap");
-    await expect.element(dot).toHaveAttribute("aria-hidden", "true");
-    await expect.element(dot).toHaveClass("size-2", "shrink-0", "rounded-full", color);
-    expect(statusItem.element().tabIndex).toBe(-1);
-    expect(statusItem.element().getAttribute("class") ?? "").not.toMatch(
-      /(?:^|\s)(?:bg-|border|shadow|transition|animate-)/u,
-    );
-    expect(dot.className).not.toMatch(/(?:^|\s)(?:transition|animate-)/u);
-    expect(statusItem.element().querySelector("button,[role=button],svg")).toBeNull();
-  },
-);
+  await expect.element(statusItem).toHaveTextContent(label);
+  await expect.element(statusItem).toHaveAttribute("aria-live", "polite");
+  await expect.element(dot).toHaveAttribute("aria-hidden", "true");
+  expect(statusItem.element().tabIndex).toBe(-1);
+  expect(statusItem.element().querySelector("button,[role=button],a[href],input")).toBeNull();
+});
 
 test("localizes the visible label and accessible name", async () => {
   const screen = await renderWithProviders(

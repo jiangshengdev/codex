@@ -1,6 +1,6 @@
-import { Alert, Button, Disclosure } from "@heroui/react";
-import { Trans } from "@lingui/react/macro";
-import { useState, type ReactNode } from "react";
+import { Alert, Button, Modal } from "@heroui/react";
+import { Trans, useLingui } from "@lingui/react/macro";
+import type { ReactNode } from "react";
 import type { ActiveThreadActivationFailure } from "@/features/activeThreadSession/activeThreadSession";
 import { errorText } from "@/text/errorText";
 
@@ -44,11 +44,11 @@ export function ContinueTaskFailureAlert({
               <span className="block" id={descriptionId}>
                 <Trans>An unexpected error occurred while continuing the task.</Trans>
               </span>
-              <FailureDiagnosticDisclosure>
+              <FailureDiagnosticModal>
                 <span className="block">
                   <Trans>Diagnostic:</Trans> {errorText(state.error)}
                 </span>
-              </FailureDiagnosticDisclosure>
+              </FailureDiagnosticModal>
             </Alert.Description>
           </Alert.Content>
         </Alert>
@@ -183,11 +183,11 @@ function ContinueTaskUnavailableAlert({
                 )}
               </span>
               {failure.cleanupError == null ? null : (
-                <FailureDiagnosticDisclosure>
+                <FailureDiagnosticModal>
                   <span className="block">
                     <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
                   </span>
-                </FailureDiagnosticDisclosure>
+                </FailureDiagnosticModal>
               )}
             </Alert.Description>
           </Alert.Content>
@@ -205,7 +205,7 @@ function ContinueTaskUnavailableAlert({
               <span className="block" id={descriptionId}>
                 <OperationFailureSummary phase={failure.phase} />
               </span>
-              <FailureDiagnosticDisclosure>
+              <FailureDiagnosticModal>
                 <span className="block">
                   <Trans>Operation diagnostic:</Trans> {errorText(failure.error)}
                 </span>
@@ -214,7 +214,7 @@ function ContinueTaskUnavailableAlert({
                     <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
                   </span>
                 )}
-              </FailureDiagnosticDisclosure>
+              </FailureDiagnosticModal>
             </Alert.Description>
           </Alert.Content>
         </Alert>
@@ -225,32 +225,39 @@ function ContinueTaskUnavailableAlert({
   return null;
 }
 
-function FailureDiagnosticDisclosure({ children }: Readonly<{ children: ReactNode }>) {
-  const [isExpanded, setIsExpanded] = useState(false);
+function FailureDiagnosticModal({ children }: Readonly<{ children: ReactNode }>) {
+  const { t } = useLingui();
 
   return (
-    <Disclosure isExpanded={isExpanded} onExpandedChange={setIsExpanded}>
-      <Disclosure.Heading>
-        <Button className="mt-2 h-auto justify-between" slot="trigger" variant="tertiary">
-          <Trans comment="Button in a history continuation error that expands raw diagnostic details">
-            View diagnostic information
-          </Trans>
-          <Disclosure.Indicator />
-        </Button>
-      </Disclosure.Heading>
-      <Disclosure.Content>
-        <Disclosure.Body className="pt-2">
-          {isExpanded ? (
-            <div
-              className="grid gap-1 overflow-y-auto whitespace-pre-wrap [max-height:min(13rem,30vh)] [overflow-wrap:anywhere]"
-              data-history-continuation-diagnostics-scroll-region=""
-            >
+    <Modal>
+      <Button className="mt-2 h-auto" variant="tertiary">
+        <Trans comment="Button in a history continuation error that opens a dialog with raw diagnostic details">
+          View diagnostic information
+        </Trans>
+      </Button>
+      <Modal.Backdrop>
+        <Modal.Container scroll="inside">
+          <Modal.Dialog>
+            <Modal.CloseTrigger
+              aria-label={t({
+                message: "Close diagnostics",
+                comment: "Accessible label for closing the history continuation diagnostics dialog",
+              })}
+            />
+            <Modal.Header>
+              <Modal.Heading>
+                <Trans comment="Title of the dialog showing raw history continuation errors">
+                  Diagnostic information
+                </Trans>
+              </Modal.Heading>
+            </Modal.Header>
+            <Modal.Body className="whitespace-pre-wrap [overflow-wrap:anywhere]">
               {children}
-            </div>
-          ) : null}
-        </Disclosure.Body>
-      </Disclosure.Content>
-    </Disclosure>
+            </Modal.Body>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal>
   );
 }
 

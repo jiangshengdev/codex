@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { ComposerEditorController } from "@/features/composerEditor/ComposerEditor";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import { ComposerPendingInputEditor } from "./ComposerPendingInputEditor";
@@ -31,26 +31,41 @@ export function ComposerPendingInputEditorAdapter({
   skillCatalog: SkillCatalogState;
 }>) {
   const factsRef = useRef(facts);
+  const connectionGenerationRef = useRef(0);
+  const [connectionFailure, setConnectionFailure] = useState<{ error: unknown } | null>(null);
   useLayoutEffect(() => {
     factsRef.current = facts;
   }, [facts]);
   const handleControllerChange = useCallback(
     (controller: ComposerEditorController | null): void => {
-      const currentFacts = factsRef.current;
+      const generation = ++connectionGenerationRef.current;
       if (controller == null) {
         if (controllerRef.current?.preparationToken === edit.preparationToken) {
           controllerRef.current = null;
         }
-        pendingInputSession.detachEditor(currentFacts, edit.preparationToken);
-        return;
+      } else {
+        controllerRef.current = { preparationToken: edit.preparationToken, controller };
       }
-      controllerRef.current = { preparationToken: edit.preparationToken, controller };
-      pendingInputSession.attachEditor({
-        facts: currentFacts,
-        preparationToken: edit.preparationToken,
-        itemKey: edit.item.key,
-        restore: controller.restore,
-        capture: () => controller.capture(),
+      // Restore synchronously as one transaction, after React leaves its commit.
+      // A reconnect also invalidates the cleanup scheduled by effect replay.
+      queueMicrotask(() => {
+        if (connectionGenerationRef.current !== generation) return;
+        if (controller == null) {
+          pendingInputSession.detachEditor(factsRef.current, edit.preparationToken);
+          return;
+        }
+        try {
+          pendingInputSession.attachEditor({
+            facts: factsRef.current,
+            preparationToken: edit.preparationToken,
+            itemKey: edit.item.key,
+            restore: controller.restore,
+            capture: () => controller.capture(),
+          });
+        } catch (error) {
+          // Keep unexpected failures visible to the existing React error boundary.
+          setConnectionFailure({ error });
+        }
       });
     },
     [controllerRef, edit.item.key, edit.preparationToken, pendingInputSession],
@@ -64,6 +79,8 @@ export function ComposerPendingInputEditorAdapter({
   const handleSave = useCallback((): void => {
     pendingInputSession.saveEdit(factsRef.current, edit.preparationToken);
   }, [edit.preparationToken, pendingInputSession]);
+
+  if (connectionFailure != null) throw connectionFailure.error;
 
   return (
     <ComposerPendingInputEditor

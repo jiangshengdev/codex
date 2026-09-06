@@ -198,83 +198,86 @@ test("gates operations by the active session phase", async () => {
   });
 });
 
-test("uses the same skill chip and catalog tooltip while editing a pending message", async () => {
-  restoreMotion = disableMotionForTest();
-  const selectedSkill: SkillCatalogCandidate = {
-    name: "pending-skill",
-    path: "/repo/skills/hidden-pending-location/SKILL.md",
-    description: "Pending skill fallback description",
-    shortDescription: "Pending skill catalog summary",
-    scope: "repo",
-    interface: {
-      displayName: "Pending Skill",
-      iconSmallUrl: null,
-      iconLargeUrl: null,
-      shortDescription: "Pending skill preferred summary",
-    },
-  };
-  const catalogHarness = createComposerSkillCatalogHarness({
-    type: "ready",
-    candidates: [selectedSkill],
-    partialErrorCount: 0,
-  });
-  const view = await renderComposerTurnControl({
-    scenario: { type: "activeFixture", captureEditReservations: true },
-    skills: catalogHarness.controller,
-  });
-  const { reservations } = view;
-  const screen = view;
-  const composer = view.composer();
+test.each([false, true])(
+  "shows the selected skill and catalog tooltip while editing a pending message (StrictMode=%s)",
+  async (strictMode) => {
+    const consoleError = vi.spyOn(console, "error");
+    restoreMotion = disableMotionForTest();
+    const selectedSkill: SkillCatalogCandidate = {
+      name: "pending-skill",
+      path: "/repo/skills/hidden-pending-location/SKILL.md",
+      description: "Pending skill fallback description",
+      shortDescription: "Pending skill catalog summary",
+      scope: "repo",
+      interface: {
+        displayName: "Pending Skill",
+        iconSmallUrl: null,
+        iconLargeUrl: null,
+        shortDescription: "Pending skill preferred summary",
+      },
+    };
+    const catalogHarness = createComposerSkillCatalogHarness({
+      type: "ready",
+      candidates: [selectedSkill],
+      partialErrorCount: 0,
+    });
+    const view = await renderComposerTurnControl({
+      scenario: { type: "activeFixture", captureEditReservations: true },
+      skills: catalogHarness.controller,
+      strictMode,
+    });
+    const { reservations } = view;
+    const screen = view;
+    const composer = view.composer();
 
-  await composer.fill("$Pending");
-  await screen.user.keyboard("{Enter}");
-  await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
-  await screen.getByRole("button", { name: "Edit", exact: true }).click();
+    await composer.fill("$Pending");
+    await screen.user.keyboard("{Enter}");
+    await screen.getByRole("button", { name: "Send", exact: true }).click();
+    await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+    await screen.getByRole("button", { name: "Edit", exact: true }).click();
 
-  const pendingEditor = screen.getByRole("combobox", {
-    name: "Edit pending message",
-    exact: true,
-  });
-  const trigger = screen.getByRole("group", { name: /Pending Skill/i });
-  await expect.element(trigger).toHaveAccessibleName(/^(?=.*Pending Skill)(?=.*details?).*$/i);
-  const triggerElement = trigger.element();
-  const chip = triggerElement.querySelector('[data-slot="chip"]');
-  if (!(chip instanceof HTMLSpanElement))
-    throw new Error("pending editor must render a HeroUI Chip");
-  const tooltipTrigger = triggerElement.querySelector('[data-slot="tooltip-trigger"]');
-  if (!(tooltipTrigger instanceof HTMLElement))
-    throw new Error("pending skill chip must render inside a Tooltip trigger");
-  expect(chip.classList).toContain("chip--sm");
-  expect(chip.classList).toContain("chip--secondary");
-  expect(chip.textContent).toBe("$Pending Skill");
-  await expect.element(pendingEditor).toHaveTextContent("$Pending Skill");
+    const pendingEditor = screen.getByRole("combobox", {
+      name: "Edit pending message",
+      exact: true,
+    });
+    const trigger = screen.getByRole("group", { name: /Pending Skill/i });
+    await expect.element(trigger).toHaveAccessibleName(/^(?=.*Pending Skill)(?=.*details?).*$/i);
+    const triggerElement = trigger.element();
+    const tooltipTrigger = triggerElement.querySelector('[data-slot="tooltip-trigger"]');
+    if (!(tooltipTrigger instanceof HTMLElement))
+      throw new Error("pending skill chip must render inside a Tooltip trigger");
+    await expect.element(trigger).toHaveTextContent("$Pending Skill");
+    await expect.element(pendingEditor).toHaveTextContent("$Pending Skill");
 
-  await userEvent.unhover(document.body);
-  await userEvent.hover(tooltipTrigger);
-  const tooltip = screen.getByRole("tooltip");
-  await expect
-    .element(tooltip, { timeout: 2_500 })
-    .toHaveTextContent("Pending skill preferred summary");
-  await expect.element(tooltip).toHaveTextContent("Repository");
-  expect(tooltip.element().textContent).not.toContain("hidden-pending-location");
-  expect(tooltip.element().textContent).not.toContain(selectedSkill.path);
+    await userEvent.unhover(document.body);
+    await userEvent.hover(tooltipTrigger);
+    const tooltip = screen.getByRole("tooltip");
+    await expect
+      .element(tooltip, { timeout: 2_500 })
+      .toHaveTextContent("Pending skill preferred summary");
+    await expect.element(tooltip).toHaveTextContent("Repository");
+    expect(tooltip.element().textContent).not.toContain("hidden-pending-location");
+    expect(tooltip.element().textContent).not.toContain(selectedSkill.path);
 
-  await trigger.click();
-  await expect.element(pendingEditor).toHaveFocus();
-  const reservation = reservations.at(0);
-  if (reservation == null) throw new Error("pending skill edit must begin");
-  const save = vi.spyOn(reservation, "save");
-  await screen.getByRole("button", { name: "Save", exact: true }).click();
-  expect(save).toHaveBeenCalledOnce();
-  const savedCapture = save.mock.calls.at(0)?.at(0);
-  if (savedCapture == null) throw new Error("pending skill edit must save a composer capture");
-  expect(savedCapture.input).toEqual([
-    { type: "text", text: "$pending-skill", text_elements: [] },
-    { type: "skill", name: selectedSkill.name, path: selectedSkill.path },
-  ]);
-  await expect.element(tooltip).not.toBeInTheDocument();
-});
+    await trigger.click();
+    await expect.element(pendingEditor).toHaveFocus();
+    const reservation = reservations.at(0);
+    if (reservation == null) throw new Error("pending skill edit must begin");
+    const save = vi.spyOn(reservation, "save");
+    await screen.getByRole("button", { name: "Save", exact: true }).click();
+    expect(save).toHaveBeenCalledOnce();
+    const savedCapture = save.mock.calls.at(0)?.at(0);
+    if (savedCapture == null) throw new Error("pending skill edit must save a composer capture");
+    expect(savedCapture.input).toEqual([
+      { type: "text", text: "$pending-skill", text_elements: [] },
+      { type: "skill", name: selectedSkill.name, path: selectedSkill.path },
+    ]);
+    await expect.element(tooltip).not.toBeInTheDocument();
+    expect(
+      consoleError.mock.calls.filter((args) => String(args[0]).includes("flushSync was called")),
+    ).toEqual([]);
+  },
+);
 
 test("shows Guide only for an active turn and submits an accepted draft as steer", async () => {
   restoreMotion = disableMotionForTest();

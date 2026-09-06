@@ -231,7 +231,7 @@ test("history cards open details and preserve one connection across browser back
 
   const historyCard = screen.getByRole("article", { name: "Projection fixture" });
   await expect.element(historyCard).toBeVisible();
-  await historyCard.getByRole("button", { name: "View" }).click();
+  await historyCard.getByRole("link", { name: "Projection fixture", exact: true }).click();
 
   await expect.element(screen.getByRole("status")).toHaveTextContent("Loading task history…");
   await expect.poll(() => document.title).toBe("History detail · Codex");
@@ -305,7 +305,7 @@ test("history cards open details and preserve one connection across browser back
   scrollTo.mockRestore();
 });
 
-test("aligns the wider history list with the top bar without widening current or detail routes", async () => {
+test("aligns history, current task, and detail content with their top bars", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
   let unmount: (() => Promise<void>) | null = null;
 
@@ -332,8 +332,23 @@ test("aligns the wider history list with the top bar without widening current or
 
       const bannerBounds = bannerContent.getBoundingClientRect();
       const routeContentBounds = routeContent.getBoundingClientRect();
-      expectHorizontalAlignment(bannerBounds, routeContentBounds);
-      return routeContentBounds;
+      const bannerStyle = getComputedStyle(bannerContent);
+      const routeStyle = getComputedStyle(routeContent);
+      const bannerLeft = bannerBounds.left + parseFloat(bannerStyle.paddingLeft);
+      const bannerRight = bannerBounds.right - parseFloat(bannerStyle.paddingRight);
+      const routeLeft = routeContentBounds.left + parseFloat(routeStyle.paddingLeft);
+      const routeRight = routeContentBounds.right - parseFloat(routeStyle.paddingRight);
+      const contentBounds = new DOMRect(
+        routeLeft,
+        routeContentBounds.top,
+        routeRight - routeLeft,
+        routeContentBounds.height,
+      );
+      expectHorizontalAlignment(
+        new DOMRect(bannerLeft, bannerBounds.top, bannerRight - bannerLeft, bannerBounds.height),
+        contentBounds,
+      );
+      return contentBounds;
     };
 
     await expect
@@ -354,19 +369,16 @@ test("aligns the wider history list with the top bar without widening current or
 
     const historyCard = screen.getByRole("article", { name: "Projection fixture" });
     await expect.element(historyCard).toBeVisible();
-    const historyBounds = alignedRouteBounds(screen.getByRole("main").element());
-    expect(historyBounds.width).toBeGreaterThan(currentBounds.width);
+    alignedRouteBounds(screen.getByRole("main").element());
     expectCanonicalRoute(router.state.location.href, "/history", 0);
 
-    await historyCard.getByRole("button", { name: "View" }).click();
+    await historyCard.getByRole("link", { name: "Projection fixture", exact: true }).click();
 
     await expect
       .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
       .toBeVisible();
     const detailBounds = alignedRouteBounds(screen.getByRole("main").element());
     expectHorizontalAlignment(currentBounds, detailBounds);
-    expect(Math.abs(currentBounds.width - detailBounds.width)).toBeLessThanOrEqual(1);
-    expect(historyBounds.width).toBeGreaterThan(detailBounds.width);
     expect(readThread).toHaveBeenCalledWith({
       threadId: historyThreadId,
       includeTurns: true,
@@ -427,6 +439,124 @@ test("history detail uses the localized fallback when its task has no name or pr
     includeTurns: true,
   });
   expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
+});
+
+test("history titles follow route identity through loading, error, retry, and unmount", async () => {
+  seedBrowserAuthorizationSession({ token: "detail-secret" });
+  const router = createAppRouter(
+    createMemoryHistory({ initialEntries: [`/history/${historyThreadId}`] }),
+  );
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const commands = createHistoryCommands();
+  const nextRead = deferred<Awaited<ReturnType<typeof commands.readThread>>>();
+  const returnRead = deferred<Awaited<ReturnType<typeof commands.readThread>>>();
+  const readThread = vi
+    .mocked(commands.readThread)
+    .mockResolvedValueOnce({ thread: { ...historyThread, name: "First preview" } })
+    .mockReturnValueOnce(nextRead.promise)
+    .mockResolvedValueOnce({
+      thread: { ...historyThread, id: launchThreadId, name: "Second preview" },
+    })
+    .mockReturnValueOnce(returnRead.promise);
+  initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
+  const heading = screen.getByRole("banner").getByRole("heading", { level: 1 });
+
+  await expect.element(heading).toHaveTextContent("First preview");
+  expect(screen.getByRole("heading", { level: 1 }).elements()).toHaveLength(1);
+  await expect
+    .element(screen.getByRole("banner").getByText("Read-only history"))
+    .not.toBeInTheDocument();
+  await router.navigate({ to: "/history/$threadId", params: { threadId: launchThreadId } });
+  await expect.element(heading).toHaveTextContent("History detail");
+  await expect.element(screen.getByText("First preview", { exact: true })).not.toBeInTheDocument();
+  await expect.poll(() => document.title).toBe("History detail · Codex");
+
+  nextRead.reject(new Error("second preview failed"));
+  await expect.element(screen.getByRole("alert")).toHaveTextContent("second preview failed");
+  await expect.element(heading).toHaveTextContent("History detail");
+  await screen.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect.element(heading).toHaveTextContent("Second preview");
+  await expect.poll(() => document.title).toBe("Second preview · Codex");
+  expect(readThread).toHaveBeenCalledTimes(3);
+  expect(readThread).toHaveBeenNthCalledWith(2, { threadId: launchThreadId, includeTurns: true });
+  expect(readThread).toHaveBeenNthCalledWith(3, { threadId: launchThreadId, includeTurns: true });
+
+  await screen.getByRole("button", { name: "Menu", exact: true }).click();
+  await screen
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "History", exact: true })
+    .click();
+  await expect.element(heading).toHaveTextContent(/^History$/);
+  await expect
+    .element(screen.getByText("Read-only history", { exact: true }))
+    .not.toBeInTheDocument();
+  await expect.poll(() => document.title).toBe("History · Codex");
+  await router.navigate({ to: "/history/$threadId", params: { threadId: launchThreadId } });
+  await expect.element(heading).toHaveTextContent("History detail");
+  await expect.poll(() => document.title).toBe("History detail · Codex");
+  returnRead.resolve({
+    thread: { ...historyThread, id: launchThreadId, name: "Refreshed preview" },
+  });
+  await expect.element(heading).toHaveTextContent("Refreshed preview");
+  expect(readThread).toHaveBeenCalledTimes(4);
+  expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+  expect(commands.resumeThread).not.toHaveBeenCalled();
+});
+
+test("long preview titles retain their full accessible name while the compact header fits a narrow screen", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  let unmount: (() => Promise<void>) | null = null;
+  try {
+    await page.viewport(360, 800);
+    seedBrowserAuthorizationSession({ token: "detail-secret" });
+    const router = createAppRouter(
+      createMemoryHistory({ initialEntries: [`/history/${historyThreadId}`] }),
+    );
+    const screen = await renderWithProviders(<RouterProvider router={router} />);
+    unmount = screen.unmount;
+    const commands = createHistoryCommands();
+    const title = "Long preview task ".repeat(10).trim();
+    vi.mocked(commands.readThread).mockResolvedValueOnce({
+      thread: { ...historyThread, name: title },
+    });
+    initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
+
+    const heading = screen.getByRole("heading", { level: 1, name: title, exact: true });
+    await expect.element(heading).toBeVisible();
+    await expect.element(heading).toHaveAccessibleName(title);
+    await expect.poll(() => document.title).toBe(`${title.slice(0, 51)}… · Codex`);
+    expect(screen.getByRole("heading", { level: 1 }).elements()).toHaveLength(1);
+    const banner = screen.getByRole("banner");
+    for (const control of [banner.getByRole("button", { name: "Menu", exact: true }), heading]) {
+      await expect.element(control).toBeVisible();
+      const bounds = control.element().getBoundingClientRect();
+      expect(bounds.left).toBeGreaterThanOrEqual(0);
+      expect(bounds.right).toBeLessThanOrEqual(window.innerWidth);
+    }
+    await expect
+      .element(banner.getByRole("button", { name: "Back to history", exact: true }))
+      .not.toBeInTheDocument();
+    await expect
+      .element(banner.getByText("Read-only history", { exact: true }))
+      .not.toBeInTheDocument();
+    const menuBounds = banner
+      .getByRole("button", { name: "Menu", exact: true })
+      .element()
+      .getBoundingClientRect();
+    const headingBounds = heading.element().getBoundingClientRect();
+    expect(headingBounds.left).toBeGreaterThan(menuBounds.right);
+    expect(headingBounds.right).toBeCloseTo(window.innerWidth - menuBounds.left, 0);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+    expect(commands.readThread).toHaveBeenCalledExactlyOnceWith({
+      threadId: historyThreadId,
+      includeTurns: true,
+    });
+    expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+    expect(commands.resumeThread).not.toHaveBeenCalled();
+  } finally {
+    await unmount?.();
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
 });
 
 test("pure read-only history detail reads the route thread without attaching", async () => {
@@ -552,11 +682,18 @@ test("pure read-only history detail preserves its route when first activation fa
     await expect
       .element(alert.getByText("The task connection could not be prepared.", { exact: true }))
       .toBeVisible();
-    const operationDiagnostic = alert.getByText("Operation diagnostic:", { exact: false });
+    const operationDiagnostic = page.getByText("Operation diagnostic:", { exact: false });
     await expect.element(operationDiagnostic).not.toBeInTheDocument();
     await alert.getByRole("button", { name: "View diagnostic information" }).click();
     await expect.element(operationDiagnostic).toHaveTextContent("attach failed");
     await expect.element(operationDiagnostic).toBeVisible();
+    await page
+      .getByRole("dialog", { name: "Diagnostic information" })
+      .getByRole("button", { name: "Close diagnostics" })
+      .click();
+    await expect
+      .element(page.getByRole("dialog", { name: "Diagnostic information" }))
+      .not.toBeInTheDocument();
     expect(commands.resumeThread).not.toHaveBeenCalled();
     expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
       threadId: historyThreadId,

@@ -158,12 +158,12 @@ export function ComposerTurnControl({
   return (
     <section
       aria-label={t`Message composer`}
-      className="composer-shell sticky bottom-0 z-10 px-3 pb-3"
+      className="composer-shell task-bottom-shell sticky bottom-0 z-10"
       ref={composerShellRef}
     >
       <Surface
         aria-disabled={!controlView.operationsEnabled}
-        className="composer-panel relative mx-auto grid w-full max-w-3xl gap-2 rounded-3xl border bg-field p-2 text-field-foreground shadow-field [border-color:var(--field-border)] [border-width:var(--border-width-field)] transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none [&:has([contenteditable]:focus)]:bg-field-focus [&:has([contenteditable]:focus)]:status-focused-field [&:has([contenteditable]:focus)]:[border-color:var(--field-border-focus)] [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:bg-field-hover [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:[border-color:var(--field-border-hover)] data-[disabled=true]:status-disabled"
+        className="composer-panel task-reading-boundary task-bottom-panel relative grid gap-2 transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none [&:has([contenteditable]:focus)]:bg-field-focus [&:has([contenteditable]:focus)]:status-focused-field [&:has([contenteditable]:focus)]:[border-color:var(--field-border-focus)] [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:bg-field-hover [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:[border-color:var(--field-border-hover)] data-[disabled=true]:status-disabled"
         data-disabled={!controlView.operationsEnabled}
         data-focus-visible={composerFocusVisible}
         variant="default"
