@@ -1,49 +1,5 @@
 import { msg } from "@lingui/core/macro";
-import type {
-  ActiveThreadCollectionMember,
-  ActiveThreadRemovalBlocker,
-} from "@/features/activeThreadSession/activeThreadSessionCollectionContracts";
-
-export function activeThreadMemberStatus(member: ActiveThreadCollectionMember) {
-  switch (member.phase) {
-    case "initializing":
-      return msg`Loading task…`;
-    case "failed":
-      return msg`Unable to load task`;
-    case "cleanupPending":
-      return msg`Connection cleanup needs retry`;
-    case "removalPending":
-      return msg`Removing from active tasks…`;
-    case "ready":
-      break;
-  }
-  const snapshot = member.snapshot;
-  if (snapshot?.phase !== "active" && snapshot?.phase !== "projectionUnavailable")
-    return msg`Status unavailable`;
-  if (snapshot.phase === "projectionUnavailable") return msg`Connection needs recovery`;
-  if (snapshot.composer.persistence.error != null) return msg`Unable to save task state`;
-  if (snapshot.composer.persistence.restoredPaused) return msg`Review required after reload`;
-  if (
-    snapshot.composer.recoveryCount > 0 ||
-    snapshot.composer.persistence.unknownMessages.length > 0 ||
-    snapshot.composer.hasUnknownSteer
-  )
-    return msg`Messages need review`;
-  const status = snapshot.threadStatus;
-  if (status == null) return msg`Status unavailable`;
-  switch (status.type) {
-    case "notLoaded":
-      return msg`Task not loaded`;
-    case "systemError":
-      return msg`Task error`;
-    case "idle":
-      return msg({ message: "Idle", comment: "Backend task status: no turn is running" });
-    case "active":
-      if (status.activeFlags.includes("waitingOnApproval")) return msg`Waiting for approval`;
-      if (status.activeFlags.includes("waitingOnUserInput")) return msg`Waiting for input`;
-      return msg({ message: "Running", comment: "Backend task status: a turn is running" });
-  }
-}
+import type { ActiveThreadRemovalBlocker } from "@/features/activeThreadSession/activeThreadSessionCollectionContracts";
 
 export function activeThreadRemovalBlockerMessage(blocker: ActiveThreadRemovalBlocker) {
   const type = typeof blocker === "string" ? blocker : blocker.type;

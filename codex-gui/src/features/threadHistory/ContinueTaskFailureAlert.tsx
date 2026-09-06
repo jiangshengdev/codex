@@ -83,6 +83,20 @@ function ContinueTaskUnavailableAlert({
   navigateToCurrentTask: (threadId: string) => void;
 }>) {
   switch (failure.type) {
+    case "collectionFailed":
+      return (
+        <Alert role="alert" status="danger">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>
+              <Trans>Unable to continue this task</Trans>
+            </Alert.Title>
+            <Alert.Description id={descriptionId}>
+              <Trans>Resolve the task list error above, then try again.</Trans>
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      );
     case "switchInProgress":
       return (
         <Alert role="alert" status="warning">

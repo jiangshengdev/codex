@@ -162,9 +162,21 @@ test("history subscribes to the collection while startup activation is pending",
   await expect.poll(() => vi.mocked(commands.listThreads).mock.calls.length).toBe(0);
 });
 
-test("history publishes a settled startup failure without entering the empty-context branch", async () => {
+test("history leaves collection startup failure details in the global notice", async () => {
   seedBrowserAuthorizationSession({ token: "history-secret" });
-  const sessionHarness = createActiveThreadSessionHarness();
+  const sessionHarness = createActiveThreadSessionHarness({
+    initialCollection: {
+      viewedThreadId: null,
+      members: [],
+      errors: [
+        {
+          operation: "collectionRead",
+          threadId: null,
+          error: new Error("startup recovery failed"),
+        },
+      ],
+    },
+  });
   installActiveThreadSessionController(sessionHarness, () =>
     Promise.resolve({
       type: "unavailable",
@@ -184,11 +196,16 @@ test("history publishes a settled startup failure without entering the empty-con
   initializeHost(options, commands);
 
   const alert = screen.getByRole("main").getByRole("alert");
-  await expect.element(alert).toHaveTextContent("Unable to load history");
-  await expect.element(alert).toHaveTextContent("resume: startup recovery failed");
+  await expect.element(alert).toHaveTextContent("History context unavailable");
+  await expect.element(alert).not.toHaveTextContent("startup recovery failed");
   await expect
     .element(alert)
-    .not.toHaveTextContent("Open an active task in this browser tab before viewing its history.");
+    .toHaveTextContent("Open an active task in this browser tab before viewing its history.");
+  await expect.element(screen.getByText("startup recovery failed", { exact: true })).toBeVisible();
+  expect(screen.getByText("startup recovery failed", { exact: true }).elements()).toHaveLength(1);
+  await expect
+    .element(screen.getByText("Unable to start Codex GUI", { exact: true }))
+    .not.toBeInTheDocument();
   await expect.poll(() => vi.mocked(commands.listThreads).mock.calls.length).toBe(0);
   await expect.poll(() => router.state.location.pathname).toBe("/history");
 });

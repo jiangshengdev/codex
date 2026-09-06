@@ -53,7 +53,6 @@ export const baselineAttached = (
 
 type RenderHistoryOptions = {
   activeThreadSession?: ActiveThreadSession | null;
-  activeThreadStartupError?: string | null;
   commandsAvailable?: boolean;
   initialEntry?: string;
   runtimeThreadId?: string | null;
@@ -64,7 +63,6 @@ export const renderHistory = async (
   listThreads: GuiHostCommands["listThreads"],
   {
     activeThreadSession: suppliedActiveThreadSession,
-    activeThreadStartupError = null,
     commandsAvailable = true,
     initialEntry = "/history",
     runtimeThreadId = attachResponse.snapshot.thread.id,
@@ -86,7 +84,6 @@ export const renderHistory = async (
   const target = { type: "historyList" } as const;
   const capabilities: AppCapabilities = {
     activeThreadSession,
-    activeThreadStartupError,
     authorizationToken: null,
     commands: commandsAvailable ? { ...createGuiHostCommands(), listThreads } : null,
     routeTarget: target,

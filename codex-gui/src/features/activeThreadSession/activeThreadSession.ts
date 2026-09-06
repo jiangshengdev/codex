@@ -15,6 +15,8 @@ import type {
   ActiveThreadCollectionSnapshot,
   ActiveThreadRemovalOutcome,
   ActiveThreadRemovalBlocker,
+  ActiveThreadCollectionError,
+  ActiveThreadMemberOperationError,
 } from "./activeThreadSessionCollectionContracts";
 export type {
   ActiveThreadCollectionSnapshot,
@@ -59,6 +61,7 @@ import type {
   ActiveThreadSessionRoles,
   ActiveThreadSessionSnapshot,
   ActiveThreadActivationWarning,
+  ActiveThreadActivationFailure,
   ActiveThreadActivationOutcome,
   ActiveThreadRetryOutcome,
   ActiveThreadSession,
@@ -84,6 +87,8 @@ type Member = {
   live: LiveActiveThreadSession | null;
   roles: ActiveThreadSessionRoles | null;
   error: unknown;
+  operationErrors: readonly ActiveThreadMemberOperationError[];
+  initializationError: unknown;
   pending: Promise<ActiveThreadActivationOutcome> | null;
   removal: Promise<ActiveThreadRemovalOutcome> | null;
   subscriptionId: string | null;
@@ -110,7 +115,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   private readonly listeners = createListenerSet();
   private readonly members = new Map<string, Member>();
   private collectionStore: SessionCollectionPersistenceStore | null = null;
-  private collectionError: unknown = null;
+  private collectionErrors: readonly ActiveThreadCollectionError[] = [];
   private collectionLoaded = false;
   private viewedThreadId: string | null = null;
   private selectionIntent = 0;
@@ -119,7 +124,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   private collectionSnapshot: ActiveThreadCollectionSnapshot = {
     viewedThreadId: null,
     members: [],
-    error: null,
+    errors: [],
   };
 
   constructor({
@@ -139,14 +144,45 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       getCollectionSnapshot: this.getCollectionSnapshot,
       subscribe: this.subscribe,
       activate: this.activate,
+      view: this.view,
       retry: this.retry,
       remove: this.remove,
+      setOperationError: this.setOperationError,
     };
   }
 
   getSnapshot = (): ActiveThreadSessionSnapshot => this.snapshot;
   getCollectionSnapshot = (): ActiveThreadCollectionSnapshot => this.collectionSnapshot;
   subscribe = (listener: () => void): (() => void) => this.listeners.subscribe(listener);
+
+  private setCollectionError(
+    operation: ActiveThreadCollectionError["operation"],
+    threadId: string | null,
+    error: unknown,
+  ): void {
+    this.collectionErrors = this.collectionErrors.filter(
+      (entry) => entry.operation !== operation || entry.threadId !== threadId,
+    );
+    if (error != null)
+      this.collectionErrors = [...this.collectionErrors, { operation, threadId, error }];
+  }
+
+  private setOperationError = (
+    threadId: string,
+    operation: ActiveThreadMemberOperationError["operation"],
+    error: unknown,
+  ): void => {
+    if (this.isDisposed()) return;
+    const member = this.members.get(threadId);
+    this.setCollectionError(operation, threadId, member == null ? error : null);
+    if (member != null) {
+      member.operationErrors = member.operationErrors.filter(
+        (entry) => entry.operation !== operation,
+      );
+      if (error != null) member.operationErrors = [...member.operationErrors, { operation, error }];
+    }
+    this.publish();
+  };
 
   private loadCollection(): boolean {
     if (this.collectionLoaded) return true;
@@ -158,10 +194,10 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
           this.members.set(threadId, this.createMember(threadId));
       }
       this.collectionLoaded = true;
-      this.collectionError = null;
+      this.setCollectionError("collectionRead", null, null);
       return true;
     } catch (error: unknown) {
-      this.collectionError = error;
+      this.setCollectionError("collectionRead", null, error);
       this.publish();
       return false;
     }
@@ -173,7 +209,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     if (this.isDisposed())
       return Promise.resolve(this.connectionFailure(preferredThreadId ?? null));
     if (!this.loadCollection())
-      return Promise.resolve(this.failure("prepare", this.collectionError));
+      return Promise.resolve(this.collectionFailure("collectionRead", null));
     const target = preferredThreadId ?? this.authorizationSession.getSnapshot().activeThreadId;
     // Begin the foreground intent before any asynchronous background initialization settles.
     const foreground =
@@ -183,26 +219,39 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     return foreground;
   };
 
-  private activate = async (threadId: string): Promise<ActiveThreadActivationOutcome> => {
+  private activate = (threadId: string): Promise<ActiveThreadActivationOutcome> =>
+    this.selectThread(threadId, "activate");
+
+  private view = (threadId: string): Promise<ActiveThreadActivationOutcome> =>
+    this.selectThread(threadId, "view");
+
+  private selectThread = async (
+    threadId: string,
+    mode: "activate" | "view",
+  ): Promise<ActiveThreadActivationOutcome> => {
     if (this.isDisposed()) return this.connectionFailure(threadId);
     const intent = ++this.selectionIntent;
-    if (!this.loadCollection()) return this.failure("prepare", this.collectionError);
+    if (!this.loadCollection()) return this.collectionFailure("collectionRead", null);
     let member = this.members.get(threadId);
     if (member == null) {
       try {
         this.commitMembership([...this.members.keys(), threadId]);
+        this.setCollectionError("membershipAdd", threadId, null);
       } catch (error: unknown) {
-        this.collectionError = error;
+        this.setCollectionError("membershipAdd", threadId, error);
         this.initializeWaitingMembers(threadId);
         this.publish();
-        return this.failure("activate", error);
+        return this.collectionFailure("membershipAdd", threadId);
       }
       member = this.createMember(threadId);
       this.members.set(threadId, member);
     }
     this.viewedThreadId = threadId;
     this.publish();
-    const foreground = this.ensureInitialized(member);
+    const foreground =
+      mode === "view" && member.phase === "failed"
+        ? Promise.resolve(this.failure("prepare", member.error))
+        : this.ensureInitialized(member);
     this.initializeWaitingMembers(threadId);
     const result = await foreground;
     if (this.isDisposed()) return this.connectionFailure(threadId);
@@ -220,9 +269,9 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     const warnings: ActiveThreadActivationWarning[] = [];
     try {
       this.authorizationSession.commitActiveThread(threadId);
-      this.collectionError = null;
+      this.setCollectionError("viewSelection", threadId, null);
     } catch (error: unknown) {
-      this.collectionError = error;
+      this.setCollectionError("viewSelection", threadId, error);
       warnings.push({ type: "authorizationPersistenceFailed", error });
     }
     this.publish();
@@ -231,7 +280,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
 
   private retry = async (threadId: string): Promise<ActiveThreadRetryOutcome> => {
     if (this.isDisposed()) return this.connectionFailure(threadId);
-    if (!this.loadCollection()) return this.failure("prepare", this.collectionError);
+    if (!this.loadCollection()) return this.collectionFailure("collectionRead", null);
     const intent = this.selectionIntent;
     const wasViewed = this.viewedThreadId === threadId;
     this.initializeWaitingMembers(threadId);
@@ -245,7 +294,14 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     } else if (member.phase === "cleanupPending" || member.phase === "removalPending") {
       const removed = await this.remove(threadId);
       if (this.isDisposed()) return this.connectionFailure(threadId);
-      return removed.type === "removed" ? removed : this.failure("activate", member.error);
+      if (removed.type === "failed" && removed.phase !== "detach")
+        return this.collectionFailure(
+          removed.phase === "selection" ? "removeSelection" : "membershipRemove",
+          threadId,
+        );
+      return removed.type === "removed"
+        ? removed
+        : this.failure("activate", removed.type === "failed" ? removed.error : member.error);
     } else if (member.phase === "ready" && member.live != null) {
       const live = member.live;
       live.invalidateThreadStatus();
@@ -267,9 +323,9 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     const warnings = [...result.warnings];
     try {
       this.authorizationSession.commitActiveThread(threadId);
-      this.collectionError = null;
+      this.setCollectionError("viewSelection", threadId, null);
     } catch (error: unknown) {
-      this.collectionError = error;
+      this.setCollectionError("viewSelection", threadId, error);
       warnings.push({ type: "authorizationPersistenceFailed", error });
     }
     this.publish();
@@ -287,19 +343,31 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       return await this.ensureInitialized(member);
     } catch (error: unknown) {
       member.pending = null;
-      member.error = error;
+      member.error = appendError(member.initializationError, error);
       this.publish();
       return this.failure("prepare", error);
     }
   }
 
   private createMember(threadId: string): Member {
+    const operationErrors: ActiveThreadMemberOperationError[] = [];
+    for (const entry of this.collectionErrors) {
+      if (
+        entry.threadId === threadId &&
+        (entry.operation === "navigation" || entry.operation === "remove")
+      ) {
+        operationErrors.push({ operation: entry.operation, error: entry.error });
+      }
+    }
+    for (const entry of operationErrors) this.setCollectionError(entry.operation, threadId, null);
     return {
       threadId,
       phase: "initializing",
       live: null,
       roles: null,
       error: null,
+      operationErrors,
+      initializationError: null,
       pending: null,
       removal: null,
       subscriptionId: null,
@@ -339,6 +407,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     }
     member.phase = "initializing";
     member.error = null;
+    member.initializationError = null;
     member.notifications = [];
     member.subscriptionId = null;
     const pending = this.initialize(member).finally(() => {
@@ -424,10 +493,12 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       return { type: "ready", threadId: member.threadId, warnings: [] };
     } catch (error: unknown) {
       member.error = error;
+      member.initializationError = error;
       try {
         this.releaseLive(member);
       } catch (cleanupError: unknown) {
         member.error = appendError(error, cleanupError);
+        member.initializationError = member.error;
       }
       if (member.attached) {
         try {
@@ -436,7 +507,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
         } catch (cleanupError: unknown) {
           member.phase = "cleanupPending";
           member.cleanupFromFailure = true;
-          member.error = appendError(error, cleanupError);
+          member.error = appendError(member.initializationError, cleanupError);
           this.publish();
           return this.failure(phase, error, cleanupError);
         }
@@ -488,10 +559,11 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     try {
       if (wasViewed || this.authorizationSession.getSnapshot().activeThreadId === threadId) {
         this.authorizationSession.clearActiveThread();
+        this.setCollectionError("removeSelection", threadId, null);
       }
     } catch (error: unknown) {
       if (release?.type === "reserved") release.reservation.release();
-      member.error = error;
+      this.setCollectionError("removeSelection", threadId, error);
       this.publish();
       return { type: "failed", threadId, phase: "selection", error };
     }
@@ -519,16 +591,25 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
         return { type: "failed", threadId, phase: "detach", error };
       }
     }
+    member.error = null;
     member.phase = "removalPending";
     if (this.isDisposed()) return { type: "unavailable", threadId };
     try {
       this.commitMembership([...this.members.keys()].filter((id) => id !== threadId));
+      this.setCollectionError("membershipRemove", threadId, null);
     } catch (error: unknown) {
-      member.error = error;
+      this.setCollectionError("membershipRemove", threadId, error);
       this.publish();
       return { type: "failed", threadId, phase: "membership", error };
     }
     this.removeSlot(member);
+    for (const entry of member.operationErrors) {
+      if (entry.operation !== "remove")
+        this.setCollectionError(entry.operation, threadId, entry.error);
+    }
+    this.setCollectionError("remove", threadId, null);
+    this.setCollectionError("removeSelection", threadId, null);
+    this.setCollectionError("viewSelection", threadId, null);
     this.members.delete(threadId);
     if (this.viewedThreadId === threadId) {
       this.viewedThreadId = null;
@@ -648,7 +729,8 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     this.collectionSnapshot = {
       viewedThreadId: this.viewedThreadId,
       members: [],
-      error: cleanupError,
+      errors:
+        cleanupError == null ? [] : [{ operation: "dispose", threadId: null, error: cleanupError }],
     };
     this.listeners.notify();
     this.listeners.clear();
@@ -716,11 +798,12 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
           phase: member.phase,
           snapshot: member.snapshot,
           error: member.error,
+          operationErrors: member.operationErrors,
           canRemove: member.removal == null && removalBlockers.length === 0,
           removalBlockers,
         };
       }),
-      error: this.collectionError,
+      errors: this.collectionErrors,
     };
     this.listeners.notify();
   }
@@ -752,6 +835,13 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       type: "unavailable",
       failure: { type: "operationFailed", phase, error, cleanupError },
     };
+  }
+
+  private collectionFailure(
+    operation: Extract<ActiveThreadActivationFailure, { type: "collectionFailed" }>["operation"],
+    threadId: string | null,
+  ): ActiveThreadActivationOutcome {
+    return { type: "unavailable", failure: { type: "collectionFailed", operation, threadId } };
   }
 
   private connectionFailure(threadId: string | null): ActiveThreadActivationOutcome {

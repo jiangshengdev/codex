@@ -45,8 +45,10 @@ export type ActiveThreadSessionHarness = Readonly<{
   compactionRole: ActiveThreadCompactionRole;
   skillsRole: ActiveThreadSkillsRole;
   activate: Mock<ActiveThreadSession["activate"]>;
+  view: Mock<ActiveThreadSession["view"]>;
   retry: Mock<ActiveThreadSession["retry"]>;
   remove: Mock<ActiveThreadSession["remove"]>;
+  setOperationError: Mock<ActiveThreadSession["setOperationError"]>;
   subscribe: Mock<ActiveThreadSession["subscribe"]>;
   activeSnapshot(options?: ActiveSnapshotOptions): ActiveSnapshot;
   projectionUnavailableSnapshot(
@@ -290,15 +292,21 @@ export const createActiveThreadSessionHarness = (
                     : "ready",
               snapshot: value,
               error: "error" in value ? value.error : null,
+              operationErrors: [],
               canRemove: value.phase === "active",
               removalBlockers: [],
             },
           ]
         : [],
-    error: null,
+    errors: [],
   });
   let collection = options.initialCollection ?? collectionFor(snapshot);
   const retry = vi.fn<ActiveThreadSession["retry"]>(activate);
+  const view = vi.fn<ActiveThreadSession["view"]>((threadId) =>
+    Promise.resolve(
+      typeof activateOutcome === "function" ? activateOutcome(threadId) : activateOutcome,
+    ),
+  );
   const remove = vi.fn<ActiveThreadSession["remove"]>((threadId) =>
     Promise.resolve({
       type: "removed",
@@ -311,9 +319,39 @@ export const createActiveThreadSessionHarness = (
     getCollectionSnapshot: () => collection,
     subscribe,
     activate,
+    view,
     retry,
     remove,
+    setOperationError: (threadId, operation, error) => {
+      setOperationError(threadId, operation, error);
+    },
   };
+  const setOperationError = vi.fn<ActiveThreadSession["setOperationError"]>(
+    (threadId, operation, error) => {
+      const memberExists = collection.members.some((member) => member.threadId === threadId);
+      collection = {
+        ...collection,
+        errors: [
+          ...collection.errors.filter(
+            (entry) => entry.threadId !== threadId || entry.operation !== operation,
+          ),
+          ...(!memberExists && error != null ? [{ threadId, operation, error }] : []),
+        ],
+        members: collection.members.map((member) =>
+          member.threadId !== threadId
+            ? member
+            : {
+                ...member,
+                operationErrors: [
+                  ...member.operationErrors.filter((entry) => entry.operation !== operation),
+                  ...(error != null ? [{ operation, error }] : []),
+                ],
+              },
+        ),
+      };
+      for (const listener of Array.from(listeners)) listener();
+    },
+  );
 
   return {
     session,
@@ -321,8 +359,10 @@ export const createActiveThreadSessionHarness = (
     composerRole,
     skillsRole,
     activate,
+    view,
     retry,
     remove,
+    setOperationError,
     subscribe,
     activeSnapshot,
     projectionUnavailableSnapshot,

@@ -3,7 +3,8 @@ import { Trans } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
-import { useAppCapabilities } from "./AppCapabilities";
+import { errorText } from "@/text/errorText";
+import { useActiveThreadCollectionSnapshot, useAppCapabilities } from "./AppCapabilities";
 import { AppShellTopBar } from "./AppShellTopBar";
 
 export type AppShellProps = { children: ReactNode };
@@ -36,7 +37,8 @@ function AppShellTopNotices({ children }: { children: ReactNode }) {
 
 export function AppShell({ children }: AppShellProps) {
   const { routeTarget, status } = useAppCapabilities();
-  const hasTopNotice = status.label === "error";
+  const collection = useActiveThreadCollectionSnapshot();
+  const hasTopNotice = status.label === "error" || collection.errors.length > 0;
 
   return (
     <div
@@ -49,11 +51,28 @@ export function AppShell({ children }: AppShellProps) {
       {hasTopNotice ? (
         <AppShellTopNotices>
           <GuiHostErrorAlert status={status} />
+          {collection.errors.map(({ operation, threadId, error }) => (
+            <Alert key={`${operation}:${threadId ?? ""}`} role="alert" status="danger">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>
+                  <Trans>Unable to update the task list</Trans>
+                </Alert.Title>
+                <Alert.Description>{collectionErrorText(error)}</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          ))}
         </AppShellTopNotices>
       ) : null}
       {children}
     </div>
   );
+}
+
+function collectionErrorText(error: unknown): string {
+  return error instanceof AggregateError
+    ? error.errors.map(collectionErrorText).join("; ")
+    : errorText(error);
 }
 
 function contentLayoutForRouteTarget(routeTarget: GuiRouteTarget): "reading" | "wide" {

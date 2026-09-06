@@ -59,6 +59,14 @@ export type ActiveThreadActivationWarning =
   | Readonly<{ type: "previousOwnerCleanupFailed"; error: unknown }>;
 
 export type ActiveThreadActivationFailure =
+  | Readonly<{
+      type: "collectionFailed";
+      operation: Extract<
+        ActiveThreadCollectionError["operation"],
+        "collectionRead" | "membershipAdd" | "removeSelection" | "membershipRemove"
+      >;
+      threadId: string | null;
+    }>
   | Readonly<{ type: "switchInProgress" }>
   | Readonly<{
       type: "currentThreadChanged";
@@ -98,8 +106,14 @@ export type ActiveThreadSession = Readonly<{
   getCollectionSnapshot(): ActiveThreadCollectionSnapshot;
   subscribe(listener: () => void): () => void;
   activate(threadId: string): Promise<ActiveThreadActivationOutcome>;
+  view(threadId: string): Promise<ActiveThreadActivationOutcome>;
   retry(threadId: string): Promise<ActiveThreadRetryOutcome>;
   remove(threadId: string): Promise<ActiveThreadRemovalOutcome>;
+  setOperationError(
+    threadId: string,
+    operation: ActiveThreadMemberOperationError["operation"],
+    error: unknown,
+  ): void;
 }>;
 
 export type ActiveThreadSessionController = Readonly<{
@@ -130,14 +144,34 @@ export type ActiveThreadCollectionMember = Readonly<{
   phase: "initializing" | "ready" | "failed" | "cleanupPending" | "removalPending";
   snapshot: ActiveThreadSessionSnapshot | null;
   error: unknown;
+  operationErrors: readonly ActiveThreadMemberOperationError[];
   canRemove: boolean;
   removalBlockers: readonly ActiveThreadRemovalBlocker[];
+}>;
+
+export type ActiveThreadMemberOperationError = Readonly<{
+  operation: "navigation" | "remove";
+  error: unknown;
+}>;
+
+export type ActiveThreadCollectionError = Readonly<{
+  operation:
+    | "collectionRead"
+    | "membershipAdd"
+    | "viewSelection"
+    | "removeSelection"
+    | "membershipRemove"
+    | "navigation"
+    | "remove"
+    | "dispose";
+  threadId: string | null;
+  error: unknown;
 }>;
 
 export type ActiveThreadCollectionSnapshot = Readonly<{
   viewedThreadId: string | null;
   members: readonly ActiveThreadCollectionMember[];
-  error: unknown;
+  errors: readonly ActiveThreadCollectionError[];
 }>;
 
 export type ActiveThreadRemovalOutcome =

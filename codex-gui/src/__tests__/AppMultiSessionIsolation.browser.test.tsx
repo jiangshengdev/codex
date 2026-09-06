@@ -92,8 +92,9 @@ test("a failed membership write shows the requested task error and retries witho
     queueAttachProjectionResponse(commands, second);
     await router.navigate({ to: "/task/$threadId", params: { threadId: secondThreadId } });
     await expect
-      .element(screen.getByRole("main").getByRole("alert"))
+      .element(screen.getByRole("alert"))
       .toHaveTextContent("Session collection persistence failed: write");
+    await expect.element(screen.getByRole("main").getByRole("alert")).not.toBeInTheDocument();
     const retry = screen.getByRole("button", { name: "Retry", exact: true });
     await expect.element(retry).toBeVisible();
     await expect.element(composer).not.toBeInTheDocument();

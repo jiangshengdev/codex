@@ -31,7 +31,6 @@ const capabilities = ({
   routeTarget: GuiRouteTarget;
 }>): AppCapabilities => ({
   activeThreadSession: activeThreadSessionHarness.session,
-  activeThreadStartupError: null,
   authorizationToken: null,
   commands: null,
   routeTarget,

@@ -13,7 +13,6 @@ export type AppCapabilities = Readonly<{
   commands: GuiHostCommands | null;
   routeTarget: GuiRouteTarget;
   activeThreadSession: ActiveThreadSession | null;
-  activeThreadStartupError: string | null;
 }>;
 
 export const AppCapabilitiesContext = createContext<AppCapabilities | null>(null);
@@ -77,7 +76,7 @@ export function useActiveThreadCollectionSnapshot(): ActiveThreadCollectionSnaps
 const unavailableCollectionSnapshot: ActiveThreadCollectionSnapshot = {
   viewedThreadId: null,
   members: [],
-  error: null,
+  errors: [],
 };
 const getUnavailableCollectionSnapshot = (): ActiveThreadCollectionSnapshot =>
   unavailableCollectionSnapshot;

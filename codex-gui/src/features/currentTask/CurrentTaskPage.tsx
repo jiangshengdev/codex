@@ -1,9 +1,10 @@
 import { Alert, Button, Surface } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   HISTORY_DETAIL_ROUTE_PATH,
+  CURRENT_TASK_ROUTE_PATH,
   selectGuiRouteTarget,
 } from "@/features/browserLaunch/guiRouteTarget";
 import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
@@ -16,6 +17,7 @@ import {
 } from "@/features/appShell/AppCapabilities";
 import { useCommittedTranscriptStickyBottom } from "@/features/appShell/useCommittedTranscriptStickyBottom";
 import type { ActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
+import type { ActiveThreadMemberOperationError } from "@/features/activeThreadSession/activeThreadSessionCollectionContracts";
 import { errorText } from "@/text/errorText";
 
 function isMacAppleWebKitRuntime(): boolean {
@@ -31,15 +33,18 @@ export function CurrentTaskPage() {
   const navigate = useNavigate();
   const router = useRouter();
   const [retryError, setRetryError] = useState<string | null>(null);
-  const { activeThreadSession, activeThreadStartupError, authorizationToken, routeTarget, status } =
-    useAppCapabilities();
+  const { activeThreadSession, authorizationToken, routeTarget, status } = useAppCapabilities();
   const snapshot = useActiveThreadSessionSnapshot();
   const collection = useActiveThreadCollectionSnapshot();
   const sessionPhase = snapshot.phase;
   const targetMembershipFailed =
     routeTarget.type === "currentTask" &&
-    collection.error != null &&
+    collection.errors.some((error) => error.threadId === routeTarget.threadId) &&
     !collection.members.some((member) => member.threadId === routeTarget.threadId);
+  const member =
+    routeTarget.type === "currentTask"
+      ? collection.members.find((entry) => entry.threadId === routeTarget.threadId)
+      : undefined;
   const guardCompositionEndEnter = isMacAppleWebKitRuntime();
   const retry = async (threadId: string, activate: boolean): Promise<void> => {
     if (activeThreadSession == null) return;
@@ -55,11 +60,16 @@ export function CurrentTaskPage() {
           target?.type === "currentTask" &&
           target.threadId === outcome.threadId
         ) {
-          await navigate({
-            to: HISTORY_DETAIL_ROUTE_PATH,
-            params: { threadId: outcome.threadId },
-            replace: true,
-          });
+          try {
+            await navigate({
+              to: HISTORY_DETAIL_ROUTE_PATH,
+              params: { threadId: outcome.threadId },
+              replace: true,
+            });
+            activeThreadSession.setOperationError(outcome.threadId, "navigation", null);
+          } catch (error: unknown) {
+            activeThreadSession.setOperationError(outcome.threadId, "navigation", error);
+          }
         }
       } else if (outcome.type === "unavailable") {
         setRetryError(t`Unable to retry this task. Review its current state and try again.`);
@@ -68,26 +78,70 @@ export function CurrentTaskPage() {
       setRetryError(errorText(error));
     }
   };
+  const retryOperation = async (
+    threadId: string,
+    operation: ActiveThreadMemberOperationError["operation"],
+  ): Promise<void> => {
+    if (activeThreadSession == null) return;
+    try {
+      if (operation === "navigation") {
+        await navigate({ to: CURRENT_TASK_ROUTE_PATH, params: { threadId } });
+      } else {
+        const outcome = await activeThreadSession.remove(threadId);
+        if (outcome.type !== "removed") return;
+        const target = selectGuiRouteTarget(router.state.matches);
+        if (outcome.wasViewed && target?.type === "currentTask" && target.threadId === threadId) {
+          try {
+            await navigate({ to: HISTORY_DETAIL_ROUTE_PATH, params: { threadId }, replace: true });
+            activeThreadSession.setOperationError(threadId, "navigation", null);
+          } catch (error: unknown) {
+            activeThreadSession.setOperationError(threadId, "navigation", error);
+          }
+        }
+      }
+      activeThreadSession.setOperationError(threadId, operation, null);
+    } catch (error: unknown) {
+      activeThreadSession.setOperationError(threadId, operation, error);
+    }
+  };
+  const operationNotices = member?.operationErrors.map(({ operation, error }) => (
+    <Alert key={operation} role="alert" status="danger">
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Title>
+          <Trans>Task action failed</Trans>
+        </Alert.Title>
+        <Alert.Description>{taskErrorText(error)}</Alert.Description>
+        <Button
+          variant="secondary"
+          onPress={() => {
+            void retryOperation(member.threadId, operation);
+          }}
+        >
+          <Trans>Retry</Trans>
+        </Button>
+      </Alert.Content>
+    </Alert>
+  ));
 
   if (
     activeThreadSession != null &&
     (sessionPhase === "empty" || targetMembershipFailed) &&
-    (activeThreadStartupError != null || collection.error != null || retryError != null)
+    (collection.errors.length > 0 || retryError != null)
   ) {
     return (
       <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label}>
-        <Alert role="alert" status="danger">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans>Unable to load the current task</Trans>
-            </Alert.Title>
-            <Alert.Description>
-              {retryError ??
-                (collection.error != null ? errorText(collection.error) : activeThreadStartupError)}
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
+        {retryError != null ? (
+          <Alert role="alert" status="danger">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>
+                <Trans>Unable to load the current task</Trans>
+              </Alert.Title>
+              <Alert.Description>{retryError}</Alert.Description>
+            </Alert.Content>
+          </Alert>
+        ) : null}
         {routeTarget.type === "currentTask" ? (
           <Button
             variant="secondary"
@@ -123,15 +177,18 @@ export function CurrentTaskPage() {
     }
     return (
       <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label}>
-        <Alert role="alert" status="danger">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans>Unable to load the current task</Trans>
-            </Alert.Title>
-            <Alert.Description>{retryError ?? errorText(snapshot.error)}</Alert.Description>
-          </Alert.Content>
-        </Alert>
+        {snapshot.error != null || retryError != null ? (
+          <Alert role="alert" status="danger">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>
+                <Trans>Unable to load the current task</Trans>
+              </Alert.Title>
+              <Alert.Description>{retryError ?? taskErrorText(snapshot.error)}</Alert.Description>
+            </Alert.Content>
+          </Alert>
+        ) : null}
+        {operationNotices}
         <Button
           variant="secondary"
           onPress={() => {
@@ -152,6 +209,38 @@ export function CurrentTaskPage() {
       guardCompositionEndEnter={guardCompositionEndEnter}
       routeTarget={routeTarget}
       status={status}
+      notices={
+        <>
+          {member?.error != null ? (
+            <Alert role="alert" status="danger">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>
+                  <Trans>Task action failed</Trans>
+                </Alert.Title>
+                <Alert.Description>{taskErrorText(member.error)}</Alert.Description>
+              </Alert.Content>
+            </Alert>
+          ) : null}
+          {operationNotices}
+          {member != null &&
+          (member.phase === "cleanupPending" ||
+            member.phase === "removalPending" ||
+            member.removalBlockers.includes("statusUnknown")) ? (
+            <>
+              {retryError != null ? <p role="alert">{retryError}</p> : null}
+              <Button
+                variant="secondary"
+                onPress={() => {
+                  void retry(member.threadId, false);
+                }}
+              >
+                <Trans>Retry</Trans>
+              </Button>
+            </>
+          ) : null}
+        </>
+      }
     />
   );
 }
@@ -162,6 +251,7 @@ type CurrentTaskReadyProps = Readonly<{
   guardCompositionEndEnter: boolean;
   routeTarget: AppCapabilities["routeTarget"];
   status: AppCapabilities["status"];
+  notices: ReactNode;
 }>;
 
 function CurrentTaskReady({
@@ -170,11 +260,13 @@ function CurrentTaskReady({
   guardCompositionEndEnter,
   routeTarget,
   status,
+  notices,
 }: CurrentTaskReadyProps) {
   const transcriptBottomRef = useCommittedTranscriptStickyBottom(identity.threadId);
 
   return (
     <main className="flex min-h-0 w-full flex-1 flex-col gap-4" data-gui-host-status={status.label}>
+      {notices}
       <Surface
         className="task-reading-boundary grid min-w-0 flex-1 content-start"
         variant="transparent"
@@ -193,6 +285,12 @@ function CurrentTaskReady({
       />
     </main>
   );
+}
+
+function taskErrorText(error: unknown): string {
+  return error instanceof AggregateError
+    ? error.errors.map(taskErrorText).join("; ")
+    : errorText(error);
 }
 
 function CurrentTaskComposer({

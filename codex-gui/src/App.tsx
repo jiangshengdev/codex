@@ -15,7 +15,6 @@ function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
   const [commands, setCommands] = useState<GuiHostCommands | null>(null);
   const [authorizationToken, setAuthorizationToken] = useState<string | null>(null);
   const [activeThreadSession, setActiveThreadSession] = useState<ActiveThreadSession | null>(null);
-  const [activeThreadStartupError, setActiveThreadStartupError] = useState<string | null>(null);
   const capabilities = useMemo<AppCapabilities>(
     () => ({
       status,
@@ -23,16 +22,8 @@ function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
       commands,
       routeTarget,
       activeThreadSession,
-      activeThreadStartupError,
     }),
-    [
-      activeThreadSession,
-      activeThreadStartupError,
-      authorizationToken,
-      commands,
-      routeTarget,
-      status,
-    ],
+    [activeThreadSession, authorizationToken, commands, routeTarget, status],
   );
 
   return (
@@ -42,7 +33,6 @@ function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
         setCommands={setCommands}
         setAuthorizationToken={setAuthorizationToken}
         setActiveThreadSession={setActiveThreadSession}
-        setActiveThreadStartupError={setActiveThreadStartupError}
         startupTarget={routeTarget}
       />
       <AppCapabilitiesProvider capabilities={capabilities}>
@@ -64,7 +54,9 @@ function ActiveThreadRouteSync({ routeTarget }: Readonly<{ routeTarget: GuiRoute
       routeTarget.type === "currentTask" &&
       session.getCollectionSnapshot().viewedThreadId !== routeTarget.threadId
     ) {
-      void session.activate(routeTarget.threadId);
+      void session.view(routeTarget.threadId).catch((error: unknown) => {
+        session.setOperationError(routeTarget.threadId, "navigation", error);
+      });
     }
   }, [session, routeTarget]);
 

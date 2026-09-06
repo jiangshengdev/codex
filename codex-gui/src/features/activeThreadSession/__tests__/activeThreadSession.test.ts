@@ -5,6 +5,7 @@ import { createDeferred, createGuiHostCommands } from "@/__tests__/appBrowserTes
 import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import type { BrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import { SessionCollectionPersistenceError } from "@/features/sessionCollection/sessionCollectionPersistence";
 import {
   attachBaseline,
   attachReplacement,
@@ -158,8 +159,13 @@ describe("ActiveThreadSession", () => {
       throw new Error("storage full");
     });
     const h = createHarness(undefined, undefined, persistence);
-    await expect(h.controller.activateRecoveryThread()).resolves.toMatchObject({
+    await expect(h.controller.activateRecoveryThread()).resolves.toEqual({
       type: "unavailable",
+      failure: {
+        type: "collectionFailed",
+        operation: "membershipAdd",
+        threadId: attachBaseline.snapshot.thread.id,
+      },
     });
     expect(h.commands.resumeThread).not.toHaveBeenCalled();
     expect(h.commands.attachThreadProjection).not.toHaveBeenCalled();
@@ -184,6 +190,100 @@ describe("ActiveThreadSession", () => {
     );
   });
 
+  it("keeps unrelated collection save errors until their own operation succeeds", async () => {
+    const persistence = createPersistenceTestContext();
+    const h = createHarness(undefined, undefined, persistence);
+    await activateInitial(h);
+    const threadId = attachBaseline.snapshot.thread.id;
+    const selectionError = new Error("same failure text");
+    h.authorizationSession.commitActiveThread.mockImplementationOnce(() => {
+      throw selectionError;
+    });
+    await h.session.activate(threadId);
+    const storage = persistence.storage;
+    if (storage == null) throw new Error("expected storage");
+    const membershipError = new Error("same failure text");
+    const save = storage.setItem.bind(storage);
+    const write = vi.spyOn(storage, "setItem").mockImplementation((key, value) => {
+      if (key === "codex-gui.sessionCollection") throw membershipError;
+      save(key, value);
+    });
+    await h.session.activate(replacementThreadId);
+    const persistedError = h.session.getCollectionSnapshot().errors[1]?.error;
+    expect(persistedError).toBeInstanceOf(SessionCollectionPersistenceError);
+    expect(persistedError).toMatchObject({
+      code: "write",
+      message: "Session collection persistence failed: write",
+    });
+    if (!(persistedError instanceof SessionCollectionPersistenceError))
+      throw new Error("expected persistence error");
+    expect(persistedError.cause).toBe(membershipError);
+    expect(h.session.getCollectionSnapshot().errors).toEqual([
+      { operation: "viewSelection", threadId, error: selectionError },
+      { operation: "membershipAdd", threadId: replacementThreadId, error: persistedError },
+    ]);
+    await h.session.activate(threadId);
+    expect(h.session.getCollectionSnapshot().errors).toEqual([
+      { operation: "membershipAdd", threadId: replacementThreadId, error: persistedError },
+    ]);
+    write.mockRestore();
+    queueReplacementActivation(h.commands);
+    await h.session.activate(replacementThreadId);
+    expect(h.session.getCollectionSnapshot().errors).toEqual([]);
+  });
+
+  it("owns remove selection failures globally without marking a healthy member failed", async () => {
+    const h = createHarness();
+    await activateInitial(h);
+    const threadId = attachBaseline.snapshot.thread.id;
+    const error = new Error("selection removal failed");
+    h.authorizationSession.clearActiveThread.mockImplementationOnce(() => {
+      throw error;
+    });
+    await expect(h.session.remove(threadId)).resolves.toMatchObject({
+      type: "failed",
+      phase: "selection",
+    });
+    expect(h.session.getCollectionSnapshot()).toMatchObject({
+      errors: [{ operation: "removeSelection", threadId, error }],
+      members: [{ phase: "ready", error: null }],
+    });
+    await h.session.retry(threadId);
+    expect(h.session.getCollectionSnapshot().errors).toHaveLength(1);
+    await expect(h.session.remove(threadId)).resolves.toMatchObject({ type: "removed" });
+    expect(h.session.getCollectionSnapshot().errors).toEqual([]);
+  });
+
+  it("retains navigation and remove rejections independently of lifecycle retries and removal", async () => {
+    const h = createHarness();
+    await activateInitial(h);
+    const threadId = attachBaseline.snapshot.thread.id;
+    const navigationError = new Error("navigation rejected");
+    const removeError = new Error("remove rejected");
+    h.session.setOperationError(threadId, "navigation", navigationError);
+    h.session.setOperationError(threadId, "remove", removeError);
+    await h.session.retry(threadId);
+    expect(h.session.getCollectionSnapshot().members[0]?.operationErrors).toEqual([
+      { operation: "navigation", error: navigationError },
+      { operation: "remove", error: removeError },
+    ]);
+    await h.session.remove(threadId);
+    expect(h.session.getCollectionSnapshot().errors).toEqual([
+      { operation: "navigation", threadId, error: navigationError },
+    ]);
+    h.session.setOperationError(threadId, "navigation", null);
+    expect(h.session.getCollectionSnapshot().errors).toEqual([]);
+    h.session.setOperationError(threadId, "navigation", navigationError);
+    await h.session.activate(threadId);
+    expect(h.session.getCollectionSnapshot().errors).toEqual([]);
+    expect(h.session.getCollectionSnapshot().members[0]?.operationErrors).toEqual([
+      { operation: "navigation", error: navigationError },
+    ]);
+    h.controller.dispose();
+    h.session.setOperationError(threadId, "navigation", new Error("late old menu result"));
+    expect(h.session.getCollectionSnapshot().errors).toEqual([]);
+  });
+
   it("keeps a detached member and its read model until membership removal can be saved", async () => {
     const persistence = createPersistenceTestContext();
     const h = createHarness(undefined, undefined, persistence);
@@ -192,8 +292,9 @@ describe("ActiveThreadSession", () => {
     const storage = persistence.storage;
     if (storage == null) throw new Error("expected persistence storage");
     const save = storage.setItem.bind(storage);
+    const membershipError = new Error("membership write failed");
     const write = vi.spyOn(storage, "setItem").mockImplementation((key, value) => {
-      if (key === "codex-gui.sessionCollection") throw new Error("membership write failed");
+      if (key === "codex-gui.sessionCollection") throw membershipError;
       save(key, value);
     });
     await expect(h.session.remove(threadId)).resolves.toMatchObject({
@@ -201,10 +302,26 @@ describe("ActiveThreadSession", () => {
       phase: "membership",
     });
     expect(h.session.getCollectionSnapshot().members).toMatchObject([
-      { threadId, phase: "removalPending" },
+      { threadId, phase: "removalPending", error: null },
+    ]);
+    const persistedError = h.session.getCollectionSnapshot().errors[0]?.error;
+    expect(persistedError).toBeInstanceOf(SessionCollectionPersistenceError);
+    expect(persistedError).toMatchObject({
+      code: "write",
+      message: "Session collection persistence failed: write",
+    });
+    if (!(persistedError instanceof SessionCollectionPersistenceError))
+      throw new Error("expected persistence error");
+    expect(persistedError.cause).toBe(membershipError);
+    expect(h.session.getCollectionSnapshot().errors).toEqual([
+      { operation: "membershipRemove", threadId, error: persistedError },
     ]);
     expect(h.store.getState().threadRuntime.byThreadId[threadId]).toBeDefined();
     expect(h.commands.detachThreadProjection).toHaveBeenCalledTimes(1);
+    await expect(h.session.retry(threadId)).resolves.toEqual({
+      type: "unavailable",
+      failure: { type: "collectionFailed", operation: "membershipRemove", threadId },
+    });
     write.mockRestore();
     await expect(h.session.retry(threadId)).resolves.toEqual({
       type: "removed",
@@ -215,6 +332,7 @@ describe("ActiveThreadSession", () => {
     expect(h.store.getState().threadRuntime.byThreadId[threadId]).toBeUndefined();
     expect(h.authorizationSession.clearActiveThread).toHaveBeenCalled();
     expect(h.session.getCollectionSnapshot()).toMatchObject({ viewedThreadId: null, members: [] });
+    expect(h.session.getCollectionSnapshot().errors).toEqual([]);
   });
 
   it("never reattaches while failed initialization cleanup is unresolved", async () => {
@@ -228,7 +346,24 @@ describe("ActiveThreadSession", () => {
     attach.resolve(attachBaseline);
     await activation;
     expect(h.session.getCollectionSnapshot().members).toMatchObject([{ phase: "cleanupPending" }]);
+    const initialError = h.session.getCollectionSnapshot().members[0]?.error;
+    expect(initialError).toBeInstanceOf(AggregateError);
+    if (!(initialError instanceof AggregateError))
+      throw new Error("expected primary and cleanup failures");
+    expect(initialError.errors).toEqual([
+      new Error("Candidate projection became unavailable before publication"),
+      new Error("detach unknown"),
+    ]);
+    vi.mocked(h.commands.detachThreadProjection).mockRejectedValueOnce(
+      new Error("detach retry failed"),
+    );
     await h.session.retry(attachBaseline.snapshot.thread.id);
+    const retryError = h.session.getCollectionSnapshot().members[0]?.error;
+    expect(retryError).toBeInstanceOf(AggregateError);
+    if (!(retryError instanceof AggregateError))
+      throw new Error("expected retained primary failure");
+    expect(retryError.errors).toEqual([initialError.errors[0], new Error("detach retry failed")]);
+    expect(h.session.getCollectionSnapshot().errors).toEqual([]);
     expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(1);
     vi.mocked(h.commands.detachThreadProjection).mockResolvedValue({ status: "detached" });
     await expect(h.session.retry(attachBaseline.snapshot.thread.id)).resolves.toMatchObject({
@@ -281,7 +416,7 @@ describe("ActiveThreadSession", () => {
       warnings: [{ type: "authorizationPersistenceFailed", error }],
     });
     expect(h.session.getCollectionSnapshot()).toMatchObject({
-      error,
+      errors: [{ operation: "viewSelection", threadId: attachBaseline.snapshot.thread.id, error }],
       members: [{ phase: "ready" }],
     });
     expect(h.session.getSnapshot()).toMatchObject({ phase: "active" });
@@ -359,8 +494,9 @@ describe("ActiveThreadSession", () => {
     vi.mocked(recovered.commands.attachThreadProjection).mockImplementation(({ threadId }) =>
       Promise.resolve(threadId === replacementThreadId ? replacementAttach : attachBaseline),
     );
-    await expect(recovered.controller.activateRecoveryThread()).resolves.toMatchObject({
+    await expect(recovered.controller.activateRecoveryThread()).resolves.toEqual({
       type: "unavailable",
+      failure: { type: "collectionFailed", operation: "collectionRead", threadId: null },
     });
     expect(recovered.commands.attachThreadProjection).not.toHaveBeenCalled();
     read.mockRestore();
@@ -934,6 +1070,69 @@ describe("ActiveThreadSession", () => {
       .members.find((member) => member.threadId === replacementThreadId);
     expect(failed?.phase).toBe("failed");
     expect(failed?.error).toBeInstanceOf(Error);
+  });
+
+  it("views a background failure without retrying until explicitly requested", async () => {
+    const h = createHarness();
+    await activateInitial(h);
+    const resume = createDeferred<Awaited<ReturnType<GuiHostCommands["resumeThread"]>>>();
+    vi.mocked(h.commands.resumeThread).mockReturnValueOnce(resume.promise);
+    const activation = h.session.activate(replacementThreadId);
+    await h.session.activate(attachBaseline.snapshot.thread.id);
+    const error = new Error("background resume failed");
+    resume.reject(error);
+    await activation;
+    expect(h.session.getSnapshot()).toMatchObject({
+      phase: "active",
+      threadId: attachBaseline.snapshot.thread.id,
+    });
+    expect(h.commands.resumeThread).toHaveBeenCalledTimes(2);
+    expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(1);
+
+    await expect(h.session.view(replacementThreadId)).resolves.toMatchObject({
+      type: "unavailable",
+      failure: { type: "operationFailed", error },
+    });
+    expect(h.session.getSnapshot()).toMatchObject({
+      phase: "failed",
+      threadId: replacementThreadId,
+      error,
+    });
+    expect(
+      h.session
+        .getCollectionSnapshot()
+        .members.find((member) => member.threadId === replacementThreadId)?.error,
+    ).toBe(error);
+    expect(h.commands.resumeThread).toHaveBeenCalledTimes(2);
+    expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(1);
+
+    queueReplacementActivation(h.commands);
+    await expect(h.session.retry(replacementThreadId)).resolves.toMatchObject({
+      type: "ready",
+      threadId: replacementThreadId,
+    });
+    expect(h.commands.resumeThread).toHaveBeenCalledTimes(3);
+    expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(2);
+    expect(h.session.getSnapshot()).toMatchObject({
+      phase: "active",
+      threadId: replacementThreadId,
+    });
+    expect(
+      h.session
+        .getCollectionSnapshot()
+        .members.find((member) => member.threadId === replacementThreadId)?.error,
+    ).toBeNull();
+  });
+
+  it("retries a failed member when explicitly continuing it again", async () => {
+    const h = createHarness();
+    const threadId = attachBaseline.snapshot.thread.id;
+    vi.mocked(h.commands.resumeThread).mockRejectedValueOnce(new Error("resume failed"));
+    await expect(h.session.activate(threadId)).resolves.toMatchObject({ type: "unavailable" });
+    await expect(h.session.activate(threadId)).resolves.toMatchObject({ type: "ready", threadId });
+    expect(h.commands.resumeThread).toHaveBeenCalledTimes(2);
+    expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(1);
+    expect(h.session.getSnapshot()).toMatchObject({ phase: "active", threadId });
   });
 
   it("reports authorization persistence as a post-publication warning", async () => {
