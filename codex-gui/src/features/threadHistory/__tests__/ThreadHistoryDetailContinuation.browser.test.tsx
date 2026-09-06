@@ -26,7 +26,7 @@ const historyThread = (
 
 const emptyHistoryThread = () => historyThread([]);
 
-const waitForActionLayout = async (surface: HTMLElement) => {
+const waitForActionLayout = async (surface: Element) => {
   await expect
     .poll(async () => {
       const sample = () => [
