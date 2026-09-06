@@ -15,8 +15,11 @@ export type StartTurn = CreateComposerInputQueueCoordinatorInput["startTurn"];
 export type SteerTurn = CreateComposerInputQueueCoordinatorInput["steerTurn"];
 export type InterruptTurn = CreateComposerInputQueueCoordinatorInput["interruptTurn"];
 
-type CreateCoordinatorOptions = Omit<CreateComposerInputQueueCoordinatorInput, "interruptTurn"> &
-  Partial<Pick<CreateComposerInputQueueCoordinatorInput, "interruptTurn">>;
+type CreateCoordinatorOptions = Omit<
+  CreateComposerInputQueueCoordinatorInput,
+  "interruptTurn" | "persistence"
+> &
+  Partial<Pick<CreateComposerInputQueueCoordinatorInput, "interruptTurn" | "persistence">>;
 
 type StartResponse = Awaited<ReturnType<StartTurn>>;
 type PendingInputPage = Extract<
@@ -30,8 +33,22 @@ export function createCoordinator(
 ): ComposerInputQueueCoordinator {
   return createComposerInputQueueCoordinator({
     ...options,
+    persistence: options.persistence ?? createPersistenceTestContext(),
     interruptTurn: options.interruptTurn ?? vi.fn<InterruptTurn>(),
   });
+}
+
+export function createPersistenceTestContext(): CreateComposerInputQueueCoordinatorInput["persistence"] {
+  const records = new Map<string, string>();
+  return {
+    authorizationContext: crypto.randomUUID(),
+    storage: {
+      getItem: (key) => records.get(key) ?? null,
+      setItem: (key, value) => {
+        records.set(key, value);
+      },
+    },
+  };
 }
 
 export function deferredStart() {

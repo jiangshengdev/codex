@@ -25,7 +25,7 @@ export type ComposerPendingInputLiveInvalidation = Readonly<{
 type ComposerPendingInputLiveSessionInvalidation = Readonly<{
   type: "unavailable";
   scope: "liveOwner";
-  reason: "sessionInvalidated" | "mutationPending";
+  reason: "sessionInvalidated" | "mutationPending" | "persistenceFailed";
   revision: number;
 }>;
 
@@ -68,7 +68,12 @@ export type ComposerPendingInputCoordinatorDeleteResult =
 export type ComposerPendingInputCoordinatorMoveUnavailable = Readonly<{
   type: "unavailable";
   scope: "liveOwner";
-  reason: "editInProgress" | "mutationPending" | "releaseReserved" | "recoveryPending";
+  reason:
+    | "editInProgress"
+    | "mutationPending"
+    | "releaseReserved"
+    | "recoveryPending"
+    | "persistenceFailed";
   revision: number;
 }>;
 
@@ -96,6 +101,9 @@ type AcceptedEventReplayResult =
 type ComposerPendingInputDrainResult = "consumed" | "consumedRecoveryPending" | "deferred";
 
 export type ComposerPendingInputLiveManagementHost = Readonly<{
+  transact<T>(
+    operation: (candidate: ComposerInputQueue) => T,
+  ): Readonly<{ type: "committed"; result: T }> | Readonly<{ type: "persistenceFailed" }>;
   applyAcceptedEvent(payload: Readonly<ActiveThreadProjectionAcceptedEvent>): void;
   publishSnapshot(): void;
   drainPendingInput(intent: ComposerPendingInputDrainIntent): ComposerPendingInputDrainResult;
@@ -246,7 +254,9 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
     if (this.ownerGone != null) return this.ownerGone;
     if (this.mutationPending()) return this.liveMutationPending();
     if (blockedByCoordinator) return this.liveSessionInvalidation();
-    const result = this.queue.deletePendingInput(request);
+    const transaction = this.host.transact((candidate) => candidate.deletePendingInput(request));
+    if (transaction.type === "persistenceFailed") return this.persistenceFailure();
+    const result = transaction.result;
     switch (result.type) {
       case "deleted": {
         this.managementOutcome = null;
@@ -277,7 +287,10 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
 
     this.mutating = true;
     try {
-      const result = this.queue.movePendingInput(request);
+      const transaction = this.host.transact((candidate) => candidate.movePendingInput(request));
+      if (transaction.type === "persistenceFailed")
+        return this.pendingInputMoveUnavailable("persistenceFailed");
+      const result = transaction.result;
       switch (result.type) {
         case "moved": {
           this.managementOutcome = null;
@@ -429,7 +442,9 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
       save: (capture) => {
         const unavailable = this.managementSessionUnavailable(session);
         if (unavailable != null) return unavailable;
-        const result = session.reservation.save(capture);
+        const transaction = this.host.transact(() => session.reservation.save(capture));
+        if (transaction.type === "persistenceFailed") return this.persistenceFailure();
+        const result = transaction.result;
         if (result.type === "invalidInput") return result;
         if (result.type === "unavailable") {
           return this.invalidateManagementSession(session);
@@ -441,7 +456,9 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
       cancel: () => {
         const unavailable = this.managementSessionUnavailable(session);
         if (unavailable != null) return unavailable;
-        const result = session.reservation.cancel();
+        const transaction = this.host.transact(() => session.reservation.cancel());
+        if (transaction.type === "persistenceFailed") return this.persistenceFailure();
+        const result = transaction.result;
         if (result.type === "unavailable") {
           return this.invalidateManagementSession(session);
         }
@@ -570,6 +587,15 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
       type: "unavailable",
       scope: "liveOwner",
       reason: "mutationPending",
+      revision: this.queue.detailRevision(),
+    };
+  }
+
+  private persistenceFailure(): ComposerPendingInputLiveSessionInvalidation {
+    return {
+      type: "unavailable",
+      scope: "liveOwner",
+      reason: "persistenceFailed",
       revision: this.queue.detailRevision(),
     };
   }

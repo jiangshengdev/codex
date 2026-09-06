@@ -236,7 +236,7 @@ describe("composer pending input reordering", () => {
               reason: "activeTurnNotSteerable",
               messageIds: ["pending", "b", "a"],
             }
-          : { type: "terminal", messageIds: ["pending", "b", "a"] },
+          : { type: "terminal", messageIds: ["b", "a"] },
       );
       expect(
         queue.state().rejectedSteersQueue.map(({ intent, reason }) => ({
@@ -244,10 +244,16 @@ describe("composer pending input reordering", () => {
           reason,
         })),
       ).toEqual(
-        ["pending", "b", "a"].map((messageId) => ({
+        (closure === "terminal" ? ["b", "a"] : ["pending", "b", "a"]).map((messageId) => ({
           messageId,
           reason: closure,
         })),
+      );
+      expect(queue.state().pendingSteers).toEqual(
+        closure === "terminal" ? [{ claim: pending, phase: "issuing" }] : [],
+      );
+      expect(queue.transition({ type: "issueNext" })).toEqual(
+        closure === "terminal" ? { type: "blocked", phase: "issuing" } : { type: "empty" },
       );
     },
   );
