@@ -62,7 +62,7 @@ export function ContextUsagePopover({
           </span>
         )}
       </Button>
-      <Popover.Content placement="top">
+      <Popover.Content className="w-max max-w-[calc(100vw-24px)]" placement="top">
         <Popover.Dialog>
           <Popover.Heading>
             <Trans comment="Heading for context usage and compression controls">

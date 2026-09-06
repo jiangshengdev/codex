@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { page } from "vitest/browser";
 import type { ActiveThreadCompactionView } from "@/features/activeThreadSession/activeThreadSessionContracts";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ContextUsagePopover } from "../ContextUsagePopover";
@@ -42,6 +43,70 @@ const progressCircleFor = (button: Element): HTMLElement => {
 };
 
 describe("ContextUsagePopover", () => {
+  it.each([414, 240])(
+    "keeps changing context details within a %ipx viewport without resize errors",
+    async (width) => {
+      const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+      const errors = vi.spyOn(console, "error");
+      const onRequestCompaction = vi.fn<() => void>();
+      const frame = () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => {
+            resolve();
+          }),
+        );
+      const content = (compaction: ActiveThreadCompactionView) => (
+        <div className="flex justify-center pt-20">
+          <ContextUsagePopover
+            compaction={compaction}
+            onRequestCompaction={onRequestCompaction}
+            usage={knownUsage}
+          />
+        </div>
+      );
+      try {
+        await page.viewport(width, 600);
+        const screen = await renderWithProviders(content(idleCompaction));
+        try {
+          await screen.getByRole("button").click();
+          const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
+          await expect.element(dialog).toBeVisible();
+          await frame();
+          await frame();
+
+          await screen.rerender(
+            content({ phase: "running", canRequest: false, startFailure: null }),
+          );
+          await expect.element(dialog.getByRole("button", { name: "Compressing" })).toBeDisabled();
+          await frame();
+          await frame();
+
+          await screen.rerender(content({ ...idleCompaction, startFailure: "private failure" }));
+          await expect.element(dialog.getByRole("alert")).toBeVisible();
+          // Allow resize delivery and a subsequent rendering opportunity before unmount.
+          await frame();
+          await frame();
+          const bounds = dialog.element().getBoundingClientRect();
+          expect(bounds.left).toBeGreaterThanOrEqual(0);
+          expect(bounds.right).toBeLessThanOrEqual(width);
+          expect(dialog.element().scrollWidth).toBeLessThanOrEqual(dialog.element().clientWidth);
+          expect(
+            errors.mock.calls.flatMap((args) =>
+              args
+                .map((value) => (value instanceof Error ? value.message : String(value)))
+                .filter((message) => message.includes("ResizeObserver loop")),
+            ),
+          ).toEqual([]);
+        } finally {
+          await screen.unmount();
+        }
+      } finally {
+        errors.mockRestore();
+        await page.viewport(originalViewport.width, originalViewport.height);
+      }
+    },
+  );
+
   it("opens raw English context usage details with a pointer click", async () => {
     const screen = await renderPopover(knownUsage);
     const trigger = screen.getByRole("button", {
