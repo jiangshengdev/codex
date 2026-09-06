@@ -1,12 +1,5 @@
-import {
-  createContext,
-  StrictMode,
-  use,
-  useEffect,
-  useLayoutEffect,
-  useState,
-  type ComponentProps,
-} from "react";
+import { act, createContext, StrictMode, use, useEffect, type ComponentProps } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { render } from "vitest-browser-react";
 import { afterEach, expect, test, vi } from "vitest";
 import { CatchBoundary } from "@tanstack/react-router";
@@ -35,11 +28,30 @@ vi.mock("../ComposerPendingInputEditor", () => ({
   },
 }));
 
-afterEach(() => {
+const synchronousRoots = new Map<Root, HTMLDivElement>();
+
+afterEach(async () => {
+  for (const [root, container] of synchronousRoots) {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  }
+  synchronousRoots.clear();
+  await Promise.resolve();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
 type AdapterProps = ComponentProps<typeof ComposerPendingInputEditorAdapter>;
+
+function createSynchronousRoot() {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const container = document.body.appendChild(document.createElement("div"));
+  const root = createRoot(container);
+  synchronousRoots.set(root, container);
+  return root;
+}
 
 function createController(): ComposerEditorController {
   return {
@@ -107,19 +119,28 @@ test("invalidates an old controller when a committed update replaces it before a
   const { props, attach, detach } = createFixture();
   const previous = createController();
   const current = createController();
-  function Harness() {
-    const [replaced, setReplaced] = useState(false);
-    useLayoutEffect(() => {
-      setReplaced(true);
-    }, []);
-    return (
-      <ControllerContext value={replaced ? current : previous}>
+  const root = createSynchronousRoot();
+  act(() => {
+    root.render(
+      <ControllerContext value={previous}>
         <ComposerPendingInputEditorAdapter {...props} />
-      </ControllerContext>
+      </ControllerContext>,
     );
-  }
+  });
+  expect(props.controllerRef.current?.controller).toBe(previous);
+  expect(attach).not.toHaveBeenCalled();
 
-  await render(<Harness />);
+  // Commit the replacement before yielding to the queued attachment.
+  act(() => {
+    root.render(
+      <ControllerContext value={current}>
+        <ComposerPendingInputEditorAdapter {...props} />
+      </ControllerContext>,
+    );
+  });
+  expect(props.controllerRef.current?.controller).toBe(current);
+  expect(attach).not.toHaveBeenCalled();
+  await Promise.resolve();
 
   expect(attach).toHaveBeenCalledOnce();
   expect(attach.mock.calls[0]?.[0].restore).toBe(current.restore);
@@ -130,19 +151,23 @@ test("invalidates an old controller when a committed update replaces it before a
 test("cleans up a preparing editor that unmounts before attachment", async () => {
   const { props, attach, detach } = createFixture();
   const controller = createController();
-  function Harness() {
-    const [closed, setClosed] = useState(false);
-    useLayoutEffect(() => {
-      setClosed(true);
-    }, []);
-    return closed ? null : (
+  const root = createSynchronousRoot();
+  act(() => {
+    root.render(
       <ControllerContext value={controller}>
         <ComposerPendingInputEditorAdapter {...props} />
-      </ControllerContext>
+      </ControllerContext>,
     );
-  }
+  });
+  expect(props.controllerRef.current?.controller).toBe(controller);
+  expect(attach).not.toHaveBeenCalled();
 
-  await render(<Harness />);
+  act(() => {
+    root.render(null);
+  });
+  expect(props.controllerRef.current).toBeNull();
+  expect(detach).not.toHaveBeenCalled();
+  await Promise.resolve();
 
   expect(attach).not.toHaveBeenCalled();
   expect(detach).toHaveBeenCalledExactlyOnceWith(props.facts, props.edit.preparationToken);
@@ -153,19 +178,26 @@ test("attaches with the latest committed facts", async () => {
   const { props, attach } = createFixture();
   const controller = createController();
   const latestFacts = { ...props.facts, sessionRevision: 2, mutationsEnabled: false };
-  function Harness() {
-    const [updated, setUpdated] = useState(false);
-    useLayoutEffect(() => {
-      setUpdated(true);
-    }, []);
-    return (
+  const root = createSynchronousRoot();
+  act(() => {
+    root.render(
       <ControllerContext value={controller}>
-        <ComposerPendingInputEditorAdapter {...props} facts={updated ? latestFacts : props.facts} />
-      </ControllerContext>
+        <ComposerPendingInputEditorAdapter {...props} />
+      </ControllerContext>,
     );
-  }
+  });
+  expect(props.controllerRef.current?.controller).toBe(controller);
+  expect(attach).not.toHaveBeenCalled();
 
-  await render(<Harness />);
+  act(() => {
+    root.render(
+      <ControllerContext value={controller}>
+        <ComposerPendingInputEditorAdapter {...props} facts={latestFacts} />
+      </ControllerContext>,
+    );
+  });
+  expect(attach).not.toHaveBeenCalled();
+  await Promise.resolve();
 
   expect(attach).toHaveBeenCalledOnce();
   expect(attach.mock.calls[0]?.[0].facts).toBe(latestFacts);
