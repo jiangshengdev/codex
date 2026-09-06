@@ -1,4 +1,5 @@
 import { Toast } from "@heroui/react";
+import { createPersistenceTestContext } from "@/features/composerInputQueue/__tests__/composerInputQueueCoordinatorTestFixtures";
 import { afterEach, expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
 import { useSyncExternalStore } from "react";
@@ -51,6 +52,13 @@ const skillCatalogController: SkillCatalogController = {
 const composerRoleFor = (
   controller: ComposerInputQueueCoordinator,
 ): Partial<ActiveThreadComposerRole> => ({
+  getDraft: controller.getDraft,
+  saveDraft: (_revision, draft) => controller.saveDraft(draft),
+  retryPersistence: () => controller.retryPersistence(),
+  resumeRestored: (_revision, persistenceRevision) =>
+    controller.resumeRestored(persistenceRevision),
+  discardUnknown: (_revision, id, persistenceRevision) =>
+    controller.discardUnknown(id, persistenceRevision),
   beginPendingInputEdit: (_revision, request, restore) =>
     controller.beginPendingInputEdit(request, restore),
   deletePendingInput: (_revision, request) => controller.deletePendingInput(request),
@@ -88,6 +96,7 @@ async function renderAttached(
   composerInputQueueController: ComposerInputQueueCoordinator = createComposerInputQueueCoordinator(
     {
       threadId: launchThreadId,
+      persistence: createPersistenceTestContext(),
       activeTurnId: null,
       startTurn: commandHandle.startTurn,
       steerTurn: commandHandle.steerTurn,
@@ -300,6 +309,7 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
     const commandHandle = createGuiHostCommands();
     vi.mocked(commandHandle.steerTurn).mockReturnValue(pendingSteer.promise);
     const controller = createComposerInputQueueCoordinator({
+      persistence: createPersistenceTestContext(),
       threadId: launchThreadId,
       activeTurnId,
       startTurn: commandHandle.startTurn,

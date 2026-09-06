@@ -75,6 +75,7 @@ const installActiveThreadSessionController = (
     handleSkillsChanged: vi.fn<ActiveThreadSessionController["handleSkillsChanged"]>(),
     handleThreadStatusChanged: vi.fn<ActiveThreadSessionController["handleThreadStatusChanged"]>(),
     connectionUnavailable: vi.fn<ActiveThreadSessionController["connectionUnavailable"]>(),
+    suspendRestoredQueue: vi.fn<ActiveThreadSessionController["suspendRestoredQueue"]>(),
     dispose: vi.fn<ActiveThreadSessionController["dispose"]>(),
   };
   activeThreadSessionFactoryState.controller = controller;

@@ -34,6 +34,7 @@ export const queueSnapshot = (
   canStop: false,
   interrupt: null,
   pendingInputManagementOutcome: null,
+  persistence: { error: null, restoredPaused: false, revision: null, unknownMessages: [] },
   ...overrides,
 });
 
@@ -261,6 +262,17 @@ export const createQueueControllerHarness = (
       };
     });
   const controller = {
+    getDraft: vi.fn<ComposerInputQueueCoordinator["getDraft"]>().mockReturnValue(null),
+    saveDraft: vi.fn<ComposerInputQueueCoordinator["saveDraft"]>().mockReturnValue(true),
+    retryPersistence: vi
+      .fn<ComposerInputQueueCoordinator["retryPersistence"]>()
+      .mockReturnValue(false),
+    resumeRestored: vi.fn<ComposerInputQueueCoordinator["resumeRestored"]>().mockReturnValue(false),
+    discardUnknown: vi.fn<ComposerInputQueueCoordinator["discardUnknown"]>().mockReturnValue(false),
+    suspendRestored: vi.fn<ComposerInputQueueCoordinator["suspendRestored"]>(),
+    completeRestoreReconciliation:
+      vi.fn<ComposerInputQueueCoordinator["completeRestoreReconciliation"]>(),
+    reconcileRestoredTurns: vi.fn<ComposerInputQueueCoordinator["reconcileRestoredTurns"]>(),
     ownerThreadId: threadId,
     submit,
     submitSteer,

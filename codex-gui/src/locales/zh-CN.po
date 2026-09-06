@@ -111,6 +111,14 @@ msgstr "浏览历史任务"
 msgid "Cancel"
 msgstr "取消"
 
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:26
+msgid "Changes could not be saved"
+msgstr "无法保存更改"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:53
+msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
+msgstr "继续前，请检查队列、其他打开的页面和会话历史。发送结果未知的消息仍会阻塞后续发送。"
+
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:188
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:214
 msgid "Cleanup diagnostic:"
@@ -339,7 +347,7 @@ msgstr "等待结束"
 msgid "Go back home"
 msgstr "返回首页"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:237
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:245
 msgid "Guide"
 msgstr "引导"
 
@@ -412,7 +420,7 @@ msgstr "已中断。"
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:41
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:90
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:96
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:100
 msgid "Invalid skill"
 msgstr "无效技能"
 
@@ -449,12 +457,12 @@ msgstr "菜单"
 msgid "Message cannot be empty"
 msgstr "消息不能为空"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:173
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:181
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:178
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:188
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:160
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:164
 msgid "Message composer"
 msgstr "消息输入区"
 
@@ -635,6 +643,11 @@ msgstr "已刷新，请重试此操作。"
 msgid "Refreshing skills…"
 msgstr "正在刷新技能…"
 
+#. Drops only this local unknown-send record, without retracting server work
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:96
+msgid "Remove local record"
+msgstr "移除本地记录"
+
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:93
 msgid "Remove or replace invalid skills before saving."
 msgstr "保存前请移除或替换无效技能。"
@@ -649,6 +662,10 @@ msgstr "仓库"
 #: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:146
 msgid "Request failed"
 msgstr "请求失败"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:50
+msgid "Restored messages are paused"
+msgstr "恢复的消息已暂停发送"
 
 #. Collaboration activity showing the raw receiver value of the resumed agent
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:231
@@ -666,10 +683,20 @@ msgstr "正在恢复 {receiver}"
 msgid "Retry"
 msgstr "重试"
 
+#. Retries saving the composer draft and queue in this browser tab
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:38
+msgid "Retry saving"
+msgstr "重试保存"
+
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:122
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:153
 msgid "Return to current task"
 msgstr "返回当前任务"
+
+#. Allows this page to advance its restored queue after the user checks it
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:65
+msgid "Review and continue"
+msgstr "检查后继续"
 
 #. Status of a collaborating agent that is currently working
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:82
@@ -685,9 +712,13 @@ msgstr "保存"
 msgid "Scan with phone"
 msgstr "使用手机扫描"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:249
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:257
 msgid "Send"
 msgstr "发送"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:77
+msgid "Sending result unknown"
+msgstr "发送结果未知"
 
 #. Collaboration activity showing the raw receiver value of the agent that received input
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:223
@@ -749,11 +780,11 @@ msgstr "已启动 {receiver}（{reasoningEffort}）"
 msgid "Started <0/> <1/>"
 msgstr "已启动 <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:225
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:233
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:216
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:224
 msgid "Stop failed"
 msgstr "停止失败"
 
@@ -836,6 +867,10 @@ msgstr "任务已打开，但部分状态同步未完成。"
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:179
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "任务切换已提交，但连接已中断。重新连接后请确认当前任务。"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:80
+msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
+msgstr "这些消息不会自动重发。移除本地记录不会取消或撤回服务端的消息。"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:324
 msgid "This message has entered the sending process and can no longer be managed."
@@ -967,3 +1002,7 @@ msgstr "将优先发送"
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:130
 msgid "Yesterday"
 msgstr "昨天"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:29
+msgid "Your input is still here. Sending is blocked until saving succeeds."
+msgstr "输入内容仍保留在此处。保存成功前无法发送。"

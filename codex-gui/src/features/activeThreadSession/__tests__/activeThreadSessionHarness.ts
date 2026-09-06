@@ -64,6 +64,7 @@ const emptyComposerSnapshot: ComposerInputQueueCoordinatorSnapshot = {
   canStop: false,
   interrupt: null,
   pendingInputManagementOutcome: null,
+  persistence: { error: null, restoredPaused: false, revision: null, unknownMessages: [] },
 };
 
 const emptySkillsState: SkillCatalogState = {
@@ -86,6 +87,11 @@ const ownerGone = {
 const createComposerRole = (
   overrides: Partial<ActiveThreadComposerRole> = {},
 ): ActiveThreadComposerRole => ({
+  getDraft: vi.fn<ActiveThreadComposerRole["getDraft"]>().mockReturnValue(null),
+  saveDraft: vi.fn<ActiveThreadComposerRole["saveDraft"]>().mockReturnValue(true),
+  retryPersistence: vi.fn<ActiveThreadComposerRole["retryPersistence"]>().mockReturnValue(false),
+  resumeRestored: vi.fn<ActiveThreadComposerRole["resumeRestored"]>().mockReturnValue(false),
+  discardUnknown: vi.fn<ActiveThreadComposerRole["discardUnknown"]>().mockReturnValue(false),
   beginPendingInputEdit: vi
     .fn<ActiveThreadComposerRole["beginPendingInputEdit"]>()
     .mockReturnValue(ownerGone),

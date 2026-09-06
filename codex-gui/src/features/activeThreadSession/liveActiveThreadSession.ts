@@ -2,6 +2,7 @@ import type { AppDispatch } from "@/app/store";
 import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
+  type CreateComposerInputQueueCoordinatorInput,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import {
@@ -52,6 +53,7 @@ export type CreateLiveActiveThreadSessionInput = Readonly<{
   projection: ActiveThreadProjection;
   commands: LiveActiveThreadSessionCommands;
   dispatch: AppDispatch;
+  persistence: CreateComposerInputQueueCoordinatorInput["persistence"];
 }>;
 
 class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
@@ -86,6 +88,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     projection,
     commands,
     dispatch,
+    persistence,
   }: CreateLiveActiveThreadSessionInput) {
     const thread = attachResponse.snapshot.thread;
     if (
@@ -107,6 +110,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       startTurn: commands.startTurn,
       steerTurn: commands.steerTurn,
       interruptTurn: commands.interruptTurn,
+      persistence,
     });
     this.compaction = createActiveThreadCompaction();
     this.skillCatalog = new SkillCatalogOwner({ cwd: thread.cwd, listSkills: commands.listSkills });
@@ -120,9 +124,11 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     this.unsubscribeSkills = this.skillCatalog.subscribe(this.handleChildPublication);
     this.unsubscribeThreadStatus = this.threadStatus.subscribe(this.handleChildPublication);
     this.skillCatalog.start();
+    this.queue.reconcileRestoredTurns(thread.turns);
     const initialBatch = this.projection.flush();
     this.applyQueueFacts(initialBatch.acceptedQueueFacts);
     this.applyProjectionPhase(initialBatch);
+    this.queue.completeRestoreReconciliation();
     this.transactionDepth = 0;
     this.childChanged = false;
     this.dispatch(
@@ -135,6 +141,33 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   }
 
   getSnapshot = (): LiveActiveThreadSessionSnapshot => this.snapshot;
+
+  getDraft: LiveActiveThreadSession["getDraft"] = () => this.queue.getDraft();
+
+  saveDraft: LiveActiveThreadSession["saveDraft"] = (expectedRevision, draft) =>
+    this.mutate(expectedRevision, () => this.queue.saveDraft(draft));
+
+  retryPersistence: LiveActiveThreadSession["retryPersistence"] = (expectedRevision) =>
+    this.mutate(expectedRevision, () => this.queue.retryPersistence());
+
+  resumeRestored: LiveActiveThreadSession["resumeRestored"] = (
+    expectedRevision,
+    expectedPersistenceRevision,
+  ) => this.mutate(expectedRevision, () => this.queue.resumeRestored(expectedPersistenceRevision));
+
+  discardUnknown: LiveActiveThreadSession["discardUnknown"] = (
+    expectedRevision,
+    id,
+    expectedPersistenceRevision,
+  ) =>
+    this.mutate(expectedRevision, () => this.queue.discardUnknown(id, expectedPersistenceRevision));
+
+  suspendRestored = (): void => {
+    if (!this.disposed)
+      this.runChildTransaction(() => {
+        this.queue.suspendRestored();
+      });
+  };
 
   subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return () => undefined;

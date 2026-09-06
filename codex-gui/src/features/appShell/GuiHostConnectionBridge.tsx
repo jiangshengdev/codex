@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppDispatch } from "@/app/hooks";
 import {
   createActiveThreadSession,
@@ -33,6 +33,7 @@ export function GuiHostConnectionBridge({
 }: GuiHostConnectionBridgeProps) {
   const dispatch = useAppDispatch();
   const frozenStartupTarget = useRef(startupTarget);
+  const [pageSessionRevision, setPageSessionRevision] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -65,6 +66,16 @@ export function GuiHostConnectionBridge({
       };
     }
     setAuthorizationToken(authorizationSession.getSnapshot().token);
+    const suspendRestoredQueue = (): void => {
+      activeThreadController?.suspendRestoredQueue();
+    };
+    const handlePageShow = (event: PageTransitionEvent): void => {
+      if (!event.persisted) return;
+      suspendRestoredQueue();
+      setPageSessionRevision((revision) => revision + 1);
+    };
+    window.addEventListener("pagehide", suspendRestoredQueue);
+    window.addEventListener("pageshow", handlePageShow);
 
     const connectionUnavailable = (): void => {
       activationGeneration += 1;
@@ -101,6 +112,7 @@ export function GuiHostConnectionBridge({
             commands,
             dispatch,
             scheduler,
+            persistence: { authorizationContext: authorizationSession.getPersistenceContext() },
           });
           activeThreadController = controller;
           const generation = ++activationGeneration;
@@ -137,6 +149,8 @@ export function GuiHostConnectionBridge({
 
     return () => {
       isMounted = false;
+      window.removeEventListener("pagehide", suspendRestoredQueue);
+      window.removeEventListener("pageshow", handlePageShow);
       activationGeneration += 1;
       activeThreadController?.dispose();
       activeThreadController = null;
@@ -148,6 +162,7 @@ export function GuiHostConnectionBridge({
     };
   }, [
     dispatch,
+    pageSessionRevision,
     setActiveThreadSession,
     setActiveThreadStartupError,
     setAuthorizationToken,

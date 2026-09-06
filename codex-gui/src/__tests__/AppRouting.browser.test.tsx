@@ -108,11 +108,32 @@ const installActiveThreadSessionController = (
     handleSkillsChanged: vi.fn<ActiveThreadSessionController["handleSkillsChanged"]>(),
     handleThreadStatusChanged: vi.fn<ActiveThreadSessionController["handleThreadStatusChanged"]>(),
     connectionUnavailable: vi.fn<ActiveThreadSessionController["connectionUnavailable"]>(),
+    suspendRestoredQueue: vi.fn<ActiveThreadSessionController["suspendRestoredQueue"]>(),
     dispose: vi.fn<ActiveThreadSessionController["dispose"]>(),
   };
   activeThreadSessionFactoryState.controller = controller;
   return controller;
 };
+
+test("suspends restored queues before rebuilding the connection after a cached page returns", async () => {
+  seedBrowserAuthorizationSession({ token: "history-secret" });
+  const harness = createActiveThreadSessionHarness();
+  const controller = installActiveThreadSessionController(harness, () =>
+    Promise.resolve({ type: "empty" }),
+  );
+  const router = createAppRouter(createMemoryHistory({ initialEntries: ["/history"] }));
+  await renderWithProviders(<RouterProvider router={router} />);
+  initializeHost(getHostOptions(startGuiHostConnectionMock), createHistoryCommands());
+  await expect.poll(() => vi.mocked(controller.activateRecoveryThread).mock.calls.length).toBe(1);
+  const connections = startGuiHostConnectionMock.mock.calls.length;
+
+  window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true }));
+  expect(controller.suspendRestoredQueue).toHaveBeenCalledOnce();
+  window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+  expect(controller.suspendRestoredQueue).toHaveBeenCalledTimes(2);
+  await expect.poll(() => startGuiHostConnectionMock.mock.calls.length).toBe(connections + 1);
+  expect(controller.dispose).toHaveBeenCalledOnce();
+});
 
 test("history waits for startup activation before publishing a settled empty session", async () => {
   seedBrowserAuthorizationSession({ token: "history-secret" });
@@ -630,7 +651,11 @@ test("pure read-only history detail activates its first task and replaces the ro
       threadId: historyThreadId,
     });
     expect(commands.detachThreadProjection).not.toHaveBeenCalled();
-    expect(storageSetItem).toHaveBeenCalledOnce();
+    expect(
+      storageSetItem.mock.calls.filter(
+        ([key]) => key === "codex-gui.browserAuthorizationSession.v1",
+      ),
+    ).toHaveLength(1);
     const storedSession = consumeBrowserAuthorizationSession({
       location: new URL("https://codex.test/browser-authorization-session-read"),
       replaceState: () => undefined,

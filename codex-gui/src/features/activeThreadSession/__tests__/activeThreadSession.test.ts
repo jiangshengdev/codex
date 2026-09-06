@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createPersistenceTestContext } from "@/features/composerInputQueue/__tests__/composerInputQueueCoordinatorTestFixtures";
 import { makeStore, type AppDispatch } from "@/app/store";
 import { createDeferred, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
@@ -68,6 +69,7 @@ const createHarness = (
   let nextFrameId = 0;
   const frames = new Map<number, () => void>();
   const controller = createActiveThreadSession({
+    persistence: createPersistenceTestContext(),
     authorizationSession,
     commands,
     dispatch: ((action: UnknownAction) => {

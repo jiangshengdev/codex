@@ -94,6 +94,22 @@ export type ActiveThreadReserveReleaseResult =
 export type LiveActiveThreadSession = Readonly<{
   getSnapshot(): LiveActiveThreadSessionSnapshot;
   subscribe(listener: () => void): () => void;
+  getDraft(): ReturnType<ComposerInputQueueCoordinator["getDraft"]>;
+  saveDraft(
+    expectedRevision: number,
+    draft: Parameters<ComposerInputQueueCoordinator["saveDraft"]>[0],
+  ): ActiveThreadSessionOperationResult<boolean>;
+  retryPersistence(expectedRevision: number): ActiveThreadSessionOperationResult<boolean>;
+  resumeRestored(
+    expectedRevision: number,
+    expectedPersistenceRevision: number | null,
+  ): ActiveThreadSessionOperationResult<boolean>;
+  discardUnknown(
+    expectedRevision: number,
+    id: string,
+    expectedPersistenceRevision: number | null,
+  ): ActiveThreadSessionOperationResult<boolean>;
+  suspendRestored(): void;
   submit(
     expectedRevision: number,
     capture: Parameters<ComposerInputQueueCoordinator["submit"]>[0],

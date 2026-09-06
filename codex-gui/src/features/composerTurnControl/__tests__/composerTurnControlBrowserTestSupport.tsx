@@ -1,4 +1,5 @@
 import { Toast } from "@heroui/react";
+import { createPersistenceTestContext } from "@/features/composerInputQueue/__tests__/composerInputQueueCoordinatorTestFixtures";
 import type { Turn } from "@codex-protocol/v2";
 import { StrictMode, useSyncExternalStore } from "react";
 import { vi } from "vitest";
@@ -88,6 +89,21 @@ const composerRoleFor = (
   controller: ComposerInputQueueCoordinator,
   getRevision: () => number,
 ): Partial<ActiveThreadComposerRole> => ({
+  getDraft: controller.getDraft,
+  saveDraft: (revision, draft) =>
+    revision === getRevision() ? controller.saveDraft(draft) : staleSessionOperation(getRevision()),
+  retryPersistence: (revision) =>
+    revision === getRevision()
+      ? controller.retryPersistence()
+      : staleSessionOperation(getRevision()),
+  resumeRestored: (revision, persistenceRevision) =>
+    revision === getRevision()
+      ? controller.resumeRestored(persistenceRevision)
+      : staleSessionOperation(getRevision()),
+  discardUnknown: (revision, id, persistenceRevision) =>
+    revision === getRevision()
+      ? controller.discardUnknown(id, persistenceRevision)
+      : staleSessionOperation(getRevision()),
   beginPendingInputEdit: (revision, request, restore) =>
     revision === getRevision()
       ? controller.beginPendingInputEdit(request, restore)
@@ -209,6 +225,7 @@ export async function renderComposerTurnControl({
   } else {
     const commands = queue.commands ?? createGuiHostCommands();
     controller = createComposerInputQueueCoordinator({
+      persistence: createPersistenceTestContext(),
       threadId,
       activeTurnId: activeTurn?.id ?? null,
       startTurn: commands.startTurn,

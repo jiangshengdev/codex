@@ -54,6 +54,11 @@ export type ActiveThreadComposerRole = Readonly<
     | "recover"
     | "submit"
     | "submitSteer"
+    | "getDraft"
+    | "saveDraft"
+    | "retryPersistence"
+    | "resumeRestored"
+    | "discardUnknown"
   >
 >;
 
@@ -136,6 +141,7 @@ export type ActiveThreadSessionController = Readonly<{
   handleSkillsChanged(): void;
   handleThreadStatusChanged(notification: ThreadStatusChangedNotification): void;
   connectionUnavailable(): void;
+  suspendRestoredQueue(): void;
   dispose(): void;
 }>;
 
@@ -144,6 +150,7 @@ export type CreateActiveThreadSessionInput = Readonly<{
   commands: ActiveThreadSessionCommands;
   dispatch: AppDispatch;
   scheduler: ActiveThreadSessionScheduler;
+  persistence: CreateLiveActiveThreadSessionInput["persistence"];
 }>;
 
 type ActiveThreadNotification =
@@ -222,17 +229,20 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   private busy = false;
   private suppressCurrentPublication = false;
   private disposed = false;
+  private readonly persistence: CreateLiveActiveThreadSessionInput["persistence"];
 
   constructor({
     authorizationSession,
     commands,
     dispatch,
     scheduler,
+    persistence,
   }: CreateActiveThreadSessionInput) {
     this.authorizationSession = authorizationSession;
     this.commands = commands;
     this.dispatch = dispatch;
     this.scheduler = scheduler;
+    this.persistence = persistence;
     this.session = {
       getSnapshot: this.getSnapshot,
       subscribe: this.subscribe,
@@ -336,6 +346,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
         projection,
         commands: this.commands,
         dispatch: candidate.dispatchAdapter.dispatch,
+        persistence: this.persistence,
       } satisfies CreateLiveActiveThreadSessionInput);
       if (candidate.threadStatusDirty) {
         candidate.threadStatusDirty = false;
@@ -520,6 +531,11 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
 
   connectionUnavailable = (): void => {
     this.disposeSession();
+  };
+
+  suspendRestoredQueue = (): void => {
+    this.current?.suspendRestored();
+    this.candidate?.liveSession?.suspendRestored();
   };
 
   dispose = (): void => {
@@ -744,6 +760,11 @@ function createSessionRoles(liveSession: LiveActiveThreadSession): ActiveThreadS
       recover: liveSession.recover,
       submit: liveSession.submit,
       submitSteer: liveSession.submitSteer,
+      getDraft: liveSession.getDraft,
+      saveDraft: liveSession.saveDraft,
+      retryPersistence: liveSession.retryPersistence,
+      resumeRestored: liveSession.resumeRestored,
+      discardUnknown: liveSession.discardUnknown,
     },
     skillsRole: {
       invalidateSkills: liveSession.invalidateSkills,

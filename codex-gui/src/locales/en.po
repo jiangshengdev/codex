@@ -111,6 +111,14 @@ msgstr "Browse task history"
 msgid "Cancel"
 msgstr "Cancel"
 
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:26
+msgid "Changes could not be saved"
+msgstr "Changes could not be saved"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:53
+msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
+msgstr "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
+
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:188
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:214
 msgid "Cleanup diagnostic:"
@@ -339,7 +347,7 @@ msgstr "Finished waiting"
 msgid "Go back home"
 msgstr "Go back home"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:237
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:245
 msgid "Guide"
 msgstr "Guide"
 
@@ -412,7 +420,7 @@ msgstr "Interrupted."
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:41
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:90
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:96
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:100
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
@@ -449,12 +457,12 @@ msgstr "Menu"
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:173
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:181
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:178
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:188
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:160
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:164
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -635,6 +643,11 @@ msgstr "Refresh complete. Try the action again."
 msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
+#. Drops only this local unknown-send record, without retracting server work
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:96
+msgid "Remove local record"
+msgstr "Remove local record"
+
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:93
 msgid "Remove or replace invalid skills before saving."
 msgstr "Remove or replace invalid skills before saving."
@@ -649,6 +662,10 @@ msgstr "Repository"
 #: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:146
 msgid "Request failed"
 msgstr "Request failed"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:50
+msgid "Restored messages are paused"
+msgstr "Restored messages are paused"
 
 #. Collaboration activity showing the raw receiver value of the resumed agent
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:231
@@ -666,10 +683,20 @@ msgstr "Resuming {receiver}"
 msgid "Retry"
 msgstr "Retry"
 
+#. Retries saving the composer draft and queue in this browser tab
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:38
+msgid "Retry saving"
+msgstr "Retry saving"
+
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:122
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:153
 msgid "Return to current task"
 msgstr "Return to current task"
+
+#. Allows this page to advance its restored queue after the user checks it
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:65
+msgid "Review and continue"
+msgstr "Review and continue"
 
 #. Status of a collaborating agent that is currently working
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:82
@@ -685,9 +712,13 @@ msgstr "Save"
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:249
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:257
 msgid "Send"
 msgstr "Send"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:77
+msgid "Sending result unknown"
+msgstr "Sending result unknown"
 
 #. Collaboration activity showing the raw receiver value of the agent that received input
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:223
@@ -749,11 +780,11 @@ msgstr "Spawned {receiver} ({reasoningEffort})"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:225
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:233
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:216
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:224
 msgid "Stop failed"
 msgstr "Stop failed"
 
@@ -836,6 +867,10 @@ msgstr "The task opened, but some state synchronization did not finish."
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:179
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:80
+msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
+msgstr "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:324
 msgid "This message has entered the sending process and can no longer be managed."
@@ -967,3 +1002,7 @@ msgstr "Will send first"
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:130
 msgid "Yesterday"
 msgstr "Yesterday"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:29
+msgid "Your input is still here. Sending is blocked until saving succeeds."
+msgstr "Your input is still here. Sending is blocked until saving succeeds."

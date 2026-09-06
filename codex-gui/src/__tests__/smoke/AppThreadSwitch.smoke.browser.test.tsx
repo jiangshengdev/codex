@@ -108,6 +108,17 @@ const createQueueCoordinatorMock = (
   const observeAcceptedEvent = vi.fn<ComposerInputQueueCoordinator["observeAcceptedEvent"]>();
   const dispose = vi.fn<ComposerInputQueueCoordinator["dispose"]>();
   const coordinator = {
+    getDraft: vi.fn<ComposerInputQueueCoordinator["getDraft"]>().mockReturnValue(null),
+    saveDraft: vi.fn<ComposerInputQueueCoordinator["saveDraft"]>().mockReturnValue(true),
+    retryPersistence: vi
+      .fn<ComposerInputQueueCoordinator["retryPersistence"]>()
+      .mockReturnValue(false),
+    resumeRestored: vi.fn<ComposerInputQueueCoordinator["resumeRestored"]>().mockReturnValue(false),
+    suspendRestored: vi.fn<ComposerInputQueueCoordinator["suspendRestored"]>(),
+    completeRestoreReconciliation:
+      vi.fn<ComposerInputQueueCoordinator["completeRestoreReconciliation"]>(),
+    reconcileRestoredTurns: vi.fn<ComposerInputQueueCoordinator["reconcileRestoredTurns"]>(),
+    discardUnknown: vi.fn<ComposerInputQueueCoordinator["discardUnknown"]>().mockReturnValue(false),
     ownerThreadId: threadId,
     submit: vi.fn<ComposerInputQueueCoordinator["submit"]>().mockReturnValue({ type: "accepted" }),
     submitSteer: vi
@@ -158,6 +169,7 @@ const createQueueCoordinatorMock = (
       canStop: false,
       interrupt: null,
       pendingInputManagementOutcome: null,
+      persistence: { error: null, restoredPaused: false, revision: null, unknownMessages: [] },
     }),
     subscribe: vi
       .fn<ComposerInputQueueCoordinator["subscribe"]>()

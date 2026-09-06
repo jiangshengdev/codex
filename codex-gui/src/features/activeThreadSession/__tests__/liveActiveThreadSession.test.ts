@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createPersistenceTestContext } from "@/features/composerInputQueue/__tests__/composerInputQueueCoordinatorTestFixtures";
 import { createDeferred } from "@/__tests__/testDeferred";
 import { makeStore } from "@/app/store";
 import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
@@ -53,6 +54,7 @@ const createHarness = () => {
     projection,
     commands,
     dispatch: store.dispatch,
+    persistence: createPersistenceTestContext(),
   });
   return { commands, compactThread, listSkills, readThread, session, startTurn, store };
 };
