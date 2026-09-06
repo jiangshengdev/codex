@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import { requiredTranscriptState } from "./requiredTranscriptState";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
   ActiveThreadProjectionAcceptedEvent,
   ActiveThreadProjectionReadModelFact,
@@ -25,9 +29,10 @@ import {
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
+const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
@@ -37,6 +42,7 @@ const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent
 describe("transcript state live item lifecycle reducer", () => {
   it("keeps itemStarted slot order stable and ignores duplicate live slot insertion", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const firstItem = agentMessage("agent-slot-first", "First", "commentary");
@@ -53,7 +59,7 @@ describe("transcript state live item lifecycle reducer", () => {
         replay: "live",
       }),
     );
-    const beforeDuplicateState = store.getState().transcriptState;
+    const beforeDuplicateState = requiredTranscriptState(store.getState(), identity.threadId);
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -67,7 +73,7 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
 
-    const afterDuplicateState = store.getState().transcriptState;
+    const afterDuplicateState = requiredTranscriptState(store.getState(), identity.threadId);
     expect(afterDuplicateState.sessionRevision).toBeGreaterThan(
       beforeDuplicateState.sessionRevision,
     );
@@ -88,7 +94,9 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-slot-order")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-slot-order"),
+    ).toStrictEqual({
       id: "turn-slot-order",
       status: "inProgress",
       originalFirstItemId: "agent-slot-first",
@@ -100,12 +108,17 @@ describe("transcript state live item lifecycle reducer", () => {
     const firstEntryId = transcriptEntryIdFor("turn-slot-order", "agent-slot-first");
     const secondEntryId = transcriptEntryIdFor("turn-slot-order", "agent-slot-second");
     expect(
-      store.getState().transcriptState.chunksById["turn-slot-order:chunk:0"]?.entryIds,
+      requiredTranscriptState(store.getState(), identity.threadId).chunksById[
+        "turn-slot-order:chunk:0"
+      ]?.entryIds,
     ).toStrictEqual([firstEntryId, secondEntryId]);
     expect(
-      selectTranscriptChunk(store.getState(), "turn-slot-order:chunk:0")?.entries,
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-slot-order:chunk:0")
+        ?.entries,
     ).toStrictEqual([]);
-    expect(store.getState().transcriptState.entriesById[firstEntryId]).toStrictEqual({
+    expect(
+      requiredTranscriptState(store.getState(), identity.threadId).entriesById[firstEntryId],
+    ).toStrictEqual({
       type: "live",
       id: "agent-slot-first",
       key: firstEntryId,
@@ -116,12 +129,13 @@ describe("transcript state live item lifecycle reducer", () => {
       transientText: "",
       revision: 0,
     });
-    expect(selectTranscriptEntry(store.getState(), firstEntryId)).toBeNull();
-    expect(selectTranscriptEntry(store.getState(), secondEntryId)).toBeNull();
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, firstEntryId)).toBeNull();
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, secondEntryId)).toBeNull();
   });
 
   it("keeps the later live item addressable after removing an earlier live item", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const firstItem = agentMessage("agent-remove-first", "", null);
@@ -154,7 +168,9 @@ describe("transcript state live item lifecycle reducer", () => {
         replay: "live",
       }),
     );
-    expect(selectTranscriptTurn(store.getState(), "turn-remove-first")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-remove-first"),
+    ).toStrictEqual({
       id: "turn-remove-first",
       status: "inProgress",
       originalFirstItemId: "agent-remove-first",
@@ -166,10 +182,13 @@ describe("transcript state live item lifecycle reducer", () => {
     const firstEntryId = transcriptEntryIdFor("turn-remove-first", "agent-remove-first");
     const secondEntryId = transcriptEntryIdFor("turn-remove-first", "agent-remove-second");
     expect(
-      store.getState().transcriptState.chunksById["turn-remove-first:chunk:0"]?.entryIds,
+      requiredTranscriptState(store.getState(), identity.threadId).chunksById[
+        "turn-remove-first:chunk:0"
+      ]?.entryIds,
     ).toStrictEqual([firstEntryId, secondEntryId]);
     expect(
-      selectTranscriptChunk(store.getState(), "turn-remove-first:chunk:0")?.entries,
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-remove-first:chunk:0")
+        ?.entries,
     ).toStrictEqual([]);
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -183,7 +202,7 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
 
-    expect(selectTranscriptEntry(store.getState(), firstEntryId)).toStrictEqual({
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, firstEntryId)).toStrictEqual({
       type: "message",
       id: "agent-remove-first",
       turnId: "turn-remove-first",
@@ -191,7 +210,9 @@ describe("transcript state live item lifecycle reducer", () => {
       rendering: { mode: "staticMarkdown", source: "Completed first" },
       revision: 1,
     });
-    expect(store.getState().transcriptState.entriesById[secondEntryId]).toStrictEqual({
+    expect(
+      requiredTranscriptState(store.getState(), identity.threadId).entriesById[secondEntryId],
+    ).toStrictEqual({
       type: "live",
       id: "agent-remove-second",
       key: secondEntryId,
@@ -202,8 +223,10 @@ describe("transcript state live item lifecycle reducer", () => {
       transientText: "",
       revision: 0,
     });
-    expect(selectTranscriptEntry(store.getState(), secondEntryId)).toBeNull();
-    expect(selectTranscriptTurn(store.getState(), "turn-remove-first")).toStrictEqual({
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, secondEntryId)).toBeNull();
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-remove-first"),
+    ).toStrictEqual({
       id: "turn-remove-first",
       status: "inProgress",
       originalFirstItemId: "agent-remove-first",
@@ -213,12 +236,14 @@ describe("transcript state live item lifecycle reducer", () => {
       finalAssistantEntryIds: [transcriptEntryIdFor("turn-remove-first", "agent-remove-first")],
     });
     expect(
-      selectTranscriptChunk(store.getState(), "turn-remove-first:chunk:0")?.entries,
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-remove-first:chunk:0")
+        ?.entries,
     ).toStrictEqual([]);
   });
 
   it("removes only the targeted empty completed item from a shared middle chunk", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const firstItem = agentMessage("agent-empty-first", "", "commentary");
@@ -246,14 +271,20 @@ describe("transcript state live item lifecycle reducer", () => {
         replay: "live",
       }),
     );
-    expect(selectTranscriptTurn(store.getState(), "turn-empty-shared")?.middleEntryCount).toBe(0);
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-empty-shared")
+        ?.middleEntryCount,
+    ).toBe(0);
     const firstEntryId = transcriptEntryIdFor("turn-empty-shared", "agent-empty-first");
     const secondEntryId = transcriptEntryIdFor("turn-empty-shared", "agent-empty-second");
     expect(
-      store.getState().transcriptState.chunksById["turn-empty-shared:chunk:0"]?.entryIds,
+      requiredTranscriptState(store.getState(), identity.threadId).chunksById[
+        "turn-empty-shared:chunk:0"
+      ]?.entryIds,
     ).toStrictEqual([firstEntryId, secondEntryId]);
     expect(
-      selectTranscriptChunk(store.getState(), "turn-empty-shared:chunk:0")?.entries,
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-empty-shared:chunk:0")
+        ?.entries,
     ).toStrictEqual([]);
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -267,8 +298,10 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
 
-    expect(selectTranscriptEntry(store.getState(), firstEntryId)).toBeNull();
-    expect(store.getState().transcriptState.entriesById[secondEntryId]).toStrictEqual({
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, firstEntryId)).toBeNull();
+    expect(
+      requiredTranscriptState(store.getState(), identity.threadId).entriesById[secondEntryId],
+    ).toStrictEqual({
       type: "live",
       id: "agent-empty-second",
       key: secondEntryId,
@@ -279,8 +312,10 @@ describe("transcript state live item lifecycle reducer", () => {
       transientText: "",
       revision: 0,
     });
-    expect(selectTranscriptEntry(store.getState(), secondEntryId)).toBeNull();
-    expect(selectTranscriptTurn(store.getState(), "turn-empty-shared")).toStrictEqual({
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, secondEntryId)).toBeNull();
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-empty-shared"),
+    ).toStrictEqual({
       id: "turn-empty-shared",
       status: "inProgress",
       originalFirstItemId: "agent-empty-first",
@@ -290,12 +325,14 @@ describe("transcript state live item lifecycle reducer", () => {
       finalAssistantEntryIds: [],
     });
     expect(
-      selectTranscriptChunk(store.getState(), "turn-empty-shared:chunk:0")?.entries,
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-empty-shared:chunk:0")
+        ?.entries,
     ).toStrictEqual([]);
   });
 
   it("preserves hidden slot chunk identity after clearing a full earlier chunk", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-hidden-chunk-boundary";
     const initialItemIds = Array.from(
       { length: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1 },
@@ -357,48 +394,63 @@ describe("transcript state live item lifecycle reducer", () => {
       ...addedItemIds.slice(0, TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT - 1),
     ];
     const chunkTwoItemId = `agent-hidden-added-${String(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT - 1)}`;
-    expect(selectTranscriptTurn(store.getState(), turnId)?.middleChunkIds).toStrictEqual([
-      `${turnId}:chunk:0`,
-      `${turnId}:chunk:1`,
-      `${turnId}:chunk:2`,
-    ]);
-    expect(selectTranscriptTurn(store.getState(), turnId)?.middleEntryCount).toBe(0);
-    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries).toStrictEqual([]);
     expect(
-      store.getState().transcriptState.chunksById[`${turnId}:chunk:1`]?.entryIds,
+      selectTranscriptTurn(store.getState(), identity.threadId, turnId)?.middleChunkIds,
+    ).toStrictEqual([`${turnId}:chunk:0`, `${turnId}:chunk:1`, `${turnId}:chunk:2`]);
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, turnId)?.middleEntryCount,
+    ).toBe(0);
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:0`)?.entries,
+    ).toStrictEqual([]);
+    expect(
+      requiredTranscriptState(store.getState(), identity.threadId).chunksById[`${turnId}:chunk:1`]
+        ?.entryIds,
     ).toStrictEqual(chunkOneItemIds.map((itemId) => transcriptEntryIdFor(turnId, itemId)));
     expect(
-      store.getState().transcriptState.chunksById[`${turnId}:chunk:2`]?.entryIds,
+      requiredTranscriptState(store.getState(), identity.threadId).chunksById[`${turnId}:chunk:2`]
+        ?.entryIds,
     ).toStrictEqual([transcriptEntryIdFor(turnId, chunkTwoItemId)]);
-    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:1`)?.entries).toStrictEqual([]);
-    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:2`)?.entries).toStrictEqual([]);
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:1`)?.entries,
+    ).toStrictEqual([]);
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:2`)?.entries,
+    ).toStrictEqual([]);
 
     for (const itemId of chunkOneItemIds) {
       const entryId = transcriptEntryIdFor(turnId, itemId);
-      expect(store.getState().transcriptState.entryChunkById[entryId]).toBe(`${turnId}:chunk:1`);
-      expect(store.getState().transcriptState.entriesById[entryId]).toMatchObject({
+      expect(
+        requiredTranscriptState(store.getState(), identity.threadId).entryChunkById[entryId],
+      ).toBe(`${turnId}:chunk:1`);
+      expect(
+        requiredTranscriptState(store.getState(), identity.threadId).entriesById[entryId],
+      ).toMatchObject({
         type: "live",
         key: entryId,
         turnId,
         itemId,
       });
-      expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
+      expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toBeNull();
     }
     const chunkTwoEntryId = transcriptEntryIdFor(turnId, chunkTwoItemId);
-    expect(store.getState().transcriptState.entryChunkById[chunkTwoEntryId]).toBe(
-      `${turnId}:chunk:2`,
-    );
-    expect(store.getState().transcriptState.entriesById[chunkTwoEntryId]).toMatchObject({
+    expect(
+      requiredTranscriptState(store.getState(), identity.threadId).entryChunkById[chunkTwoEntryId],
+    ).toBe(`${turnId}:chunk:2`);
+    expect(
+      requiredTranscriptState(store.getState(), identity.threadId).entriesById[chunkTwoEntryId],
+    ).toMatchObject({
       type: "live",
       key: chunkTwoEntryId,
       turnId,
       itemId: chunkTwoItemId,
     });
-    expect(selectTranscriptEntry(store.getState(), chunkTwoEntryId)).toBeNull();
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, chunkTwoEntryId)).toBeNull();
   });
 
   it("keeps 100 and 101 visible started activities in bounded middle chunks", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-started-activity-chunks";
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -416,15 +468,15 @@ describe("transcript state live item lifecycle reducer", () => {
       );
     }
 
-    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toMatchObject({
       middleChunkIds: [`${turnId}:chunk:0`, `${turnId}:chunk:1`],
       middleEntryCount: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1,
     });
-    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries).toHaveLength(
-      TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
-    );
-    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:1`)?.entries).toMatchObject([
-      { id: `collab-started-${String(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT)}` },
-    ]);
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:0`)?.entries,
+    ).toHaveLength(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT);
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:1`)?.entries,
+    ).toMatchObject([{ id: `collab-started-${String(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT)}` }]);
   });
 });

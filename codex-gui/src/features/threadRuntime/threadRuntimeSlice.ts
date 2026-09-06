@@ -1,5 +1,10 @@
 import { createAppSlice } from "@/app/createAppSlice";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelSlotRemoved,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type { ActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
 import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import type { Thread, ThreadTokenUsage } from "@codex-protocol/v2";
 
@@ -10,14 +15,18 @@ export type ThreadRuntimeRecord = {
   tokenUsage: ThreadTokenUsage | null;
 };
 
-export type ThreadRuntimeState = {
+export type ThreadRuntimeSlot = {
+  identity: ActiveThreadSessionIdentity;
   sessionRevision: number;
   current: ThreadRuntimeRecord | null;
 };
 
+export type ThreadRuntimeState = {
+  byThreadId: Record<string, ThreadRuntimeSlot>;
+};
+
 const initialState: ThreadRuntimeState = {
-  sessionRevision: 0,
-  current: null,
+  byThreadId: {},
 };
 
 const threadMetadata = ({
@@ -27,7 +36,7 @@ const threadMetadata = ({
 }: Thread): Omit<Thread, "turns" | "status"> => thread;
 
 const applyRuntimeFact = (
-  state: ThreadRuntimeState,
+  state: ThreadRuntimeSlot,
   sessionRevision: number,
   fact: ActiveThreadProjectionReadModelFact,
 ): void => {
@@ -65,26 +74,41 @@ export const threadRuntimeSlice = createAppSlice({
   initialState,
   reducers: () => ({}),
   extraReducers: (builder) => {
+    builder.addCase(activeThreadReadModelSlotCreated, (state, { payload: identity }) => {
+      state.byThreadId[identity.threadId] ??= { identity, sessionRevision: 0, current: null };
+    });
+    builder.addCase(activeThreadReadModelSlotRemoved, (state, { payload: identity }) => {
+      if (state.byThreadId[identity.threadId]?.identity.instanceId === identity.instanceId) {
+        const { [identity.threadId]: _removed, ...byThreadId } = state.byThreadId;
+        return { byThreadId };
+      }
+    });
     builder.addCase(activeThreadReadModelTransitionApplied, (state, action) => {
-      const { facts, sessionRevision } = action.payload;
-      if (sessionRevision <= state.sessionRevision) {
+      const { identity, facts, sessionRevision } = action.payload;
+      const slot = state.byThreadId[identity.threadId];
+      if (
+        slot?.identity.instanceId !== identity.instanceId ||
+        sessionRevision <= slot.sessionRevision
+      ) {
         return;
       }
 
       for (const fact of facts) {
-        applyRuntimeFact(state, sessionRevision, fact);
+        applyRuntimeFact(slot, sessionRevision, fact);
       }
-      state.sessionRevision = sessionRevision;
-      if (state.current != null) {
-        state.current.sessionRevision = sessionRevision;
+      slot.sessionRevision = sessionRevision;
+      if (slot.current != null) {
+        slot.current.sessionRevision = sessionRevision;
       }
     });
   },
   selectors: {
-    selectThreadRuntimeRecord: (threadRuntime) => threadRuntime.current,
-    selectThreadRuntimeThreadId: (threadRuntime) => threadRuntime.current?.threadId ?? null,
-    selectThreadRuntimeTokenUsage: (threadRuntime): ThreadTokenUsage | null =>
-      threadRuntime.current?.tokenUsage ?? null,
+    selectThreadRuntimeRecord: (threadRuntime, threadId: string) =>
+      threadRuntime.byThreadId[threadId]?.current ?? null,
+    selectThreadRuntimeThreadId: (threadRuntime, threadId: string) =>
+      threadRuntime.byThreadId[threadId]?.current?.threadId ?? null,
+    selectThreadRuntimeTokenUsage: (threadRuntime, threadId: string): ThreadTokenUsage | null =>
+      threadRuntime.byThreadId[threadId]?.current?.tokenUsage ?? null,
   },
 });
 

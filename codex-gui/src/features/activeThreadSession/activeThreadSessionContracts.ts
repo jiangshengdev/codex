@@ -14,6 +14,7 @@ import type {
 } from "@codex-protocol/v2";
 import type { ActiveThreadProjectionInputOutcome } from "./activeThreadProjection";
 import type { ActiveThreadCompactionState } from "./activeThreadCompaction";
+import type { ActiveThreadSessionIdentity } from "./activeThreadSessionIdentity";
 
 export type ActiveThreadSessionOperationUnavailable = Readonly<{
   type: "unavailable";
@@ -44,6 +45,7 @@ export type ActiveThreadRequestCompactionResult =
   | Exclude<ComposerInputQueueCoordinatorReserveReleaseResult, { type: "reserved" }>;
 
 type ActiveSnapshotContents = Readonly<{
+  identity: ActiveThreadSessionIdentity;
   revision: number;
   threadId: string;
   subscriptionId: string;
@@ -92,6 +94,7 @@ export type ActiveThreadReserveReleaseResult =
   | Readonly<{ type: "reserved"; reservation: ActiveThreadReleaseReservation }>;
 
 export type LiveActiveThreadSession = Readonly<{
+  identity: ActiveThreadSessionIdentity;
   getSnapshot(): LiveActiveThreadSessionSnapshot;
   subscribe(listener: () => void): () => void;
   getDraft(): ReturnType<ComposerInputQueueCoordinator["getDraft"]>;

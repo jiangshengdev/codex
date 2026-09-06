@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
   ActiveThreadProjectionAcceptedEvent,
   ActiveThreadProjectionReadModelFact,
@@ -33,9 +36,10 @@ import {
   reasoningSummaryTextDelta,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
+const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
@@ -57,6 +61,7 @@ const threadRuntimeManualReconnectRequired = (
 describe("transcript state reconnect reducer", () => {
   it("rebuilds context pages from reattach without duplicating compaction boundaries", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-reattach-compaction";
     const compactionId = "compaction-reattach";
     const snapshotTurns = [
@@ -68,18 +73,24 @@ describe("transcript state reconnect reducer", () => {
     ];
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, snapshotTurns)));
-    const beforeReattachPage = selectTranscriptContextPage(store.getState(), "context-page:2");
+    const beforeReattachPage = selectTranscriptContextPage(
+      store.getState(),
+      identity.threadId,
+      "context-page:2",
+    );
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachReplacement, snapshotTurns)));
 
-    expect(selectTranscriptContextPageIds(store.getState())).toStrictEqual([
+    expect(selectTranscriptContextPageIds(store.getState(), identity.threadId)).toStrictEqual([
       "context-page:1",
       "context-page:2",
     ]);
-    expect(selectTranscriptContextPage(store.getState(), "context-page:2")).not.toBe(
-      beforeReattachPage,
-    );
-    expect(selectTranscriptContextPage(store.getState(), "context-page:2")).toStrictEqual({
+    expect(
+      selectTranscriptContextPage(store.getState(), identity.threadId, "context-page:2"),
+    ).not.toBe(beforeReattachPage);
+    expect(
+      selectTranscriptContextPage(store.getState(), identity.threadId, "context-page:2"),
+    ).toStrictEqual({
       id: "context-page:2",
       leadingBoundaryId: transcriptEntryIdFor(turnId, compactionId),
       turnFragmentIds: [JSON.stringify(["context-page:2", turnId, 0])],
@@ -88,6 +99,7 @@ describe("transcript state reconnect reducer", () => {
 
   it("preserves completed reasoning and clears streaming reasoning on manual reconnect", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const attachWithChat = attachWithTurns(attachBaseline, [
       baseTurn("turn-existing", [reasoningItem("reasoning-existing", ["Existing summary"])]),
     ]);
@@ -125,7 +137,9 @@ describe("transcript state reconnect reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-streaming")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-streaming"),
+    ).toStrictEqual({
       id: "turn-streaming",
       status: "inProgress",
       originalFirstItemId: "reasoning-streaming",
@@ -137,6 +151,7 @@ describe("transcript state reconnect reducer", () => {
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-existing", "reasoning-existing"),
       ),
     ).toStrictEqual({
@@ -150,13 +165,14 @@ describe("transcript state reconnect reducer", () => {
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-streaming", "reasoning-streaming"),
       ),
     ).toBeNull();
-    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId)).toBe(
       `reconnect:${attachWithChat.snapshot.thread.id}:${attachWithChat.subscriptionId}:backpressure`,
     );
-    expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([
+    expect(selectTranscriptGlobalStatus(store.getState(), identity.threadId)).toStrictEqual([
       {
         id: `subscriptionInterrupted:${attachWithChat.snapshot.thread.id}:${attachWithChat.subscriptionId}:backpressure`,
         status: "subscriptionInterrupted",
@@ -168,6 +184,7 @@ describe("transcript state reconnect reducer", () => {
 
   it("clears interrupted status and applied event ids on the next attach", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const attachWithChat = attachWithTurns(attachBaseline, [
       baseTurn("turn-before-reconnect", [agentMessage("agent-before", "Before reconnect")]),
     ]);
@@ -221,6 +238,7 @@ describe("transcript state reconnect reducer", () => {
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-reattach-streaming", "reasoning-reattach-streaming"),
       ),
     ).toStrictEqual({
@@ -244,8 +262,12 @@ describe("transcript state reconnect reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-after-reconnect"]);
-    expect(selectTranscriptTurn(store.getState(), "turn-after-reconnect")).toStrictEqual({
+    expect(selectTranscriptTurnIds(store.getState(), identity.threadId)).toStrictEqual([
+      "turn-after-reconnect",
+    ]);
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-after-reconnect"),
+    ).toStrictEqual({
       id: "turn-after-reconnect",
       status: "completed",
       originalFirstItemId: "reasoning-after",
@@ -254,16 +276,20 @@ describe("transcript state reconnect reducer", () => {
       middleEntryCount: 1,
       finalAssistantEntryIds: [transcriptEntryIdFor("turn-after-reconnect", "agent-live-after")],
     });
-    expect(selectTranscriptTurn(store.getState(), "turn-reattach-streaming")).toBeNull();
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-reattach-streaming"),
+    ).toBeNull();
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-reattach-streaming", "reasoning-reattach-streaming"),
       ),
     ).toBeNull();
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-after-reconnect", "reasoning-after"),
       ),
     ).toStrictEqual({
@@ -274,11 +300,12 @@ describe("transcript state reconnect reducer", () => {
       source: "Restored summary",
       revision: 0,
     });
-    expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+    expect(selectTranscriptGlobalStatus(store.getState(), identity.threadId)).toStrictEqual([]);
   });
 
   it("keeps committed transcript during manual reconnect after live item settlement", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const initialItem = agentMessage("agent-reconnect-live", "");
     const completedItem = agentMessage("agent-reconnect-live", "Completed before reconnect");
 
@@ -314,7 +341,9 @@ describe("transcript state reconnect reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-reconnect-live")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-reconnect-live"),
+    ).toStrictEqual({
       id: "turn-reconnect-live",
       status: "inProgress",
       originalFirstItemId: "agent-reconnect-live",
@@ -326,6 +355,7 @@ describe("transcript state reconnect reducer", () => {
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-reconnect-live", "agent-reconnect-live"),
       ),
     ).toStrictEqual({
@@ -336,7 +366,7 @@ describe("transcript state reconnect reducer", () => {
       rendering: { mode: "staticMarkdown", source: "Completed before reconnect" },
       revision: 1,
     });
-    expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([
+    expect(selectTranscriptGlobalStatus(store.getState(), identity.threadId)).toStrictEqual([
       {
         id: `subscriptionInterrupted:${attachBaseline.snapshot.thread.id}:${attachBaseline.subscriptionId}:backpressure`,
         status: "subscriptionInterrupted",
@@ -355,10 +385,11 @@ describe("transcript state reconnect reducer", () => {
       ),
     );
 
-    expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+    expect(selectTranscriptGlobalStatus(store.getState(), identity.threadId)).toStrictEqual([]);
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-after-reconnect", "agent-after-reconnect"),
       ),
     ).toStrictEqual({

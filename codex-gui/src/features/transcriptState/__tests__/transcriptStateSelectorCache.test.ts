@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import { requiredTranscriptState } from "./requiredTranscriptState";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
   ActiveThreadProjectionAcceptedEvent,
   ActiveThreadProjectionReadModelFact,
@@ -43,9 +47,10 @@ import {
   subAgentActivity,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
+const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
@@ -61,6 +66,7 @@ const threadRuntimeDeltasAccepted = ({
 describe("transcript state selector cache", () => {
   it("keeps context page topology selectors stable when entry revisions change", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-context-page-cache";
     const activityId = "activity-context-page-cache";
 
@@ -75,13 +81,21 @@ describe("transcript state selector cache", () => {
       ),
     );
 
-    const beforePage = selectTranscriptContextPage(store.getState(), "context-page:2");
+    const beforePage = selectTranscriptContextPage(
+      store.getState(),
+      identity.threadId,
+      "context-page:2",
+    );
     const fragmentId = beforePage?.turnFragmentIds[0];
     expect(fragmentId).toBeDefined();
-    const beforeFragment = selectTranscriptTurnFragment(store.getState(), fragmentId ?? "");
+    const beforeFragment = selectTranscriptTurnFragment(
+      store.getState(),
+      identity.threadId,
+      fragmentId ?? "",
+    );
     const entryId = transcriptEntryIdFor(turnId, activityId);
-    const beforeEntry = selectTranscriptEntry(store.getState(), entryId);
-    const transcriptState = store.getState().transcriptState;
+    const beforeEntry = selectTranscriptEntry(store.getState(), identity.threadId, entryId);
+    const transcriptState = requiredTranscriptState(store.getState(), identity.threadId);
     const lastFragmentIdsByTurnId =
       selectLastTranscriptFragmentIdsByTurnIdFromTranscriptState(transcriptState);
 
@@ -109,16 +123,23 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    expect(selectTranscriptEntry(store.getState(), entryId)).not.toBe(beforeEntry);
-    expect(selectTranscriptEntry(store.getState(), entryId)?.revision).toBe(
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).not.toBe(
+      beforeEntry,
+    );
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)?.revision).toBe(
       (beforeEntry?.revision ?? 0) + 1,
     );
-    expect(selectTranscriptContextPage(store.getState(), "context-page:2")).toBe(beforePage);
-    expect(selectTranscriptTurnFragment(store.getState(), fragmentId ?? "")).toBe(beforeFragment);
+    expect(selectTranscriptContextPage(store.getState(), identity.threadId, "context-page:2")).toBe(
+      beforePage,
+    );
+    expect(
+      selectTranscriptTurnFragment(store.getState(), identity.threadId, fragmentId ?? ""),
+    ).toBe(beforeFragment);
   });
 
   it("returns a stable transcript chunk view while the chunk is unchanged", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
       threadRuntimeAttached(
@@ -129,9 +150,13 @@ describe("transcript state selector cache", () => {
     );
 
     const entryId = transcriptEntryIdFor("turn-cached", "agent-cached");
-    const firstChunk = selectTranscriptChunk(store.getState(), "turn-cached:chunk:0");
-    const firstEntry = selectTranscriptEntry(store.getState(), entryId);
-    const transcriptState = store.getState().transcriptState;
+    const firstChunk = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      "turn-cached:chunk:0",
+    );
+    const firstEntry = selectTranscriptEntry(store.getState(), identity.threadId, entryId);
+    const transcriptState = requiredTranscriptState(store.getState(), identity.threadId);
 
     expect(firstChunk).not.toBeNull();
     expect(firstEntry).not.toBeNull();
@@ -139,8 +164,10 @@ describe("transcript state selector cache", () => {
       firstChunk,
     );
     expect(selectTranscriptEntryFromTranscriptState(transcriptState, entryId)).toBe(firstEntry);
-    expect(selectTranscriptChunk(store.getState(), "turn-cached:chunk:0")).toBe(firstChunk);
-    expect(selectTranscriptEntry(store.getState(), entryId)).toBe(firstEntry);
+    expect(selectTranscriptChunk(store.getState(), identity.threadId, "turn-cached:chunk:0")).toBe(
+      firstChunk,
+    );
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toBe(firstEntry);
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -154,8 +181,10 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    expect(selectTranscriptChunk(store.getState(), "turn-cached:chunk:0")).toBe(firstChunk);
-    expect(selectTranscriptEntry(store.getState(), entryId)).toBe(firstEntry);
+    expect(selectTranscriptChunk(store.getState(), identity.threadId, "turn-cached:chunk:0")).toBe(
+      firstChunk,
+    );
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toBe(firstEntry);
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -169,12 +198,15 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    expect(selectTranscriptChunk(store.getState(), "turn-cached:chunk:0")).toBe(firstChunk);
-    expect(selectTranscriptEntry(store.getState(), entryId)).toBe(firstEntry);
+    expect(selectTranscriptChunk(store.getState(), identity.threadId, "turn-cached:chunk:0")).toBe(
+      firstChunk,
+    );
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toBe(firstEntry);
   });
 
   it("returns a new transcript chunk view when that chunk changes", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
       threadRuntimeAttached(
@@ -185,8 +217,16 @@ describe("transcript state selector cache", () => {
     );
 
     const cachedEntryId = transcriptEntryIdFor("turn-cached", "agent-cached");
-    const beforeUpdateChunk = selectTranscriptChunk(store.getState(), "turn-cached:chunk:0");
-    const beforeUpdateEntry = selectTranscriptEntry(store.getState(), cachedEntryId);
+    const beforeUpdateChunk = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      "turn-cached:chunk:0",
+    );
+    const beforeUpdateEntry = selectTranscriptEntry(
+      store.getState(),
+      identity.threadId,
+      cachedEntryId,
+    );
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -200,10 +240,16 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const afterUpdateChunk = selectTranscriptChunk(store.getState(), "turn-cached:chunk:0");
+    const afterUpdateChunk = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      "turn-cached:chunk:0",
+    );
 
     expect(afterUpdateChunk).not.toBe(beforeUpdateChunk);
-    expect(selectTranscriptEntry(store.getState(), cachedEntryId)).toBe(beforeUpdateEntry);
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, cachedEntryId)).toBe(
+      beforeUpdateEntry,
+    );
     expect(afterUpdateChunk).toStrictEqual({
       id: "turn-cached:chunk:0",
       turnId: "turn-cached",
@@ -231,6 +277,7 @@ describe("transcript state selector cache", () => {
 
   it("does not reuse transcript chunk views across snapshot reattach", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
       threadRuntimeAttached(
@@ -243,8 +290,12 @@ describe("transcript state selector cache", () => {
     );
 
     const entryId = transcriptEntryIdFor("turn-reattach", "agent-reattach");
-    const beforeReattachChunk = selectTranscriptChunk(store.getState(), "turn-reattach:chunk:0");
-    const beforeReattachEntry = selectTranscriptEntry(store.getState(), entryId);
+    const beforeReattachChunk = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      "turn-reattach:chunk:0",
+    );
+    const beforeReattachEntry = selectTranscriptEntry(store.getState(), identity.threadId, entryId);
 
     store.dispatch(
       threadRuntimeAttached(
@@ -256,8 +307,12 @@ describe("transcript state selector cache", () => {
       ),
     );
 
-    const afterReattachChunk = selectTranscriptChunk(store.getState(), "turn-reattach:chunk:0");
-    const afterReattachEntry = selectTranscriptEntry(store.getState(), entryId);
+    const afterReattachChunk = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      "turn-reattach:chunk:0",
+    );
+    const afterReattachEntry = selectTranscriptEntry(store.getState(), identity.threadId, entryId);
 
     expect(afterReattachChunk).not.toBe(beforeReattachChunk);
     expect(afterReattachEntry).not.toBe(beforeReattachEntry);
@@ -281,6 +336,7 @@ describe("transcript state selector cache", () => {
 
   it("returns a stable middle chunk view while that turn is unchanged", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -296,11 +352,17 @@ describe("transcript state selector cache", () => {
     );
 
     const entryId = transcriptEntryIdFor("turn-live-cache", "agent-live-cache");
-    const firstChunk = selectTranscriptChunk(store.getState(), "turn-live-cache:chunk:0");
+    const firstChunk = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      "turn-live-cache:chunk:0",
+    );
     expect(firstChunk).not.toBeNull();
     expect(firstChunk?.entries).toStrictEqual([]);
-    expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
-    expect(selectTranscriptChunk(store.getState(), "turn-live-cache:chunk:0")).toBe(firstChunk);
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toBeNull();
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-live-cache:chunk:0"),
+    ).toBe(firstChunk);
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -314,12 +376,15 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    expect(selectTranscriptChunk(store.getState(), "turn-live-cache:chunk:0")).toBe(firstChunk);
-    expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-live-cache:chunk:0"),
+    ).toBe(firstChunk);
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toBeNull();
   });
 
   it("returns a new middle chunk view when another started item enters the turn", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -333,7 +398,11 @@ describe("transcript state selector cache", () => {
         replay: "live",
       }),
     );
-    const beforeUpdate = selectTranscriptChunk(store.getState(), "turn-live-cache-update:chunk:0");
+    const beforeUpdate = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      "turn-live-cache-update:chunk:0",
+    );
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -347,19 +416,25 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const afterUpdate = selectTranscriptChunk(store.getState(), "turn-live-cache-update:chunk:0");
+    const afterUpdate = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      "turn-live-cache-update:chunk:0",
+    );
     expect(afterUpdate).not.toBe(beforeUpdate);
     expect(afterUpdate?.revision).toBe((beforeUpdate?.revision ?? 0) + 1);
     expect(afterUpdate?.entries).toStrictEqual([]);
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-live-cache-update", "agent-live-cache-first"),
       ),
     ).toBeNull();
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-live-cache-update", "agent-live-cache-second"),
       ),
     ).toBeNull();
@@ -367,6 +442,7 @@ describe("transcript state selector cache", () => {
 
   it("returns a new middle chunk view when delta updates that live entry", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const initialItem = agentMessage("agent-live-cache-delta", "", "commentary");
@@ -384,10 +460,14 @@ describe("transcript state selector cache", () => {
     );
 
     const entryId = transcriptEntryIdFor("turn-live-cache-delta", "agent-live-cache-delta");
-    const beforeUpdate = selectTranscriptChunk(store.getState(), "turn-live-cache-delta:chunk:0");
+    const beforeUpdate = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      "turn-live-cache-delta:chunk:0",
+    );
     expect(beforeUpdate?.revision).toBe(1);
     expect(beforeUpdate?.entries).toStrictEqual([]);
-    expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toBeNull();
 
     store.dispatch(
       threadRuntimeDeltasAccepted({
@@ -402,7 +482,11 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const afterUpdate = selectTranscriptChunk(store.getState(), "turn-live-cache-delta:chunk:0");
+    const afterUpdate = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      "turn-live-cache-delta:chunk:0",
+    );
     const expectedStreamingView = {
       type: "message" as const,
       id: "agent-live-cache-delta",
@@ -413,7 +497,9 @@ describe("transcript state selector cache", () => {
     };
 
     expect(afterUpdate).not.toBe(beforeUpdate);
-    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual(expectedStreamingView);
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toStrictEqual(
+      expectedStreamingView,
+    );
     expect(afterUpdate).toStrictEqual({
       id: "turn-live-cache-delta:chunk:0",
       turnId: "turn-live-cache-delta",
@@ -424,6 +510,7 @@ describe("transcript state selector cache", () => {
 
   it("returns a new middle chunk view when a live entry settles in place", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const initialItem = agentMessage("agent-live-cache-settled", "", "commentary");
@@ -456,9 +543,14 @@ describe("transcript state selector cache", () => {
     const entryId = transcriptEntryIdFor("turn-live-cache-settled", "agent-live-cache-settled");
     const beforeSettlement = selectTranscriptChunk(
       store.getState(),
+      identity.threadId,
       "turn-live-cache-settled:chunk:0",
     );
-    const beforeSettlementEntry = selectTranscriptEntry(store.getState(), entryId);
+    const beforeSettlementEntry = selectTranscriptEntry(
+      store.getState(),
+      identity.threadId,
+      entryId,
+    );
     expect(beforeSettlement).toStrictEqual({
       id: "turn-live-cache-settled:chunk:0",
       turnId: "turn-live-cache-settled",
@@ -490,9 +582,14 @@ describe("transcript state selector cache", () => {
 
     const afterSettlement = selectTranscriptChunk(
       store.getState(),
+      identity.threadId,
       "turn-live-cache-settled:chunk:0",
     );
-    const afterSettlementEntry = selectTranscriptEntry(store.getState(), entryId);
+    const afterSettlementEntry = selectTranscriptEntry(
+      store.getState(),
+      identity.threadId,
+      entryId,
+    );
 
     expect(afterSettlement).not.toBe(beforeSettlement);
     expect(afterSettlementEntry).not.toBe(beforeSettlementEntry);
@@ -516,6 +613,7 @@ describe("transcript state selector cache", () => {
 
   it("invalidates only the changed sub-agent activity entry and its middle chunk view", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-sub-agent-cache";
     const targetActivity = subAgentActivity(
       "activity-sub-agent-cache-0",
@@ -548,10 +646,26 @@ describe("transcript state selector cache", () => {
     const stableEntryId = transcriptEntryIdFor(turnId, stableActivity.id);
     const firstChunkId = `${turnId}:chunk:0`;
     const secondChunkId = `${turnId}:chunk:1`;
-    const beforeTargetEntry = selectTranscriptEntry(store.getState(), targetEntryId);
-    const beforeStableEntry = selectTranscriptEntry(store.getState(), stableEntryId);
-    const beforeFirstChunk = selectTranscriptChunk(store.getState(), firstChunkId);
-    const beforeSecondChunk = selectTranscriptChunk(store.getState(), secondChunkId);
+    const beforeTargetEntry = selectTranscriptEntry(
+      store.getState(),
+      identity.threadId,
+      targetEntryId,
+    );
+    const beforeStableEntry = selectTranscriptEntry(
+      store.getState(),
+      identity.threadId,
+      stableEntryId,
+    );
+    const beforeFirstChunk = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      firstChunkId,
+    );
+    const beforeSecondChunk = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      secondChunkId,
+    );
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -565,8 +679,16 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const afterTargetEntry = selectTranscriptEntry(store.getState(), targetEntryId);
-    const afterFirstChunk = selectTranscriptChunk(store.getState(), firstChunkId);
+    const afterTargetEntry = selectTranscriptEntry(
+      store.getState(),
+      identity.threadId,
+      targetEntryId,
+    );
+    const afterFirstChunk = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      firstChunkId,
+    );
 
     expect(afterTargetEntry).not.toBe(beforeTargetEntry);
     expect(afterTargetEntry).toStrictEqual({
@@ -581,14 +703,18 @@ describe("transcript state selector cache", () => {
       details: [],
       revision: 1,
     });
-    expect(selectTranscriptEntry(store.getState(), stableEntryId)).toBe(beforeStableEntry);
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, stableEntryId)).toBe(
+      beforeStableEntry,
+    );
     expect(afterFirstChunk).not.toBe(beforeFirstChunk);
     expect(afterFirstChunk?.entries.map(({ id }) => id)).toStrictEqual(
       beforeFirstChunk?.entries.map(({ id }) => id),
     );
     expect(afterFirstChunk?.entries[1]).toBe(beforeFirstChunk?.entries[1]);
-    expect(selectTranscriptChunk(store.getState(), secondChunkId)).toBe(beforeSecondChunk);
-    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+    expect(selectTranscriptChunk(store.getState(), identity.threadId, secondChunkId)).toBe(
+      beforeSecondChunk,
+    );
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toMatchObject({
       middleChunkIds: [firstChunkId, secondChunkId],
       middleEntryCount: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1,
       finalAssistantEntryIds: [],
@@ -597,6 +723,7 @@ describe("transcript state selector cache", () => {
 
   it("invalidates only the changed terminal collab entry and its middle chunk view", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-collab-cache";
     const target = collabAgentToolCall("collab-cache-0", "spawnAgent", "completed", {
       receiverThreadIds: ["agent-before"],
@@ -621,10 +748,18 @@ describe("transcript state selector cache", () => {
     const stableId = transcriptEntryIdFor(turnId, stable.id);
     const firstChunkId = `${turnId}:chunk:0`;
     const secondChunkId = `${turnId}:chunk:1`;
-    const beforeTarget = selectTranscriptEntry(store.getState(), targetId);
-    const beforeStable = selectTranscriptEntry(store.getState(), stableId);
-    const beforeFirstChunk = selectTranscriptChunk(store.getState(), firstChunkId);
-    const beforeSecondChunk = selectTranscriptChunk(store.getState(), secondChunkId);
+    const beforeTarget = selectTranscriptEntry(store.getState(), identity.threadId, targetId);
+    const beforeStable = selectTranscriptEntry(store.getState(), identity.threadId, stableId);
+    const beforeFirstChunk = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      firstChunkId,
+    );
+    const beforeSecondChunk = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      secondChunkId,
+    );
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -640,8 +775,10 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    expect(selectTranscriptEntry(store.getState(), targetId)).not.toBe(beforeTarget);
-    expect(selectTranscriptEntry(store.getState(), targetId)).toMatchObject({
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, targetId)).not.toBe(
+      beforeTarget,
+    );
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, targetId)).toMatchObject({
       title: {
         kind: "agentSpawned",
         receiver: "agent-after",
@@ -651,13 +788,17 @@ describe("transcript state selector cache", () => {
       details: [],
       revision: 1,
     });
-    expect(selectTranscriptEntry(store.getState(), stableId)).toBe(beforeStable);
-    expect(selectTranscriptChunk(store.getState(), firstChunkId)).not.toBe(beforeFirstChunk);
-    expect(selectTranscriptChunk(store.getState(), firstChunkId)?.entries[1]).toBe(
-      beforeFirstChunk?.entries[1],
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, stableId)).toBe(beforeStable);
+    expect(selectTranscriptChunk(store.getState(), identity.threadId, firstChunkId)).not.toBe(
+      beforeFirstChunk,
     );
-    expect(selectTranscriptChunk(store.getState(), secondChunkId)).toBe(beforeSecondChunk);
-    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, firstChunkId)?.entries[1],
+    ).toBe(beforeFirstChunk?.entries[1]);
+    expect(selectTranscriptChunk(store.getState(), identity.threadId, secondChunkId)).toBe(
+      beforeSecondChunk,
+    );
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toMatchObject({
       middleChunkIds: [firstChunkId, secondChunkId],
       middleEntryCount: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1,
     });
@@ -665,6 +806,7 @@ describe("transcript state selector cache", () => {
 
   it("invalidates only the changed reasoning entry and its owning chunk", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-started-collab-cache";
     const stableItems = Array.from(
       { length: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT * 2 },
@@ -688,10 +830,10 @@ describe("transcript state selector cache", () => {
     const targetId = transcriptEntryIdFor(turnId, target.id);
     const stableId = transcriptEntryIdFor(turnId, "stable-collab-0");
     const chunkIds = [`${turnId}:chunk:0`, `${turnId}:chunk:1`, `${turnId}:chunk:2`] as const;
-    const beforeTarget = selectTranscriptEntry(store.getState(), targetId);
-    const beforeStable = selectTranscriptEntry(store.getState(), stableId);
+    const beforeTarget = selectTranscriptEntry(store.getState(), identity.threadId, targetId);
+    const beforeStable = selectTranscriptEntry(store.getState(), identity.threadId, stableId);
     const beforeChunks = chunkIds.map((chunkId) =>
-      selectTranscriptChunk(store.getState(), chunkId),
+      selectTranscriptChunk(store.getState(), identity.threadId, chunkId),
     );
 
     store.dispatch(
@@ -708,8 +850,10 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const afterTarget = selectTranscriptEntry(store.getState(), targetId);
-    const afterChunks = chunkIds.map((chunkId) => selectTranscriptChunk(store.getState(), chunkId));
+    const afterTarget = selectTranscriptEntry(store.getState(), identity.threadId, targetId);
+    const afterChunks = chunkIds.map((chunkId) =>
+      selectTranscriptChunk(store.getState(), identity.threadId, chunkId),
+    );
     expect(afterTarget).not.toBe(beforeTarget);
     expect(afterTarget).toStrictEqual({
       type: "reasoning",
@@ -719,15 +863,15 @@ describe("transcript state selector cache", () => {
       title: "Cached reasoning",
       revision: 1,
     });
-    expect(selectTranscriptEntry(store.getState(), stableId)).toBe(beforeStable);
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, stableId)).toBe(beforeStable);
     expect(afterChunks.map((chunk, index) => chunk === beforeChunks[index])).toStrictEqual([
       true,
       true,
       false,
     ]);
     expect(afterChunks[2]?.entries.at(-1)).toBe(afterTarget);
-    expect(selectTranscriptTurn(store.getState(), turnId)?.middleEntryCount).toBe(
-      TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT * 2 + 1,
-    );
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, turnId)?.middleEntryCount,
+    ).toBe(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT * 2 + 1);
   });
 });

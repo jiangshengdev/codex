@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import {
+  activeThreadReadModelSlotCreated,
   activeThreadReadModelTransitionApplied,
   buildActiveThreadCandidateReadModelTransition,
 } from "@/features/activeThreadSession/activeThreadSessionReadModel";
@@ -19,16 +20,22 @@ import {
   type ThreadRuntimeState,
 } from "../threadRuntimeSlice";
 
+const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-runtime" };
+
 const transition = (
   sessionRevision: number,
   facts: readonly ActiveThreadProjectionReadModelFact[],
-) => activeThreadReadModelTransitionApplied({ sessionRevision, facts });
+) => activeThreadReadModelTransitionApplied({ identity, sessionRevision, facts });
 
 const reduce = (
   state: ThreadRuntimeState | undefined,
   sessionRevision: number,
   facts: readonly ActiveThreadProjectionReadModelFact[],
-) => threadRuntimeSlice.reducer(state, transition(sessionRevision, facts));
+) =>
+  threadRuntimeSlice.reducer(
+    state ?? threadRuntimeSlice.reducer(undefined, activeThreadReadModelSlotCreated(identity)),
+    transition(sessionRevision, facts),
+  );
 
 const runtimeRoot = (state: ThreadRuntimeState) => ({ threadRuntime: state });
 
@@ -38,24 +45,27 @@ describe("thread runtime derived read model", () => {
 
     expect(store.getState()).not.toHaveProperty("threadIdentity");
     expect(store.getState().threadRuntime).toStrictEqual({
-      sessionRevision: 0,
-      current: null,
+      byThreadId: {},
     });
-    expect(selectThreadRuntimeRecord(store.getState())).toBeNull();
-    expect(selectThreadRuntimeThreadId(store.getState())).toBeNull();
-    expect(selectThreadRuntimeTokenUsage(store.getState())).toBeNull();
+    expect(selectThreadRuntimeRecord(store.getState(), identity.threadId)).toBeNull();
+    expect(selectThreadRuntimeThreadId(store.getState(), identity.threadId)).toBeNull();
+    expect(selectThreadRuntimeTokenUsage(store.getState(), identity.threadId)).toBeNull();
   });
 
   it("derives a revision-tagged display baseline from one session transition", () => {
     const action = activeThreadReadModelTransitionApplied(
-      buildActiveThreadCandidateReadModelTransition(1, attachBaseline),
+      buildActiveThreadCandidateReadModelTransition(identity, 1, attachBaseline),
     );
-    const state = threadRuntimeSlice.reducer(undefined, action);
+    const state = threadRuntimeSlice.reducer(
+      threadRuntimeSlice.reducer(undefined, activeThreadReadModelSlotCreated(identity)),
+      action,
+    );
     const { turns, status, ...thread } = attachBaseline.snapshot.thread;
 
     expect(turns).toBe(attachBaseline.snapshot.thread.turns);
     expect(status).toBe(attachBaseline.snapshot.thread.status);
-    expect(state).toStrictEqual({
+    expect(state.byThreadId[identity.threadId]).toStrictEqual({
+      identity,
       sessionRevision: 1,
       current: {
         sessionRevision: 1,
@@ -64,12 +74,16 @@ describe("thread runtime derived read model", () => {
         tokenUsage: attachBaseline.snapshot.tokenUsage,
       },
     });
-    expect(selectThreadRuntimeRecord(runtimeRoot(state))).toStrictEqual(state.current);
-    expect(selectThreadRuntimeThreadId(runtimeRoot(state))).toBe(attachBaseline.snapshot.thread.id);
-    expect(selectThreadRuntimeTokenUsage(runtimeRoot(state))).toBe(
+    expect(selectThreadRuntimeRecord(runtimeRoot(state), identity.threadId)).toStrictEqual(
+      state.byThreadId[identity.threadId]?.current,
+    );
+    expect(selectThreadRuntimeThreadId(runtimeRoot(state), identity.threadId)).toBe(
+      attachBaseline.snapshot.thread.id,
+    );
+    expect(selectThreadRuntimeTokenUsage(runtimeRoot(state), identity.threadId)).toBe(
       attachBaseline.snapshot.tokenUsage,
     );
-    expect(state.current?.thread).not.toHaveProperty("status");
+    expect(state.byThreadId[identity.threadId]?.current?.thread).not.toHaveProperty("status");
   });
 
   it("updates display token usage from an accepted fact in the same transition", () => {
@@ -84,8 +98,10 @@ describe("thread runtime derived read model", () => {
       },
     ]);
 
-    expect(state.current?.tokenUsage).toBe(eventTokenUsageUpdated.event.notification.tokenUsage);
-    expect(selectThreadRuntimeTokenUsage(runtimeRoot(state))).toBe(
+    expect(state.byThreadId[identity.threadId]?.current?.tokenUsage).toBe(
+      eventTokenUsageUpdated.event.notification.tokenUsage,
+    );
+    expect(selectThreadRuntimeTokenUsage(runtimeRoot(state), identity.threadId)).toBe(
       eventTokenUsageUpdated.event.notification.tokenUsage,
     );
   });
@@ -99,9 +115,11 @@ describe("thread runtime derived read model", () => {
       },
     ]);
 
-    expect(state.sessionRevision).toBe(3);
-    expect(state.current?.sessionRevision).toBe(3);
-    expect(state.current?.threadId).toBe(attachBaseline.snapshot.thread.id);
+    expect(state.byThreadId[identity.threadId]?.sessionRevision).toBe(3);
+    expect(state.byThreadId[identity.threadId]?.current?.sessionRevision).toBe(3);
+    expect(state.byThreadId[identity.threadId]?.current?.threadId).toBe(
+      attachBaseline.snapshot.thread.id,
+    );
   });
 
   it("rejects equal and stale transition replays", () => {
@@ -117,7 +135,7 @@ describe("thread runtime derived read model", () => {
 
     expect(equal).toStrictEqual(current);
     expect(stale).toStrictEqual(current);
-    expect(current.current?.tokenUsage).toBeNull();
+    expect(current.byThreadId[identity.threadId]?.current?.tokenUsage).toBeNull();
   });
 
   it("replaces the display baseline only on a newer session revision", () => {
@@ -126,8 +144,10 @@ describe("thread runtime derived read model", () => {
       { type: "baselineAttached", response: attachReplacement },
     ]);
 
-    expect(replaced.sessionRevision).toBe(2);
-    expect(replaced.current?.sessionRevision).toBe(2);
-    expect(replaced.current?.thread.name).toBe("Replacement projection fixture");
+    expect(replaced.byThreadId[identity.threadId]?.sessionRevision).toBe(2);
+    expect(replaced.byThreadId[identity.threadId]?.current?.sessionRevision).toBe(2);
+    expect(replaced.byThreadId[identity.threadId]?.current?.thread.name).toBe(
+      "Replacement projection fixture",
+    );
   });
 });

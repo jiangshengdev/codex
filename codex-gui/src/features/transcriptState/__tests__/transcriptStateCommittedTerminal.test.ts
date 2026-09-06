@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import { requiredTranscriptState } from "./requiredTranscriptState";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
   ActiveThreadProjectionAcceptedEvent,
   ActiveThreadProjectionReadModelFact,
@@ -34,9 +38,10 @@ import {
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
+const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
@@ -54,6 +59,7 @@ describe("transcript state committed terminal reducer", () => {
     "clears streaming reasoning when a turn is %s",
     (status) => {
       const store = makeStore();
+      store.dispatch(activeThreadReadModelSlotCreated(identity));
       const turnId = "turn-reasoning-" + status;
       const itemId = "reasoning-" + status;
       const activity = subAgentActivity("activity-" + status, "interrupted", "agents/worker");
@@ -82,7 +88,9 @@ describe("transcript state committed terminal reducer", () => {
         }),
       );
       expect(
-        selectTranscriptChunk(store.getState(), chunkId)?.entries.map(({ id }) => id),
+        selectTranscriptChunk(store.getState(), identity.threadId, chunkId)?.entries.map(
+          ({ id }) => id,
+        ),
       ).toStrictEqual([itemId, activity.id]);
 
       live(
@@ -92,12 +100,19 @@ describe("transcript state committed terminal reducer", () => {
         }),
       );
       expect({
-        entry: store.getState().transcriptState.entriesById[entryId],
-        mapping: store.getState().transcriptState.entryChunkById[entryId],
-        rawOrder: store.getState().transcriptState.chunksById[chunkId]?.entryIds,
-        visibleOrder: selectTranscriptChunk(store.getState(), chunkId)?.entries.map(({ id }) => id),
-        turn: selectTranscriptTurn(store.getState(), turnId),
-        signal: selectCommittedTranscriptScrollCommitKey(store.getState()),
+        entry: requiredTranscriptState(store.getState(), identity.threadId).entriesById[entryId],
+        mapping: requiredTranscriptState(store.getState(), identity.threadId).entryChunkById[
+          entryId
+        ],
+        rawOrder: requiredTranscriptState(store.getState(), identity.threadId).chunksById[chunkId]
+          ?.entryIds,
+        visibleOrder: selectTranscriptChunk(
+          store.getState(),
+          identity.threadId,
+          chunkId,
+        )?.entries.map(({ id }) => id),
+        turn: selectTranscriptTurn(store.getState(), identity.threadId, turnId),
+        signal: selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId),
       }).toStrictEqual({
         entry: undefined,
         mapping: undefined,
@@ -119,6 +134,7 @@ describe("transcript state committed terminal reducer", () => {
 
   it("updates turn terminal status from live turnCompleted", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -141,7 +157,7 @@ describe("transcript state committed terminal reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-done")).toStrictEqual({
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, "turn-done")).toStrictEqual({
       id: "turn-done",
       status: "completed",
       originalFirstItemId: null,
@@ -154,6 +170,7 @@ describe("transcript state committed terminal reducer", () => {
 
   it("stores, deduplicates, and clears a live failed turn error without adding entries", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-live-failed-error";
     const error = {
       message:
@@ -176,8 +193,8 @@ describe("transcript state committed terminal reducer", () => {
       threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }),
     );
 
-    expect(selectTranscriptTurnIds(store.getState())).toStrictEqual([turnId]);
-    expect(selectTranscriptTurn(store.getState(), turnId)).toStrictEqual({
+    expect(selectTranscriptTurnIds(store.getState(), identity.threadId)).toStrictEqual([turnId]);
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toStrictEqual({
       id: turnId,
       status: "failed",
       error,
@@ -187,8 +204,12 @@ describe("transcript state committed terminal reducer", () => {
       middleEntryCount: 0,
       finalAssistantEntryIds: [],
     });
-    expect(store.getState().transcriptState.entriesById).toStrictEqual({});
-    expect(store.getState().transcriptState.chunksById).toStrictEqual({});
+    expect(requiredTranscriptState(store.getState(), identity.threadId).entriesById).toStrictEqual(
+      {},
+    );
+    expect(requiredTranscriptState(store.getState(), identity.threadId).chunksById).toStrictEqual(
+      {},
+    );
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -201,7 +222,7 @@ describe("transcript state committed terminal reducer", () => {
       }),
     );
 
-    const completedTurn = selectTranscriptTurn(store.getState(), turnId);
+    const completedTurn = selectTranscriptTurn(store.getState(), identity.threadId, turnId);
     expect(completedTurn).toStrictEqual({
       id: turnId,
       status: "completed",

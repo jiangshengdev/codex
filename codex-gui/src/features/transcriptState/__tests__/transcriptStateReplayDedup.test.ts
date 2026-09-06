@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import { requiredTranscriptState } from "./requiredTranscriptState";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
   ActiveThreadProjectionAcceptedEvent,
   ActiveThreadProjectionReadModelFact,
@@ -35,9 +39,10 @@ import {
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
+const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
@@ -47,13 +52,18 @@ const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent
 describe("transcript state replay and event dedup", () => {
   it("keeps a snapshot compaction boundary idempotent across duplicate completed replay", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-compaction-snapshot-duplicate";
     const itemId = "compaction-snapshot-duplicate";
     const snapshotTurn = baseTurn(turnId, [contextCompaction(itemId)]);
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
-    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
-    const beforePage = selectTranscriptContextPage(store.getState(), "context-page:2");
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
+    const beforePage = selectTranscriptContextPage(
+      store.getState(),
+      identity.threadId,
+      "context-page:2",
+    );
     const replay = contextCompactionCompleted(
       eventItemCompleted,
       "commit-compaction-snapshot-duplicate",
@@ -65,25 +75,35 @@ describe("transcript state replay and event dedup", () => {
       store.dispatch(threadRuntimeEventBuffered({ notification, replay: "snapshotDuplicate" }));
     }
 
-    expect(selectTranscriptContextPageIds(store.getState())).toStrictEqual([
+    expect(selectTranscriptContextPageIds(store.getState(), identity.threadId)).toStrictEqual([
       "context-page:1",
       "context-page:2",
     ]);
-    expect(selectTranscriptContextPage(store.getState(), "context-page:2")).toBe(beforePage);
-    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+    expect(selectTranscriptContextPage(store.getState(), identity.threadId, "context-page:2")).toBe(
+      beforePage,
+    );
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId)).toBe(
+      attachKey,
+    );
   });
 
   it("ignores snapshot duplicate reasoning without changing transcript or scroll key", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const snapshotTurn = baseTurn("turn-snapshot-duplicate", [
       reasoningItem("reasoning-snapshot-duplicate", ["Already attached"]),
     ]);
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
-    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
-    const beforeTurn = selectTranscriptTurn(store.getState(), "turn-snapshot-duplicate");
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
+    const beforeTurn = selectTranscriptTurn(
+      store.getState(),
+      identity.threadId,
+      "turn-snapshot-duplicate",
+    );
     const beforeEntry = selectTranscriptEntry(
       store.getState(),
+      identity.threadId,
       transcriptEntryIdFor("turn-snapshot-duplicate", "reasoning-snapshot-duplicate"),
     );
 
@@ -99,13 +119,16 @@ describe("transcript state replay and event dedup", () => {
       }),
     );
 
-    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
-    expect(selectTranscriptTurn(store.getState(), "turn-snapshot-duplicate")).toStrictEqual(
-      beforeTurn,
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId)).toBe(
+      attachKey,
     );
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-snapshot-duplicate"),
+    ).toStrictEqual(beforeTurn);
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-snapshot-duplicate", "reasoning-snapshot-duplicate"),
       ),
     ).toStrictEqual(beforeEntry);
@@ -113,14 +136,20 @@ describe("transcript state replay and event dedup", () => {
 
   it("ignores snapshot duplicate itemStarted and itemCompleted without changing transcript", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const snapshotItem = agentMessage("agent-snapshot-duplicate-live", "Already attached");
     const snapshotTurn = baseTurn("turn-snapshot-duplicate-live", [snapshotItem]);
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
-    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
-    const beforeTurn = selectTranscriptTurn(store.getState(), "turn-snapshot-duplicate-live");
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
+    const beforeTurn = selectTranscriptTurn(
+      store.getState(),
+      identity.threadId,
+      "turn-snapshot-duplicate-live",
+    );
     const beforeEntry = selectTranscriptEntry(
       store.getState(),
+      identity.threadId,
       transcriptEntryIdFor("turn-snapshot-duplicate-live", "agent-snapshot-duplicate-live"),
     );
 
@@ -147,13 +176,16 @@ describe("transcript state replay and event dedup", () => {
       }),
     );
 
-    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
-    expect(selectTranscriptTurn(store.getState(), "turn-snapshot-duplicate-live")).toStrictEqual(
-      beforeTurn,
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId)).toBe(
+      attachKey,
     );
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-snapshot-duplicate-live"),
+    ).toStrictEqual(beforeTurn);
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-snapshot-duplicate-live", "agent-snapshot-duplicate-live"),
       ),
     ).toStrictEqual(beforeEntry);
@@ -161,6 +193,7 @@ describe("transcript state replay and event dedup", () => {
 
   it("uses commitId to keep repeated completed reasoning in one entry and count", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-reasoning-duplicate";
     const itemId = "reasoning-duplicate";
 
@@ -189,8 +222,8 @@ describe("transcript state replay and event dedup", () => {
     );
 
     expect({
-      turn: selectTranscriptTurn(store.getState(), turnId),
-      chunk: selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`),
+      turn: selectTranscriptTurn(store.getState(), identity.threadId, turnId),
+      chunk: selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:0`),
     }).toStrictEqual({
       turn: {
         id: turnId,
@@ -221,6 +254,7 @@ describe("transcript state replay and event dedup", () => {
 
   it("deduplicates started activity replay while isolating the same raw id across turns", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const itemId = "collab-replayed";
     const turnA = "turn-collab-replay-a";
     const turnB = "turn-collab-replay-b";
@@ -237,6 +271,7 @@ describe("transcript state replay and event dedup", () => {
     );
     const beforeReplay = selectTranscriptEntry(
       store.getState(),
+      identity.threadId,
       transcriptEntryIdFor(turnA, itemId),
     );
 
@@ -267,9 +302,13 @@ describe("transcript state replay and event dedup", () => {
       store.dispatch(threadRuntimeEventBuffered(payload));
     }
 
-    expect(selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnA, itemId))).toBe(
-      beforeReplay,
-    );
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        identity.threadId,
+        transcriptEntryIdFor(turnA, itemId),
+      ),
+    ).toBe(beforeReplay);
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemStarted(
@@ -285,7 +324,11 @@ describe("transcript state replay and event dedup", () => {
     );
 
     expect(
-      selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnA, itemId)),
+      selectTranscriptEntry(
+        store.getState(),
+        identity.threadId,
+        transcriptEntryIdFor(turnA, itemId),
+      ),
     ).toStrictEqual({
       type: "collabAgent",
       id: itemId,
@@ -299,7 +342,11 @@ describe("transcript state replay and event dedup", () => {
       revision: 0,
     });
     expect(
-      selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnB, itemId)),
+      selectTranscriptEntry(
+        store.getState(),
+        identity.threadId,
+        transcriptEntryIdFor(turnB, itemId),
+      ),
     ).toStrictEqual({
       type: "collabAgent",
       id: itemId,
@@ -312,12 +359,17 @@ describe("transcript state replay and event dedup", () => {
       details: [],
       revision: 0,
     });
-    expect(selectTranscriptTurn(store.getState(), turnA)?.middleEntryCount).toBe(1);
-    expect(selectTranscriptTurn(store.getState(), turnB)?.middleEntryCount).toBe(1);
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnA)?.middleEntryCount).toBe(
+      1,
+    );
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnB)?.middleEntryCount).toBe(
+      1,
+    );
   });
 
   it("replaces live started activity with the authoritative terminal attach snapshot", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-collab-replacement";
     const itemId = "collab-replacement";
 
@@ -340,7 +392,11 @@ describe("transcript state replay and event dedup", () => {
       }),
     );
     expect(
-      selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnId, itemId)),
+      selectTranscriptEntry(
+        store.getState(),
+        identity.threadId,
+        transcriptEntryIdFor(turnId, itemId),
+      ),
     ).toStrictEqual({
       type: "collabAgent",
       id: itemId,
@@ -371,12 +427,12 @@ describe("transcript state replay and event dedup", () => {
       ),
     );
 
-    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toMatchObject({
       leadingPromptEntryId: transcriptEntryIdFor(turnId, "user-collab-replacement"),
       middleEntryCount: 3,
       finalAssistantEntryIds: [transcriptEntryIdFor(turnId, "agent-final-collab-replacement")],
     });
-    const chunk = selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`);
+    const chunk = selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:0`);
     expect(chunk?.entries.map(({ id }) => id)).toStrictEqual([
       "agent-before-collab-replacement",
       itemId,
@@ -402,8 +458,9 @@ describe("transcript state replay and event dedup", () => {
         revision: 0,
       },
     ]);
-    const stored =
-      store.getState().transcriptState.entriesById[transcriptEntryIdFor(turnId, itemId)];
+    const stored = requiredTranscriptState(store.getState(), identity.threadId).entriesById[
+      transcriptEntryIdFor(turnId, itemId)
+    ];
     expect(stored).toMatchObject({
       receiverThreadIds: ["terminal-agent"],
       promptPreview: null,
