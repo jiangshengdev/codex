@@ -135,7 +135,7 @@ msgid "Cleanup diagnostic:"
 msgstr "Cleanup diagnostic:"
 
 #. Accessible label for closing the failure diagnostics dialog
-#: src/feedback/FailureDiagnosticModal.tsx:22
+#: src/feedback/FailureDiagnosticModal.tsx:27
 msgid "Close diagnostics"
 msgstr "Close diagnostics"
 
@@ -306,7 +306,7 @@ msgid "Delete this pending message?"
 msgstr "Delete this pending message?"
 
 #. Title of the dialog showing raw failure details
-#: src/feedback/FailureDiagnosticModal.tsx:29
+#: src/feedback/FailureDiagnosticModal.tsx:34
 msgid "Diagnostic information"
 msgstr "Diagnostic information"
 
@@ -474,8 +474,8 @@ msgstr "Loading skills…"
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:190
-#: src/features/currentTask/CurrentTaskPage.tsx:198
+#: src/features/currentTask/CurrentTaskPage.tsx:200
+#: src/features/currentTask/CurrentTaskPage.tsx:208
 msgid "Loading task…"
 msgstr "Loading task…"
 
@@ -743,10 +743,10 @@ msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:405
-#: src/features/currentTask/CurrentTaskPage.tsx:129
-#: src/features/currentTask/CurrentTaskPage.tsx:154
-#: src/features/currentTask/CurrentTaskPage.tsx:209
-#: src/features/currentTask/CurrentTaskPage.tsx:256
+#: src/features/currentTask/CurrentTaskPage.tsx:138
+#: src/features/currentTask/CurrentTaskPage.tsx:159
+#: src/features/currentTask/CurrentTaskPage.tsx:220
+#: src/features/currentTask/CurrentTaskPage.tsx:271
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:85
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:257
 msgid "Retry"
@@ -895,7 +895,7 @@ msgid "System error"
 msgstr "System error"
 
 #: src/features/currentTask/CurrentTaskPage.tsx:113
-#: src/features/currentTask/CurrentTaskPage.tsx:275
+#: src/features/currentTask/CurrentTaskPage.tsx:290
 msgid "Task action failed"
 msgstr "Task action failed"
 
@@ -934,8 +934,8 @@ msgstr "Tasks or the connection need attention."
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "The connection was interrupted before the task switch completed. Reconnect and try again."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:167
-#: src/features/currentTask/CurrentTaskPage.tsx:222
+#: src/features/currentTask/CurrentTaskPage.tsx:172
+#: src/features/currentTask/CurrentTaskPage.tsx:233
 msgid "The current task could not be loaded."
 msgstr "The current task could not be loaded."
 
@@ -963,7 +963,7 @@ msgstr "The previous task connection could not be fully cleaned up. Later state 
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:278
+#: src/features/currentTask/CurrentTaskPage.tsx:293
 msgid "The task action could not be completed."
 msgstr "The task action could not be completed."
 
@@ -1006,7 +1006,7 @@ msgstr "The task list could not be updated."
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:301
+#: src/features/currentTask/CurrentTaskPage.tsx:319
 msgid "The task recovery could not be completed."
 msgstr "The task recovery could not be completed."
 
@@ -1094,12 +1094,12 @@ msgstr "Unable to load history"
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:164
-#: src/features/currentTask/CurrentTaskPage.tsx:219
+#: src/features/currentTask/CurrentTaskPage.tsx:169
+#: src/features/currentTask/CurrentTaskPage.tsx:230
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:298
+#: src/features/currentTask/CurrentTaskPage.tsx:316
 msgid "Unable to recover the current task"
 msgstr "Unable to recover the current task"
 
@@ -1158,7 +1158,7 @@ msgid "View"
 msgstr "View"
 
 #. Opens raw diagnostic details for the associated failure
-#: src/feedback/FailureDiagnosticModal.tsx:14
+#: src/feedback/FailureDiagnosticModal.tsx:19
 msgid "View diagnostic information"
 msgstr "View diagnostic information"
 

@@ -119,8 +119,17 @@ export function CurrentTaskPage() {
             <Trans>The task could not be removed.</Trans>
           )}
         </Alert.Description>
+        {taskErrorText(error) !== "" ? (
+          <FailureDiagnosticModal
+            triggerClassName="col-start-1 mt-2 justify-self-start"
+            triggerSize="sm"
+          >
+            {taskErrorText(error)}
+          </FailureDiagnosticModal>
+        ) : null}
         <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
           <Button
+            size="sm"
             variant={operation === "remove" ? "danger" : "primary"}
             onPress={() => {
               void retryOperation(member.threadId, operation);
@@ -128,11 +137,6 @@ export function CurrentTaskPage() {
           >
             <Trans>Retry</Trans>
           </Button>
-          {taskErrorText(error) !== "" ? (
-            <FailureDiagnosticModal triggerClassName="">
-              {taskErrorText(error)}
-            </FailureDiagnosticModal>
-          ) : null}
         </div>
       </Alert.Content>
     </Alert>
@@ -146,6 +150,7 @@ export function CurrentTaskPage() {
     const retryAction =
       routeTarget.type === "currentTask" ? (
         <Button
+          size="sm"
           variant="primary"
           onPress={() => {
             void retry(routeTarget.threadId, true);
@@ -166,11 +171,16 @@ export function CurrentTaskPage() {
               <Alert.Description className="col-start-1">
                 <Trans>The current task could not be loaded.</Trans>
               </Alert.Description>
+              {retryError !== "" ? (
+                <FailureDiagnosticModal
+                  triggerClassName="col-start-1 mt-2 justify-self-start"
+                  triggerSize="sm"
+                >
+                  {retryError}
+                </FailureDiagnosticModal>
+              ) : null}
               <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
                 {retryAction}
-                {retryError !== "" ? (
-                  <FailureDiagnosticModal triggerClassName="">{retryError}</FailureDiagnosticModal>
-                ) : null}
               </div>
             </Alert.Content>
           </Alert>
@@ -201,6 +211,7 @@ export function CurrentTaskPage() {
     }
     const retryAction = (
       <Button
+        size="sm"
         variant="primary"
         onPress={() => {
           void retry(snapshot.threadId, false);
@@ -221,13 +232,16 @@ export function CurrentTaskPage() {
               <Alert.Description className="col-start-1">
                 <Trans>The current task could not be loaded.</Trans>
               </Alert.Description>
+              {(retryError ?? taskErrorText(snapshot.error)) !== "" ? (
+                <FailureDiagnosticModal
+                  triggerClassName="col-start-1 mt-2 justify-self-start"
+                  triggerSize="sm"
+                >
+                  {retryError ?? taskErrorText(snapshot.error)}
+                </FailureDiagnosticModal>
+              ) : null}
               <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
                 {retryAction}
-                {(retryError ?? taskErrorText(snapshot.error)) !== "" ? (
-                  <FailureDiagnosticModal triggerClassName="">
-                    {retryError ?? taskErrorText(snapshot.error)}
-                  </FailureDiagnosticModal>
-                ) : null}
               </div>
             </Alert.Content>
           </Alert>
@@ -244,6 +258,7 @@ export function CurrentTaskPage() {
       member.phase === "removalPending" ||
       member.removalBlockers.includes("statusUnknown")) ? (
       <Button
+        size="sm"
         variant={
           member.phase === "cleanupPending" || member.phase === "removalPending"
             ? "danger"
@@ -277,13 +292,16 @@ export function CurrentTaskPage() {
                 <Alert.Description className="col-start-1">
                   <Trans>The task action could not be completed.</Trans>
                 </Alert.Description>
+                {taskErrorText(member.error) !== "" ? (
+                  <FailureDiagnosticModal
+                    triggerClassName="col-start-1 mt-2 justify-self-start"
+                    triggerSize="sm"
+                  >
+                    {taskErrorText(member.error)}
+                  </FailureDiagnosticModal>
+                ) : null}
                 <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
                   {retryError == null ? recoveryAction : null}
-                  {taskErrorText(member.error) !== "" ? (
-                    <FailureDiagnosticModal triggerClassName="">
-                      {taskErrorText(member.error)}
-                    </FailureDiagnosticModal>
-                  ) : null}
                 </div>
               </Alert.Content>
             </Alert>
@@ -300,13 +318,16 @@ export function CurrentTaskPage() {
                   <Alert.Description className="col-start-1">
                     <Trans>The task recovery could not be completed.</Trans>
                   </Alert.Description>
+                  {retryError !== "" ? (
+                    <FailureDiagnosticModal
+                      triggerClassName="col-start-1 mt-2 justify-self-start"
+                      triggerSize="sm"
+                    >
+                      {retryError}
+                    </FailureDiagnosticModal>
+                  ) : null}
                   <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
                     {recoveryAction}
-                    {retryError !== "" ? (
-                      <FailureDiagnosticModal triggerClassName="">
-                        {retryError}
-                      </FailureDiagnosticModal>
-                    ) : null}
                   </div>
                 </Alert.Content>
               </Alert>

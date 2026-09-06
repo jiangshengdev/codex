@@ -241,6 +241,24 @@ test("initialization and cleanup failures both remain visible in the task page",
         })
         .toBe(true);
       expect(notice.element().scrollWidth).toBeLessThanOrEqual(notice.element().clientWidth);
+      const diagnostic = notice.getByRole("button", {
+        name: "View diagnostic information",
+        exact: true,
+      });
+      await expect
+        .poll(() => {
+          const detail = diagnostic.element().getBoundingClientRect();
+          const text = description.element().getBoundingClientRect();
+          const action = retry.element().getBoundingClientRect();
+          return (
+            Math.abs(detail.left - text.left) <= 1 &&
+            detail.top >= text.bottom &&
+            Math.abs(detail.height - action.height) <= 1
+          );
+        })
+        .toBe(true);
+      await expect.element(retry).toHaveClass("button--sm");
+      await expect.element(diagnostic).toHaveClass("button--sm");
       expect(
         notice.getByRole("button", { name: "View diagnostic information", exact: true }).elements(),
       ).toHaveLength(1);

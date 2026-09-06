@@ -1,16 +1,21 @@
 import { Button, Modal } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 export function FailureDiagnosticModal({
   children,
   triggerClassName = "mt-2",
-}: Readonly<{ children: ReactNode; triggerClassName?: string }>) {
+  triggerSize = "md",
+}: Readonly<{
+  children: ReactNode;
+  triggerClassName?: string;
+  triggerSize?: ComponentProps<typeof Button>["size"];
+}>) {
   const { t } = useLingui();
 
   return (
     <Modal>
-      <Button className={`h-auto ${triggerClassName}`} variant="secondary">
+      <Button className={triggerClassName} size={triggerSize} variant="secondary">
         <Trans comment="Opens raw diagnostic details for the associated failure">
           View diagnostic information
         </Trans>
