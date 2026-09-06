@@ -1,16 +1,33 @@
 import type { AppDispatch } from "@/app/store";
 import type { BrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
-import type { ComposerInputQueueCoordinatorReleaseBlocker } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { createListenerSet } from "@/subscriptions/listenerSet";
+import { SessionCollectionPersistenceStore } from "@/features/sessionCollection/sessionCollectionPersistence";
+import {
+  createActiveThreadSessionIdentity,
+  type ActiveThreadSessionIdentity,
+} from "./activeThreadSessionIdentity";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelSlotRemoved,
+} from "./activeThreadSessionReadModel";
 import type {
-  ThreadProjectionAttachResponse,
+  ActiveThreadCollectionSnapshot,
+  ActiveThreadRemovalOutcome,
+  ActiveThreadRemovalBlocker,
+} from "./activeThreadSessionCollectionContracts";
+export type {
+  ActiveThreadCollectionSnapshot,
+  ActiveThreadCollectionMember,
+  ActiveThreadRemovalOutcome,
+  ActiveThreadRemovalBlocker,
+} from "./activeThreadSessionCollectionContracts";
+import type {
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
   ThreadStatusChangedNotification,
 } from "@codex-protocol/v2";
-import type { UnknownAction } from "@reduxjs/toolkit";
 import { createActiveThreadProjection } from "./activeThreadProjection";
 import type { LiveActiveThreadSession } from "./activeThreadSessionContracts";
 import {
@@ -33,117 +50,20 @@ type ActiveThreadSessionCommands = Pick<
 
 type ActiveThreadAuthorizationSession = Pick<
   BrowserAuthorizationSession,
-  "commitActiveThread" | "getSnapshot"
+  "commitActiveThread" | "clearActiveThread" | "getSnapshot"
 >;
 
-export type ActiveThreadSessionScheduler = Readonly<{
-  requestFrame(callback: () => void): number;
-  cancelFrame(frameId: number): void;
-}>;
-
-export type ActiveThreadComposerRole = Readonly<
-  Pick<
-    LiveActiveThreadSession,
-    | "beginPendingInputEdit"
-    | "deletePendingInput"
-    | "interruptActiveTurn"
-    | "movePendingInput"
-    | "promoteOrdinaryFrontToSteer"
-    | "readPendingInputDetail"
-    | "readPendingInputPage"
-    | "recover"
-    | "submit"
-    | "submitSteer"
-    | "getDraft"
-    | "saveDraft"
-    | "retryPersistence"
-    | "resumeRestored"
-    | "discardUnknown"
-  >
->;
-
-export type ActiveThreadSkillsRole = Readonly<
-  Pick<LiveActiveThreadSession, "invalidateSkills" | "refreshSkills" | "retrySkills">
->;
-
-export type ActiveThreadCompactionRole = Readonly<
-  Pick<LiveActiveThreadSession, "requestCompaction">
->;
-
-type ActiveThreadSessionRoles = Readonly<{
-  compactionRole: ActiveThreadCompactionRole;
-  composerRole: ActiveThreadComposerRole;
-  skillsRole: ActiveThreadSkillsRole;
-}>;
-
-export type ActiveThreadSessionSnapshot =
-  | Readonly<{ phase: "empty"; revision: number }>
-  | (Exclude<ReturnType<LiveActiveThreadSession["getSnapshot"]>, { phase: "disposed" }> &
-      ActiveThreadSessionRoles)
-  | Readonly<{ phase: "disposed"; revision: number }>;
-
-export type ActiveThreadActivationWarning =
-  | Readonly<{ type: "authorizationPersistenceFailed"; error: unknown }>
-  | Readonly<{ type: "previousOwnerCleanupFailed"; error: unknown }>;
-
-export type ActiveThreadActivationFailure =
-  | Readonly<{ type: "switchInProgress" }>
-  | Readonly<{
-      type: "currentThreadChanged";
-      activeThreadId: string | null;
-      expectedRevision: number;
-      actualRevision: number;
-    }>
-  | Readonly<{
-      type: "currentThreadUnresolved";
-      activeThreadId: string;
-      blockers: readonly ComposerInputQueueCoordinatorReleaseBlocker[];
-    }>
-  | Readonly<{
-      type: "connectionLost";
-      progress: "beforeCommit" | "afterCommit";
-      threadId: string | null;
-      cleanupError: unknown;
-    }>
-  | Readonly<{
-      type: "operationFailed";
-      phase: "resume" | "attach" | "prepare" | "activate";
-      error: unknown;
-      cleanupError: unknown;
-    }>;
-
-export type ActiveThreadActivationOutcome =
-  | Readonly<{
-      type: "ready";
-      threadId: string;
-      warnings: readonly ActiveThreadActivationWarning[];
-    }>
-  | Readonly<{ type: "empty" }>
-  | Readonly<{ type: "unavailable"; failure: ActiveThreadActivationFailure }>;
-
-type ActiveThreadActivationFailureBeforeCleanup =
-  | Exclude<ActiveThreadActivationFailure, { type: "connectionLost" } | { type: "operationFailed" }>
-  | Omit<Extract<ActiveThreadActivationFailure, { type: "operationFailed" }>, "cleanupError">
-  | Readonly<{ type: "connectionLost" }>;
-
-export type ActiveThreadSession = Readonly<{
-  getSnapshot(): ActiveThreadSessionSnapshot;
-  subscribe(listener: () => void): () => void;
-  activate(threadId: string): Promise<ActiveThreadActivationOutcome>;
-}>;
-
-export type ActiveThreadSessionController = Readonly<{
-  session: ActiveThreadSession;
-  activateRecoveryThread(): Promise<ActiveThreadActivationOutcome>;
-  handleProjectionEvent(notification: ThreadProjectionEventNotification): void;
-  handleProjectionDelta(notification: ThreadProjectionDeltaNotification): void;
-  handleProjectionClosed(notification: ThreadProjectionClosedNotification): void;
-  handleSkillsChanged(): void;
-  handleThreadStatusChanged(notification: ThreadStatusChangedNotification): void;
-  connectionUnavailable(): void;
-  suspendRestoredQueue(): void;
-  dispose(): void;
-}>;
+export type * from "./activeThreadSessionCollectionContracts";
+import type {
+  ActiveThreadSessionScheduler,
+  ActiveThreadSessionRoles,
+  ActiveThreadSessionSnapshot,
+  ActiveThreadActivationWarning,
+  ActiveThreadActivationOutcome,
+  ActiveThreadRetryOutcome,
+  ActiveThreadSession,
+  ActiveThreadSessionController,
+} from "./activeThreadSessionCollectionContracts";
 
 export type CreateActiveThreadSessionInput = Readonly<{
   authorizationSession: ActiveThreadAuthorizationSession;
@@ -158,50 +78,27 @@ type ActiveThreadNotification =
   | Readonly<{ type: "delta"; notification: ThreadProjectionDeltaNotification }>
   | Readonly<{ type: "closed"; notification: ThreadProjectionClosedNotification }>;
 
-type ActivationCandidate = {
-  generation: number;
+type Member = {
   threadId: string;
+  phase: "initializing" | "ready" | "failed" | "cleanupPending" | "removalPending";
+  live: LiveActiveThreadSession | null;
+  roles: ActiveThreadSessionRoles | null;
+  error: unknown;
+  pending: Promise<ActiveThreadActivationOutcome> | null;
+  removal: Promise<ActiveThreadRemovalOutcome> | null;
   subscriptionId: string | null;
-  attachedThreadId: string | null;
+  attached: boolean;
+  cleanupFromFailure: boolean;
   notifications: ActiveThreadNotification[];
-  replayedNotificationCount: number;
-  liveSession: LiveActiveThreadSession | null;
-  dispatchAdapter: CandidateDispatchAdapter;
-  threadStatusDirty: boolean;
+  drainingNotifications: boolean;
+  slotIdentity: ActiveThreadSessionIdentity | null;
+  statusDirty: boolean;
+  skillsDirty: boolean;
+  suspended: boolean;
+  frame: number | null;
+  unsubscribe: (() => void) | null;
+  snapshot: ActiveThreadSessionSnapshot | null;
 };
-
-class CandidateDispatchAdapter {
-  private readonly stagedActions: UnknownAction[] = [];
-  private activeDispatch: AppDispatch | null = null;
-  private aborted = false;
-
-  readonly dispatch = ((action: UnknownAction) => {
-    if (this.activeDispatch != null) return this.activeDispatch(action);
-    if (!this.aborted) this.stagedActions.push(action);
-    return action;
-  }) as AppDispatch;
-
-  flush(dispatch: AppDispatch): void {
-    if (this.activeDispatch != null || this.aborted) {
-      throw new Error("Candidate dispatch is unavailable");
-    }
-    for (const action of this.stagedActions) dispatch(action);
-  }
-
-  activate(dispatch: AppDispatch): void {
-    if (this.activeDispatch != null || this.aborted) {
-      throw new Error("Candidate dispatch is unavailable");
-    }
-    this.activeDispatch = dispatch;
-    this.stagedActions.length = 0;
-  }
-
-  abort(): void {
-    if (this.activeDispatch != null) return;
-    this.aborted = true;
-    this.stagedActions.length = 0;
-  }
-}
 
 class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   readonly session: ActiveThreadSession;
@@ -209,27 +106,21 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   private readonly commands: ActiveThreadSessionCommands;
   private readonly dispatch: AppDispatch;
   private readonly scheduler: ActiveThreadSessionScheduler;
-  private readonly listeners = createListenerSet();
-  private current: LiveActiveThreadSession | null = null;
-  private currentRoles: ActiveThreadSessionRoles | null = null;
-  private currentSnapshotCache: Readonly<{
-    liveSession: LiveActiveThreadSession;
-    source: ReturnType<LiveActiveThreadSession["getSnapshot"]>;
-    roles: ActiveThreadSessionRoles;
-    snapshot: ActiveThreadSessionSnapshot;
-  }> | null = null;
-  private unsubscribeCurrent: (() => void) | null = null;
-  private candidate: ActivationCandidate | null = null;
-  private pendingProjectionFrame: Readonly<{
-    liveSession: LiveActiveThreadSession;
-    frameId: number;
-  }> | null = null;
-  private snapshot: ActiveThreadSessionSnapshot = { phase: "empty", revision: 0 };
-  private generation = 0;
-  private busy = false;
-  private suppressCurrentPublication = false;
-  private disposed = false;
   private readonly persistence: CreateLiveActiveThreadSessionInput["persistence"];
+  private readonly listeners = createListenerSet();
+  private readonly members = new Map<string, Member>();
+  private collectionStore: SessionCollectionPersistenceStore | null = null;
+  private collectionError: unknown = null;
+  private collectionLoaded = false;
+  private viewedThreadId: string | null = null;
+  private selectionIntent = 0;
+  private disposed = false;
+  private snapshot: ActiveThreadSessionSnapshot = { phase: "empty", revision: 0 };
+  private collectionSnapshot: ActiveThreadCollectionSnapshot = {
+    viewedThreadId: null,
+    members: [],
+    error: null,
+  };
 
   constructor({
     authorizationSession,
@@ -245,502 +136,629 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     this.persistence = persistence;
     this.session = {
       getSnapshot: this.getSnapshot,
+      getCollectionSnapshot: this.getCollectionSnapshot,
       subscribe: this.subscribe,
       activate: this.activate,
+      retry: this.retry,
+      remove: this.remove,
     };
   }
 
-  private readonly getSnapshot = (): ActiveThreadSessionSnapshot => this.snapshot;
+  getSnapshot = (): ActiveThreadSessionSnapshot => this.snapshot;
+  getCollectionSnapshot = (): ActiveThreadCollectionSnapshot => this.collectionSnapshot;
+  subscribe = (listener: () => void): (() => void) => this.listeners.subscribe(listener);
 
-  private readonly subscribe = (listener: () => void): (() => void) => {
-    if (this.disposed) return () => undefined;
-    return this.listeners.subscribe(listener);
-  };
-
-  activateRecoveryThread = (): Promise<ActiveThreadActivationOutcome> => {
-    const threadId = this.authorizationSession.getSnapshot().activeThreadId;
-    if (this.disposed)
-      return Promise.resolve(this.connectionFailure(threadId, "beforeCommit", null));
-    return threadId == null ? Promise.resolve({ type: "empty" }) : this.activate(threadId);
-  };
-
-  private readonly activate = async (threadId: string): Promise<ActiveThreadActivationOutcome> => {
-    const previous = this.current;
-    const previousSnapshot = previous?.getSnapshot() ?? null;
-    if (this.disposed) return this.connectionFailure(threadId, "beforeCommit", null);
-    if (
-      previousSnapshot != null &&
-      previousSnapshot.phase !== "disposed" &&
-      previousSnapshot.threadId === threadId
-    ) {
-      return { type: "ready", threadId, warnings: [] };
+  private loadCollection(): boolean {
+    if (this.collectionLoaded) return true;
+    try {
+      this.collectionStore ??= new SessionCollectionPersistenceStore(this.persistence);
+      const result = this.collectionStore.read();
+      if (result.type === "restored") {
+        for (const threadId of result.threadIds)
+          this.members.set(threadId, this.createMember(threadId));
+      }
+      this.collectionLoaded = true;
+      this.collectionError = null;
+      return true;
+    } catch (error: unknown) {
+      this.collectionError = error;
+      this.publish();
+      return false;
     }
-    if (this.busy) return { type: "unavailable", failure: { type: "switchInProgress" } };
+  }
 
-    this.busy = true;
-    const candidate: ActivationCandidate = {
-      generation: ++this.generation,
-      threadId,
-      subscriptionId: null,
-      attachedThreadId: null,
-      notifications: [],
-      replayedNotificationCount: 0,
-      liveSession: null,
-      dispatchAdapter: new CandidateDispatchAdapter(),
-      threadStatusDirty: false,
-    };
-    this.candidate = candidate;
-    const previousRevision = previousSnapshot?.revision ?? this.snapshot.revision;
+  activateRecoveryThread = (
+    preferredThreadId?: string | null,
+  ): Promise<ActiveThreadActivationOutcome> => {
+    if (this.isDisposed())
+      return Promise.resolve(this.connectionFailure(preferredThreadId ?? null));
+    if (!this.loadCollection())
+      return Promise.resolve(this.failure("prepare", this.collectionError));
+    const target = preferredThreadId ?? this.authorizationSession.getSnapshot().activeThreadId;
+    // Begin the foreground intent before any asynchronous background initialization settles.
+    const foreground =
+      target == null ? Promise.resolve({ type: "empty" } as const) : this.activate(target);
+    this.initializeWaitingMembers(target);
+    this.publish();
+    return foreground;
+  };
 
-    if (previous != null) {
-      let resumedThreadId: string;
+  private activate = async (threadId: string): Promise<ActiveThreadActivationOutcome> => {
+    if (this.isDisposed()) return this.connectionFailure(threadId);
+    const intent = ++this.selectionIntent;
+    if (!this.loadCollection()) return this.failure("prepare", this.collectionError);
+    let member = this.members.get(threadId);
+    if (member == null) {
       try {
-        const response = await this.commands.resumeThread({ threadId });
-        resumedThreadId = response.thread.id;
-        if (resumedThreadId !== threadId) {
-          throw new Error("thread/resume returned a different thread identity");
-        }
+        this.commitMembership([...this.members.keys(), threadId]);
       } catch (error: unknown) {
-        return this.finishUncommitted(candidate, {
-          type: "operationFailed",
-          phase: "resume",
-          error,
-        });
+        this.collectionError = error;
+        this.initializeWaitingMembers(threadId);
+        this.publish();
+        return this.failure("activate", error);
       }
-      if (!this.isCurrentCandidate(candidate)) {
-        return this.finishUncommitted(candidate, { type: "connectionLost" });
-      }
+      member = this.createMember(threadId);
+      this.members.set(threadId, member);
     }
-
-    let attachResponse: ThreadProjectionAttachResponse;
-    try {
-      attachResponse = await this.commands.attachThreadProjection({ threadId });
-      candidate.attachedThreadId = threadId;
-      candidate.subscriptionId = attachResponse.subscriptionId;
-      if (attachResponse.snapshot.thread.id !== threadId) {
-        throw new Error("thread/projection/attach returned a different thread identity");
-      }
-    } catch (error: unknown) {
-      return this.finishUncommitted(candidate, {
-        type: "operationFailed",
-        phase: "attach",
-        error,
-      });
-    }
-    if (!this.isCurrentCandidate(candidate)) {
-      return this.finishUncommitted(candidate, { type: "connectionLost" });
-    }
-
-    try {
-      const projection = createActiveThreadProjection({ threadId, attachResponse });
-      for (const input of candidate.notifications) {
-        const outcome = applyProjectionNotification(projection, input);
-        if (outcome.type === "projectionUnavailable") {
-          throw new Error("Candidate projection became unavailable before publication");
-        }
-        candidate.replayedNotificationCount += 1;
-      }
-      candidate.liveSession = createLiveActiveThreadSession({
-        sessionRevision: previousRevision + 1,
-        attachResponse,
-        projection,
-        commands: this.commands,
-        dispatch: candidate.dispatchAdapter.dispatch,
-        persistence: this.persistence,
-      } satisfies CreateLiveActiveThreadSessionInput);
-      if (candidate.threadStatusDirty) {
-        candidate.threadStatusDirty = false;
-        candidate.liveSession.invalidateThreadStatus();
-      }
-      await candidate.liveSession.settleThreadStatusInvalidations();
-    } catch (error: unknown) {
-      return this.finishUncommitted(candidate, {
-        type: "operationFailed",
-        phase: "prepare",
-        error,
-      });
-    }
-
-    const changed = this.currentRevisionChanged(previous, previousRevision, candidate);
-    if (changed != null) {
-      return this.finishUncommitted(candidate, changed);
-    }
-
-    let releaseReservation:
-      | Extract<
-          ReturnType<LiveActiveThreadSession["reserveRelease"]>,
-          { type: "reserved" }
-        >["reservation"]
-      | null = null;
-    if (previous != null) {
-      this.suppressCurrentPublication = true;
-      const release = previous.reserveRelease(previousRevision);
-      if (release.type === "unavailable") {
-        this.suppressCurrentPublication = false;
-        return this.finishUncommitted(candidate, this.currentChangedFailure(previousRevision));
-      }
-      if (release.type === "blocked") {
-        this.suppressCurrentPublication = false;
-        return this.finishUncommitted(candidate, {
-          type: "currentThreadUnresolved",
-          activeThreadId:
-            previousSnapshot?.phase === "disposed"
-              ? threadId
-              : (previousSnapshot?.threadId ?? threadId),
-          blockers: release.blockers,
-        });
-      }
-      releaseReservation = release.reservation;
-    }
-
-    if (
-      !this.isCurrentCandidate(candidate) ||
-      candidate.notifications.length !== candidate.replayedNotificationCount
-    ) {
-      this.suppressCurrentPublication = false;
-      return this.finishUncommitted(
-        candidate,
-        this.currentChangedFailure(previousRevision),
-        releaseReservation,
-      );
-    }
-
-    try {
-      candidate.dispatchAdapter.flush(this.dispatch);
-    } catch (error: unknown) {
-      this.suppressCurrentPublication = false;
-      return this.finishUncommitted(
-        candidate,
-        { type: "operationFailed", phase: "activate", error },
-        releaseReservation,
-      );
-    }
-
-    if (releaseReservation != null) {
-      const handoffCommit = releaseReservation.commit();
-      if (handoffCommit.type !== "committed") {
-        this.suppressCurrentPublication = false;
-        return this.finishUncommitted(
-          candidate,
-          handoffCommit.reason === "disposed" || !this.isAttemptLive(candidate.generation)
-            ? { type: "connectionLost" }
-            : this.currentChangedFailure(previousRevision),
-          releaseReservation,
-        );
-      }
-    }
-
-    if (!this.isCurrentCandidate(candidate)) {
-      this.suppressCurrentPublication = false;
-      return this.finishUncommitted(candidate, { type: "connectionLost" });
-    }
-    candidate.dispatchAdapter.activate(this.dispatch);
-
-    const next = candidate.liveSession;
-    this.cancelPendingProjectionFrame();
-    this.unsubscribeCurrent?.();
-    this.unsubscribeCurrent = null;
-    this.current = next;
-    this.currentRoles = createSessionRoles(next);
-    candidate.liveSession = null;
-    this.candidate = null;
-    this.suppressCurrentPublication = false;
-    this.unsubscribeCurrent = next.subscribe(this.handleCurrentPublication);
-    this.snapshot = this.availableSnapshot(next, this.currentRoles);
-    this.notifyListeners();
-
+    this.viewedThreadId = threadId;
+    this.publish();
+    const foreground = this.ensureInitialized(member);
+    this.initializeWaitingMembers(threadId);
+    const result = await foreground;
+    if (this.isDisposed()) return this.connectionFailure(threadId);
+    if (intent !== this.selectionIntent)
+      return {
+        type: "unavailable",
+        failure: {
+          type: "currentThreadChanged",
+          activeThreadId: this.viewedThreadId,
+          expectedRevision: intent,
+          actualRevision: this.selectionIntent,
+        },
+      };
+    if (result.type !== "ready") return result;
     const warnings: ActiveThreadActivationWarning[] = [];
     try {
       this.authorizationSession.commitActiveThread(threadId);
+      this.collectionError = null;
     } catch (error: unknown) {
+      this.collectionError = error;
       warnings.push({ type: "authorizationPersistenceFailed", error });
     }
-
-    let cleanupError: unknown = null;
-    if (previous != null) {
-      try {
-        previous.dispose();
-      } catch (error: unknown) {
-        cleanupError = appendError(cleanupError, error);
-      }
-      try {
-        await this.commands.detachThreadProjection({
-          threadId:
-            previousSnapshot?.phase === "disposed"
-              ? threadId
-              : (previousSnapshot?.threadId ?? threadId),
-        });
-      } catch (error: unknown) {
-        cleanupError = appendError(cleanupError, error);
-      }
-    }
-    this.busy = false;
-
-    if (!this.isAttemptLive(candidate.generation)) {
-      return this.connectionFailure(threadId, "afterCommit", cleanupError);
-    }
-    if (cleanupError != null) {
-      warnings.push({ type: "previousOwnerCleanupFailed", error: cleanupError });
-    }
+    this.publish();
     return { type: "ready", threadId, warnings };
   };
+
+  private retry = async (threadId: string): Promise<ActiveThreadRetryOutcome> => {
+    if (this.isDisposed()) return this.connectionFailure(threadId);
+    if (!this.loadCollection()) return this.failure("prepare", this.collectionError);
+    const intent = this.selectionIntent;
+    const wasViewed = this.viewedThreadId === threadId;
+    this.initializeWaitingMembers(threadId);
+    const member = this.members.get(threadId);
+    if (member == null)
+      return this.failure("prepare", new Error("Session is no longer a collection member"));
+    let result: ActiveThreadActivationOutcome;
+    if (member.phase === "cleanupPending" && member.cleanupFromFailure) {
+      member.pending ??= this.retryInitializationCleanup(member);
+      result = await member.pending;
+    } else if (member.phase === "cleanupPending" || member.phase === "removalPending") {
+      const removed = await this.remove(threadId);
+      if (this.isDisposed()) return this.connectionFailure(threadId);
+      return removed.type === "removed" ? removed : this.failure("activate", member.error);
+    } else if (member.phase === "ready" && member.live != null) {
+      const live = member.live;
+      live.invalidateThreadStatus();
+      await live.settleThreadStatusInvalidations();
+      if (this.isDisposed()) return this.connectionFailure(threadId);
+      if (!this.isReadyMember(member, live)) {
+        return this.failure("prepare", new Error("Session changed during status retry"));
+      }
+      result = { type: "ready", threadId, warnings: [] };
+    } else {
+      result = await this.ensureInitialized(member);
+    }
+    if (this.isDisposed()) return this.connectionFailure(threadId);
+    if (this.members.get(threadId) !== member)
+      return this.failure("prepare", new Error("Session is no longer a collection member"));
+    if (result.type !== "ready") return result;
+    if (!wasViewed || intent !== this.selectionIntent || this.viewedThreadId !== threadId)
+      return result;
+    const warnings = [...result.warnings];
+    try {
+      this.authorizationSession.commitActiveThread(threadId);
+      this.collectionError = null;
+    } catch (error: unknown) {
+      this.collectionError = error;
+      warnings.push({ type: "authorizationPersistenceFailed", error });
+    }
+    this.publish();
+    return { type: "ready", threadId, warnings };
+  };
+
+  private async retryInitializationCleanup(member: Member): Promise<ActiveThreadActivationOutcome> {
+    try {
+      await this.commands.detachThreadProjection({ threadId: member.threadId });
+      member.attached = false;
+      member.cleanupFromFailure = false;
+      member.phase = "failed";
+      member.pending = null;
+      if (this.isDisposed()) return this.connectionFailure(member.threadId);
+      return await this.ensureInitialized(member);
+    } catch (error: unknown) {
+      member.pending = null;
+      member.error = error;
+      this.publish();
+      return this.failure("prepare", error);
+    }
+  }
+
+  private createMember(threadId: string): Member {
+    return {
+      threadId,
+      phase: "initializing",
+      live: null,
+      roles: null,
+      error: null,
+      pending: null,
+      removal: null,
+      subscriptionId: null,
+      attached: false,
+      cleanupFromFailure: false,
+      notifications: [],
+      drainingNotifications: false,
+      slotIdentity: null,
+      statusDirty: false,
+      skillsDirty: false,
+      suspended: false,
+      frame: null,
+      unsubscribe: null,
+      snapshot: null,
+    };
+  }
+
+  private initializeWaitingMembers(foregroundThreadId: string | null): void {
+    for (const member of this.members.values()) {
+      if (
+        member.threadId !== foregroundThreadId &&
+        member.phase === "initializing" &&
+        member.pending == null
+      ) {
+        void this.ensureInitialized(member);
+      }
+    }
+  }
+
+  private ensureInitialized(member: Member): Promise<ActiveThreadActivationOutcome> {
+    if (this.isDisposed()) return Promise.resolve(this.connectionFailure(member.threadId));
+    if (member.pending != null) return member.pending;
+    if (member.phase === "ready")
+      return Promise.resolve({ type: "ready", threadId: member.threadId, warnings: [] });
+    if (member.phase === "cleanupPending" || member.phase === "removalPending") {
+      return Promise.resolve(this.failure("prepare", member.error));
+    }
+    member.phase = "initializing";
+    member.error = null;
+    member.notifications = [];
+    member.subscriptionId = null;
+    const pending = this.initialize(member).finally(() => {
+      if (member.pending === pending) member.pending = null;
+    });
+    member.pending = pending;
+    this.publish();
+    return pending;
+  }
+
+  private async initialize(member: Member): Promise<ActiveThreadActivationOutcome> {
+    let phase: "resume" | "attach" | "prepare" = "resume";
+    try {
+      const resumed = await this.commands.resumeThread({ threadId: member.threadId });
+      if (resumed.thread.id !== member.threadId)
+        throw new Error("thread/resume returned a different thread identity");
+      if (this.isDisposed()) return this.connectionFailure(member.threadId);
+      phase = "attach";
+      const response = await this.commands.attachThreadProjection({ threadId: member.threadId });
+      member.attached = true;
+      member.subscriptionId = response.subscriptionId;
+      if (response.snapshot.thread.id !== member.threadId)
+        throw new Error("thread/projection/attach returned a different thread identity");
+      if (this.isDisposed()) {
+        await this.commands.detachThreadProjection({ threadId: member.threadId });
+        member.attached = false;
+        return this.connectionFailure(member.threadId);
+      }
+      phase = "prepare";
+      const projection = createActiveThreadProjection({
+        threadId: member.threadId,
+        attachResponse: response,
+      });
+      for (const notification of member.notifications) {
+        if (notification.notification.subscriptionId !== response.subscriptionId) continue;
+        if (
+          applyProjectionNotification(projection, notification).type === "projectionUnavailable"
+        ) {
+          throw new Error("Candidate projection became unavailable before publication");
+        }
+      }
+      member.notifications = [];
+      const identity = createActiveThreadSessionIdentity(member.threadId);
+      member.slotIdentity = identity;
+      this.dispatch(activeThreadReadModelSlotCreated(identity));
+      if (this.isDisposed()) throw new Error("Connection closed during session initialization");
+      try {
+        member.live = createLiveActiveThreadSession({
+          identity,
+          sessionRevision: 1,
+          attachResponse: response,
+          projection,
+          commands: this.commands,
+          dispatch: this.dispatch,
+          persistence: this.persistence,
+        });
+      } catch (error: unknown) {
+        this.removeSlot(member);
+        throw error;
+      }
+      if (this.isDisposed()) throw new Error("Connection closed during session initialization");
+      member.roles = createSessionRoles(member.live);
+      member.unsubscribe = member.live.subscribe(() => {
+        this.publish();
+      });
+      this.drainInitializingNotifications(member);
+      if (member.suspended) member.live.suspendRestored();
+      if (member.skillsDirty) {
+        member.skillsDirty = false;
+        member.live.invalidateSkills(member.live.getSnapshot().revision);
+      }
+      if (member.statusDirty) {
+        member.statusDirty = false;
+        member.live.invalidateThreadStatus();
+      }
+      await member.live.settleThreadStatusInvalidations();
+      if (this.isDisposed()) return this.connectionFailure(member.threadId);
+      if (member.live.getSnapshot().phase === "projectionUnavailable") {
+        throw new Error("Candidate projection became unavailable before publication");
+      }
+      member.phase = "ready";
+      this.publish();
+      return { type: "ready", threadId: member.threadId, warnings: [] };
+    } catch (error: unknown) {
+      member.error = error;
+      try {
+        this.releaseLive(member);
+      } catch (cleanupError: unknown) {
+        member.error = appendError(error, cleanupError);
+      }
+      if (member.attached) {
+        try {
+          await this.commands.detachThreadProjection({ threadId: member.threadId });
+          member.attached = false;
+        } catch (cleanupError: unknown) {
+          member.phase = "cleanupPending";
+          member.cleanupFromFailure = true;
+          member.error = appendError(error, cleanupError);
+          this.publish();
+          return this.failure(phase, error, cleanupError);
+        }
+      }
+      member.phase = "failed";
+      this.publish();
+      return this.failure(phase, error);
+    }
+  }
+
+  private remove = (threadId: string): Promise<ActiveThreadRemovalOutcome> => {
+    const member = this.members.get(threadId);
+    if (this.isDisposed() || member == null)
+      return Promise.resolve({ type: "unavailable", threadId });
+    if (member.removal != null) return member.removal;
+    const pending = this.removeMember(member).finally(() => {
+      if (member.removal === pending) member.removal = null;
+      this.publish();
+    });
+    member.removal = pending;
+    this.publish();
+    return pending;
+  };
+
+  private async removeMember(member: Member): Promise<ActiveThreadRemovalOutcome> {
+    const threadId = member.threadId;
+    const live = member.live;
+    if (member.phase === "initializing")
+      return { type: "blocked", threadId, blockers: ["initializing"] };
+    if (member.phase === "failed" || member.cleanupFromFailure)
+      return { type: "blocked", threadId, blockers: ["statusUnknown"] };
+    if (live != null && member.phase === "ready") {
+      live.invalidateThreadStatus();
+      await live.settleThreadStatusInvalidations();
+      if (this.isDisposed() || this.members.get(threadId) !== member || member.live !== live)
+        return { type: "unavailable", threadId };
+      const blockers = this.removalBlockers(member);
+      if (blockers.length > 0) return { type: "blocked", threadId, blockers };
+    }
+    const release =
+      live != null && member.phase === "ready"
+        ? live.reserveRelease(live.getSnapshot().revision)
+        : null;
+    if (release?.type === "blocked")
+      return { type: "blocked", threadId, blockers: release.blockers };
+    if (release?.type === "unavailable")
+      return { type: "blocked", threadId, blockers: ["changed"] };
+    const wasViewed = this.viewedThreadId === threadId;
+    try {
+      if (wasViewed || this.authorizationSession.getSnapshot().activeThreadId === threadId) {
+        this.authorizationSession.clearActiveThread();
+      }
+    } catch (error: unknown) {
+      if (release?.type === "reserved") release.reservation.release();
+      member.error = error;
+      this.publish();
+      return { type: "failed", threadId, phase: "selection", error };
+    }
+    if (release?.type === "reserved" && release.reservation.commit().type !== "committed") {
+      release.reservation.release();
+      return { type: "blocked", threadId, blockers: ["changed"] };
+    }
+    // Once release commits, keep the member visible but its capabilities unavailable until cleanup settles.
+    member.phase = member.attached ? "cleanupPending" : "removalPending";
+    try {
+      this.releaseLive(member, true);
+    } catch (error: unknown) {
+      member.error = error;
+      this.publish();
+      return { type: "failed", threadId, phase: "detach", error };
+    }
+    this.publish();
+    if (member.attached) {
+      try {
+        await this.commands.detachThreadProjection({ threadId });
+        member.attached = false;
+      } catch (error: unknown) {
+        member.error = error;
+        this.publish();
+        return { type: "failed", threadId, phase: "detach", error };
+      }
+    }
+    member.phase = "removalPending";
+    if (this.isDisposed()) return { type: "unavailable", threadId };
+    try {
+      this.commitMembership([...this.members.keys()].filter((id) => id !== threadId));
+    } catch (error: unknown) {
+      member.error = error;
+      this.publish();
+      return { type: "failed", threadId, phase: "membership", error };
+    }
+    this.removeSlot(member);
+    this.members.delete(threadId);
+    if (this.viewedThreadId === threadId) {
+      this.viewedThreadId = null;
+      this.selectionIntent += 1;
+    }
+    this.publish();
+    return { type: "removed", threadId, wasViewed };
+  }
+
+  private removalBlockers(member: Member): ActiveThreadRemovalBlocker[] {
+    if (member.phase === "initializing") return ["initializing"];
+    if (member.phase === "failed" || member.cleanupFromFailure) return ["statusUnknown"];
+    const live = member.live;
+    if (live == null) return [];
+    const snapshot = live.getSnapshot();
+    if (snapshot.phase !== "active") return ["projectionUnavailable"];
+    const blockers: ActiveThreadRemovalBlocker[] = [];
+    if (
+      snapshot.threadStatus == null ||
+      snapshot.threadStatus.type === "notLoaded" ||
+      snapshot.threadStatus.type === "systemError"
+    )
+      blockers.push("statusUnknown");
+    if (snapshot.threadStatus?.type === "active" || snapshot.activeTurnId != null)
+      blockers.push("activeTurn");
+    if (snapshot.compaction.phase !== "idle") blockers.push("compaction");
+    if (snapshot.composer.persistence.restoredPaused) blockers.push("restoredPaused");
+    const readiness = live.getReleaseReadiness();
+    if (readiness.type === "blocked") blockers.push(...readiness.blockers);
+    return blockers;
+  }
 
   handleProjectionEvent = (notification: ThreadProjectionEventNotification): void => {
     this.routeNotification({ type: "event", notification });
   };
-
   handleProjectionDelta = (notification: ThreadProjectionDeltaNotification): void => {
-    const owner = this.routeNotification({ type: "delta", notification });
-    if (owner === this.current && owner != null) this.scheduleProjectionFlush(owner);
+    this.routeNotification({ type: "delta", notification });
   };
-
   handleProjectionClosed = (notification: ThreadProjectionClosedNotification): void => {
-    this.cancelProjectionFrameForCurrent();
     this.routeNotification({ type: "closed", notification });
   };
 
+  private routeNotification(input: ActiveThreadNotification): void {
+    if (this.isDisposed()) return;
+    const member = this.members.get(input.notification.threadId);
+    if (member == null) return;
+    if (member.phase === "initializing") {
+      member.notifications.push(input);
+      this.drainInitializingNotifications(member);
+      return;
+    }
+    if (member.live == null) return;
+    if (input.notification.subscriptionId !== member.subscriptionId) return;
+    if (input.type !== "delta") this.cancelFrame(member);
+    applyLiveNotification(member.live, input);
+    if (input.type === "delta" && member.frame == null) {
+      member.frame = this.scheduler.requestFrame(() => {
+        member.frame = null;
+        if (!this.isDisposed()) member.live?.flushProjection();
+      });
+    }
+  }
+
+  private drainInitializingNotifications(member: Member): void {
+    const live = member.live;
+    if (live == null || member.drainingNotifications || this.isDisposed()) return;
+    member.drainingNotifications = true;
+    try {
+      do {
+        let input = member.notifications.shift();
+        while (input != null && !this.isDisposed()) {
+          if (input.notification.subscriptionId === member.subscriptionId)
+            applyLiveNotification(live, input);
+          input = member.notifications.shift();
+        }
+        if (!this.isDisposed()) live.flushProjection();
+      } while (!this.isDisposed() && member.notifications.length > 0);
+    } finally {
+      member.drainingNotifications = false;
+    }
+  }
+
   handleSkillsChanged = (): void => {
-    const current = this.current;
-    if (current == null) return;
-    current.invalidateSkills(current.getSnapshot().revision);
+    for (const member of this.members.values()) {
+      const live = member.live;
+      if (live != null) live.invalidateSkills(live.getSnapshot().revision);
+      else member.skillsDirty = true;
+    }
   };
-
   handleThreadStatusChanged = (notification: ThreadStatusChangedNotification): void => {
-    if (this.disposed) return;
-    const candidate = this.candidate;
-    if (candidate?.threadId === notification.threadId) {
-      if (candidate.liveSession == null) {
-        candidate.threadStatusDirty = true;
-      } else {
-        candidate.liveSession.invalidateThreadStatus();
-      }
-      return;
-    }
-    const current = this.current;
-    const snapshot = current?.getSnapshot();
-    if (
-      current == null ||
-      snapshot == null ||
-      snapshot.phase === "disposed" ||
-      snapshot.threadId !== notification.threadId
-    ) {
-      return;
-    }
-    current.invalidateThreadStatus();
+    const member = this.members.get(notification.threadId);
+    if (this.isDisposed() || member == null) return;
+    if (member.live != null) member.live.invalidateThreadStatus();
+    else member.statusDirty = true;
   };
-
-  connectionUnavailable = (): void => {
-    this.disposeSession();
-  };
-
   suspendRestoredQueue = (): void => {
-    this.current?.suspendRestored();
-    this.candidate?.liveSession?.suspendRestored();
+    for (const member of this.members.values()) {
+      member.suspended = true;
+      member.live?.suspendRestored();
+    }
   };
-
+  connectionUnavailable = (): void => {
+    this.dispose();
+  };
   dispose = (): void => {
-    this.disposeSession();
-  };
-
-  private readonly handleCurrentPublication = (): void => {
-    if (this.disposed || this.suppressCurrentPublication || this.current == null) return;
-    if (this.currentRoles == null) return;
-    this.snapshot = this.availableSnapshot(this.current, this.currentRoles);
-    this.notifyListeners();
-  };
-
-  private routeNotification(input: ActiveThreadNotification): LiveActiveThreadSession | null {
-    if (this.disposed) return null;
-    const identity = input.notification;
-    const candidate = this.candidate;
-    if (candidate?.threadId === identity.threadId) {
-      if (
-        candidate.subscriptionId == null ||
-        identity.subscriptionId === candidate.subscriptionId
-      ) {
-        candidate.notifications.push(input);
-      }
-      return null;
-    }
-    const current = this.current;
-    const snapshot = current?.getSnapshot();
-    if (
-      current == null ||
-      snapshot == null ||
-      snapshot.phase === "disposed" ||
-      identity.threadId !== snapshot.threadId ||
-      identity.subscriptionId !== snapshot.subscriptionId
-    ) {
-      return null;
-    }
-    if (input.type !== "delta") this.cancelProjectionFrameForCurrent();
-    applyLiveNotification(current, input);
-    return current;
-  }
-
-  private scheduleProjectionFlush(liveSession: LiveActiveThreadSession): void {
-    if (this.pendingProjectionFrame != null) return;
-    const frameId = this.scheduler.requestFrame(() => {
-      if (this.pendingProjectionFrame?.liveSession !== liveSession) return;
-      this.pendingProjectionFrame = null;
-      if (!this.disposed && this.current === liveSession) liveSession.flushProjection();
-    });
-    this.pendingProjectionFrame = { liveSession, frameId };
-  }
-
-  private cancelProjectionFrameForCurrent(): void {
-    if (this.pendingProjectionFrame?.liveSession === this.current)
-      this.cancelPendingProjectionFrame();
-  }
-
-  private cancelPendingProjectionFrame(): void {
-    const pending = this.pendingProjectionFrame;
-    if (pending == null) return;
-    this.pendingProjectionFrame = null;
-    this.scheduler.cancelFrame(pending.frameId);
-  }
-
-  private currentRevisionChanged(
-    previous: LiveActiveThreadSession | null,
-    previousRevision: number,
-    candidate: ActivationCandidate,
-  ): Extract<ActiveThreadActivationFailure, { type: "currentThreadChanged" }> | null {
-    if (
-      !this.isCurrentCandidate(candidate) ||
-      this.current !== previous ||
-      candidate.notifications.length !== candidate.replayedNotificationCount ||
-      (previous != null && previous.getSnapshot().revision !== previousRevision)
-    ) {
-      return this.currentChangedFailure(previousRevision);
-    }
-    return null;
-  }
-
-  private currentChangedFailure(
-    expectedRevision: number,
-  ): Extract<ActiveThreadActivationFailure, { type: "currentThreadChanged" }> {
-    const snapshot = this.current?.getSnapshot();
-    return {
-      type: "currentThreadChanged",
-      activeThreadId: snapshot == null || snapshot.phase === "disposed" ? null : snapshot.threadId,
-      expectedRevision,
-      actualRevision: snapshot?.revision ?? this.snapshot.revision,
-    };
-  }
-
-  private async finishUncommitted(
-    candidate: ActivationCandidate,
-    failure: ActiveThreadActivationFailureBeforeCleanup,
-    releaseReservation:
-      | Extract<
-          ReturnType<LiveActiveThreadSession["reserveRelease"]>,
-          { type: "reserved" }
-        >["reservation"]
-      | null = null,
-  ): Promise<ActiveThreadActivationOutcome> {
+    if (this.isDisposed()) return;
+    this.disposed = true;
     let cleanupError: unknown = null;
-    candidate.dispatchAdapter.abort();
-    try {
-      candidate.liveSession?.dispose();
-    } catch (error: unknown) {
-      cleanupError = appendError(cleanupError, error);
-    }
-    try {
-      releaseReservation?.release();
-    } catch (error: unknown) {
-      cleanupError = appendError(cleanupError, error);
-    }
-    if (candidate.attachedThreadId != null) {
+    for (const member of this.members.values()) {
       try {
-        await this.commands.detachThreadProjection({ threadId: candidate.attachedThreadId });
+        this.releaseLive(member);
       } catch (error: unknown) {
         cleanupError = appendError(cleanupError, error);
       }
     }
-    if (this.candidate === candidate) this.candidate = null;
-    this.suppressCurrentPublication = false;
-    this.busy = false;
-    if (this.current != null && !this.disposed) {
-      const previousSnapshot = this.snapshot;
-      if (this.currentRoles == null) {
-        throw new Error("Current active thread session roles are unavailable");
-      }
-      this.snapshot = this.availableSnapshot(this.current, this.currentRoles);
-      if (this.snapshot !== previousSnapshot) {
-        this.notifyListeners();
-      }
-    }
-    if (failure.type === "connectionLost" || !this.isAttemptLive(candidate.generation)) {
-      return this.connectionFailure(candidate.threadId, "beforeCommit", cleanupError);
-    }
-    if (failure.type === "operationFailed") {
-      return { type: "unavailable", failure: { ...failure, cleanupError } };
-    }
-    return { type: "unavailable", failure };
+    this.snapshot = { phase: "disposed", revision: this.snapshot.revision + 1 };
+    this.collectionSnapshot = {
+      viewedThreadId: this.viewedThreadId,
+      members: [],
+      error: cleanupError,
+    };
+    this.listeners.notify();
+    this.listeners.clear();
+    if (cleanupError != null)
+      throw new Error("Session collection cleanup failed", { cause: cleanupError });
+  };
+
+  private cancelFrame(member: Member): void {
+    if (member.frame == null) return;
+    this.scheduler.cancelFrame(member.frame);
+    member.frame = null;
   }
 
-  private connectionFailure(
-    threadId: string | null,
-    progress: "beforeCommit" | "afterCommit",
-    cleanupError: unknown,
+  private releaseLive(member: Member, retainSlot = false): void {
+    this.cancelFrame(member);
+    member.unsubscribe?.();
+    member.unsubscribe = null;
+    const live = member.live;
+    member.live = null;
+    member.roles = null;
+    member.snapshot = null;
+    if (live != null) {
+      try {
+        live.dispose();
+      } finally {
+        if (!retainSlot) this.removeSlot(member);
+      }
+    } else if (!retainSlot) this.removeSlot(member);
+  }
+
+  private removeSlot(member: Member): void {
+    const identity = member.slotIdentity;
+    if (identity == null) return;
+    member.slotIdentity = null;
+    this.dispatch(activeThreadReadModelSlotRemoved(identity));
+  }
+
+  private publish(): void {
+    if (this.isDisposed()) return;
+    for (const member of this.members.values()) {
+      const live = member.live;
+      if (member.phase === "ready" && live != null && member.roles != null) {
+        const source = live.getSnapshot();
+        if (source.phase !== "disposed" && member.snapshot?.revision !== source.revision) {
+          member.snapshot = { ...source, ...member.roles };
+        }
+      }
+    }
+    const viewed = this.viewedThreadId == null ? null : this.members.get(this.viewedThreadId);
+    this.snapshot =
+      viewed == null
+        ? { phase: "empty", revision: this.snapshot.revision + 1 }
+        : (viewed.snapshot ?? {
+            phase: viewed.phase === "initializing" ? "loading" : "failed",
+            threadId: viewed.threadId,
+            revision: this.snapshot.revision + 1,
+            error: viewed.error,
+          });
+    this.collectionSnapshot = {
+      viewedThreadId: this.viewedThreadId,
+      members: [...this.members.values()].map((member) => {
+        const removalBlockers = this.removalBlockers(member);
+        return {
+          threadId: member.threadId,
+          phase: member.phase,
+          snapshot: member.snapshot,
+          error: member.error,
+          canRemove: member.removal == null && removalBlockers.length === 0,
+          removalBlockers,
+        };
+      }),
+      error: this.collectionError,
+    };
+    this.listeners.notify();
+  }
+
+  private isDisposed(): boolean {
+    return this.disposed;
+  }
+
+  private isReadyMember(member: Member, live: LiveActiveThreadSession): boolean {
+    return (
+      this.members.get(member.threadId) === member &&
+      member.phase === "ready" &&
+      member.live === live
+    );
+  }
+
+  private commitMembership(threadIds: readonly string[]): void {
+    const store = this.collectionStore;
+    if (store == null) throw new Error("Session collection storage has not been loaded");
+    store.commit(threadIds);
+  }
+
+  private failure(
+    phase: "resume" | "attach" | "prepare" | "activate",
+    error: unknown,
+    cleanupError: unknown = null,
   ): ActiveThreadActivationOutcome {
     return {
       type: "unavailable",
-      failure: { type: "connectionLost", progress, threadId, cleanupError },
+      failure: { type: "operationFailed", phase, error, cleanupError },
     };
   }
 
-  private isCurrentCandidate(candidate: ActivationCandidate): boolean {
-    return this.candidate === candidate && this.isAttemptLive(candidate.generation);
-  }
-
-  private isAttemptLive(generation: number): boolean {
-    return !this.disposed && generation === this.generation;
-  }
-
-  private availableSnapshot(
-    liveSession: LiveActiveThreadSession,
-    roles: ActiveThreadSessionRoles,
-  ): ActiveThreadSessionSnapshot {
-    const source = liveSession.getSnapshot();
-    const cached = this.currentSnapshotCache;
-    if (cached?.liveSession === liveSession && cached.source === source && cached.roles === roles) {
-      return cached.snapshot;
-    }
-    const snapshot: ActiveThreadSessionSnapshot =
-      source.phase === "disposed"
-        ? { phase: "disposed", revision: source.revision }
-        : { ...source, ...roles };
-    this.currentSnapshotCache = { liveSession, source, roles, snapshot };
-    return snapshot;
-  }
-
-  private disposeSession(): void {
-    if (this.disposed) return;
-    this.disposed = true;
-    this.busy = false;
-    this.generation += 1;
-    this.cancelPendingProjectionFrame();
-    this.unsubscribeCurrent?.();
-    this.unsubscribeCurrent = null;
-    const revision = this.current?.getSnapshot().revision ?? this.snapshot.revision;
-    this.candidate?.dispatchAdapter.abort();
-    try {
-      this.candidate?.liveSession?.dispose();
-    } finally {
-      this.current?.dispose();
-    }
-    this.candidate = null;
-    this.current = null;
-    this.currentRoles = null;
-    this.currentSnapshotCache = null;
-    this.snapshot = { phase: "disposed", revision: revision + 1 };
-    this.notifyListeners();
-    this.listeners.clear();
-  }
-
-  private notifyListeners(): void {
-    this.listeners.notify();
+  private connectionFailure(threadId: string | null): ActiveThreadActivationOutcome {
+    return {
+      type: "unavailable",
+      failure: { type: "connectionLost", progress: "beforeCommit", threadId, cleanupError: null },
+    };
   }
 }
 

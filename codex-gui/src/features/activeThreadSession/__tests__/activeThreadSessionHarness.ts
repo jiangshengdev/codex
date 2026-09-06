@@ -8,7 +8,9 @@ import type {
   ActiveThreadSession,
   ActiveThreadSessionSnapshot,
   ActiveThreadSkillsRole,
-} from "../activeThreadSession";
+  ActiveThreadCollectionSnapshot,
+} from "../activeThreadSessionCollectionContracts";
+import { createActiveThreadSessionIdentity } from "../activeThreadSessionIdentity";
 import type { Thread } from "@codex-protocol/v2";
 
 type ActiveSnapshot = Extract<ActiveThreadSessionSnapshot, { phase: "active" }>;
@@ -34,6 +36,7 @@ export type ActiveThreadSessionHarnessOptions = Readonly<{
   compactionRole?: Partial<ActiveThreadCompactionRole>;
   skillsRole?: Partial<ActiveThreadSkillsRole>;
   activate?: ActiveThreadActivationOutcome | ActivateOutcomeFactory;
+  initialCollection?: ActiveThreadCollectionSnapshot;
 }>;
 
 export type ActiveThreadSessionHarness = Readonly<{
@@ -42,12 +45,15 @@ export type ActiveThreadSessionHarness = Readonly<{
   compactionRole: ActiveThreadCompactionRole;
   skillsRole: ActiveThreadSkillsRole;
   activate: Mock<ActiveThreadSession["activate"]>;
+  retry: Mock<ActiveThreadSession["retry"]>;
+  remove: Mock<ActiveThreadSession["remove"]>;
   subscribe: Mock<ActiveThreadSession["subscribe"]>;
   activeSnapshot(options?: ActiveSnapshotOptions): ActiveSnapshot;
   projectionUnavailableSnapshot(
     options?: ProjectionUnavailableSnapshotOptions,
   ): ProjectionUnavailableSnapshot;
   publish(snapshot: ActiveThreadSessionSnapshot): boolean;
+  publishCollection(snapshot: ActiveThreadCollectionSnapshot): void;
   setActivateOutcome(outcome: ActiveThreadActivationOutcome | ActivateOutcomeFactory): void;
   listenerCount(): number;
 }>;
@@ -151,6 +157,7 @@ export const activeThreadSessionSnapshot = (
   const revision = options.revision ?? 1;
   return {
     revision,
+    identity: createActiveThreadSessionIdentity(options.threadId ?? "thread-1"),
     threadId: "thread-1",
     subscriptionId: "subscription-1",
     activeTurnId: null,
@@ -174,6 +181,7 @@ export const projectionUnavailableActiveThreadSessionSnapshot = (
     reason: "backpressure",
     recovery: "connectionRestartRequired",
     revision,
+    identity: createActiveThreadSessionIdentity(options.threadId ?? "thread-1"),
     threadId: "thread-1",
     subscriptionId: "subscription-1",
     activeTurnId: null,
@@ -216,12 +224,29 @@ export const createActiveThreadSessionHarness = (
     options.skillsRole == null && initialRoles != null
       ? initialRoles.skillsRole
       : createSkillsRole(options.skillsRole);
+  const identities = new Map<string, ActiveSnapshot["identity"]>();
+  if (initialRoles != null) identities.set(initialRoles.threadId, initialRoles.identity);
+  const identityFor = (threadId = "thread-1") => {
+    let identity = identities.get(threadId);
+    if (identity == null) {
+      identity = createActiveThreadSessionIdentity(threadId);
+      identities.set(threadId, identity);
+    }
+    return identity;
+  };
   const activeSnapshot = (snapshotOptions: ActiveSnapshotOptions = {}): ActiveSnapshot =>
-    activeThreadSessionSnapshot({ ...snapshotOptions, compactionRole, composerRole, skillsRole });
+    activeThreadSessionSnapshot({
+      identity: identityFor(snapshotOptions.threadId),
+      ...snapshotOptions,
+      compactionRole,
+      composerRole,
+      skillsRole,
+    });
   const projectionUnavailableSnapshot = (
     snapshotOptions: ProjectionUnavailableSnapshotOptions = {},
   ): ProjectionUnavailableSnapshot =>
     projectionUnavailableActiveThreadSessionSnapshot({
+      identity: identityFor(snapshotOptions.threadId),
       ...snapshotOptions,
       compactionRole,
       composerRole,
@@ -250,10 +275,44 @@ export const createActiveThreadSessionHarness = (
       typeof activateOutcome === "function" ? activateOutcome(threadId) : activateOutcome,
     ),
   );
+  const collectionFor = (value: ActiveThreadSessionSnapshot): ActiveThreadCollectionSnapshot => ({
+    viewedThreadId: "threadId" in value ? value.threadId : null,
+    members:
+      "threadId" in value
+        ? [
+            {
+              threadId: value.threadId,
+              phase:
+                value.phase === "loading"
+                  ? "initializing"
+                  : value.phase === "failed"
+                    ? "failed"
+                    : "ready",
+              snapshot: value,
+              error: "error" in value ? value.error : null,
+              canRemove: value.phase === "active",
+              removalBlockers: [],
+            },
+          ]
+        : [],
+    error: null,
+  });
+  let collection = options.initialCollection ?? collectionFor(snapshot);
+  const retry = vi.fn<ActiveThreadSession["retry"]>(activate);
+  const remove = vi.fn<ActiveThreadSession["remove"]>((threadId) =>
+    Promise.resolve({
+      type: "removed",
+      threadId,
+      wasViewed: collection.viewedThreadId === threadId,
+    }),
+  );
   const session: ActiveThreadSession = {
     getSnapshot: () => snapshot,
+    getCollectionSnapshot: () => collection,
     subscribe,
     activate,
+    retry,
+    remove,
   };
 
   return {
@@ -262,6 +321,8 @@ export const createActiveThreadSessionHarness = (
     composerRole,
     skillsRole,
     activate,
+    retry,
+    remove,
     subscribe,
     activeSnapshot,
     projectionUnavailableSnapshot,
@@ -276,9 +337,16 @@ export const createActiveThreadSessionHarness = (
         throw new Error("active thread session harness snapshots must preserve role identity");
       }
       snapshot = nextSnapshot;
+      if (nextSnapshot.phase === "active" || nextSnapshot.phase === "projectionUnavailable")
+        identities.set(nextSnapshot.threadId, nextSnapshot.identity);
+      collection = collectionFor(nextSnapshot);
       currentRevision = nextSnapshot.revision;
       for (const listener of Array.from(listeners)) listener();
       return true;
+    },
+    publishCollection: (nextCollection) => {
+      collection = nextCollection;
+      for (const listener of Array.from(listeners)) listener();
     },
     setActivateOutcome: (outcome) => {
       activateOutcome = outcome;
