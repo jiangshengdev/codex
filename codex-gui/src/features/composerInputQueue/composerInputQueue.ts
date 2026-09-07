@@ -171,6 +171,7 @@ export type ComposerInputQueue = Readonly<{
   reconcileSnapshot(turns: readonly Turn[]): ComposerInputQueueTransition;
   prepareInterruptedSnapshot(turn: Turn): void;
   unknownMessages(): readonly Readonly<{ id: string; text: string }>[];
+  hasPendingMessages(): boolean;
   discardUnknown(id: string): boolean;
   view(): ComposerInputQueueView;
   detailRevision(): number;
@@ -443,6 +444,17 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
         id: message.id,
         text: projectComposerInputTextDetail(message.input) ?? "",
       }),
+    );
+  }
+
+  public hasPendingMessages(): boolean {
+    const steer = this.steerState.overview();
+    return (
+      this.ordinaryState.count() > 0 ||
+      this.startState.hasPending() ||
+      steer.queuedCount > 0 ||
+      steer.pendingCount > 0 ||
+      steer.rejectedSteersQueue.length > 0
     );
   }
 

@@ -19,7 +19,22 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("restores an ordinary draft after a real reload without sending it", async ({ page }) => {
+test("an untouched session stays ready after reload and accepts its first explicit send", async ({
+  page,
+}) => {
+  const host = await createPersistenceHarness(page);
+  await host.open();
+  await page.reload();
+  await ready(page);
+  await expect(page.getByText("Restored messages are paused", { exact: true })).toHaveCount(0);
+  expect(host.sends()).toHaveLength(0);
+  await submit(page, "First message after empty reload");
+  await expect.poll(() => host.sends().length).toBe(1);
+});
+
+test("restores an ordinary draft without automatic sending and accepts an explicit send", async ({
+  page,
+}) => {
   const host = await createPersistenceHarness(page);
   await host.open();
   await composer(page).fill("Draft survives a real reload");
@@ -27,7 +42,36 @@ test("restores an ordinary draft after a real reload without sending it", async 
   await page.reload();
   await ready(page);
   await expect(composer(page)).toHaveText("Draft survives a real reload");
+  await expect(page.getByText("Restored messages are paused", { exact: true })).toHaveCount(0);
   expect(host.sends()).toHaveLength(0);
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => host.sends().length).toBe(1);
+  expect(host.sends()[0]?.params).toMatchObject({
+    input: [{ type: "text", text: "Draft survives a real reload" }],
+  });
+});
+
+test("empty page lifecycle restoration reconnects without requiring manual continuation", async ({
+  page,
+}) => {
+  const host = await createPersistenceHarness(page);
+  await host.open();
+  const attachments = host.requests.filter(
+    ({ method }) => method === "thread/projection/attach",
+  ).length;
+  // Exercise the production handlers; this does not prove real BFCache navigation.
+  await page.evaluate(() => {
+    window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true }));
+    window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+  });
+  await expect
+    .poll(() => host.requests.filter(({ method }) => method === "thread/projection/attach").length)
+    .toBeGreaterThan(attachments);
+  await ready(page);
+  await expect(page.getByText("Restored messages are paused", { exact: true })).toHaveCount(0);
+  expect(host.sends()).toHaveLength(0);
+  await submit(page, "First message after lifecycle restoration");
+  await expect.poll(() => host.sends().length).toBe(1);
 });
 
 test("restored queues stay paused across terminal events and queue viewing until Continue sending", async ({
