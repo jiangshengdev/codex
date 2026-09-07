@@ -25,6 +25,7 @@ use crate::LaunchToken;
 use crate::assets;
 use crate::browser_contract::CURRENT_TASK_PATH_SEGMENT;
 use crate::browser_contract::HISTORY_PATH_SEGMENT;
+use crate::browser_contract::NEW_TASK_PATH_SEGMENT;
 use crate::browser_contract::WEBSOCKET_PATH;
 use crate::launch_url_for_thread;
 use crate::launch_urls_for_thread;
@@ -141,9 +142,11 @@ where
             assets::prod_dist_dir(config)?;
             let root_config = config.clone();
             let current_task_config = config.clone();
+            let new_task_config = config.clone();
             let history_config = config.clone();
             let history_thread_config = config.clone();
             let current_task_path = format!("/{CURRENT_TASK_PATH_SEGMENT}/{{thread_id}}");
+            let new_task_path = format!("/{NEW_TASK_PATH_SEGMENT}");
             let history_path = format!("/{HISTORY_PATH_SEGMENT}");
             let history_thread_path = format!("/{HISTORY_PATH_SEGMENT}/{{thread_id}}");
             Ok(Router::new()
@@ -159,6 +162,13 @@ where
                     get(move |Path(thread_id): Path<String>| {
                         let config = current_task_config.clone();
                         async move { assets::serve_prod_thread_index(config, thread_id).await }
+                    }),
+                )
+                .route(
+                    &new_task_path,
+                    get(move || {
+                        let config = new_task_config.clone();
+                        async move { assets::serve_prod_index(config).await }
                     }),
                 )
                 .route(
@@ -357,26 +367,31 @@ mod tests {
         .await
         .expect("host should start");
 
-        let response = reqwest::get(format!("http://127.0.0.1:{}/", handle.local_addr().port()))
+        for path in ["/", "/new"] {
+            let response = reqwest::get(format!(
+                "http://127.0.0.1:{}{path}",
+                handle.local_addr().port()
+            ))
             .await
-            .expect("root request should succeed");
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(
-            response
-                .headers()
-                .get("x-frame-options")
-                .expect("x-frame-options header should be present"),
-            "DENY"
-        );
-        assert_eq!(
-            response
-                .headers()
-                .get("content-security-policy")
-                .expect("content-security-policy header should be present"),
-            "frame-ancestors 'none'"
-        );
-        let body = response.text().await.expect("body should be readable");
-        assert!(body.contains("<h1>prod-static-test</h1>"));
+            .expect("page request should succeed");
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(
+                response
+                    .headers()
+                    .get("x-frame-options")
+                    .expect("x-frame-options header should be present"),
+                "DENY"
+            );
+            assert_eq!(
+                response
+                    .headers()
+                    .get("content-security-policy")
+                    .expect("content-security-policy header should be present"),
+                "frame-ancestors 'none'"
+            );
+            let body = response.text().await.expect("body should be readable");
+            assert!(body.contains("<h1>prod-static-test</h1>"));
+        }
 
         handle.shutdown().await;
     }
@@ -631,7 +646,7 @@ mod tests {
                 serde_json::json!({
                     "jsonrpc": "2.0",
                     "id": 2,
-                    "method": "thread/list",
+                    "method": "thread/archive",
                     "params": {},
                 })
                 .to_string()
@@ -816,6 +831,13 @@ mod tests {
                     "limit": null,
                 }),
             ),
+            (
+                4,
+                "thread/start",
+                serde_json::json!({
+                    "cwd": "/workspace/new-session",
+                }),
+            ),
         ] {
             websocket
                 .send(Message::Text(
@@ -834,9 +856,9 @@ mod tests {
 
         assert_eq!(
             backend
-                .wait_for_received(&["thread/read", "thread/loaded/list"])
+                .wait_for_received(&["thread/read", "thread/loaded/list", "thread/start"])
                 .await,
-            vec!["thread/read", "thread/loaded/list"]
+            vec!["thread/read", "thread/loaded/list", "thread/start"]
         );
 
         handle.shutdown().await;

@@ -1,6 +1,7 @@
 // GENERATED CODE! DO NOT MODIFY BY HAND!
 
 export const CURRENT_TASK_PATH_SEGMENT = "task" as const;
+export const NEW_TASK_PATH_SEGMENT = "new" as const;
 export const HISTORY_PATH_SEGMENT = "history" as const;
 export const TOKEN_FRAGMENT_KEY = "token" as const;
 export const WEBSOCKET_PATH = "/ws" as const;
