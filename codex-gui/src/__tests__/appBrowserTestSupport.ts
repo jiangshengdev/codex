@@ -71,6 +71,9 @@ export const createGuiHostCommands = ({
   loadedThreadIds?: readonly string[];
   storedThreadIds?: readonly string[];
 } = {}): GuiHostCommands => ({
+  startThread: vi
+    .fn<GuiHostCommands["startThread"]>()
+    .mockRejectedValue(new Error("Unexpected thread/start")),
   compactThread: vi.fn<GuiHostCommands["compactThread"]>().mockResolvedValue({}),
   attachThreadProjection: vi
     .fn<GuiHostCommands["attachThreadProjection"]>()

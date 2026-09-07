@@ -10,6 +10,7 @@ import {
   validateV2ThreadLoadedListResponse,
   validateV2ThreadReadResponse,
   validateV2ThreadResumeResponse,
+  validateV2ThreadStartResponse,
   validateV2TurnStartResponse,
   validateV2TurnSteerResponse,
   validateV2TurnInterruptResponse,
@@ -69,6 +70,12 @@ export const requestDescriptors = {
     responseSchema: "v2/ThreadResumeResponse",
     validateResponse: validateV2ThreadResumeResponse,
   },
+  "thread/start": {
+    method: "thread/start",
+    paramsSchema: "v2/ThreadStartParams",
+    responseSchema: "v2/ThreadStartResponse",
+    validateResponse: validateV2ThreadStartResponse,
+  },
   "turn/start": {
     method: "turn/start",
     paramsSchema: "v2/TurnStartParams",
@@ -98,6 +105,7 @@ export const requestDescriptors = {
     | "thread/loaded/list"
     | "thread/read"
     | "thread/resume"
+    | "thread/start"
     | "turn/start"
     | "turn/steer"
     | "turn/interrupt"]: {

@@ -24,6 +24,7 @@ export const APP_SERVER_REQUEST_METHODS = [
   "thread/loaded/list",
   "thread/read",
   "thread/resume",
+  "thread/start",
   "turn/start",
   "turn/steer",
   "turn/interrupt",
