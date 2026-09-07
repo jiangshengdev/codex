@@ -71,6 +71,9 @@ export const renderHistory = async (
 ) => {
   const HistoryDetailPlaceholder = () => <main aria-label="History detail">History detail</main>;
   const activeThreadSessionHarness = createActiveThreadSessionHarness();
+  if (runtimeThreadId === attachResponse.snapshot.thread.id) {
+    activeThreadSessionHarness.setHistoryCwd(attachResponse.snapshot.thread.cwd);
+  }
   activeThreadSessionHarness.publish(
     activeThreadSessionHarness.activeSnapshot({
       threadId: attachResponse.snapshot.thread.id,
@@ -128,5 +131,5 @@ export const renderHistory = async (
       }),
     );
   }
-  return { router, screen };
+  return { router, screen, activeThreadSessionHarness };
 };

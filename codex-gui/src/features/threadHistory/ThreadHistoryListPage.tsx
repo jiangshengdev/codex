@@ -3,16 +3,13 @@ import { cardVariants } from "@heroui/styles";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
-import { useAppSelector } from "@/app/hooks";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import {
-  useActiveThreadId,
   useActiveThreadSessionPhase,
   useAppCapabilities,
 } from "@/features/appShell/AppCapabilities";
 import { HISTORY_DETAIL_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
-import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import { errorText } from "@/text/errorText";
 import type { Thread } from "@codex-protocol/v2";
 import {
@@ -26,20 +23,19 @@ import { useStrictModeSafeOwner } from "./useStrictModeSafeOwner";
 
 export function ThreadHistoryListPage() {
   const { activeThreadSession, commands, status } = useAppCapabilities();
-  const activeThreadId = useActiveThreadId();
   const activeThreadSessionPhase = useActiveThreadSessionPhase();
-  const runtime = useAppSelector((state) =>
-    activeThreadId == null ? null : selectThreadRuntimeRecord(state, activeThreadId),
+  const cwd = useSyncExternalStore(
+    activeThreadSession?.subscribe ?? subscribeToUnavailableHistory,
+    activeThreadSession?.getHistoryCwd ?? getUnavailableHistoryCwd,
+    activeThreadSession?.getHistoryCwd ?? getUnavailableHistoryCwd,
   );
-  const cwd =
-    activeThreadId != null && runtime?.thread.id === activeThreadId ? runtime.thread.cwd : null;
   const historyContextUnavailable =
     activeThreadSession != null &&
     commands != null &&
     status.label !== "error" &&
     status.label !== "closed" &&
     activeThreadSessionPhase === "empty" &&
-    activeThreadId == null;
+    cwd == null;
 
   useEffect(() => {
     window.scrollTo({ left: 0, top: 0 });
@@ -59,6 +55,9 @@ export function ThreadHistoryListPage() {
     </main>
   );
 }
+
+const subscribeToUnavailableHistory = (): (() => void) => () => undefined;
+const getUnavailableHistoryCwd = (): null => null;
 
 function HistoryContextUnavailable() {
   return (

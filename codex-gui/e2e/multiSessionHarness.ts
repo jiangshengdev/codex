@@ -25,6 +25,7 @@ import type {
   SkillsListResponse,
   Thread,
   ThreadListResponse,
+  ThreadLoadedListResponse,
   ThreadReadResponse,
   ThreadResumeResponse,
   ThreadProjectionEventNotification,
@@ -50,6 +51,7 @@ export async function createMultiSessionHarness(
   acknowledgeSends = true,
 ) {
   const requests: RpcRequest[] = [];
+  const loadedThreadIds = new Set<string>();
   const threads = new Map<string, Thread>(
     [firstThreadId, secondThreadId].map((id): [string, Thread] => {
       const attach = attachWithTurns(
@@ -127,6 +129,12 @@ export async function createMultiSessionHarness(
           return;
         case "initialized":
           return;
+        case "thread/loaded/list":
+          reply({
+            data: [...loadedThreadIds],
+            nextCursor: null,
+          } satisfies ThreadLoadedListResponse);
+          return;
         case "thread/list":
           reply({
             data: [...threads.values()],
@@ -150,6 +158,7 @@ export async function createMultiSessionHarness(
             );
             return;
           }
+          loadedThreadIds.add(value.id);
           reply({
             thread: value,
             model: "test-model",
@@ -215,7 +224,11 @@ export async function createMultiSessionHarness(
     requests,
     setResumeError(id: string, error: string | null) {
       if (error == null) resumeErrors.delete(id);
-      else resumeErrors.set(id, error);
+      else {
+        // A resume failure requires an unloaded thread; loaded threads attach directly.
+        loadedThreadIds.delete(id);
+        resumeErrors.set(id, error);
+      }
     },
     resumes: (id: string) =>
       requests.filter(

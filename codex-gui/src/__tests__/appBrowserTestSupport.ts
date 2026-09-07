@@ -264,7 +264,7 @@ export const seedBrowserAuthorizationSession = ({
     storage: window.sessionStorage,
   });
   if (activeThreadId != null) {
-    session.commitActiveThread(activeThreadId);
+    session.commitActiveThread(activeThreadId, attachResponse.snapshot.thread.cwd);
   }
 };
 

@@ -13,6 +13,37 @@ import {
 } from "./multiSessionHarness";
 import { composer, ready, settledRender, submit } from "./persistenceHarness";
 
+test("history survives removing the last active task and a real browser reload", async ({
+  page,
+}) => {
+  const host = await createMultiSessionHarness(page, false);
+  await host.open();
+  await openMenu(page);
+  await openTaskActions(page, firstThreadId);
+  await page.getByRole("menuitem", { name: "Remove from list", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/history/${firstThreadId}$`));
+  await openMenu(page);
+  await expect(activeRow(page, firstThreadId)).toHaveCount(0);
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "History", exact: true })
+    .click();
+  await expect(page.getByRole("article", { name: firstTitle, exact: true })).toBeVisible();
+  await expect(page.getByRole("article", { name: secondTitle, exact: true })).toBeVisible();
+  const firstList = host.requests.find(({ method }) => method === "thread/list");
+  await page.reload();
+  await expect(page.getByRole("article", { name: firstTitle, exact: true })).toBeVisible();
+  expect(host.requests.filter(({ method }) => method === "thread/list")).toHaveLength(2);
+  expect(host.requests.filter(({ method }) => method === "thread/list").at(-1)?.params).toEqual(
+    firstList?.params,
+  );
+  expect(host.attachments(firstThreadId)).toHaveLength(1);
+  expect(host.resumes(firstThreadId)).toHaveLength(1);
+  await page.getByRole("link", { name: firstTitle, exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/history/${firstThreadId}$`));
+  await expect(page.getByRole("heading", { name: firstTitle, exact: true })).toBeVisible();
+});
+
 test("history continuation keeps background queues advancing and output owned by each task", async ({
   page,
 }) => {

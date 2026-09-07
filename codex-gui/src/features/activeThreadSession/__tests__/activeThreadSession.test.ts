@@ -17,6 +17,7 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   attachWithThreadId,
+  attachWithSnapshotThread,
   attachWithTurns,
   eventForThreadOwner,
   eventWithEnvelope,
@@ -54,11 +55,15 @@ const createAuthorizationSession = (
   activeThreadId: string | null = attachBaseline.snapshot.thread.id,
 ) => {
   let currentThreadId = activeThreadId;
+  let historyCwd: string | undefined;
   return {
-    getSnapshot: () => ({ token: "test-token", activeThreadId: currentThreadId }),
-    commitActiveThread: vi.fn<BrowserAuthorizationSession["commitActiveThread"]>((threadId) => {
-      currentThreadId = threadId;
-    }),
+    getSnapshot: () => ({ token: "test-token", activeThreadId: currentThreadId, historyCwd }),
+    commitActiveThread: vi.fn<BrowserAuthorizationSession["commitActiveThread"]>(
+      (threadId, cwd) => {
+        currentThreadId = threadId;
+        historyCwd = cwd;
+      },
+    ),
     clearActiveThread: vi.fn<BrowserAuthorizationSession["clearActiveThread"]>(() => {
       currentThreadId = null;
     }),
@@ -108,6 +113,33 @@ const activateInitial = async (harness: ReturnType<typeof createHarness>) => {
     warnings: [],
   });
 };
+
+it("retains the last successfully selected directory across removal and failed activation", async () => {
+  const h = createHarness();
+  await activateInitial(h);
+  const firstCwd = attachBaseline.snapshot.thread.cwd;
+  expect(h.session.getHistoryCwd()).toBe(firstCwd);
+  vi.mocked(h.commands.attachThreadProjection).mockRejectedValueOnce(new Error("attach failed"));
+  await expect(h.session.activate(replacementThreadId)).resolves.toMatchObject({
+    type: "unavailable",
+  });
+  expect(h.session.getHistoryCwd()).toBe(firstCwd);
+
+  vi.mocked(h.commands.attachThreadProjection).mockResolvedValueOnce(
+    attachWithSnapshotThread(replacementAttach, {
+      ...replacementAttach.snapshot.thread,
+      cwd: "/workspace/second",
+    }),
+  );
+  await expect(h.session.retry(replacementThreadId)).resolves.toMatchObject({ type: "ready" });
+  expect(h.session.getHistoryCwd()).toBe("/workspace/second");
+  await expect(h.session.remove(replacementThreadId)).resolves.toMatchObject({ type: "removed" });
+  expect(h.session.getCollectionSnapshot().viewedThreadId).toBeNull();
+  expect(h.session.getCollectionSnapshot().members).toHaveLength(1);
+  expect(h.session.getHistoryCwd()).toBe("/workspace/second");
+  await h.session.view(attachBaseline.snapshot.thread.id);
+  expect(h.session.getHistoryCwd()).toBe(firstCwd);
+});
 
 const queueReplacementActivation = (commands: GuiHostCommands) => {
   vi.mocked(commands.attachThreadProjection).mockResolvedValueOnce(replacementAttach);
@@ -348,6 +380,7 @@ describe("ActiveThreadSession", () => {
     expect(h.session.getCollectionSnapshot().members).toHaveLength(1);
     expect(h.authorizationSession.commitActiveThread).toHaveBeenCalledExactlyOnceWith(
       attachBaseline.snapshot.thread.id,
+      attachBaseline.snapshot.thread.cwd,
     );
   });
 
@@ -533,6 +566,7 @@ describe("ActiveThreadSession", () => {
     expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(2);
     expect(h.authorizationSession.commitActiveThread).toHaveBeenCalledExactlyOnceWith(
       attachBaseline.snapshot.thread.id,
+      attachBaseline.snapshot.thread.cwd,
     );
   });
 
@@ -679,6 +713,7 @@ describe("ActiveThreadSession", () => {
     expect(recovered.session.getCollectionSnapshot().viewedThreadId).toBe(target);
     expect(recovered.authorizationSession.commitActiveThread).toHaveBeenCalledExactlyOnceWith(
       target,
+      attachBaseline.snapshot.thread.cwd,
     );
     expect(recovered.commands.attachThreadProjection).toHaveBeenCalledTimes(2);
     for (const member of recovered.session.getCollectionSnapshot().members) {

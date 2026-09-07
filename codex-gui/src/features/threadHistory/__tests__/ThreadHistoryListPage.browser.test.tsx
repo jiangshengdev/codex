@@ -5,12 +5,7 @@ import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import type { ThreadListResponse } from "@codex-protocol/v2";
-import {
-  baselineAttached,
-  renderHistory,
-  response,
-  thread,
-} from "./threadHistoryListPageBrowserTestSupport";
+import { renderHistory, response, thread } from "./threadHistoryListPageBrowserTestSupport";
 
 const historyCards = (container: Element): HTMLElement[] =>
   Array.from(container.querySelectorAll<HTMLElement>('article, [role="article"]'));
@@ -98,7 +93,7 @@ test("keeps collection errors in the global owner when history context is unavai
   expect(listThreads).not.toHaveBeenCalled();
 });
 
-test("requires the runtime cwd to belong to the active thread id", async () => {
+test("does not infer a history directory from an unrelated runtime", async () => {
   const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
   const { screen } = await renderHistory(listThreads, { runtimeThreadId: "different-thread" });
 
@@ -616,19 +611,11 @@ test("removes cards from the previous cwd before the replacement cwd request set
     .fn<GuiHostCommands["listThreads"]>()
     .mockResolvedValueOnce(response([thread("old", { name: "Old cwd task" })], null))
     .mockReturnValueOnce(replacementPage.promise);
-  const { screen } = await renderHistory(listThreads);
+  const { screen, activeThreadSessionHarness } = await renderHistory(listThreads);
 
   await expect.element(screen.getByRole("article", { name: "Old cwd task" })).toBeVisible();
 
-  screen.store.dispatch(
-    baselineAttached({
-      ...attachResponse,
-      snapshot: {
-        ...attachResponse.snapshot,
-        thread: { ...attachResponse.snapshot.thread, cwd: "/workspace/replacement" },
-      },
-    }),
-  );
+  activeThreadSessionHarness.setHistoryCwd("/workspace/replacement");
 
   await expect.element(screen.getByText("Loading history…")).toBeVisible();
   await expect
