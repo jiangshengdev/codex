@@ -242,36 +242,64 @@ test("App replays startup notifications against the accepted attach baseline", a
     .toBe(oldOnlyTurn.id);
 });
 
-test("App does not publish a late startup session or overwrite a terminal host error", async () => {
-  const commands = createGuiHostCommands();
-  const pendingAttach = queueDeferredAttachProjection(commands);
-  const screen = await renderWithProviders(
-    <App currentTaskComponent={ThreadSwitchCapabilityProbe} />,
-  );
-  const options = getHostOptions(startGuiHostConnectionMock);
-  const activeThread = screen.getByLabelText("Active thread session");
-  const continueButton = screen.getByRole("button", { name: "Continue candidate thread" });
+test.each([
+  { outcome: "success", detachCalls: [[{ threadId: launchThreadId }]] },
+  { outcome: "failure", detachCalls: [] },
+])(
+  "App keeps the startup session disposed and preserves the host error after late attach $outcome",
+  async ({ outcome, detachCalls }) => {
+    const commands = createGuiHostCommands();
+    const pendingAttach = queueDeferredAttachProjection(commands);
+    const screen = await renderWithProviders(
+      <App currentTaskComponent={ThreadSwitchCapabilityProbe} />,
+    );
+    const options = getHostOptions(startGuiHostConnectionMock);
+    const activeThread = screen.getByLabelText("Active thread session");
+    const continueButton = screen.getByRole("button", { name: "Continue candidate thread" });
 
-  initializeHost(options, commands);
-  await expect.poll(pendingAttach.getState).toBe("pending");
-  await expect.poll(() => threadSwitchProbeSession).toBeNull();
-  await expect.element(continueButton).toBeDisabled();
-  markCommandsUnavailable(options);
-  emitRawHostStatus(options, { label: "error", message: "GUI host transport failed" });
-  pendingAttach.reject(new Error("late attach failure"));
-  await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    initializeHost(options, commands);
+    await expect.poll(pendingAttach.getState).toBe("pending");
+    await expect.poll(() => threadSwitchProbeSession?.getSnapshot().phase).toBe("loading");
+    const session = requireThreadSwitchProbeSession();
+    await expect.element(activeThread).toHaveTextContent("none");
+    await expect.element(continueButton).toBeDisabled();
+    expect(selectThreadRuntimeRecord(screen.store.getState(), launchThreadId)).toBeNull();
+    expect(createComposerInputQueueCoordinator).not.toHaveBeenCalled();
+    markCommandsUnavailable(options);
+    emitRawHostStatus(options, { label: "error", message: "GUI host transport failed" });
+    await expect.poll(() => session.getSnapshot().phase).toBe("disposed");
+    await expect.element(activeThread).toHaveTextContent("none");
+    await expect.element(continueButton).toBeDisabled();
 
-  await expect.element(activeThread).toHaveTextContent("none");
-  await expect.element(continueButton).toBeDisabled();
-  await expect.poll(() => threadSwitchProbeSession).toBeNull();
-  await expect
-    .element(screen.getByText("GUI host transport failed", { exact: true }))
-    .toBeVisible();
-  await expect
-    .element(screen.getByText("late attach failure", { exact: true }))
-    .not.toBeInTheDocument();
-  expect(createComposerInputQueueCoordinator).not.toHaveBeenCalled();
-});
+    if (outcome === "success") {
+      pendingAttach.resolve();
+    } else {
+      pendingAttach.reject(new Error("late attach failure"));
+    }
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    await expect
+      .poll(() => vi.mocked(commands.detachThreadProjection).mock.calls)
+      .toEqual(detachCalls);
+
+    await expect.element(activeThread).toHaveTextContent("none");
+    await expect.element(continueButton).toBeDisabled();
+    expect(threadSwitchProbeSession).toBe(session);
+    expect(session.getSnapshot().phase).toBe("disposed");
+    expect(session.getCollectionSnapshot().members).toEqual([]);
+    expect(selectThreadRuntimeRecord(screen.store.getState(), launchThreadId)).toBeNull();
+    await screen.getByRole("button", { name: "View diagnostic information" }).click();
+    const diagnostics = screen.getByRole("dialog", { name: "Diagnostic information" });
+    await expect
+      .element(diagnostics.getByText("GUI host transport failed", { exact: true }))
+      .toBeVisible();
+    await expect
+      .element(screen.getByText("late attach failure", { exact: true }))
+      .not.toBeInTheDocument();
+    expect(createComposerInputQueueCoordinator).not.toHaveBeenCalled();
+    await diagnostics.getByRole("button", { name: "Close diagnostics" }).click();
+    await expect.element(diagnostics).not.toBeInTheDocument();
+  },
+);
 
 test("App renders committed transcript messages from an attached projection", async () => {
   const screen = await renderWithProviders(<App />);
