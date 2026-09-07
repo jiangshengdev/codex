@@ -2,6 +2,7 @@ import type { AppDispatch } from "@/app/store";
 import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
+  type CreateComposerInputQueueCoordinatorInput,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import {
@@ -29,6 +30,7 @@ import {
   type ActiveThreadCompactionSettlement,
 } from "./activeThreadCompaction";
 import type { ActiveThreadProjectionAcceptedEvent } from "./activeThreadProjectionFacts";
+import type { ActiveThreadSessionIdentity } from "./activeThreadSessionIdentity";
 import { activeThreadReadModelTransitionApplied } from "./activeThreadSessionReadModel";
 import type {
   ActiveThreadBeginPendingInputEditResult,
@@ -47,14 +49,17 @@ type LiveActiveThreadSessionCommands = Pick<
 >;
 
 export type CreateLiveActiveThreadSessionInput = Readonly<{
+  identity: ActiveThreadSessionIdentity;
   sessionRevision: number;
   attachResponse: ThreadProjectionAttachResponse;
   projection: ActiveThreadProjection;
   commands: LiveActiveThreadSessionCommands;
   dispatch: AppDispatch;
+  persistence: CreateComposerInputQueueCoordinatorInput["persistence"];
 }>;
 
 class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
+  readonly identity: ActiveThreadSessionIdentity;
   private readonly threadId: string;
   private readonly subscriptionId: string;
   private readonly projection: ActiveThreadProjection;
@@ -81,20 +86,24 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private disposed = false;
 
   constructor({
+    identity,
     sessionRevision,
     attachResponse,
     projection,
     commands,
     dispatch,
+    persistence,
   }: CreateLiveActiveThreadSessionInput) {
     const thread = attachResponse.snapshot.thread;
     if (
+      identity.threadId !== thread.id ||
       projection.threadId !== thread.id ||
       projection.subscriptionId !== attachResponse.subscriptionId
     ) {
       throw new Error("Live active thread session projection identity mismatch");
     }
     this.threadId = thread.id;
+    this.identity = identity;
     this.subscriptionId = attachResponse.subscriptionId;
     this.projection = projection;
     this.compactThread = commands.compactThread;
@@ -107,6 +116,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       startTurn: commands.startTurn,
       steerTurn: commands.steerTurn,
       interruptTurn: commands.interruptTurn,
+      persistence,
     });
     this.compaction = createActiveThreadCompaction();
     this.skillCatalog = new SkillCatalogOwner({ cwd: thread.cwd, listSkills: commands.listSkills });
@@ -119,22 +129,65 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     this.unsubscribeQueue = this.queue.subscribe(this.handleChildPublication);
     this.unsubscribeSkills = this.skillCatalog.subscribe(this.handleChildPublication);
     this.unsubscribeThreadStatus = this.threadStatus.subscribe(this.handleChildPublication);
-    this.skillCatalog.start();
-    const initialBatch = this.projection.flush();
-    this.applyQueueFacts(initialBatch.acceptedQueueFacts);
-    this.applyProjectionPhase(initialBatch);
-    this.transactionDepth = 0;
-    this.childChanged = false;
-    this.dispatch(
-      activeThreadReadModelTransitionApplied({
-        sessionRevision: this.revision,
-        facts: initialBatch.readModelFacts,
-      }),
-    );
-    this.snapshot = this.buildSnapshot();
+    try {
+      this.skillCatalog.start();
+      this.queue.reconcileRestoredTurns(thread.turns);
+      const initialBatch = this.projection.flush();
+      this.applyQueueFacts(initialBatch.acceptedQueueFacts);
+      this.applyProjectionPhase(initialBatch);
+      this.queue.completeRestoreReconciliation();
+      this.transactionDepth = 0;
+      this.childChanged = false;
+      this.dispatch(
+        activeThreadReadModelTransitionApplied({
+          identity: this.identity,
+          sessionRevision: this.revision,
+          facts: initialBatch.readModelFacts,
+        }),
+      );
+      this.snapshot = this.buildSnapshot();
+    } catch (error: unknown) {
+      try {
+        this.dispose();
+      } catch (cleanupError: unknown) {
+        throw new AggregateError(
+          [error, cleanupError],
+          "Live session initialization and cleanup failed",
+          { cause: cleanupError },
+        );
+      }
+      throw error;
+    }
   }
 
   getSnapshot = (): LiveActiveThreadSessionSnapshot => this.snapshot;
+
+  getDraft: LiveActiveThreadSession["getDraft"] = () => this.queue.getDraft();
+
+  saveDraft: LiveActiveThreadSession["saveDraft"] = (expectedRevision, draft) =>
+    this.mutate(expectedRevision, () => this.queue.saveDraft(draft));
+
+  retryPersistence: LiveActiveThreadSession["retryPersistence"] = (expectedRevision) =>
+    this.mutate(expectedRevision, () => this.queue.retryPersistence());
+
+  resumeRestored: LiveActiveThreadSession["resumeRestored"] = (
+    expectedRevision,
+    expectedPersistenceRevision,
+  ) => this.mutate(expectedRevision, () => this.queue.resumeRestored(expectedPersistenceRevision));
+
+  discardUnknown: LiveActiveThreadSession["discardUnknown"] = (
+    expectedRevision,
+    id,
+    expectedPersistenceRevision,
+  ) =>
+    this.mutate(expectedRevision, () => this.queue.discardUnknown(id, expectedPersistenceRevision));
+
+  suspendRestored = (): void => {
+    if (!this.disposed)
+      this.runChildTransaction(() => {
+        this.queue.suspendRestored();
+      });
+  };
 
   subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return () => undefined;
@@ -279,18 +332,22 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       this.childChanged = false;
       return result;
     }
+    this.childChanged = false;
     this.releaseHandoff = handoff;
     const childReservation = result.reservation;
     const reservation = {
       release: () => {
         const blocked = this.releaseHandoffUnavailable(handoff);
-        if (blocked != null) return blocked;
+        if (this.disposed || this.releaseHandoff !== handoff || handoff.settled)
+          return blocked ?? this.unavailable("staleRevision");
+        const changed = this.childChanged || handoff.revision !== this.revision;
         try {
           childReservation.release();
         } finally {
           this.closeReleaseHandoff(handoff);
         }
-        if (this.queueCapabilityFingerprint() !== handoff.queueCapability) {
+        if (changed) this.publishTransition([]);
+        if (!changed && this.queueCapabilityFingerprint() !== handoff.queueCapability) {
           throw new Error("Aborted active thread release did not restore queue capability");
         }
         return { type: "released" } as const;
@@ -451,7 +508,12 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     if (this.disposed || handoff.generation !== this.generation) {
       return this.unavailable("disposed");
     }
-    if (handoff.settled || this.releaseHandoff !== handoff || handoff.revision !== this.revision) {
+    if (
+      handoff.settled ||
+      this.releaseHandoff !== handoff ||
+      handoff.revision !== this.revision ||
+      this.childChanged
+    ) {
       return this.unavailable("staleRevision");
     }
     if (this.projectionUnavailableReason != null) {
@@ -465,7 +527,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     if (this.releaseHandoff === handoff) this.releaseHandoff = null;
     this.transactionDepth -= 1;
     this.childChanged = false;
-    this.snapshot = handoff.snapshot;
+    if (handoff.revision === this.revision) this.snapshot = handoff.snapshot;
   }
 
   private applyProjectionBatch(batch: ActiveThreadProjectionStagedBatch): void {
@@ -518,7 +580,13 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   ): void {
     if (this.disposed) return;
     const revision = this.revision + 1;
-    this.dispatch(activeThreadReadModelTransitionApplied({ sessionRevision: revision, facts }));
+    this.dispatch(
+      activeThreadReadModelTransitionApplied({
+        identity: this.identity,
+        sessionRevision: revision,
+        facts,
+      }),
+    );
     this.revision = revision;
     this.snapshot = this.buildSnapshot();
     this.notifyListeners();
@@ -527,6 +595,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private buildSnapshot(): LiveActiveThreadSessionSnapshot {
     if (this.disposed) return { phase: "disposed", revision: this.revision };
     const contents = {
+      identity: this.identity,
       revision: this.revision,
       threadId: this.threadId,
       subscriptionId: this.subscriptionId,

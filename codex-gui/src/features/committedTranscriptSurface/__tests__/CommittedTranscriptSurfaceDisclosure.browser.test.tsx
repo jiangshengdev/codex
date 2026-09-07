@@ -11,18 +11,25 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import { TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT } from "@/features/transcriptState/transcriptStateSlice";
-import { renderWithProviders } from "@/utils/test-utils";
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
+import { transcriptIdentity, renderTranscriptWithProviders } from "./transcriptSurfaceFixtures";
 
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+  activeThreadReadModelTransitionApplied({
+    identity: transcriptIdentity,
+    sessionRevision: ++sessionRevision,
+    facts,
+  });
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
 
 test("renders temporary content forced open until a final answer exists", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -41,7 +48,10 @@ test("renders temporary content forced open until a final answer exists", async 
 });
 
 test("renders temporary content collapsed beside the final answer once final answer exists", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -65,7 +75,10 @@ test("renders temporary content collapsed beside the final answer once final ans
 });
 
 test("keeps the final answer visible while temporary disclosure is collapsed", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -83,7 +96,10 @@ test("keeps the final answer visible while temporary disclosure is collapsed", a
 });
 
 test("does not mount collapsed temporary markdown before expansion", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -111,7 +127,10 @@ test("does not mount collapsed temporary markdown before expansion", async () =>
 });
 
 test("renders one collapsed temporary module for a turn split across chunks", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   const activityItems = Array.from(
     { length: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1 },
     (_, index) =>
@@ -167,7 +186,10 @@ test("renders one collapsed temporary module for a turn split across chunks", as
 });
 
 test("renders later user messages inside the intermediate disclosure", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -196,7 +218,10 @@ test("renders later user messages inside the intermediate disclosure", async () 
 });
 
 test("renders multiple final assistant messages outside the intermediate disclosure", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -219,7 +244,10 @@ test("renders multiple final assistant messages outside the intermediate disclos
 });
 
 test("renders legacy assistant messages inside the intermediate disclosure", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(

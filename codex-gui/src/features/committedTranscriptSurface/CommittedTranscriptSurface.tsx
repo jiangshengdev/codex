@@ -1,17 +1,19 @@
-import { useAppSelector } from "@/app/hooks";
-import { selectThreadRuntimeThreadId } from "@/features/threadRuntime/threadRuntimeSlice";
+import { useMemo } from "react";
+import type { ActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
 import type { TranscriptState } from "@/features/transcriptState/transcriptStateSlice";
 import { CommittedTranscriptTurnFragment } from "./CommittedTranscriptTurnFragment";
 import { CommittedTranscriptSurfaceRenderer } from "./CommittedTranscriptSurfaceRenderer";
 import { TranscriptReadProvider } from "./TranscriptReadProvider";
+import type { TranscriptReadTarget } from "./TranscriptReadContext";
 
-export const CommittedTranscriptSurface = () => {
-  const threadId = useAppSelector(selectThreadRuntimeThreadId);
-  const surfaceKey = threadId ?? "no-thread";
+export const CommittedTranscriptSurface = ({
+  identity,
+}: Readonly<{ identity: ActiveThreadSessionIdentity }>) => {
+  const target = useMemo<TranscriptReadTarget>(() => ({ kind: "live", identity }), [identity]);
   return (
-    <TranscriptReadProvider transcriptState={null}>
+    <TranscriptReadProvider target={target}>
       <CommittedTranscriptSurfaceRenderer
-        key={surfaceKey}
+        key={identity.instanceId}
         turnFragmentRenderer={CommittedTranscriptTurnFragment}
       />
     </TranscriptReadProvider>
@@ -21,11 +23,17 @@ export const CommittedTranscriptSurface = () => {
 export const ReadOnlyCommittedTranscriptSurface = ({
   surfaceKey,
   transcriptState,
-}: Readonly<{ surfaceKey: string; transcriptState: TranscriptState }>) => (
-  <TranscriptReadProvider transcriptState={transcriptState}>
-    <CommittedTranscriptSurfaceRenderer
-      key={surfaceKey}
-      turnFragmentRenderer={CommittedTranscriptTurnFragment}
-    />
-  </TranscriptReadProvider>
-);
+}: Readonly<{ surfaceKey: string; transcriptState: TranscriptState }>) => {
+  const target = useMemo<TranscriptReadTarget>(
+    () => ({ kind: "fixed", transcriptState }),
+    [transcriptState],
+  );
+  return (
+    <TranscriptReadProvider target={target}>
+      <CommittedTranscriptSurfaceRenderer
+        key={surfaceKey}
+        turnFragmentRenderer={CommittedTranscriptTurnFragment}
+      />
+    </TranscriptReadProvider>
+  );
+};

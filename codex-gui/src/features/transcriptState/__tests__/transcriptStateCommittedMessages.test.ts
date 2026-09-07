@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import { requiredTranscriptState } from "./requiredTranscriptState";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
   ActiveThreadProjectionAcceptedEvent,
   ActiveThreadProjectionReadModelFact,
@@ -32,9 +36,10 @@ import {
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
+const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
@@ -44,6 +49,7 @@ const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent
 describe("transcript state committed messages reducer", () => {
   it("preserves assistant message phase in stored live completions while projecting views", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -59,7 +65,8 @@ describe("transcript state committed messages reducer", () => {
     );
 
     expect(
-      selectTranscriptChunk(store.getState(), "turn-live-phase:chunk:0")?.entries,
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-live-phase:chunk:0")
+        ?.entries,
     ).toStrictEqual([
       {
         type: "message",
@@ -71,7 +78,7 @@ describe("transcript state committed messages reducer", () => {
       },
     ]);
     expect(
-      store.getState().transcriptState.entriesById[
+      requiredTranscriptState(store.getState(), identity.threadId).entriesById[
         transcriptEntryIdFor("turn-live-phase", "agent-live-commentary")
       ],
     ).toMatchObject({ type: "message", phase: "commentary" });
@@ -79,6 +86,7 @@ describe("transcript state committed messages reducer", () => {
 
   it("keeps a later completed user in middle when the first completed item is assistant", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -114,7 +122,7 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-live")).toStrictEqual({
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, "turn-live")).toStrictEqual({
       id: "turn-live",
       status: "inProgress",
       originalFirstItemId: "agent-live",
@@ -124,7 +132,11 @@ describe("transcript state committed messages reducer", () => {
       finalAssistantEntryIds: [transcriptEntryIdFor("turn-live", "agent-live")],
     });
     expect(
-      selectTranscriptEntry(store.getState(), transcriptEntryIdFor("turn-live", "agent-live")),
+      selectTranscriptEntry(
+        store.getState(),
+        identity.threadId,
+        transcriptEntryIdFor("turn-live", "agent-live"),
+      ),
     ).toStrictEqual({
       type: "message",
       id: "agent-live",
@@ -134,12 +146,15 @@ describe("transcript state committed messages reducer", () => {
       revision: 0,
     });
     expect(
-      selectTranscriptChunk(store.getState(), "turn-live:chunk:0")?.entries.map(({ id }) => id),
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-live:chunk:0")?.entries.map(
+        ({ id }) => id,
+      ),
     ).toStrictEqual(["user-after-agent"]);
   });
 
   it("keeps a later completed user in middle when an assistant item started first", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -165,7 +180,9 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-started-first")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-started-first"),
+    ).toStrictEqual({
       id: "turn-started-first",
       status: "inProgress",
       originalFirstItemId: "agent-started-first",
@@ -175,20 +192,25 @@ describe("transcript state committed messages reducer", () => {
       finalAssistantEntryIds: [],
     });
     expect(
-      store.getState().transcriptState.chunksById["turn-started-first:chunk:0"]?.entryIds,
+      requiredTranscriptState(store.getState(), identity.threadId).chunksById[
+        "turn-started-first:chunk:0"
+      ]?.entryIds,
     ).toStrictEqual([
       transcriptEntryIdFor("turn-started-first", "agent-started-first"),
       transcriptEntryIdFor("turn-started-first", "user-after-started"),
     ]);
     expect(
-      selectTranscriptChunk(store.getState(), "turn-started-first:chunk:0")?.entries.map(
-        ({ id }) => id,
-      ),
+      selectTranscriptChunk(
+        store.getState(),
+        identity.threadId,
+        "turn-started-first:chunk:0",
+      )?.entries.map(({ id }) => id),
     ).toStrictEqual(["user-after-started"]);
   });
 
   it("makes a completed first user item leading without a started middle slot", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -203,7 +225,9 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-started-leading-user")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-started-leading-user"),
+    ).toStrictEqual({
       id: "turn-started-leading-user",
       status: "inProgress",
       originalFirstItemId: "user-started-leading",
@@ -215,10 +239,17 @@ describe("transcript state committed messages reducer", () => {
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-started-leading-user", "user-started-leading"),
       ),
     ).toBeNull();
-    expect(selectTranscriptChunk(store.getState(), "turn-started-leading-user:chunk:0")).toBeNull();
+    expect(
+      selectTranscriptChunk(
+        store.getState(),
+        identity.threadId,
+        "turn-started-leading-user:chunk:0",
+      ),
+    ).toBeNull();
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -232,7 +263,9 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-started-leading-user")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-started-leading-user"),
+    ).toStrictEqual({
       id: "turn-started-leading-user",
       status: "inProgress",
       originalFirstItemId: "user-started-leading",
@@ -247,6 +280,7 @@ describe("transcript state committed messages reducer", () => {
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-started-leading-user", "user-started-leading"),
       ),
     ).toStrictEqual({
@@ -257,11 +291,18 @@ describe("transcript state committed messages reducer", () => {
       rendering: { mode: "plainText", source: "Prompt" },
       revision: 0,
     });
-    expect(selectTranscriptChunk(store.getState(), "turn-started-leading-user:chunk:0")).toBeNull();
+    expect(
+      selectTranscriptChunk(
+        store.getState(),
+        identity.threadId,
+        "turn-started-leading-user:chunk:0",
+      ),
+    ).toBeNull();
   });
 
   it("applies normalized live itemCompleted projection payloads into committed transcript chunks", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -276,7 +317,9 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-live-normalized")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-live-normalized"),
+    ).toStrictEqual({
       id: "turn-live-normalized",
       status: "inProgress",
       originalFirstItemId: "agent-live-normalized",
@@ -290,6 +333,7 @@ describe("transcript state committed messages reducer", () => {
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-live-normalized", "agent-live-normalized"),
       ),
     ).toStrictEqual({
@@ -304,6 +348,7 @@ describe("transcript state committed messages reducer", () => {
 
   it("filters empty text and non-chat live item completions", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -351,8 +396,12 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-live-filtered"]);
-    expect(selectTranscriptTurn(store.getState(), "turn-live-filtered")).toStrictEqual({
+    expect(selectTranscriptTurnIds(store.getState(), identity.threadId)).toStrictEqual([
+      "turn-live-filtered",
+    ]);
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-live-filtered"),
+    ).toStrictEqual({
       id: "turn-live-filtered",
       status: "inProgress",
       originalFirstItemId: "empty-user",
@@ -365,6 +414,7 @@ describe("transcript state committed messages reducer", () => {
 
   it("updates an existing committed entry and bumps only its chunk revision", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -378,7 +428,11 @@ describe("transcript state committed messages reducer", () => {
         replay: "live",
       }),
     );
-    const beforeUpdateChunk = selectTranscriptChunk(store.getState(), "turn-update:chunk:0");
+    const beforeUpdateChunk = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      "turn-update:chunk:0",
+    );
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -392,7 +446,7 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-update")).toStrictEqual({
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, "turn-update")).toStrictEqual({
       id: "turn-update",
       status: "inProgress",
       originalFirstItemId: "agent-update",
@@ -402,7 +456,11 @@ describe("transcript state committed messages reducer", () => {
       finalAssistantEntryIds: [],
     });
     expect(
-      selectTranscriptEntry(store.getState(), transcriptEntryIdFor("turn-update", "agent-update")),
+      selectTranscriptEntry(
+        store.getState(),
+        identity.threadId,
+        transcriptEntryIdFor("turn-update", "agent-update"),
+      ),
     ).toStrictEqual({
       type: "message",
       id: "agent-update",
@@ -411,7 +469,9 @@ describe("transcript state committed messages reducer", () => {
       rendering: { mode: "staticMarkdown", source: "Second" },
       revision: 1,
     });
-    expect(selectTranscriptChunk(store.getState(), "turn-update:chunk:0")).toStrictEqual({
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-update:chunk:0"),
+    ).toStrictEqual({
       id: "turn-update:chunk:0",
       turnId: "turn-update",
       revision: (beforeUpdateChunk?.revision ?? 0) + 1,
@@ -430,6 +490,7 @@ describe("transcript state committed messages reducer", () => {
 
   it("defensively reclassifies an existing middle entry when a repeated completion changes phase", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -458,6 +519,7 @@ describe("transcript state committed messages reducer", () => {
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-phase-update", "agent-phase-update"),
       ),
     ).toStrictEqual({
@@ -468,7 +530,9 @@ describe("transcript state committed messages reducer", () => {
       rendering: { mode: "staticMarkdown", source: "Done" },
       revision: 1,
     });
-    expect(selectTranscriptTurn(store.getState(), "turn-phase-update")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-phase-update"),
+    ).toStrictEqual({
       id: "turn-phase-update",
       status: "inProgress",
       originalFirstItemId: "agent-phase-update",
@@ -477,9 +541,11 @@ describe("transcript state committed messages reducer", () => {
       middleEntryCount: 0,
       finalAssistantEntryIds: [transcriptEntryIdFor("turn-phase-update", "agent-phase-update")],
     });
-    expect(selectTranscriptChunk(store.getState(), "turn-phase-update:chunk:0")).toBeNull();
     expect(
-      store.getState().transcriptState.entriesById[
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-phase-update:chunk:0"),
+    ).toBeNull();
+    expect(
+      requiredTranscriptState(store.getState(), identity.threadId).entriesById[
         transcriptEntryIdFor("turn-phase-update", "agent-phase-update")
       ],
     ).toMatchObject({ type: "message", phase: "final_answer" });
@@ -487,6 +553,7 @@ describe("transcript state committed messages reducer", () => {
 
   it("updates an existing final assistant entry without creating a middle chunk", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -512,7 +579,9 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-final-update")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-final-update"),
+    ).toStrictEqual({
       id: "turn-final-update",
       status: "inProgress",
       originalFirstItemId: "agent-final-update",
@@ -524,6 +593,7 @@ describe("transcript state committed messages reducer", () => {
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-final-update", "agent-final-update"),
       ),
     ).toStrictEqual({
@@ -538,6 +608,7 @@ describe("transcript state committed messages reducer", () => {
 
   it("chunks only middle entries after the committed chunk entry limit", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -569,6 +640,7 @@ describe("transcript state committed messages reducer", () => {
       if (index === TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT - 1) {
         firstChunkAfterLimit = selectTranscriptChunk(
           store.getState(),
+          identity.threadId,
           "turn-middle-chunked:chunk:0",
         );
       }
@@ -585,7 +657,9 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-middle-chunked")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-middle-chunked"),
+    ).toStrictEqual({
       id: "turn-middle-chunked",
       status: "inProgress",
       originalFirstItemId: "user-leading-live",
@@ -595,13 +669,15 @@ describe("transcript state committed messages reducer", () => {
       finalAssistantEntryIds: [transcriptEntryIdFor("turn-middle-chunked", "agent-final-live")],
     });
     expect(
-      selectTranscriptChunk(store.getState(), "turn-middle-chunked:chunk:0")?.entries,
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-middle-chunked:chunk:0")
+        ?.entries,
     ).toHaveLength(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT);
     expect(
-      selectTranscriptChunk(store.getState(), "turn-middle-chunked:chunk:1")?.entries,
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-middle-chunked:chunk:1")
+        ?.entries,
     ).toHaveLength(1);
-    expect(selectTranscriptChunk(store.getState(), "turn-middle-chunked:chunk:0")).toBe(
-      firstChunkAfterLimit,
-    );
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-middle-chunked:chunk:0"),
+    ).toBe(firstChunkAfterLimit);
   });
 });

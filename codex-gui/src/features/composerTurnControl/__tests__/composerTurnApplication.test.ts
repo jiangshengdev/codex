@@ -38,6 +38,7 @@ const queueSnapshot = (
   canStop: false,
   interrupt: null,
   pendingInputManagementOutcome: null,
+  persistence: { error: null, restoredPaused: false, revision: null, unknownMessages: [] },
   ...patch,
 });
 

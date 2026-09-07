@@ -1,5 +1,4 @@
 import { expect, test } from "vitest";
-import { makeStore } from "@/app/store";
 import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
   ActiveThreadProjectionAcceptedEvent,
@@ -28,10 +27,19 @@ import {
   CommittedTranscriptSurface,
   ReadOnlyCommittedTranscriptSurface,
 } from "../CommittedTranscriptSurface";
+import {
+  transcriptIdentity,
+  renderTranscriptWithProviders,
+  makeTranscriptStore,
+} from "./transcriptSurfaceFixtures";
 
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+  activeThreadReadModelTransitionApplied({
+    identity: transcriptIdentity,
+    sessionRevision: ++sessionRevision,
+    facts,
+  });
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
@@ -60,7 +68,10 @@ const attachedContextPages = (pageCount: number, attach = attachBaseline) =>
   );
 
 test("navigates attached context pages and unmounts the previous page", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   store.dispatch(threadRuntimeAttached(attachedContextPages(8)));
 
   const pagination = screen.getByRole("navigation", { name: "Transcript context pages" });
@@ -95,7 +106,10 @@ test("navigates attached context pages and unmounts the previous page", async ()
 
 test("renders an isolated read-only snapshot through the same current-page surface", async () => {
   const attach = attachedContextPages(3);
-  const { store, ...liveScreen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...liveScreen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   store.dispatch(threadRuntimeAttached(attach));
 
   const liveRegion = liveScreen.getByRole("region", { name: "Committed transcript" });
@@ -149,7 +163,10 @@ test("renders an isolated read-only snapshot through the same current-page surfa
 });
 
 test("keeps a selected historical page while live compactions extend the followed tail", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   store.dispatch(
     threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
@@ -217,7 +234,10 @@ test("keeps a selected historical page while live compactions extend the followe
 });
 
 test("renders a same-turn failure on a boundary-only latest page", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   const turnId = "turn-boundary-only-failure";
 
   store.dispatch(
@@ -269,7 +289,10 @@ test("renders a same-turn failure on a boundary-only latest page", async () => {
 });
 
 test("keeps a selected historical page across a same-thread replacement attach", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   store.dispatch(threadRuntimeAttached(attachedContextPages(4)));
 
   const pagination = screen.getByRole("navigation", { name: "Transcript context pages" });
@@ -309,13 +332,17 @@ test("keeps a selected historical page across a same-thread replacement attach",
 });
 
 test("localizes the context boundary on later pages", async () => {
-  const store = makeStore();
+  const store = makeTranscriptStore(transcriptIdentity);
   store.dispatch(threadRuntimeAttached(attachedContextPages(2)));
 
-  const screen = await renderWithProviders(<CommittedTranscriptSurface />, {
-    locale: "zh-CN",
-    store,
-  });
+  const screen = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+    {
+      locale: "zh-CN",
+      store,
+    },
+  );
 
   const contextBoundary = screen.getByRole("separator", { name: "上下文已压缩" });
   const contextBoundaryLabel = screen.getByText("上下文已压缩", { exact: true });

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import { requiredTranscriptState } from "./requiredTranscriptState";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
   ActiveThreadProjectionAcceptedEvent,
   ActiveThreadProjectionReadModelFact,
@@ -33,9 +37,10 @@ import {
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
+const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
@@ -45,21 +50,33 @@ const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent
 describe("transcript state committed activity reducer", () => {
   it("ignores token usage updates before transcript dedupe and scroll commits", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(threadRuntimeAttached(attachBaseline));
-    const revisionBefore = store.getState().transcriptState.sessionRevision;
-    const scrollCommitKeyBefore = selectCommittedTranscriptScrollCommitKey(store.getState());
+    const revisionBefore = requiredTranscriptState(
+      store.getState(),
+      identity.threadId,
+    ).sessionRevision;
+    const scrollCommitKeyBefore = selectCommittedTranscriptScrollCommitKey(
+      store.getState(),
+      identity.threadId,
+    );
 
     store.dispatch(
       threadRuntimeEventBuffered({ notification: eventTokenUsageUpdated, replay: "live" }),
     );
 
-    expect(store.getState().transcriptState.sessionRevision).toBeGreaterThan(revisionBefore);
-    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(scrollCommitKeyBefore);
+    expect(
+      requiredTranscriptState(store.getState(), identity.threadId).sessionRevision,
+    ).toBeGreaterThan(revisionBefore);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId)).toBe(
+      scrollCommitKeyBefore,
+    );
   });
 
   it("ignores sub-agent itemStarted until the same item completes into one middle entry", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-sub-agent-started-completed";
     const activity = subAgentActivity(
       "activity-sub-agent-started-completed",
@@ -75,7 +92,7 @@ describe("transcript state committed activity reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), turnId)).toStrictEqual({
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toStrictEqual({
       id: turnId,
       status: "inProgress",
       originalFirstItemId: activity.id,
@@ -85,9 +102,15 @@ describe("transcript state committed activity reducer", () => {
       finalAssistantEntryIds: [],
     });
     expect(
-      selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnId, activity.id)),
+      selectTranscriptEntry(
+        store.getState(),
+        identity.threadId,
+        transcriptEntryIdFor(turnId, activity.id),
+      ),
     ).toBeNull();
-    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)).toBeNull();
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:0`),
+    ).toBeNull();
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -101,7 +124,7 @@ describe("transcript state committed activity reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), turnId)).toStrictEqual({
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toStrictEqual({
       id: turnId,
       status: "inProgress",
       originalFirstItemId: activity.id,
@@ -110,7 +133,9 @@ describe("transcript state committed activity reducer", () => {
       middleEntryCount: 1,
       finalAssistantEntryIds: [],
     });
-    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries).toStrictEqual([
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:0`)?.entries,
+    ).toStrictEqual([
       {
         type: "subAgentActivity",
         id: activity.id,
@@ -134,7 +159,9 @@ describe("transcript state committed activity reducer", () => {
       "agents/tester",
     );
     const snapshotStore = makeStore();
+    snapshotStore.dispatch(activeThreadReadModelSlotCreated(identity));
     const completedOnlyStore = makeStore();
+    completedOnlyStore.dispatch(activeThreadReadModelSlotCreated(identity));
 
     snapshotStore.dispatch(
       threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, [activity])])),
@@ -153,13 +180,19 @@ describe("transcript state committed activity reducer", () => {
     );
 
     const entryId = transcriptEntryIdFor(turnId, activity.id);
-    expect(selectTranscriptEntry(completedOnlyStore.getState(), entryId)).toStrictEqual(
-      selectTranscriptEntry(snapshotStore.getState(), entryId),
+    expect(
+      selectTranscriptEntry(completedOnlyStore.getState(), identity.threadId, entryId),
+    ).toStrictEqual(selectTranscriptEntry(snapshotStore.getState(), identity.threadId, entryId));
+    expect(
+      selectTranscriptChunk(completedOnlyStore.getState(), identity.threadId, `${turnId}:chunk:0`)
+        ?.entries,
+    ).toStrictEqual(
+      selectTranscriptChunk(snapshotStore.getState(), identity.threadId, `${turnId}:chunk:0`)
+        ?.entries,
     );
     expect(
-      selectTranscriptChunk(completedOnlyStore.getState(), `${turnId}:chunk:0`)?.entries,
-    ).toStrictEqual(selectTranscriptChunk(snapshotStore.getState(), `${turnId}:chunk:0`)?.entries);
-    expect(selectTranscriptTurn(completedOnlyStore.getState(), turnId)).toMatchObject({
+      selectTranscriptTurn(completedOnlyStore.getState(), identity.threadId, turnId),
+    ).toMatchObject({
       leadingPromptEntryId: null,
       middleEntryCount: 1,
       finalAssistantEntryIds: [],
@@ -181,7 +214,9 @@ describe("transcript state committed activity reducer", () => {
       { agentThreadId: "agent-thread-implementer" },
     );
     const snapshotStore = makeStore();
+    snapshotStore.dispatch(activeThreadReadModelSlotCreated(identity));
     const completedOnlyStore = makeStore();
+    completedOnlyStore.dispatch(activeThreadReadModelSlotCreated(identity));
 
     snapshotStore.dispatch(
       threadRuntimeAttached(
@@ -203,10 +238,13 @@ describe("transcript state committed activity reducer", () => {
 
     const startedEntryId = transcriptEntryIdFor(turnId, started.id);
     const completedEntryId = transcriptEntryIdFor(turnId, completed.id);
-    const startedStoredBeforeCompletion =
-      completedOnlyStore.getState().transcriptState.entriesById[startedEntryId];
+    const startedStoredBeforeCompletion = requiredTranscriptState(
+      completedOnlyStore.getState(),
+      identity.threadId,
+    ).entriesById[startedEntryId];
     const startedViewBeforeCompletion = selectTranscriptEntry(
       completedOnlyStore.getState(),
+      identity.threadId,
       startedEntryId,
     );
 
@@ -222,14 +260,18 @@ describe("transcript state committed activity reducer", () => {
       }),
     );
 
-    expect(completedOnlyStore.getState().transcriptState.entriesById[startedEntryId]).toBe(
-      startedStoredBeforeCompletion,
-    );
-    expect(selectTranscriptEntry(completedOnlyStore.getState(), startedEntryId)).toBe(
-      startedViewBeforeCompletion,
-    );
     expect(
-      completedOnlyStore.getState().transcriptState.entriesById[completedEntryId],
+      requiredTranscriptState(completedOnlyStore.getState(), identity.threadId).entriesById[
+        startedEntryId
+      ],
+    ).toBe(startedStoredBeforeCompletion);
+    expect(
+      selectTranscriptEntry(completedOnlyStore.getState(), identity.threadId, startedEntryId),
+    ).toBe(startedViewBeforeCompletion);
+    expect(
+      requiredTranscriptState(completedOnlyStore.getState(), identity.threadId).entriesById[
+        completedEntryId
+      ],
     ).toMatchObject({
       id: completed.id,
       activityKind: "completed",
@@ -238,6 +280,7 @@ describe("transcript state committed activity reducer", () => {
 
     const completedOnlyEntries = selectTranscriptChunk(
       completedOnlyStore.getState(),
+      identity.threadId,
       `${turnId}:chunk:0`,
     )?.entries;
     expect(completedOnlyEntries).toStrictEqual([
@@ -267,9 +310,12 @@ describe("transcript state committed activity reducer", () => {
       },
     ]);
     expect(completedOnlyEntries).toStrictEqual(
-      selectTranscriptChunk(snapshotStore.getState(), `${turnId}:chunk:0`)?.entries,
+      selectTranscriptChunk(snapshotStore.getState(), identity.threadId, `${turnId}:chunk:0`)
+        ?.entries,
     );
-    expect(selectTranscriptTurn(completedOnlyStore.getState(), turnId)).toMatchObject({
+    expect(
+      selectTranscriptTurn(completedOnlyStore.getState(), identity.threadId, turnId),
+    ).toMatchObject({
       middleEntryCount: 2,
     });
   });
@@ -283,7 +329,9 @@ describe("transcript state committed activity reducer", () => {
     });
     const final = agentMessage("agent-collab-settled", "Final", "final_answer");
     const snapshotStore = makeStore();
+    snapshotStore.dispatch(activeThreadReadModelSlotCreated(identity));
     const completedOnlyStore = makeStore();
+    completedOnlyStore.dispatch(activeThreadReadModelSlotCreated(identity));
 
     snapshotStore.dispatch(
       threadRuntimeAttached(
@@ -311,15 +359,25 @@ describe("transcript state committed activity reducer", () => {
 
     const entryId = transcriptEntryIdFor(turnId, activity.id);
     const chunkId = `${turnId}:chunk:0`;
-    expect(selectTranscriptEntry(completedOnlyStore.getState(), entryId)).toStrictEqual(
-      selectTranscriptEntry(snapshotStore.getState(), entryId),
+    expect(
+      selectTranscriptEntry(completedOnlyStore.getState(), identity.threadId, entryId),
+    ).toStrictEqual(selectTranscriptEntry(snapshotStore.getState(), identity.threadId, entryId));
+    const completedOnlyChunk = selectTranscriptChunk(
+      completedOnlyStore.getState(),
+      identity.threadId,
+      chunkId,
     );
-    const completedOnlyChunk = selectTranscriptChunk(completedOnlyStore.getState(), chunkId);
-    const snapshotChunk = selectTranscriptChunk(snapshotStore.getState(), chunkId);
+    const snapshotChunk = selectTranscriptChunk(
+      snapshotStore.getState(),
+      identity.threadId,
+      chunkId,
+    );
     expect(completedOnlyChunk?.entries).toStrictEqual(snapshotChunk?.entries);
     expect(completedOnlyChunk?.revision).toBe(1);
     expect(snapshotChunk?.revision).toBe(0);
-    expect(selectTranscriptTurn(completedOnlyStore.getState(), turnId)).toMatchObject({
+    expect(
+      selectTranscriptTurn(completedOnlyStore.getState(), identity.threadId, turnId),
+    ).toMatchObject({
       leadingPromptEntryId: transcriptEntryIdFor(turnId, leading.id),
       middleChunkIds: [chunkId],
       middleEntryCount: 1,
@@ -329,6 +387,7 @@ describe("transcript state committed activity reducer", () => {
 
   it("settles started resume and empty wait in place from authoritative terminal payloads", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-collab-started-terminal";
     const waitId = "collab-empty-wait";
     const resumeId = "collab-authoritative-resume";
@@ -360,12 +419,14 @@ describe("transcript state committed activity reducer", () => {
       );
     }
 
-    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toMatchObject({
       leadingPromptEntryId: null,
       middleEntryCount: 2,
       finalAssistantEntryIds: [],
     });
-    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries).toMatchObject([
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:0`)?.entries,
+    ).toMatchObject([
       {
         id: waitId,
         title: { kind: "agentsWaiting", receiver: null, receiverCount: 0 },
@@ -414,8 +475,12 @@ describe("transcript state committed activity reducer", () => {
       );
     }
 
-    expect(selectTranscriptTurn(store.getState(), turnId)?.middleEntryCount).toBe(3);
-    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries).toMatchObject([
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, turnId)?.middleEntryCount,
+    ).toBe(3);
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:0`)?.entries,
+    ).toMatchObject([
       {
         id: waitId,
         title: { kind: "agentsFinishedWaiting" },
@@ -440,8 +505,9 @@ describe("transcript state committed activity reducer", () => {
       },
       { id: "agent-between-collab" },
     ]);
-    const storedResume =
-      store.getState().transcriptState.entriesById[transcriptEntryIdFor(turnId, resumeId)];
+    const storedResume = requiredTranscriptState(store.getState(), identity.threadId).entriesById[
+      transcriptEntryIdFor(turnId, resumeId)
+    ];
     expect(storedResume).toMatchObject({
       receiverThreadIds: ["terminal-agent"],
       promptPreview: null,
@@ -457,6 +523,7 @@ describe("transcript state committed activity reducer", () => {
 
   it("keeps reasoning identity ordered while replacing and removing its authoritative completion", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-in-progress";
     const itemId = "reasoning-item";
     const entryId = transcriptEntryIdFor(turnId, itemId);
@@ -472,11 +539,16 @@ describe("transcript state committed activity reducer", () => {
     live(itemCompleted(eventItemCompleted, "commit-after-reasoning", turnId, after));
 
     expect({
-      entry: store.getState().transcriptState.entriesById[entryId],
-      mapping: store.getState().transcriptState.entryChunkById[entryId],
-      rawOrder: store.getState().transcriptState.chunksById[chunkId]?.entryIds,
-      visibleOrder: selectTranscriptChunk(store.getState(), chunkId)?.entries.map(({ id }) => id),
-      turn: selectTranscriptTurn(store.getState(), turnId),
+      entry: requiredTranscriptState(store.getState(), identity.threadId).entriesById[entryId],
+      mapping: requiredTranscriptState(store.getState(), identity.threadId).entryChunkById[entryId],
+      rawOrder: requiredTranscriptState(store.getState(), identity.threadId).chunksById[chunkId]
+        ?.entryIds,
+      visibleOrder: selectTranscriptChunk(
+        store.getState(),
+        identity.threadId,
+        chunkId,
+      )?.entries.map(({ id }) => id),
+      turn: selectTranscriptTurn(store.getState(), identity.threadId, turnId),
     }).toStrictEqual({
       entry: {
         type: "reasoning",
@@ -505,7 +577,7 @@ describe("transcript state committed activity reducer", () => {
         finalAssistantEntryIds: [],
       },
     });
-    expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toBeNull();
 
     live(
       itemCompleted(
@@ -515,7 +587,9 @@ describe("transcript state committed activity reducer", () => {
         reasoningItem(itemId, [" Authoritative summary "], ["raw reasoning"]),
       ),
     );
-    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual({
+    expect(
+      requiredTranscriptState(store.getState(), identity.threadId).entriesById[entryId],
+    ).toStrictEqual({
       type: "reasoning",
       id: itemId,
       turnId,
@@ -524,9 +598,11 @@ describe("transcript state committed activity reducer", () => {
       revision: 1,
     });
     expect(
-      selectTranscriptChunk(store.getState(), chunkId)?.entries.map(({ id }) => id),
+      selectTranscriptChunk(store.getState(), identity.threadId, chunkId)?.entries.map(
+        ({ id }) => id,
+      ),
     ).toStrictEqual([before.id, itemId, after.id]);
-    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId)).toBe(
       "event:commit-reasoning-summary",
     );
     live(
@@ -538,12 +614,17 @@ describe("transcript state committed activity reducer", () => {
       ),
     );
     expect({
-      entry: store.getState().transcriptState.entriesById[entryId],
-      mapping: store.getState().transcriptState.entryChunkById[entryId],
-      rawOrder: store.getState().transcriptState.chunksById[chunkId]?.entryIds,
-      visibleOrder: selectTranscriptChunk(store.getState(), chunkId)?.entries.map(({ id }) => id),
-      turn: selectTranscriptTurn(store.getState(), turnId),
-      signal: selectCommittedTranscriptScrollCommitKey(store.getState()),
+      entry: requiredTranscriptState(store.getState(), identity.threadId).entriesById[entryId],
+      mapping: requiredTranscriptState(store.getState(), identity.threadId).entryChunkById[entryId],
+      rawOrder: requiredTranscriptState(store.getState(), identity.threadId).chunksById[chunkId]
+        ?.entryIds,
+      visibleOrder: selectTranscriptChunk(
+        store.getState(),
+        identity.threadId,
+        chunkId,
+      )?.entries.map(({ id }) => id),
+      turn: selectTranscriptTurn(store.getState(), identity.threadId, turnId),
+      signal: selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId),
     }).toStrictEqual({
       entry: undefined,
       mapping: undefined,

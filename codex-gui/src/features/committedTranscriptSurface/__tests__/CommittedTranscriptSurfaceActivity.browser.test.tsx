@@ -26,12 +26,20 @@ import {
   selectTranscriptEntry,
   transcriptEntryIdFor,
 } from "@/features/transcriptState/transcriptStateSlice";
-import { renderWithProviders } from "@/utils/test-utils";
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
+import {
+  transcriptIdentity,
+  renderTranscriptWithProviders,
+  makeTranscriptStore,
+} from "./transcriptSurfaceFixtures";
 
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+  activeThreadReadModelTransitionApplied({
+    identity: transcriptIdentity,
+    sessionRevision: ++sessionRevision,
+    facts,
+  });
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
@@ -56,7 +64,10 @@ test.each([
 ] as const)(
   "formats the %s sub-agent activity action",
   async (kind, agentPath, taskName, accessibleName) => {
-    const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+    const { store, ...screen } = await renderTranscriptWithProviders(
+      transcriptIdentity,
+      <CommittedTranscriptSurface identity={transcriptIdentity} />,
+    );
 
     store.dispatch(
       threadRuntimeAttached(
@@ -77,7 +88,10 @@ test.each([
 );
 
 test.each([1, 2, 3, 4])("aggregates %s adjacent started activities in order", async (count) => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   const labels = ["Agent a", "Agent b", "Agent c", "Agent d"];
   const visibleLabels = labels.slice(0, Math.min(count, 3));
   const omittedCount = Math.max(0, count - 3);
@@ -129,7 +143,10 @@ test.each([1, 2, 3, 4])("aggregates %s adjacent started activities in order", as
 });
 
 test("keeps started and completed rows separate and limits completed chips", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   const turnId = "turn-started-completed-row-boundary";
 
   store.dispatch(
@@ -168,9 +185,13 @@ test("keeps started and completed rows separate and limits completed chips", asy
 });
 
 test("localizes completed sub-agent activity with an omitted count", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />, {
-    locale: "zh-CN",
-  });
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+    {
+      locale: "zh-CN",
+    },
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -201,9 +222,13 @@ test("localizes completed sub-agent activity with an omitted count", async () =>
 });
 
 test("localizes omitted interacted sub-agent activity in natural order", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />, {
-    locale: "zh-CN",
-  });
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+    {
+      locale: "zh-CN",
+    },
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -234,7 +259,10 @@ test("localizes omitted interacted sub-agent activity in natural order", async (
 });
 
 test("keeps repeated paths and disambiguates colliding leaves with the shortest parent", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -278,7 +306,10 @@ test("keeps repeated paths and disambiguates colliding leaves with the shortest 
 });
 
 test("breaks sub-agent rows on a different kind and collab activity", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   const turnId = "turn-sub-agent-row-boundaries";
 
   store.dispatch(
@@ -325,7 +356,10 @@ test("breaks sub-agent rows on a different kind and collab activity", async () =
 });
 
 test("renders non-interactive aggregated sub-agent activity and folds it after the final answer", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   const turnId = "turn-sub-agent-activity-surface";
   const startedTitle = "Started Browser starter";
   const spawnedTitle = "Spawned agents/browser-reviewer (gpt-5 high)";
@@ -464,7 +498,10 @@ test("renders non-interactive aggregated sub-agent activity and folds it after t
 });
 
 test("separates activity groups around middle messages", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   const turnId = "turn-activity-message-boundary";
   const beforeTitle = "Started Before message";
   const afterTitle = "Closed agents/after-message";
@@ -510,7 +547,7 @@ test("separates activity groups around middle status entries", async () => {
   const chunkId = `${turnId}:chunk:0`;
   const beforeTitle = "Started Before status";
   const afterTitle = "Interrupted After status";
-  const sourceStore = makeStore();
+  const sourceStore = makeTranscriptStore(transcriptIdentity);
   sourceStore.dispatch(
     threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
@@ -522,7 +559,11 @@ test("separates activity groups around middle status entries", async () => {
     ),
   );
 
-  const transcriptState = structuredClone(sourceStore.getState().transcriptState);
+  const sourceSlot = sourceStore.getState().transcriptState.byThreadId[transcriptIdentity.threadId];
+  if (sourceSlot == null) {
+    throw new Error("Expected the activity fixture to create a transcript slot");
+  }
+  const transcriptState = structuredClone(sourceSlot.transcript);
   const chunk = transcriptState.chunksById[chunkId];
   const turn = transcriptState.turnsById[turnId];
   if (chunk == null || turn == null) {
@@ -540,9 +581,22 @@ test("separates activity groups around middle status entries", async () => {
   transcriptState.entryChunkById[statusEntryId] = chunkId;
   turn.middleEntryCount += 1;
 
-  const screen = await renderWithProviders(<CommittedTranscriptSurface />, {
-    store: makeStore({ transcriptState }),
-  });
+  const screen = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+    {
+      store: makeStore({
+        transcriptState: {
+          byThreadId: {
+            [transcriptIdentity.threadId]: {
+              identity: transcriptIdentity,
+              transcript: transcriptState,
+            },
+          },
+        },
+      }),
+    },
+  );
   const before = screen.getByRole("article", { name: beforeTitle, exact: true });
   const status = screen.getByText("Interrupted.");
   const after = screen.getByRole("article", { name: afterTitle, exact: true });
@@ -566,7 +620,10 @@ test("separates activity groups around middle status entries", async () => {
 });
 
 test("renders terminal collab activity accessibly and restores its order after expansion", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   const turnId = "turn-collab-activity-surface";
   const spawnTitle = "Spawned agent-builder (gpt-5 high)";
   const closeTitle = "Closed agent-reviewer";
@@ -637,7 +694,7 @@ test("localizes transcript copy without rebuilding semantic activity views", asy
   const agentLabel = "Locale worker";
   const agentThreadId = "thread-locale-worker";
   const rawMessage = "Server completion message stays raw";
-  const store = makeStore();
+  const store = makeTranscriptStore(transcriptIdentity);
 
   store.dispatch(
     threadRuntimeAttached(
@@ -656,10 +713,18 @@ test("localizes transcript copy without rebuilding semantic activity views", asy
   );
 
   const waitEntryId = transcriptEntryIdFor(turnId, waitId);
-  const semanticView = selectTranscriptEntry(store.getState(), waitEntryId);
+  const semanticView = selectTranscriptEntry(
+    store.getState(),
+    transcriptIdentity.threadId,
+    waitEntryId,
+  );
   expect(semanticView).not.toBeNull();
 
-  const englishScreen = await renderWithProviders(<CommittedTranscriptSurface />, { store });
+  const englishScreen = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+    { store },
+  );
   const englishRegion = englishScreen.getByRole("region", { name: "Committed transcript" });
   const englishTurn = englishRegion.getByRole("article", { name: `Turn ${turnId}` });
 
@@ -692,10 +757,14 @@ test("localizes transcript copy without rebuilding semantic activity views", asy
 
   await englishScreen.unmount();
 
-  const chineseScreen = await renderWithProviders(<CommittedTranscriptSurface />, {
-    locale: "zh-CN",
-    store,
-  });
+  const chineseScreen = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+    {
+      locale: "zh-CN",
+      store,
+    },
+  );
   const chineseRegion = chineseScreen.getByRole("region", { name: "已提交的对话记录" });
   const chineseTurn = chineseRegion.getByRole("article", { name: `轮次 ${turnId}` });
 
@@ -723,11 +792,16 @@ test("localizes transcript copy without rebuilding semantic activity views", asy
     .element(chineseTurn.getByRole("article", { name: "等待结束" }))
     .toHaveTextContent(`${agentThreadId}：已完成：${rawMessage}`);
 
-  expect(selectTranscriptEntry(store.getState(), waitEntryId)).toBe(semanticView);
+  expect(selectTranscriptEntry(store.getState(), transcriptIdentity.threadId, waitEntryId)).toBe(
+    semanticView,
+  );
 });
 
 test("settles one started wait article in place across intermediate disclosure states", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   const turnId = "turn-started-wait-surface";
   const itemId = "collab-started-wait-surface";
 

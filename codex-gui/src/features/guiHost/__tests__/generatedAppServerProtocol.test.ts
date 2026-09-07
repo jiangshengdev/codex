@@ -160,6 +160,14 @@ describe("generated app-server protocol", () => {
     ],
     ["thread/list", threadListResponse, { data: null, nextCursor: null, backwardsCursor: null }],
     [
+      "thread/loaded/list",
+      {
+        data: [historyThread.id],
+        nextCursor: "next-page",
+      } satisfies RequestResponse<"thread/loaded/list">,
+      { data: [null], nextCursor: null },
+    ],
+    [
       "thread/read",
       { thread: historyThread } satisfies RequestResponse<"thread/read">,
       { thread: null },
@@ -182,6 +190,7 @@ describe("generated app-server protocol", () => {
 
   it.each([
     ["thread/list", "nextCursor", { ...threadListResponse, nextCursor: null }],
+    ["thread/loaded/list", "nextCursor", { data: [], nextCursor: null }],
     ["thread/list", "backwardsCursor", threadListResponse],
     ["thread/resume", "serviceTier", threadResumeResponse],
     ["thread/resume", "reasoningEffort", threadResumeResponse],

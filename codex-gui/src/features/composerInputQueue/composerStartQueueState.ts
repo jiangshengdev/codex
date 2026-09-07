@@ -1,4 +1,5 @@
 import type { Turn, TurnStartParams } from "@codex-protocol/v2";
+import { randomUuid } from "@/identity/randomUuid";
 import type {
   ComposerInputQueuePendingStartPhase,
   ComposerInputQueueResult,
@@ -7,11 +8,15 @@ import type {
 } from "./composerInputQueueContracts";
 import type { ReadonlyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 import type { RejectedSteerTransfer } from "./composerSteerQueueState";
+import {
+  persistedArray,
+  persistedRecord,
+  persistedString,
+} from "./composerLanePersistenceValidation";
 
 const startClaimCapability: unique symbol = Symbol("StartClaim");
 const PENDING_FACT_LIMIT = 4;
 const RECENT_FACT_LIMIT = 4;
-let nextClientUserMessageSequence = 0;
 
 type TurnIdentity = Turn["id"];
 type StartClientIdentity = NonNullable<TurnStartParams["clientUserMessageId"]>;
@@ -51,6 +56,42 @@ type TurnStarted = Extract<RuntimeObservation, { type: "turnStarted" }>;
 type UserMessageCommitted = Extract<RuntimeObservation, { type: "userMessageCommitted" }>;
 type TurnCompleted = Extract<RuntimeObservation, { type: "turnCompleted" }>;
 type PendingFacts = { readonly claim: StartClaim; readonly facts: RuntimeObservation[] };
+
+export type PersistedComposerStartState<M> = Readonly<{
+  pending: Readonly<{
+    phase: PendingStart["phase"];
+    message: M;
+    clientUserMessageId: StartClientIdentity;
+    turnId: TurnIdentity | null;
+    facts: readonly RuntimeObservation[];
+  }> | null;
+  recentObservations: readonly RuntimeObservation[];
+}>;
+
+const terminalStatuses = { completed: true, failed: true, interrupted: true } satisfies Record<
+  Extract<RuntimeObservation, { type: "turnCompleted" }>["status"],
+  true
+>;
+
+function importObservation(raw: unknown): RuntimeObservation {
+  const value = persistedRecord(raw);
+  const turnId = persistedString(value.turnId);
+  const commitId = persistedString(value.commitId);
+  switch (value.type) {
+    case "turnStarted":
+      return { type: value.type, turnId, commitId };
+    case "userMessageCommitted":
+      return { type: value.type, turnId, commitId, clientId: persistedString(value.clientId) };
+    case "turnCompleted": {
+      if (typeof value.status !== "string" || !Object.hasOwn(terminalStatuses, value.status))
+        throw new Error("Invalid persisted terminal status");
+      const status = value.status as keyof typeof terminalStatuses;
+      return { type: value.type, turnId, commitId, status };
+    }
+    default:
+      throw new Error("Invalid persisted start observation");
+  }
+}
 
 type StartQueueOutcome =
   | Readonly<{ type: "result"; result: ComposerInputQueueResult }>
@@ -94,8 +135,125 @@ export class ComposerStartQueueState {
   private latestSettlement: SettlementRecord | null = null;
   private readonly recentObservations: RuntimeObservation[] = [];
 
+  public reconcileSnapshot(
+    turns: readonly Turn[],
+  ):
+    | Readonly<{ type: "unresolved" }>
+    | Readonly<{ type: "resolved"; claim: StartClaim; turnId: TurnIdentity; terminal: boolean }> {
+    const pending = this.pendingStart;
+    if (pending == null) return { type: "unresolved" };
+    const matches =
+      pending.phase === "acceptedAwaitingStart"
+        ? turns.filter(({ id }) => id === pending.turnId)
+        : turns.filter((turn) =>
+            turn.items.some(
+              (item) =>
+                item.type === "userMessage" && item.clientId === pending.claim.clientUserMessageId,
+            ),
+          );
+    if (matches.length !== 1) return { type: "unresolved" };
+    const turn = matches[0];
+    if (turn == null) return { type: "unresolved" };
+    this.releasePending();
+    return {
+      type: "resolved",
+      claim: pending.claim,
+      turnId: turn.id,
+      terminal: turn.status !== "inProgress",
+    };
+  }
+
+  public fork(): ComposerStartQueueState {
+    const candidate = new ComposerStartQueueState();
+    candidate.adopt(this);
+    return candidate;
+  }
+
+  public adopt(candidate: ComposerStartQueueState): void {
+    if (candidate === this) return;
+    this.pendingStart = candidate.pendingStart;
+    this.pendingFacts =
+      candidate.pendingFacts == null
+        ? null
+        : { claim: candidate.pendingFacts.claim, facts: [...candidate.pendingFacts.facts] };
+    this.latestSettlement = candidate.latestSettlement;
+    this.recentObservations.splice(
+      0,
+      this.recentObservations.length,
+      ...candidate.recentObservations,
+    );
+  }
+
+  public exportState<M>(
+    encode: (message: ComposerStartMessage) => M,
+  ): PersistedComposerStartState<M> {
+    const pending = this.pendingStart;
+    return {
+      pending:
+        pending == null
+          ? null
+          : {
+              phase: pending.phase,
+              message: encode(pending.claim.message),
+              clientUserMessageId: pending.claim.clientUserMessageId,
+              turnId: pending.phase === "acceptedAwaitingStart" ? pending.turnId : null,
+              facts: [...(this.pendingFacts?.facts ?? [])],
+            },
+      recentObservations: [...this.recentObservations],
+    };
+  }
+
+  public rehydrateState(raw: unknown, decode: (message: unknown) => ComposerStartMessage): void {
+    const state = persistedRecord(raw);
+    const recent = persistedArray(state.recentObservations).map(importObservation);
+    const pending = state.pending === null ? null : persistedRecord(state.pending);
+    const candidate = new ComposerStartQueueState();
+    candidate.recentObservations.push(...recent);
+    if (pending != null) {
+      if (
+        pending.phase !== "issuing" &&
+        pending.phase !== "deliveryUnknown" &&
+        pending.phase !== "acceptedAwaitingStart"
+      )
+        throw new Error("Invalid persisted start phase");
+      const claim: StartClaim = {
+        type: "start",
+        message: decode(pending.message),
+        clientUserMessageId: persistedString(pending.clientUserMessageId),
+        [startClaimCapability]: true,
+      };
+      if (pending.phase === "acceptedAwaitingStart") {
+        candidate.pendingStart = {
+          phase: "acceptedAwaitingStart",
+          claim,
+          turnId: persistedString(pending.turnId),
+        };
+      } else {
+        if (pending.turnId !== null) throw new Error("Unconfirmed persisted start has a turn");
+        candidate.pendingStart = { phase: "deliveryUnknown", claim };
+      }
+      candidate.pendingFacts = {
+        claim,
+        facts: persistedArray(pending.facts).map(importObservation),
+      };
+    }
+    this.adopt(candidate);
+  }
+
   public hasPending(): boolean {
     return this.pendingStart != null;
+  }
+
+  public unknownMessages(): readonly ComposerStartMessage[] {
+    return this.pendingStart?.phase === "deliveryUnknown" ? [this.pendingStart.claim.message] : [];
+  }
+
+  public discardUnknown(id: string): boolean {
+    if (this.pendingStart?.phase !== "deliveryUnknown" || this.pendingStart.claim.message.id !== id)
+      return false;
+    this.pendingStart = null;
+    this.pendingFacts = null;
+    return true;
   }
 
   public pendingPhase(): ComposerInputQueuePendingStartPhase | null {
@@ -108,11 +266,10 @@ export class ComposerStartQueueState {
   }
 
   public issue(message: ComposerStartMessage): StartClaim {
-    nextClientUserMessageSequence += 1;
     const claim: StartClaim = {
       type: "start",
       message,
-      clientUserMessageId: `composer-input-queue-${String(nextClientUserMessageSequence)}`,
+      clientUserMessageId: `composer-input-queue-${randomUuid()}`,
       [startClaimCapability]: true as const,
     };
     this.pendingStart = { phase: "issuing", claim };
@@ -259,6 +416,9 @@ export class ComposerStartQueueState {
 
   private acceptObservation(observation: RuntimeObservation): StartQueueOutcome {
     const classification = this.rememberPending(observation);
+    if (classification?.type === "result" && classification.result.type === "idempotentReplay") {
+      return this.reconcilePending() ?? classification;
+    }
     return (
       classification ??
       this.reconcilePending() ??

@@ -63,7 +63,14 @@ type RegisteredDeferredAttachProjection = Readonly<{
 let deferredAttachProjections = new WeakMap<GuiHostCommands, Set<DeferredAttachProjection>>();
 const activeDeferredAttachProjections = new Set<RegisteredDeferredAttachProjection>();
 
-export const createGuiHostCommands = (): GuiHostCommands => ({
+// Existing launch/replacement fixtures represent stored threads awaiting resume.
+export const createGuiHostCommands = ({
+  loadedThreadIds = [],
+  storedThreadIds = [launchThreadId, "00000000-0000-0000-0000-000000000002"],
+}: {
+  loadedThreadIds?: readonly string[];
+  storedThreadIds?: readonly string[];
+} = {}): GuiHostCommands => ({
   compactThread: vi.fn<GuiHostCommands["compactThread"]>().mockResolvedValue({}),
   attachThreadProjection: vi
     .fn<GuiHostCommands["attachThreadProjection"]>()
@@ -76,13 +83,19 @@ export const createGuiHostCommands = (): GuiHostCommands => ({
     nextCursor: null,
     backwardsCursor: null,
   }),
+  listLoadedThreads: vi
+    .fn<GuiHostCommands["listLoadedThreads"]>()
+    .mockImplementation(() => Promise.resolve({ data: [...loadedThreadIds], nextCursor: null })),
   readThread: vi.fn<GuiHostCommands["readThread"]>().mockImplementation(({ threadId }) =>
     Promise.resolve({
       thread: { ...attachResponse.snapshot.thread, id: threadId },
     }),
   ),
-  resumeThread: vi.fn<GuiHostCommands["resumeThread"]>().mockImplementation(({ threadId }) =>
-    Promise.resolve({
+  resumeThread: vi.fn<GuiHostCommands["resumeThread"]>().mockImplementation(({ threadId }) => {
+    if (!storedThreadIds.includes(threadId)) {
+      return Promise.reject(new Error(`no rollout found for thread id ${threadId}`));
+    }
+    return Promise.resolve({
       thread: { ...attachResponse.snapshot.thread, id: threadId },
       model: "gpt-5",
       modelProvider: "openai",
@@ -95,8 +108,8 @@ export const createGuiHostCommands = (): GuiHostCommands => ({
       reasoningEffort: null,
       turnsBackwardsCursor: null,
       itemsBackwardsCursor: null,
-    }),
-  ),
+    });
+  }),
   detachThreadProjection: vi
     .fn<GuiHostCommands["detachThreadProjection"]>()
     .mockResolvedValue({ status: "detached" }),

@@ -85,7 +85,9 @@ function ThreadSwitchCapabilityProbe() {
       >
         Continue candidate thread
       </button>
-      <output aria-label="Active thread session">{available ? snapshot.threadId : "none"}</output>
+      <output aria-label="Active thread session">
+        {available ? snapshot.threadId : snapshot.phase}
+      </output>
       <output aria-label="Active skill catalog status">
         {available ? snapshot.skills.type : "none"}
       </output>
@@ -108,6 +110,17 @@ const createQueueCoordinatorMock = (
   const observeAcceptedEvent = vi.fn<ComposerInputQueueCoordinator["observeAcceptedEvent"]>();
   const dispose = vi.fn<ComposerInputQueueCoordinator["dispose"]>();
   const coordinator = {
+    getDraft: vi.fn<ComposerInputQueueCoordinator["getDraft"]>().mockReturnValue(null),
+    saveDraft: vi.fn<ComposerInputQueueCoordinator["saveDraft"]>().mockReturnValue(true),
+    retryPersistence: vi
+      .fn<ComposerInputQueueCoordinator["retryPersistence"]>()
+      .mockReturnValue(false),
+    resumeRestored: vi.fn<ComposerInputQueueCoordinator["resumeRestored"]>().mockReturnValue(false),
+    suspendRestored: vi.fn<ComposerInputQueueCoordinator["suspendRestored"]>(),
+    completeRestoreReconciliation:
+      vi.fn<ComposerInputQueueCoordinator["completeRestoreReconciliation"]>(),
+    reconcileRestoredTurns: vi.fn<ComposerInputQueueCoordinator["reconcileRestoredTurns"]>(),
+    discardUnknown: vi.fn<ComposerInputQueueCoordinator["discardUnknown"]>().mockReturnValue(false),
     ownerThreadId: threadId,
     submit: vi.fn<ComposerInputQueueCoordinator["submit"]>().mockReturnValue({ type: "accepted" }),
     submitSteer: vi
@@ -158,6 +171,7 @@ const createQueueCoordinatorMock = (
       canStop: false,
       interrupt: null,
       pendingInputManagementOutcome: null,
+      persistence: { error: null, restoredPaused: false, revision: null, unknownMessages: [] },
     }),
     subscribe: vi
       .fn<ComposerInputQueueCoordinator["subscribe"]>()
@@ -277,11 +291,12 @@ test("App publishes a completed thread switch atomically through one session", a
   emitProjectionEvent(options, candidateEvent);
   emitProjectionDelta(options, candidateDelta);
 
-  await expect.element(activeThread).toHaveTextContent(launchThreadId);
+  await expect.element(activeThread).toHaveTextContent("loading");
   expect(threadSwitchProbeSession).toBe(activeThreadSession);
   expect(
     selectTranscriptEntry(
       screen.store.getState(),
+      candidateThreadId,
       transcriptEntryIdFor("candidate-switch-turn", candidateItem.id),
     ),
   ).toBeNull();
@@ -297,6 +312,7 @@ test("App publishes a completed thread switch atomically through one session", a
     .poll(() =>
       selectTranscriptEntry(
         screen.store.getState(),
+        candidateThreadId,
         transcriptEntryIdFor("candidate-switch-turn", candidateItem.id),
       ),
     )
@@ -322,17 +338,19 @@ test("App publishes a completed thread switch atomically through one session", a
     subscriptionId: candidateAttach.subscriptionId,
     activeTurnId: "candidate-switch-turn",
   });
-  expect(selectThreadRuntimeRecord(screen.store.getState())?.threadId).toBe(candidateThreadId);
-  expect(screen.store.getState().transcriptState.threadId).toBe(candidateThreadId);
+  expect(selectThreadRuntimeRecord(screen.store.getState(), candidateThreadId)?.threadId).toBe(
+    candidateThreadId,
+  );
+  expect(
+    screen.store.getState().transcriptState.byThreadId[candidateThreadId]?.transcript.threadId,
+  ).toBe(candidateThreadId);
   expect(candidateQueue.observeAcceptedEvent).toHaveBeenCalledExactlyOnceWith({
     notification: candidateEvent,
     replay: "live",
   });
-  expect(initialQueue.dispose).toHaveBeenCalledOnce();
+  expect(initialQueue.dispose).not.toHaveBeenCalled();
   expect(candidateQueue.dispose).not.toHaveBeenCalled();
-  expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
-    threadId: launchThreadId,
-  });
+  expect(commands.detachThreadProjection).not.toHaveBeenCalled();
 
   await screen.unmount();
 
@@ -341,15 +359,14 @@ test("App publishes a completed thread switch atomically through one session", a
   expect(getCleanupConnectionCallCount()).toBe(1);
 });
 
-test("App keeps the initial session when attaching the switch candidate fails", async () => {
+test("App shows the failed target while retaining the initial session in the background", async () => {
   const initialQueue = createQueueCoordinatorMock(launchThreadId);
   vi.mocked(createComposerInputQueueCoordinator).mockReturnValue(initialQueue.coordinator);
   const error = new Error("candidate attach failed");
   const commands = createGuiHostCommands();
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
   vi.mocked(commands.attachThreadProjection).mockRejectedValueOnce(error);
-  const { session: activeThreadSession, snapshot: initialSnapshot } =
-    await waitForThreadSwitchProbeSession();
+  const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
 
   await continueButton.click();
   await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({
@@ -357,16 +374,17 @@ test("App keeps the initial session when attaching the switch candidate fails", 
     failure: { type: "operationFailed", phase: "attach", error },
   });
 
-  expect(commands.resumeThread).toHaveBeenCalledOnce();
+  expect(commands.resumeThread).toHaveBeenCalledTimes(2);
   expect(commands.attachThreadProjection).toHaveBeenCalledTimes(2);
   expect(commands.attachThreadProjection).toHaveBeenNthCalledWith(2, {
     threadId: candidateThreadId,
   });
   expect(commands.detachThreadProjection).not.toHaveBeenCalled();
-  expect(activeThreadSession.getSnapshot()).toBe(initialSnapshot);
-  await expect
-    .element(screen.getByLabelText("Active thread session"))
-    .toHaveTextContent(launchThreadId);
+  expect(activeThreadSession.getSnapshot()).toMatchObject({
+    phase: "failed",
+    threadId: candidateThreadId,
+  });
+  await expect.element(screen.getByLabelText("Active thread session")).toHaveTextContent("failed");
   expect(initialQueue.reservationRelease).not.toHaveBeenCalled();
   expect(initialQueue.dispose).not.toHaveBeenCalled();
 });

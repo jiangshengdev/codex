@@ -121,6 +121,7 @@ class ComposerTurnApplicationImpl implements ComposerTurnApplication {
   }): ComposerTurnControlView {
     this.observeProjection(session);
     const operationsEnabled = !this.disposed && session.phase === "active";
+    const sendingEnabled = operationsEnabled && session.composer.persistence.error == null;
     const isSubmitting = this.activeSubmission != null;
     const invalidPaths = invalidSelectedSkillPaths(
       session.skills,
@@ -133,7 +134,7 @@ class ComposerTurnApplicationImpl implements ComposerTurnApplication {
       operationsEnabled,
       isSubmitting,
       sendEnabled: canSend({
-        operationsEnabled,
+        operationsEnabled: sendingEnabled,
         draftText,
         isSending: isSubmitting,
         recoveryCount: session.composer.recoveryCount,
@@ -141,7 +142,7 @@ class ComposerTurnApplicationImpl implements ComposerTurnApplication {
       }),
       guide: composerGuideControlState({
         activeTurnId: session.activeTurnId,
-        operationsEnabled,
+        operationsEnabled: sendingEnabled,
         draftText,
         isSending: isSubmitting,
         recoveryCount: session.composer.recoveryCount,
@@ -162,6 +163,7 @@ class ComposerTurnApplicationImpl implements ComposerTurnApplication {
   }
 
   submit(input: ComposerTurnSubmitInput): ComposerTurnCommandOutcome {
+    if (input.session.composer.persistence.error != null) return ignored;
     const controller = input.controller;
     const capture = input.capture ?? controller.capture();
     if (!this.accepts(input.session) || this.activeSubmission != null) return ignored;

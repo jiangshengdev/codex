@@ -1,4 +1,5 @@
-import type { TurnSteerParams } from "@codex-protocol/v2";
+import type { Turn, TurnSteerParams } from "@codex-protocol/v2";
+import { randomUuid } from "@/identity/randomUuid";
 import {
   copyComposerInputPayload,
   type ReadonlyComposerInputPayload,
@@ -10,11 +11,16 @@ import type {
   ComposerQueueMessage,
 } from "./composerInputQueueContracts";
 import { composerPendingInputMoveTargetIndex, moveArrayElement } from "./composerPendingInputMove";
+import {
+  persistedArray,
+  persistedInteger,
+  persistedRecord,
+  persistedString,
+} from "./composerLanePersistenceValidation";
 
 const steerClaimCapability: unique symbol = Symbol("SteerClaim");
 const rejectedSteerTransferCapability: unique symbol = Symbol("RejectedSteerTransfer");
 const steerRecoveryTransferCapability: unique symbol = Symbol("SteerRecoveryTransfer");
-let nextClientUserMessageSequence = 0;
 
 type ThreadIdentity = TurnSteerParams["threadId"];
 type TurnIdentity = TurnSteerParams["expectedTurnId"];
@@ -98,6 +104,26 @@ export type RejectedSteerTransfer = Readonly<{
 export type SteerRecoveryTransfer = Readonly<{
   intents: readonly SteerIntent[];
   [steerRecoveryTransferCapability]: object;
+}>;
+
+export type PersistedSteerIntent<M> = Omit<SteerIntent, "message"> &
+  Readonly<{ message: M; order: number }>;
+export type PersistedRejectedSteer<M> = Readonly<{
+  intent: PersistedSteerIntent<M>;
+  reason: RejectedSteer["reason"];
+  order: RejectedSteerOrder;
+}>;
+export type PersistedComposerSteerState<M> = Readonly<{
+  queued: readonly PersistedSteerIntent<M>[];
+  pending: readonly Readonly<{ intent: PersistedSteerIntent<M>; phase: PendingSteerPhase }>[];
+  rejected: readonly PersistedRejectedSteer<M>[];
+  closedTargets: readonly Readonly<{
+    threadId: ThreadIdentity;
+    turnId: TurnIdentity;
+    target: ClosedSteerTarget;
+  }>[];
+  nextIntentOrder: number;
+  nextRejectionBatch: number;
 }>;
 
 export type ComposerSteerQueueState = Readonly<{
@@ -202,6 +228,29 @@ export type ComposerSteerQueueResult =
     }>;
 
 export type ComposerSteerQueue = Readonly<{
+  reconcileSnapshot(turns: readonly Turn[]): readonly ComposerSteerQueueResult[];
+  unknownMessages(): readonly ComposerQueueMessage[];
+  discardUnknown(id: string): boolean;
+  fork(): ComposerSteerQueue;
+  adopt(candidate: ComposerSteerQueue): void;
+  exportState<M>(encode: (message: ComposerQueueMessage) => M): PersistedComposerSteerState<M>;
+  rehydrateState(state: unknown, decode: (message: unknown) => ComposerQueueMessage): void;
+  exportRejectedTransfer<M>(
+    transfer: RejectedSteerTransfer,
+    encode: (message: ComposerQueueMessage) => M,
+  ): readonly PersistedRejectedSteer<M>[];
+  rehydrateRejectedTransfer(
+    entries: unknown,
+    decode: (message: unknown) => ComposerQueueMessage,
+  ): RejectedSteerTransfer;
+  exportRecoveryTransfer<M>(
+    transfer: SteerRecoveryTransfer,
+    encode: (message: ComposerQueueMessage) => M,
+  ): readonly PersistedSteerIntent<M>[];
+  rehydrateRecoveryTransfer(
+    intents: unknown,
+    decode: (message: unknown) => ComposerQueueMessage,
+  ): SteerRecoveryTransfer;
   state(): ComposerSteerQueueState;
   overview(): ComposerSteerQueueOverview;
   pendingInputCount(): number;
@@ -236,6 +285,344 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
   private readonly closedTargets = new Map<ThreadIdentity, Map<TurnIdentity, ClosedSteerTarget>>();
   private nextIntentOrder = 0;
   private nextRejectionBatch = 0;
+
+  public reconcileSnapshot = (turns: readonly Turn[]): readonly ComposerSteerQueueResult[] => {
+    const results: ComposerSteerQueueResult[] = [];
+    const targets = new Map<ThreadIdentity, Set<TurnIdentity>>();
+    const rememberTarget = (intent: SteerIntent): void => {
+      let ids = targets.get(intent.threadId);
+      if (ids == null) {
+        ids = new Set();
+        targets.set(intent.threadId, ids);
+      }
+      ids.add(intent.expectedTurnId);
+    };
+    for (const slot of this.steerQueue) rememberTarget(this.slotIntent(slot));
+    for (const intents of this.outstandingRecoveryTransfers.values())
+      for (const intent of intents) rememberTarget(intent);
+    for (const entries of this.outstandingRejectedTransfers.values())
+      for (const { intent } of entries) rememberTarget(intent);
+    // Committing a match removes its pending entry, so iterate a stable claim list.
+    const pendingClaims = this.pendingSteers.map(({ claim }) => claim);
+    for (const claim of pendingClaims) {
+      rememberTarget(claim.intent);
+      const matches = turns.filter(
+        (turn) =>
+          turn.id === claim.intent.expectedTurnId &&
+          turn.items.some(
+            (item) =>
+              item.type === "userMessage" && item.clientId === claim.intent.clientUserMessageId,
+          ),
+      );
+      if (matches.length === 1)
+        results.push(
+          this.commit(
+            claim.intent.threadId,
+            claim.intent.expectedTurnId,
+            claim.intent.clientUserMessageId,
+          ),
+        );
+    }
+    for (const [threadId, ids] of targets) {
+      for (const turnId of ids) {
+        const matches = turns.filter((turn) => turn.id === turnId);
+        if (matches.length === 1 && matches[0]?.status !== "inProgress")
+          results.push(this.terminal(threadId, turnId));
+      }
+    }
+    return results;
+  };
+
+  public unknownMessages = (): readonly ComposerQueueMessage[] =>
+    this.pendingSteers
+      .filter(({ phase }) => phase === "deliveryUnknown" || phase === "responseTurnMismatch")
+      .map(({ claim }) => claim.intent.message);
+
+  public discardUnknown = (id: string): boolean => {
+    const index = this.pendingSteers.findIndex(
+      ({ claim, phase }) =>
+        claim.intent.message.id === id &&
+        (phase === "deliveryUnknown" || phase === "responseTurnMismatch"),
+    );
+    if (index < 0) return false;
+    this.pendingSteers.splice(index, 1);
+    this.unknownPendingMessageIds.delete(id);
+    this.knownMessageIds.delete(id);
+    return true;
+  };
+
+  public fork = (): ComposerSteerQueue => {
+    const candidate = new ComposerSteerQueueImpl();
+    candidate.adopt(this);
+    return candidate;
+  };
+
+  public adopt = (candidate: ComposerSteerQueue): void => {
+    if (candidate === this) return;
+    if (!(candidate instanceof ComposerSteerQueueImpl)) throw new Error("Invalid steer candidate");
+    this.steerQueue.splice(0, this.steerQueue.length, ...candidate.steerQueue);
+    this.pendingSteers.splice(0, this.pendingSteers.length, ...candidate.pendingSteers);
+    this.rejectedSteersQueue.splice(
+      0,
+      this.rejectedSteersQueue.length,
+      ...candidate.rejectedSteersQueue,
+    );
+    this.unknownPendingMessageIds.clear();
+    for (const id of candidate.unknownPendingMessageIds) this.unknownPendingMessageIds.add(id);
+    this.knownMessageIds.clear();
+    for (const id of candidate.knownMessageIds) this.knownMessageIds.add(id);
+    this.outstandingRejectedTransfers.clear();
+    for (const [token, entries] of candidate.outstandingRejectedTransfers)
+      this.outstandingRejectedTransfers.set(token, [...entries]);
+    this.outstandingRecoveryTransfers.clear();
+    for (const [token, intents] of candidate.outstandingRecoveryTransfers)
+      this.outstandingRecoveryTransfers.set(token, [...intents]);
+    this.closedTargets.clear();
+    for (const [thread, targets] of candidate.closedTargets)
+      this.closedTargets.set(thread, new Map(targets));
+    this.nextIntentOrder = candidate.nextIntentOrder;
+    this.nextRejectionBatch = candidate.nextRejectionBatch;
+    const copyIntent = (intent: SteerIntent): void => {
+      const order = candidate.intentOrder.get(intent);
+      if (order == null) throw new Error("Steer candidate lost intent order");
+      this.intentOrder.set(intent, order);
+    };
+    const copyRejected = (entry: RejectedSteer): void => {
+      copyIntent(entry.intent);
+      this.rejectedOrder.set(entry, candidate.requireRejectedOrder(entry));
+    };
+    for (const slot of this.steerQueue) copyIntent(this.slotIntent(slot));
+    for (const pending of this.pendingSteers) copyIntent(pending.claim.intent);
+    for (const entry of this.rejectedSteersQueue) copyRejected(entry);
+    for (const entries of this.outstandingRejectedTransfers.values())
+      for (const entry of entries) copyRejected(entry);
+    for (const intents of this.outstandingRecoveryTransfers.values())
+      for (const intent of intents) copyIntent(intent);
+  };
+
+  private exportIntent<M>(
+    intent: SteerIntent,
+    encode: (message: ComposerQueueMessage) => M,
+  ): PersistedSteerIntent<M> {
+    const order = this.intentOrder.get(intent);
+    if (order == null) throw new Error("Steer intent has no order");
+    return { ...intent, message: encode(intent.message), order };
+  }
+
+  private importIntent(
+    raw: unknown,
+    decode: (message: unknown) => ComposerQueueMessage,
+  ): SteerIntent {
+    const value = persistedRecord(raw);
+    const order = persistedInteger(value.order);
+    if (
+      value.type !== "intent" ||
+      (value.source !== "direct" && value.source !== "ordinaryPromotion")
+    )
+      throw new Error("Invalid persisted steer intent");
+    const intent: SteerIntent = {
+      type: "intent",
+      source: value.source,
+      threadId: persistedString(value.threadId),
+      expectedTurnId: persistedString(value.expectedTurnId),
+      clientUserMessageId: persistedString(value.clientUserMessageId),
+      message: decode(value.message),
+    };
+    this.intentOrder.set(intent, order);
+    this.nextIntentOrder = Math.max(this.nextIntentOrder, order);
+    return intent;
+  }
+
+  private exportRejected<M>(
+    entry: RejectedSteer,
+    encode: (message: ComposerQueueMessage) => M,
+  ): PersistedRejectedSteer<M> {
+    return {
+      intent: this.exportIntent(entry.intent, encode),
+      reason: entry.reason,
+      order: this.requireRejectedOrder(entry),
+    };
+  }
+
+  private importRejected(
+    raw: unknown,
+    decode: (message: unknown) => ComposerQueueMessage,
+  ): RejectedSteer {
+    const value = persistedRecord(raw);
+    if (value.reason !== "terminal" && value.reason !== "activeTurnNotSteerable")
+      throw new Error("Invalid persisted steer rejection");
+    const rawOrder = persistedRecord(value.order);
+    const order = {
+      rejectionBatch: persistedInteger(rawOrder.rejectionBatch),
+      intentOrder: persistedInteger(rawOrder.intentOrder),
+    };
+    const entry: RejectedSteer = {
+      intent: this.importIntent(value.intent, decode),
+      reason: value.reason,
+    };
+    if (this.intentOrder.get(entry.intent) !== order.intentOrder)
+      throw new Error("Inconsistent persisted steer order");
+    this.rejectedOrder.set(entry, order);
+    this.nextRejectionBatch = Math.max(this.nextRejectionBatch, order.rejectionBatch);
+    return entry;
+  }
+
+  public exportState = <M>(
+    encode: (message: ComposerQueueMessage) => M,
+  ): PersistedComposerSteerState<M> => ({
+    queued: this.steerQueue.map((slot) => this.exportIntent(this.slotIntent(slot), encode)),
+    pending: this.pendingSteers.map(({ claim, phase }) => ({
+      intent: this.exportIntent(claim.intent, encode),
+      phase,
+    })),
+    rejected: this.rejectedSteersQueue.map((entry) => this.exportRejected(entry, encode)),
+    closedTargets: [...this.closedTargets].flatMap(([threadId, targets]) =>
+      [...targets].map(([turnId, target]) => ({ threadId, turnId, target: { ...target } })),
+    ),
+    nextIntentOrder: this.nextIntentOrder,
+    nextRejectionBatch: this.nextRejectionBatch,
+  });
+
+  public rehydrateState = (
+    raw: unknown,
+    decode: (message: unknown) => ComposerQueueMessage,
+  ): void => {
+    const state = persistedRecord(raw);
+    const candidate = new ComposerSteerQueueImpl();
+    candidate.nextIntentOrder = persistedInteger(state.nextIntentOrder);
+    candidate.nextRejectionBatch = persistedInteger(state.nextRejectionBatch);
+    candidate.steerQueue.push(
+      ...persistedArray(state.queued).map((intent) => candidate.importIntent(intent, decode)),
+    );
+    candidate.pendingSteers.push(
+      ...persistedArray(state.pending).map((rawPending): PendingSteer => {
+        const { intent, phase } = persistedRecord(rawPending);
+        if (
+          phase !== "issuing" &&
+          phase !== "deliveryUnknown" &&
+          phase !== "responseTurnMismatch" &&
+          phase !== "acceptedAwaitingCommit"
+        )
+          throw new Error("Invalid persisted steer phase");
+        return {
+          claim: {
+            type: "steer",
+            intent: candidate.importIntent(intent, decode),
+            [steerClaimCapability]: true,
+          },
+          phase: phase === "issuing" ? "deliveryUnknown" : phase,
+        };
+      }),
+    );
+    candidate.rejectedSteersQueue.push(
+      ...persistedArray(state.rejected).map((entry) => candidate.importRejected(entry, decode)),
+    );
+    for (const rawTarget of persistedArray(state.closedTargets)) {
+      const value = persistedRecord(rawTarget);
+      const threadId = persistedString(value.threadId);
+      const turnId = persistedString(value.turnId);
+      const target = persistedRecord(value.target);
+      if (target.reason !== "terminal" && target.reason !== "activeTurnNotSteerable")
+        throw new Error("Invalid persisted closed target");
+      let targets = candidate.closedTargets.get(threadId);
+      if (targets == null) {
+        targets = new Map();
+        candidate.closedTargets.set(threadId, targets);
+      }
+      if (targets.has(turnId)) throw new Error("Duplicate persisted closed target");
+      targets.set(turnId, {
+        reason: target.reason,
+        rejectionBatch: persistedInteger(target.rejectionBatch),
+      });
+    }
+    for (const slot of candidate.steerQueue)
+      candidate.knownMessageIds.add(candidate.slotIntent(slot).message.id);
+    for (const { claim, phase } of candidate.pendingSteers) {
+      candidate.knownMessageIds.add(claim.intent.message.id);
+      if (phase === "deliveryUnknown" || phase === "responseTurnMismatch")
+        candidate.unknownPendingMessageIds.add(claim.intent.message.id);
+    }
+    for (const entry of candidate.rejectedSteersQueue)
+      candidate.knownMessageIds.add(entry.intent.message.id);
+    const messages = [
+      ...candidate.steerQueue.map((slot) => candidate.slotIntent(slot)),
+      ...candidate.pendingSteers.map(({ claim }) => claim.intent),
+      ...candidate.rejectedSteersQueue.map(({ intent }) => intent),
+    ];
+    if (
+      candidate.knownMessageIds.size !== messages.length ||
+      new Set(messages.map(({ clientUserMessageId }) => clientUserMessageId)).size !==
+        messages.length
+    )
+      throw new Error("Duplicate persisted steer identity");
+    if (
+      candidate.nextIntentOrder !== state.nextIntentOrder ||
+      candidate.nextRejectionBatch !== state.nextRejectionBatch
+    )
+      throw new Error("Inconsistent persisted steer sequence");
+    this.adopt(candidate);
+  };
+
+  public exportRejectedTransfer = <M>(
+    transfer: RejectedSteerTransfer,
+    encode: (message: ComposerQueueMessage) => M,
+  ): readonly PersistedRejectedSteer<M>[] => {
+    const entries = this.outstandingRejectedTransfers.get(
+      transfer[rejectedSteerTransferCapability],
+    );
+    if (entries == null) throw new Error("Unowned rejected steer transfer");
+    return entries.map((entry) => this.exportRejected(entry, encode));
+  };
+
+  public rehydrateRejectedTransfer = (
+    values: unknown,
+    decode: (message: unknown) => ComposerQueueMessage,
+  ): RejectedSteerTransfer => {
+    const candidate = this.fork();
+    if (!(candidate instanceof ComposerSteerQueueImpl)) throw new Error("Invalid steer candidate");
+    const entries = persistedArray(values).map((value) => candidate.importRejected(value, decode));
+    candidate.requireNewTransferredIntents(entries.map(({ intent }) => intent));
+    const token = {};
+    for (const entry of entries) candidate.knownMessageIds.add(entry.intent.message.id);
+    candidate.outstandingRejectedTransfers.set(token, entries);
+    this.adopt(candidate);
+    return { entries, [rejectedSteerTransferCapability]: token };
+  };
+
+  public exportRecoveryTransfer = <M>(
+    transfer: SteerRecoveryTransfer,
+    encode: (message: ComposerQueueMessage) => M,
+  ): readonly PersistedSteerIntent<M>[] => {
+    const intents = this.outstandingRecoveryTransfers.get(
+      transfer[steerRecoveryTransferCapability],
+    );
+    if (intents == null) throw new Error("Unowned steer recovery transfer");
+    return intents.map((intent) => this.exportIntent(intent, encode));
+  };
+
+  public rehydrateRecoveryTransfer = (
+    values: unknown,
+    decode: (message: unknown) => ComposerQueueMessage,
+  ): SteerRecoveryTransfer => {
+    const candidate = this.fork();
+    if (!(candidate instanceof ComposerSteerQueueImpl)) throw new Error("Invalid steer candidate");
+    const intents = persistedArray(values).map((value) => candidate.importIntent(value, decode));
+    candidate.requireNewTransferredIntents(intents);
+    const token = {};
+    candidate.outstandingRecoveryTransfers.set(token, intents);
+    this.adopt(candidate);
+    return { intents, [steerRecoveryTransferCapability]: token };
+  };
+
+  private requireNewTransferredIntents(intents: readonly SteerIntent[]): void {
+    const ids = new Set(this.knownMessageIds);
+    for (const existing of this.outstandingRecoveryTransfers.values())
+      for (const intent of existing) ids.add(intent.message.id);
+    for (const intent of intents) {
+      if (ids.has(intent.message.id)) throw new Error("Duplicate persisted transfer identity");
+      ids.add(intent.message.id);
+    }
+  }
 
   public state = (): ComposerSteerQueueState => ({
     steerQueue: [...this.steerQueue],
@@ -449,7 +836,6 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     if (this.knownMessageIds.has(input.message.id)) {
       return { type: "duplicateIdentity", messageId: input.message.id };
     }
-    nextClientUserMessageSequence += 1;
     const intent: SteerIntent = {
       type: "intent",
       message: {
@@ -460,7 +846,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
       },
       threadId: input.threadId,
       expectedTurnId: input.expectedTurnId,
-      clientUserMessageId: `composer-steer-${String(nextClientUserMessageSequence)}`,
+      clientUserMessageId: `composer-steer-${randomUuid()}`,
       source: input.source,
     };
     this.nextIntentOrder += 1;
@@ -618,7 +1004,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
   private terminal(threadId: ThreadIdentity, turnId: TurnIdentity): ComposerSteerQueueResult {
     const closedTarget = this.closeTarget(threadId, turnId, "terminal");
     const reason = closedTarget.reason;
-    const pending = this.removePendingTarget(threadId, turnId);
+    const pending = this.removePendingTarget(threadId, turnId, true);
     const unsent = this.removeUnsentTarget(threadId, turnId);
     const intents = [...pending, ...unsent.intents];
     this.rejectedSteersQueue.push(
@@ -652,7 +1038,11 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     return closedTarget;
   }
 
-  private removePendingTarget(threadId: ThreadIdentity, turnId: TurnIdentity): SteerIntent[] {
+  private removePendingTarget(
+    threadId: ThreadIdentity,
+    turnId: TurnIdentity,
+    preserveUnconfirmed = false,
+  ): SteerIntent[] {
     const removed: SteerIntent[] = [];
     for (let index = 0; index < this.pendingSteers.length;) {
       const pending = this.pendingSteers[index];
@@ -661,7 +1051,8 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
       }
       if (
         pending.claim.intent.threadId === threadId &&
-        pending.claim.intent.expectedTurnId === turnId
+        pending.claim.intent.expectedTurnId === turnId &&
+        (!preserveUnconfirmed || pending.phase === "acceptedAwaitingCommit")
       ) {
         removed.push(pending.claim.intent);
         this.unknownPendingMessageIds.delete(pending.claim.intent.message.id);

@@ -28,10 +28,28 @@ type PendingInputPageIdentityResolution =
   | Readonly<{ type: "stale"; revision: number }>;
 
 export class ComposerPendingInputIdentity {
-  private readonly cursorOwner = {};
+  private cursorOwner = {};
   private readonly displayKeyByMessageId = new Map<string, ComposerPendingInputDisplayKey>();
   private readonly messageIdByDisplayKey = new Map<ComposerPendingInputDisplayKey, string>();
   private revision = 0;
+
+  public fork(): ComposerPendingInputIdentity {
+    const candidate = new ComposerPendingInputIdentity();
+    candidate.adopt(this);
+    return candidate;
+  }
+
+  public adopt(candidate: ComposerPendingInputIdentity): void {
+    if (candidate === this) return;
+    this.cursorOwner = candidate.cursorOwner;
+    this.revision = candidate.revision;
+    this.displayKeyByMessageId.clear();
+    this.messageIdByDisplayKey.clear();
+    for (const [id, key] of candidate.displayKeyByMessageId)
+      this.displayKeyByMessageId.set(id, key);
+    for (const [key, id] of candidate.messageIdByDisplayKey)
+      this.messageIdByDisplayKey.set(key, id);
+  }
 
   public detailRevision(): number {
     return this.revision;

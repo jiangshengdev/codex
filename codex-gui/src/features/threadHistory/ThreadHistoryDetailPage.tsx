@@ -1,4 +1,4 @@
-import { useLingui } from "@lingui/react/macro";
+import { Trans } from "@lingui/react/macro";
 import { useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
@@ -9,7 +9,6 @@ import { ThreadHistoryDetailContent } from "./ThreadHistoryDetailContent";
 import {
   initialThreadHistoryDetailState,
   ThreadHistoryDetailOwner,
-  type ThreadHistoryDetailState,
 } from "./threadHistoryDetailOwner";
 import { useStrictModeSafeOwner } from "./useStrictModeSafeOwner";
 
@@ -19,7 +18,6 @@ type RetainedThreadHistoryDetailCapability = Readonly<{
 
 export function ThreadHistoryDetailPage() {
   const { threadId } = useParams({ from: "/app/history/$threadId" });
-  const { t } = useLingui();
   const { activeThreadSession, authorizationToken, commands, routeTarget, status } =
     useAppCapabilities();
   const activateThread = activeThreadSession?.activate ?? null;
@@ -44,24 +42,23 @@ export function ThreadHistoryDetailPage() {
     };
   }, [commands]);
 
-  const unavailableState: ThreadHistoryDetailState =
-    status.label === "error"
-      ? { type: "error", error: status.message }
-      : status.label === "closed"
-        ? { type: "error", error: t`The task connection was closed.` }
-        : initialThreadHistoryDetailState;
-
   return (
     <main className="task-reading-boundary grid min-h-0 flex-1 content-start gap-4">
       {retainedCapability == null ? (
-        <ThreadHistoryDetailContent
-          authorizationToken={authorizationToken}
-          activateThread={activateThread}
-          retry={null}
-          routeTarget={routeTarget}
-          state={unavailableState}
-          threadId={threadId}
-        />
+        status.label === "error" || status.label === "closed" ? (
+          <p className="text-sm text-muted">
+            <Trans>Task history is unavailable until the connection is restored.</Trans>
+          </p>
+        ) : (
+          <ThreadHistoryDetailContent
+            authorizationToken={authorizationToken}
+            activateThread={activateThread}
+            retry={null}
+            routeTarget={routeTarget}
+            state={initialThreadHistoryDetailState}
+            threadId={threadId}
+          />
+        )
       ) : (
         <ThreadHistoryDetailOwnerBound
           authorizationToken={authorizationToken}

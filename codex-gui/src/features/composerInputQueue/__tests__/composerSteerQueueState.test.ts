@@ -137,10 +137,11 @@ describe("composer steer queue state", () => {
     expect(queue.cancelPendingInputEdit(reservation)).toEqual({ type: "unavailable" });
     expect(queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" })).toEqual({
       type: "terminal",
-      messageIds: ["edited"],
+      messageIds: [],
     });
-    expect(queue.state().rejectedSteersQueue[0]?.intent).toBe(saved);
-    expect(queue.state().rejectedSteersQueue[0]?.intent.message).toEqual(saved.message);
+    expect(queue.state().rejectedSteersQueue).toEqual([]);
+    expect(queue.state().pendingSteers[0]?.claim.intent).toBe(saved);
+    expect(queue.state().pendingSteers[0]?.claim.intent.message).toEqual(saved.message);
   });
 
   it("preserves saved steer order and identity when its queued target closes", () => {
@@ -220,7 +221,8 @@ describe("composer steer queue state", () => {
           : queue.transition({ type: "activeTurnNotSteerable", claim: pending });
       expect(result).toMatchObject({
         type: closure === "terminal" ? "terminal" : "rejected",
-        messageIds: ["pending", "edited", "successor"],
+        messageIds:
+          closure === "terminal" ? ["edited", "successor"] : ["pending", "edited", "successor"],
         editInvalidations: [
           {
             messageId: "edited",
@@ -229,12 +231,15 @@ describe("composer steer queue state", () => {
           },
         ],
       });
-      expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.message.id)).toEqual([
-        "pending",
-        "edited",
-        "successor",
-      ]);
-      expect(queue.state().rejectedSteersQueue[1]?.intent).toBe(reservation.original);
+      expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.message.id)).toEqual(
+        closure === "terminal" ? ["edited", "successor"] : ["pending", "edited", "successor"],
+      );
+      expect(queue.state().pendingSteers).toEqual(
+        closure === "terminal" ? [{ claim: pending, phase: "issuing" }] : [],
+      );
+      expect(queue.state().rejectedSteersQueue[closure === "terminal" ? 0 : 1]?.intent).toBe(
+        reservation.original,
+      );
       expect(queue.savePendingInputEdit(reservation, steerInput("late").message)).toEqual({
         type: "unavailable",
       });
@@ -777,8 +782,8 @@ describe("composer steer queue state", () => {
     expect(queue.findPendingInput("b")?.input).toEqual(steerInput("b").message.input);
 
     queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" });
-    expect(queue.pendingInputCount()).toBe(0);
-    expect(queue.readPendingInputs(0, 2)).toEqual([]);
+    expect(queue.pendingInputCount()).toBe(1);
+    expect(queue.readPendingInputs(0, 2).map(({ messageId }) => messageId)).toEqual(["b"]);
     expect(queue.findPendingInput("a")).toBeNull();
   });
 });

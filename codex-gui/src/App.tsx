@@ -1,14 +1,11 @@
-import { Outlet, useNavigate } from "@tanstack/react-router";
+import { Outlet } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import type { ActiveThreadSession } from "./features/activeThreadSession/activeThreadSession";
-import { type AppCapabilities, useActiveThreadId } from "./features/appShell/AppCapabilities";
+import { type AppCapabilities, useActiveThreadSession } from "./features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "./features/appShell/AppCapabilitiesContext";
 import { AppShell } from "./features/appShell/AppShell";
 import { GuiHostConnectionBridge } from "./features/appShell/GuiHostConnectionBridge";
-import {
-  CURRENT_TASK_ROUTE_PATH,
-  type GuiRouteTarget,
-} from "./features/browserLaunch/guiRouteTarget";
+import { type GuiRouteTarget } from "./features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands, GuiHostStatus } from "./features/guiHost/guiHostClient";
 
 function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
@@ -18,7 +15,6 @@ function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
   const [commands, setCommands] = useState<GuiHostCommands | null>(null);
   const [authorizationToken, setAuthorizationToken] = useState<string | null>(null);
   const [activeThreadSession, setActiveThreadSession] = useState<ActiveThreadSession | null>(null);
-  const [activeThreadStartupError, setActiveThreadStartupError] = useState<string | null>(null);
   const capabilities = useMemo<AppCapabilities>(
     () => ({
       status,
@@ -26,16 +22,8 @@ function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
       commands,
       routeTarget,
       activeThreadSession,
-      activeThreadStartupError,
     }),
-    [
-      activeThreadSession,
-      activeThreadStartupError,
-      authorizationToken,
-      commands,
-      routeTarget,
-      status,
-    ],
+    [activeThreadSession, authorizationToken, commands, routeTarget, status],
   );
 
   return (
@@ -45,7 +33,6 @@ function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
         setCommands={setCommands}
         setAuthorizationToken={setAuthorizationToken}
         setActiveThreadSession={setActiveThreadSession}
-        setActiveThreadStartupError={setActiveThreadStartupError}
         startupTarget={routeTarget}
       />
       <AppCapabilitiesProvider capabilities={capabilities}>
@@ -59,22 +46,19 @@ function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
 }
 
 function ActiveThreadRouteSync({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
-  const navigate = useNavigate();
-  const activeThreadId = useActiveThreadId();
+  const session = useActiveThreadSession();
 
   useEffect(() => {
     if (
-      activeThreadId != null &&
+      session != null &&
       routeTarget.type === "currentTask" &&
-      routeTarget.threadId !== activeThreadId
+      session.getCollectionSnapshot().viewedThreadId !== routeTarget.threadId
     ) {
-      void navigate({
-        to: CURRENT_TASK_ROUTE_PATH,
-        params: { threadId: activeThreadId },
-        replace: true,
+      void session.view(routeTarget.threadId).catch((error: unknown) => {
+        session.setOperationError(routeTarget.threadId, "navigation", error);
       });
     }
-  }, [activeThreadId, navigate, routeTarget]);
+  }, [session, routeTarget]);
 
   return null;
 }

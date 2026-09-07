@@ -1,7 +1,14 @@
 import { createAppSlice } from "@/app/createAppSlice";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelSlotRemoved,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type { ActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
+import type { TranscriptState } from "./transcriptStateModel";
 import { reduceTranscriptReadModelFact } from "./transcriptProjection";
 import {
+  createEmptyTranscriptState,
   initialTranscriptState,
   type TranscriptChunkView,
   type TranscriptContextPage,
@@ -38,49 +45,98 @@ export type {
   TranscriptTurnFragment,
 } from "./transcriptStateModel";
 
+export type TranscriptStateSlot = {
+  identity: ActiveThreadSessionIdentity;
+  transcript: TranscriptState;
+};
+
+export type TranscriptCollectionState = {
+  byThreadId: Record<string, TranscriptStateSlot>;
+};
+
+const initialState: TranscriptCollectionState = { byThreadId: {} };
+
+const transcriptForThread = (state: TranscriptCollectionState, threadId: string): TranscriptState =>
+  state.byThreadId[threadId]?.transcript ?? initialTranscriptState;
+
 export const transcriptStateSlice = createAppSlice({
   name: "transcriptState",
-  initialState: initialTranscriptState,
+  initialState,
   reducers: () => ({}),
   selectors: {
-    selectCommittedTranscriptScrollCommitKey: (transcriptState): string | null =>
-      transcriptState.committedScrollCommitKey,
-    selectTranscriptLiveScrollPulse: (transcriptState): number => transcriptState.liveScrollPulse,
-    selectTranscriptTurnIds: (transcriptState): string[] => transcriptState.turnIds,
-    selectTranscriptTurn: (transcriptState, turnId: string): TranscriptTurn | null =>
-      transcriptState.turnsById[turnId] ?? null,
-    selectTranscriptContextPageIds: (transcriptState): string[] => transcriptState.contextPageIds,
-    selectTranscriptContextPage: (transcriptState, pageId: string): TranscriptContextPage | null =>
-      transcriptContextPageTopology(transcriptState, pageId),
+    selectTranscriptState: (state, threadId: string): TranscriptState | null =>
+      state.byThreadId[threadId]?.transcript ?? null,
+    selectCommittedTranscriptScrollCommitKey: (state, threadId: string): string | null =>
+      transcriptForThread(state, threadId).committedScrollCommitKey,
+    selectTranscriptLiveScrollPulse: (state, threadId: string): number =>
+      transcriptForThread(state, threadId).liveScrollPulse,
+    selectTranscriptTurnIds: (state, threadId: string): string[] =>
+      transcriptForThread(state, threadId).turnIds,
+    selectTranscriptTurn: (state, threadId: string, turnId: string): TranscriptTurn | null =>
+      transcriptForThread(state, threadId).turnsById[turnId] ?? null,
+    selectTranscriptContextPageIds: (state, threadId: string): string[] =>
+      transcriptForThread(state, threadId).contextPageIds,
+    selectTranscriptContextPage: (
+      state,
+      threadId: string,
+      pageId: string,
+    ): TranscriptContextPage | null =>
+      transcriptContextPageTopology(transcriptForThread(state, threadId), pageId),
     selectTranscriptTurnFragment: (
-      transcriptState,
+      state,
+      threadId: string,
       fragmentId: string,
-    ): TranscriptTurnFragment | null => transcriptTurnFragmentTopology(transcriptState, fragmentId),
-    selectTranscriptChunk: (transcriptState, chunkId: string): TranscriptChunkView | null =>
-      transcriptChunkView(transcriptState, chunkId),
+    ): TranscriptTurnFragment | null =>
+      transcriptTurnFragmentTopology(transcriptForThread(state, threadId), fragmentId),
+    selectTranscriptChunk: (state, threadId: string, chunkId: string): TranscriptChunkView | null =>
+      transcriptChunkView(transcriptForThread(state, threadId), chunkId),
     selectTranscriptEntry: (
-      transcriptState,
+      state,
+      threadId: string,
       entryId: TranscriptEntryId,
-    ): TranscriptEntryView | null => transcriptEntryView(transcriptState, entryId),
-    selectTranscriptGlobalStatus: (transcriptState): TranscriptGlobalStatus[] =>
-      transcriptState.globalStatus,
+    ): TranscriptEntryView | null =>
+      transcriptEntryView(transcriptForThread(state, threadId), entryId),
+    selectTranscriptGlobalStatus: (state, threadId: string): TranscriptGlobalStatus[] =>
+      transcriptForThread(state, threadId).globalStatus,
   },
   extraReducers: (builder) => {
+    builder.addCase(activeThreadReadModelSlotCreated, (state, { payload: identity }) => {
+      if (state.byThreadId[identity.threadId] != null) {
+        return;
+      }
+      return {
+        byThreadId: {
+          ...state.byThreadId,
+          [identity.threadId]: { identity, transcript: createEmptyTranscriptState() },
+        },
+      };
+    });
+    builder.addCase(activeThreadReadModelSlotRemoved, (state, { payload: identity }) => {
+      if (state.byThreadId[identity.threadId]?.identity.instanceId === identity.instanceId) {
+        const { [identity.threadId]: _removed, ...byThreadId } = state.byThreadId;
+        return { byThreadId };
+      }
+    });
     builder.addCase(activeThreadReadModelTransitionApplied, (state, action) => {
-      const { facts, sessionRevision } = action.payload;
-      if (sessionRevision <= state.sessionRevision) {
+      const { identity, facts, sessionRevision } = action.payload;
+      const slot = state.byThreadId[identity.threadId];
+      if (
+        slot?.identity.instanceId !== identity.instanceId ||
+        sessionRevision <= slot.transcript.sessionRevision
+      ) {
         return;
       }
 
       for (const fact of facts) {
-        reduceTranscriptReadModelFact(state, fact);
+        reduceTranscriptReadModelFact(slot.transcript, fact);
       }
-      state.sessionRevision = sessionRevision;
+      slot.transcript.sessionRevision = sessionRevision;
     });
   },
 });
 
 export const {
+  selectTranscriptState,
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptLiveScrollPulse,
   selectTranscriptTurnIds,

@@ -110,18 +110,19 @@ describe("composer input queue", () => {
       revision,
     });
 
-    queue.observe({
+    const terminal = queue.observe({
       type: "turnCompleted",
       turnId: "turn-1",
       status: "completed",
       commitId: "terminal",
     });
+    expect(terminal.effects).toEqual([]);
     expect(
       queue.readPendingInputDetail({ key: firstKey, revision: queue.detailRevision() }),
-    ).toEqual({ type: "missing", revision: queue.detailRevision() });
+    ).toEqual({ type: "detail", key: firstKey, text: longText, revision: queue.detailRevision() });
   });
 
-  it("invalidates cursors across promotion, steer issue, commit, and terminal transitions", () => {
+  it("invalidates changed cursors and preserves unconfirmed delivery and ordinary order at terminal", () => {
     const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
     submit(queue, "a");
     submit(queue, "b");
@@ -201,12 +202,14 @@ describe("composer input queue", () => {
     const beforeTerminalRevision = queue.detailRevision();
     const beforeTerminal = pendingPage(queue, "ordinary", 1);
     if (beforeTerminal.nextCursor == null) throw new Error("expected pre-terminal ordinary cursor");
-    queue.observe({
+    const terminal = queue.observe({
       type: "turnCompleted",
       turnId: "turn-1",
       status: "completed",
       commitId: "terminal",
     });
+    expect(terminal.effects).toEqual([]);
+    expect(queue.detailRevision()).toBe(beforeTerminalRevision);
     expect(
       queue.readPendingInputPage({
         lane: "ordinary",
@@ -214,9 +217,21 @@ describe("composer input queue", () => {
         cursor: beforeTerminal.nextCursor,
         limit: 1,
       }),
-    ).toEqual({ type: "stale", revision: queue.detailRevision() });
+    ).toMatchObject({
+      type: "page",
+      revision: beforeTerminalRevision,
+      items: [{ key: ordinaryKeys[1] }],
+    });
     expect(pendingPage(queue, "ordinary").items.map(({ key }) => key)).toEqual(ordinaryKeys);
-    expect(pendingPage(queue, "steer").items).toEqual([]);
+    expect(pendingPage(queue, "steer").items).toMatchObject([
+      { key: queuedKey, management: { type: "readOnly", reason: "deliveryInProgress" } },
+    ]);
+    expect(queue.submit(message("after-terminal")).effects).toEqual([]);
+    expect(pendingPage(queue, "ordinary").items.map(({ preview }) => preview)).toMatchObject([
+      { text: "message b" },
+      { text: "message d" },
+      { text: "message after-terminal" },
+    ]);
   });
 
   it("invalidates a cursor when steer recovery restores the original FIFO", () => {

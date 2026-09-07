@@ -24,10 +24,12 @@ import { resolveThreadHistoryPresentation } from "./threadHistoryPresentation";
 import { useStrictModeSafeOwner } from "./useStrictModeSafeOwner";
 
 export function ThreadHistoryListPage() {
-  const { activeThreadSession, activeThreadStartupError, commands, status } = useAppCapabilities();
+  const { activeThreadSession, commands, status } = useAppCapabilities();
   const activeThreadId = useActiveThreadId();
   const activeThreadSessionPhase = useActiveThreadSessionPhase();
-  const runtime = useAppSelector(selectThreadRuntimeRecord);
+  const runtime = useAppSelector((state) =>
+    activeThreadId == null ? null : selectThreadRuntimeRecord(state, activeThreadId),
+  );
   const cwd =
     activeThreadId != null && runtime?.thread.id === activeThreadId ? runtime.thread.cwd : null;
   const historyContextUnavailable =
@@ -37,10 +39,6 @@ export function ThreadHistoryListPage() {
     status.label !== "closed" &&
     activeThreadSessionPhase === "empty" &&
     activeThreadId == null;
-  const startupActivationFailed =
-    activeThreadSession != null &&
-    activeThreadSessionPhase === "empty" &&
-    activeThreadStartupError != null;
 
   useEffect(() => {
     window.scrollTo({ left: 0, top: 0 });
@@ -48,9 +46,7 @@ export function ThreadHistoryListPage() {
 
   return (
     <main className="app-shell-content-boundary grid min-h-0 flex-1 content-start gap-4 py-3">
-      {startupActivationFailed ? (
-        <HistoryError error={activeThreadStartupError} />
-      ) : activeThreadSession == null && status.label !== "error" && status.label !== "closed" ? (
+      {activeThreadSession == null && status.label !== "error" && status.label !== "closed" ? (
         renderHistoryMessage(<Trans>Loading history…</Trans>)
       ) : historyContextUnavailable ? (
         <HistoryContextUnavailable />

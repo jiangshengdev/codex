@@ -1,4 +1,5 @@
 import { Toast } from "@heroui/react";
+import { createPersistenceTestContext } from "@/features/composerInputQueue/__tests__/composerInputQueueCoordinatorTestFixtures";
 import { afterEach, expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
 import { useSyncExternalStore } from "react";
@@ -9,7 +10,11 @@ import {
 } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import { createActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
 import type {
   ActiveThreadComposerRole,
   ActiveThreadSession,
@@ -51,6 +56,13 @@ const skillCatalogController: SkillCatalogController = {
 const composerRoleFor = (
   controller: ComposerInputQueueCoordinator,
 ): Partial<ActiveThreadComposerRole> => ({
+  getDraft: controller.getDraft,
+  saveDraft: (_revision, draft) => controller.saveDraft(draft),
+  retryPersistence: () => controller.retryPersistence(),
+  resumeRestored: (_revision, persistenceRevision) =>
+    controller.resumeRestored(persistenceRevision),
+  discardUnknown: (_revision, id, persistenceRevision) =>
+    controller.discardUnknown(id, persistenceRevision),
   beginPendingInputEdit: (_revision, request, restore) =>
     controller.beginPendingInputEdit(request, restore),
   deletePendingInput: (_revision, request) => controller.deletePendingInput(request),
@@ -88,6 +100,7 @@ async function renderAttached(
   composerInputQueueController: ComposerInputQueueCoordinator = createComposerInputQueueCoordinator(
     {
       threadId: launchThreadId,
+      persistence: createPersistenceTestContext(),
       activeTurnId: null,
       startTurn: commandHandle.startTurn,
       steerTurn: commandHandle.steerTurn,
@@ -101,10 +114,12 @@ async function renderAttached(
     skillsRole: skillsRoleFor(activeSkillCatalogController),
   });
   let revision = 1;
+  const identity = createActiveThreadSessionIdentity(launchThreadId);
   const publish = (): void => {
     revision += 1;
     sessionHarness.publish(
       sessionHarness.activeSnapshot({
+        identity,
         revision,
         threadId: launchThreadId,
         subscriptionId: attachResponse.subscriptionId,
@@ -122,8 +137,10 @@ async function renderAttached(
       <SessionComposerTurnControl session={sessionHarness.session} />
     </>,
   );
+  result.store.dispatch(activeThreadReadModelSlotCreated(identity));
   result.store.dispatch(
     activeThreadReadModelTransitionApplied({
+      identity,
       sessionRevision: 1,
       facts: [{ type: "baselineAttached", response: attachResponse }],
     }),
@@ -300,6 +317,7 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
     const commandHandle = createGuiHostCommands();
     vi.mocked(commandHandle.steerTurn).mockReturnValue(pendingSteer.promise);
     const controller = createComposerInputQueueCoordinator({
+      persistence: createPersistenceTestContext(),
       threadId: launchThreadId,
       activeTurnId,
       startTurn: commandHandle.startTurn,

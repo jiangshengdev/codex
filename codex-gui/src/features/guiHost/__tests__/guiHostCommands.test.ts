@@ -70,6 +70,25 @@ const skillsListResponse: RequestResponse<"skills/list"> = {
 };
 
 describe("guiHostClient commands", () => {
+  it("sends loaded thread pagination through the ready command API", async () => {
+    const { commands, socket } = startConnectionUntilCommandsReady({});
+    const params = { cursor: "next-loaded-page" };
+    const promise = commands.listLoadedThreads(params);
+    const request = readLatestRpcRequest(socket, "thread/loaded/list");
+    expect(request.params).toEqual(params);
+    const response = { data: [threadId], nextCursor: null };
+    sendJsonRpcResult(socket, request.id, response);
+    await expect(promise).resolves.toEqual(response);
+  });
+
+  it("rejects a malformed loaded thread response", async () => {
+    const { commands, socket } = startConnectionUntilCommandsReady({});
+    const promise = commands.listLoadedThreads({});
+    const request = readLatestRpcRequest(socket, "thread/loaded/list");
+    sendJsonRpcResult(socket, request.id, { data: null, nextCursor: null });
+    await expect(promise).rejects.toThrow("thread/loaded/list returned malformed result payload");
+  });
+
   it("sends history requests through the ready command API", async () => {
     const { commands, socket } = startConnectionUntilCommandsReady({});
 
@@ -488,6 +507,7 @@ describe("guiHostClient commands", () => {
     cleanup();
 
     const attempts = [
+      () => commands.listLoadedThreads({}),
       () => commands.attachThreadProjection({ threadId }),
       () => commands.listThreads({ cwd: attachBaseline.snapshot.thread.cwd }),
       () => commands.readThread({ threadId, includeTurns: true }),

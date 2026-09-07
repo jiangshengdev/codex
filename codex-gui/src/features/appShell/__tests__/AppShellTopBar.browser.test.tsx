@@ -1,6 +1,9 @@
 import { afterEach, expect, test } from "vitest";
 import { attachResponse } from "@/__tests__/appBrowserTestSupport";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import { disableMotionForTest } from "@/utils/test-utils";
 import { currentThreadId, renderTopBar } from "./appShellTopBarBrowserTestSupport";
@@ -18,6 +21,10 @@ const baselineAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) =>
   activeThreadReadModelTransitionApplied({
+    identity: {
+      threadId: response.snapshot.thread.id,
+      instanceId: `topbar-${response.snapshot.thread.id}`,
+    },
     sessionRevision: ++sessionRevision,
     facts: [{ type: "baselineAttached", response }],
   });
@@ -47,6 +54,11 @@ test("top bar is a banner and derives the current task title from name, preview,
     initialEntry: `/task/${currentThreadId}`,
     routeTarget: { type: "currentTask", threadId: currentThreadId },
   });
+  for (const threadId of [currentThreadId, otherThreadId]) {
+    screen.store.dispatch(
+      activeThreadReadModelSlotCreated({ threadId, instanceId: `topbar-${threadId}` }),
+    );
+  }
 
   await expect.element(screen.getByRole("banner")).toBeVisible();
   await expect
@@ -69,7 +81,7 @@ test("top bar is a banner and derives the current task title from name, preview,
     ),
   );
   await expect
-    .element(screen.getByRole("heading", { level: 1, name: "Current task" }))
+    .element(screen.getByRole("heading", { level: 1, name: "Preview task" }))
     .toBeVisible();
 
   screen.store.dispatch(baselineAttached(runtimeAttach({ name: null, preview: "" })));
@@ -211,6 +223,12 @@ test("Current task navigation is disabled when no active thread id exists", asyn
     activeThreadId: null,
     routeTarget: { type: "historyList" },
   });
+  screen.store.dispatch(
+    activeThreadReadModelSlotCreated({
+      threadId: currentThreadId,
+      instanceId: `topbar-${currentThreadId}`,
+    }),
+  );
 
   screen.store.dispatch(
     baselineAttached(runtimeAttach({ name: "Stale task", preview: "Stale preview" })),

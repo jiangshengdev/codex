@@ -6,6 +6,7 @@ import type {
   ComposerQueueMessage,
 } from "./composerInputQueueContracts";
 import { composerPendingInputMoveTargetIndex, moveArrayElement } from "./composerPendingInputMove";
+import { persistedArray } from "./composerLanePersistenceValidation";
 
 export type OrdinaryEditAcquisition = Readonly<{
   type: "acquiring";
@@ -55,6 +56,10 @@ export type OrdinaryDrainResult =
   | Readonly<{ type: "blocked" }>;
 
 export type ComposerOrdinaryQueueState = Readonly<{
+  fork(): ComposerOrdinaryQueueState;
+  adopt(candidate: ComposerOrdinaryQueueState): void;
+  exportState<M>(encode: (message: ComposerQueueMessage) => M): readonly M[];
+  rehydrateState(messages: unknown, decode: (message: unknown) => ComposerQueueMessage): void;
   count(): number;
   readPendingInputs(
     offset: number,
@@ -84,6 +89,32 @@ export type ComposerOrdinaryQueueState = Readonly<{
 
 class ComposerOrdinaryQueueStateImpl implements ComposerOrdinaryQueueState {
   private readonly slots: OrdinarySlot[] = [];
+
+  public fork = (): ComposerOrdinaryQueueState => {
+    const candidate = new ComposerOrdinaryQueueStateImpl();
+    candidate.slots.push(...this.slots);
+    return candidate;
+  };
+
+  public adopt = (candidate: ComposerOrdinaryQueueState): void => {
+    if (candidate === this) return;
+    if (!(candidate instanceof ComposerOrdinaryQueueStateImpl))
+      throw new Error("Invalid ordinary candidate");
+    this.slots.splice(0, this.slots.length, ...candidate.slots);
+  };
+
+  public exportState = <M>(encode: (message: ComposerQueueMessage) => M): readonly M[] =>
+    this.slots.map((slot) => encode(this.slotMessage(slot)));
+
+  public rehydrateState = (
+    messages: unknown,
+    decode: (message: unknown) => ComposerQueueMessage,
+  ): void => {
+    const restored = persistedArray(messages).map(decode);
+    if (new Set(restored.map(({ id }) => id)).size !== restored.length)
+      throw new Error("Duplicate persisted ordinary identity");
+    this.slots.splice(0, this.slots.length, ...restored);
+  };
 
   public count = (): number => this.slots.length;
 

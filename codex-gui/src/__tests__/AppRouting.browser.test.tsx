@@ -60,7 +60,10 @@ const historyThreadId = "00000000-0000-0000-0000-000000000002";
 const historyThread = attachWithThreadId(attachResponse, historyThreadId).snapshot.thread;
 
 const createHistoryCommands = () => {
-  const commands = createGuiHostCommands();
+  const commands = createGuiHostCommands({
+    loadedThreadIds: [],
+    storedThreadIds: [launchThreadId, historyThreadId],
+  });
   vi.mocked(commands.listThreads).mockResolvedValue({
     data: [historyThread],
     nextCursor: null,
@@ -108,13 +111,34 @@ const installActiveThreadSessionController = (
     handleSkillsChanged: vi.fn<ActiveThreadSessionController["handleSkillsChanged"]>(),
     handleThreadStatusChanged: vi.fn<ActiveThreadSessionController["handleThreadStatusChanged"]>(),
     connectionUnavailable: vi.fn<ActiveThreadSessionController["connectionUnavailable"]>(),
+    suspendRestoredQueue: vi.fn<ActiveThreadSessionController["suspendRestoredQueue"]>(),
     dispose: vi.fn<ActiveThreadSessionController["dispose"]>(),
   };
   activeThreadSessionFactoryState.controller = controller;
   return controller;
 };
 
-test("history waits for startup activation before publishing a settled empty session", async () => {
+test("suspends restored queues before rebuilding the connection after a cached page returns", async () => {
+  seedBrowserAuthorizationSession({ token: "history-secret" });
+  const harness = createActiveThreadSessionHarness();
+  const controller = installActiveThreadSessionController(harness, () =>
+    Promise.resolve({ type: "empty" }),
+  );
+  const router = createAppRouter(createMemoryHistory({ initialEntries: ["/history"] }));
+  await renderWithProviders(<RouterProvider router={router} />);
+  initializeHost(getHostOptions(startGuiHostConnectionMock), createHistoryCommands());
+  await expect.poll(() => vi.mocked(controller.activateRecoveryThread).mock.calls.length).toBe(1);
+  const connections = startGuiHostConnectionMock.mock.calls.length;
+
+  window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true }));
+  expect(controller.suspendRestoredQueue).toHaveBeenCalledOnce();
+  window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+  expect(controller.suspendRestoredQueue).toHaveBeenCalledTimes(2);
+  await expect.poll(() => startGuiHostConnectionMock.mock.calls.length).toBe(connections + 1);
+  expect(controller.dispose).toHaveBeenCalledOnce();
+});
+
+test("history subscribes to the collection while startup activation is pending", async () => {
   seedBrowserAuthorizationSession({ token: "history-secret" });
   const startup = deferred<ActiveThreadActivationOutcome>();
   const sessionHarness = createActiveThreadSessionHarness();
@@ -127,8 +151,7 @@ test("history waits for startup activation before publishing a settled empty ses
   initializeHost(options, commands);
 
   await expect.poll(() => vi.mocked(controller.activateRecoveryThread).mock.calls.length).toBe(1);
-  await expect.element(screen.getByText("Loading history…", { exact: true })).toBeVisible();
-  await expect.poll(sessionHarness.listenerCount).toBe(0);
+  await expect.poll(sessionHarness.listenerCount).toBeGreaterThan(0);
   await expect.poll(() => router.state.location.pathname).toBe("/history");
 
   startup.resolve({ type: "empty" });
@@ -142,9 +165,21 @@ test("history waits for startup activation before publishing a settled empty ses
   await expect.poll(() => vi.mocked(commands.listThreads).mock.calls.length).toBe(0);
 });
 
-test("history publishes a settled startup failure without entering the empty-context branch", async () => {
+test("history leaves collection startup failure details in the global notice", async () => {
   seedBrowserAuthorizationSession({ token: "history-secret" });
-  const sessionHarness = createActiveThreadSessionHarness();
+  const sessionHarness = createActiveThreadSessionHarness({
+    initialCollection: {
+      viewedThreadId: null,
+      members: [],
+      errors: [
+        {
+          operation: "collectionRead",
+          threadId: null,
+          error: new Error("startup recovery failed"),
+        },
+      ],
+    },
+  });
   installActiveThreadSessionController(sessionHarness, () =>
     Promise.resolve({
       type: "unavailable",
@@ -164,11 +199,31 @@ test("history publishes a settled startup failure without entering the empty-con
   initializeHost(options, commands);
 
   const alert = screen.getByRole("main").getByRole("alert");
-  await expect.element(alert).toHaveTextContent("Unable to load history");
-  await expect.element(alert).toHaveTextContent("resume: startup recovery failed");
+  await expect.element(alert).toHaveTextContent("History context unavailable");
+  await expect.element(alert).not.toHaveTextContent("startup recovery failed");
   await expect
     .element(alert)
-    .not.toHaveTextContent("Open an active task in this browser tab before viewing its history.");
+    .toHaveTextContent("Open an active task in this browser tab before viewing its history.");
+  await expect
+    .element(screen.getByText("startup recovery failed", { exact: true }))
+    .not.toBeInTheDocument();
+  const diagnostics = screen.getByRole("button", {
+    name: "View diagnostic information",
+    exact: true,
+  });
+  expect(diagnostics.element().closest("[data-app-shell-top-notices]")).not.toBeNull();
+  await expect
+    .element(alert.getByRole("button", { name: "View diagnostic information" }))
+    .not.toBeInTheDocument();
+  await diagnostics.click();
+  const dialog = page.getByRole("dialog", { name: "Diagnostic information", exact: true });
+  await expect.element(dialog.getByText("startup recovery failed", { exact: true })).toBeVisible();
+  expect(page.getByText("startup recovery failed", { exact: true }).elements()).toHaveLength(1);
+  await dialog.getByRole("button", { name: "Close diagnostics", exact: true }).click();
+  await expect.element(dialog).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByText("Unable to start Codex GUI", { exact: true }))
+    .not.toBeInTheDocument();
   await expect.poll(() => vi.mocked(commands.listThreads).mock.calls.length).toBe(0);
   await expect.poll(() => router.state.location.pathname).toBe("/history");
 });
@@ -625,12 +680,16 @@ test("pure read-only history detail activates its first task and replaces the ro
     await expect
       .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
       .toBeVisible();
-    expect(commands.resumeThread).not.toHaveBeenCalled();
+    expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: historyThreadId });
     expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
       threadId: historyThreadId,
     });
     expect(commands.detachThreadProjection).not.toHaveBeenCalled();
-    expect(storageSetItem).toHaveBeenCalledOnce();
+    expect(
+      storageSetItem.mock.calls.filter(
+        ([key]) => key === "codex-gui.browserAuthorizationSession.v1",
+      ),
+    ).toHaveLength(1);
     const storedSession = consumeBrowserAuthorizationSession({
       location: new URL("https://codex.test/browser-authorization-session-read"),
       replaceState: () => undefined,
@@ -694,11 +753,15 @@ test("pure read-only history detail preserves its route when first activation fa
     await expect
       .element(page.getByRole("dialog", { name: "Diagnostic information" }))
       .not.toBeInTheDocument();
-    expect(commands.resumeThread).not.toHaveBeenCalled();
+    expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: historyThreadId });
     expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
       threadId: historyThreadId,
     });
-    expect(storageSetItem).not.toHaveBeenCalled();
+    expect(
+      storageSetItem.mock.calls.filter(
+        ([key]) => key === "codex-gui.browserAuthorizationSession.v1",
+      ),
+    ).toHaveLength(0);
     await expect
       .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
       .not.toBeInTheDocument();
@@ -709,7 +772,51 @@ test("pure read-only history detail preserves its route when first activation fa
   }
 });
 
-test("opens a historical task and keeps its cleanup warning visible after replacing the detail route", async () => {
+test("history Continue reports a loaded-query failure and rechecks loading when retried", async () => {
+  window.history.replaceState({}, "", `/history/${historyThreadId}`);
+  seedBrowserAuthorizationSession({ token: "detail-secret" });
+  const router = createAppRouter(
+    createMemoryHistory({ initialEntries: [`/history/${historyThreadId}`] }),
+  );
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const commands = createHistoryCommands();
+  vi.mocked(commands.readThread).mockResolvedValueOnce({ thread: historyThread });
+  vi.mocked(commands.listLoadedThreads)
+    .mockRejectedValueOnce(new Error("Loaded task query unavailable"))
+    .mockResolvedValueOnce({ data: [historyThreadId], nextCursor: null });
+  queueAttachProjectionResponse(commands, attachWithThreadId(attachResponse, historyThreadId));
+  initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
+  const continueButton = screen.getByRole("button", { name: "Continue this task", exact: true });
+  await expect.element(continueButton).toBeEnabled();
+
+  await continueButton.click();
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert).toHaveTextContent("Unable to continue this task");
+  await expect.element(alert).toHaveTextContent("The task connection could not be prepared.");
+  expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
+  expect(commands.resumeThread).not.toHaveBeenCalled();
+  expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  const diagnostic = page.getByRole("dialog", { name: "Diagnostic information" });
+  await expect.element(diagnostic).toHaveTextContent("Loaded task query unavailable");
+  await diagnostic.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect.element(diagnostic).not.toBeInTheDocument();
+
+  await continueButton.click();
+
+  await expect
+    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+    .toBeVisible();
+  expectCanonicalRoute(router.state.location.href, `/task/${historyThreadId}`, 1);
+  expect(commands.listLoadedThreads).toHaveBeenCalledTimes(2);
+  expect(commands.resumeThread).not.toHaveBeenCalled();
+  expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+    threadId: historyThreadId,
+  });
+});
+
+test("opens a historical task and retains the previous task without detaching", async () => {
   seedBrowserAuthorizationSession({ token: "detail-secret" });
   const router = createAppRouter(
     createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
@@ -746,18 +853,12 @@ test("opens a historical task and keeps its cleanup warning visible after replac
     .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
     .toBeVisible();
   expectCanonicalRoute(router.state.location.href, `/task/${historyThreadId}`, 1);
-  await expect.element(screen.getByText("Task opened", { exact: true })).toBeVisible();
-  await expect
-    .element(
-      screen.getByText(
-        "The previous task connection could not be fully cleaned up. Later state may be affected.",
-        { exact: true },
-      ),
-    )
-    .toBeVisible();
-  expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
-    threadId: launchThreadId,
-  });
-  expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: historyThreadId });
+  expect(commands.detachThreadProjection).not.toHaveBeenCalled();
+  expect(commands.resumeThread).toHaveBeenLastCalledWith({ threadId: historyThreadId });
   expect(commands.attachThreadProjection).toHaveBeenLastCalledWith({ threadId: historyThreadId });
+  await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
+  await expect
+    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+    .toBeVisible();
+  expect(getAttachProjectionThreadIds(commands)).toEqual([launchThreadId, historyThreadId]);
 });

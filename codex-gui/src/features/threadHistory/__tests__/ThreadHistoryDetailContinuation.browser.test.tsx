@@ -334,6 +334,7 @@ test("keeps a long history continuation failure visible beside the retry action"
   await expect.element(cleanupDiagnostic).not.toBeInTheDocument();
   const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
   await expect.element(disclosure).toBeVisible();
+  await expect.element(disclosure).toHaveClass("button--secondary");
   disclosure.element().focus();
   await expect.element(disclosure).toHaveFocus();
   await userEvent.keyboard("{Enter}");
@@ -676,6 +677,7 @@ test("releases the diagnostic modal scroll lock when the history detail unmounts
 });
 
 test.each([
+  ["loaded", "The task connection could not be prepared."],
   ["resume", "The task could not be resumed."],
   ["attach", "The task connection could not be prepared."],
   ["prepare", "The task connection could not be prepared."],
