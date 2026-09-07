@@ -59,6 +59,36 @@ test("loads with exact read parameters, preserves the complete error, and retrie
   const alert = screen.getByRole("alert");
   await expect.element(alert.getByText("Unable to load task history")).toBeVisible();
   await expect.element(alert.getByText(rawFailure.message, { exact: true })).toBeVisible();
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  const retry = alert.getByRole("button", { name: "Retry" });
+  const description = alert.getByText(rawFailure.message, { exact: true });
+  try {
+    for (const width of [1280, 375]) {
+      await page.viewport(width, 900);
+      await expect
+        .poll(() => {
+          const contentBounds = description.element().getBoundingClientRect();
+          const retryBounds = retry.element().getBoundingClientRect();
+          return width === 1280
+            ? retryBounds.left >= contentBounds.right &&
+                Math.abs(
+                  retryBounds.top -
+                    alert.getByText("Unable to load task history").element().getBoundingClientRect()
+                      .top,
+                ) <= 1
+            : retryBounds.top >= contentBounds.bottom &&
+                Math.abs(retryBounds.left - contentBounds.left) <= 1;
+        })
+        .toBe(true);
+      expect(alert.element().scrollWidth).toBeLessThanOrEqual(alert.element().clientWidth + 1);
+    }
+    expect(
+      description.element().compareDocumentPosition(retry.element()) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
   await alert.getByRole("button", { name: "Retry" }).click();
 
   await expect.element(screen.getByText("This task has no messages.")).toBeVisible();

@@ -2,6 +2,7 @@ import { Alert, Toast } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
+import { FailureLayout } from "@/feedback/FailureLayout";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { errorText } from "@/text/errorText";
@@ -18,19 +19,21 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
   return (
     <Alert className="w-full" status="danger">
       <Alert.Indicator />
-      <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <Alert.Title>
-          <Trans>Unable to start Codex GUI</Trans>
-        </Alert.Title>
-        <Alert.Description className="col-start-1">
-          <Trans>Codex GUI could not be started.</Trans>
-        </Alert.Description>
-        {status.message ? (
-          <FailureDiagnosticModal triggerClassName="mt-2 justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
-            {status.message}
-          </FailureDiagnosticModal>
-        ) : null}
-      </Alert.Content>
+      <FailureLayout>
+        <Alert.Content>
+          <Alert.Title>
+            <Trans>Unable to start Codex GUI</Trans>
+          </Alert.Title>
+          <Alert.Description>
+            <Trans>Codex GUI could not be started.</Trans>
+          </Alert.Description>
+          {status.message ? (
+            <FailureDiagnosticModal triggerClassName="mt-2 self-start">
+              {status.message}
+            </FailureDiagnosticModal>
+          ) : null}
+        </Alert.Content>
+      </FailureLayout>
     </Alert>
   );
 }
@@ -65,19 +68,21 @@ export function AppShell({ children }: AppShellProps) {
             return (
               <Alert key={`${operation}:${threadId ?? ""}`} role="alert" status="danger">
                 <Alert.Indicator />
-                <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <Alert.Title>
-                    <Trans>Unable to update the task list</Trans>
-                  </Alert.Title>
-                  <Alert.Description className="col-start-1">
-                    <Trans>The task list could not be updated.</Trans>
-                  </Alert.Description>
-                  {diagnostic ? (
-                    <FailureDiagnosticModal triggerClassName="mt-2 justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
-                      {diagnostic}
-                    </FailureDiagnosticModal>
-                  ) : null}
-                </Alert.Content>
+                <FailureLayout>
+                  <Alert.Content>
+                    <Alert.Title>
+                      <Trans>Unable to update the task list</Trans>
+                    </Alert.Title>
+                    <Alert.Description>
+                      <Trans>The task list could not be updated.</Trans>
+                    </Alert.Description>
+                    {diagnostic ? (
+                      <FailureDiagnosticModal triggerClassName="mt-2 self-start">
+                        {diagnostic}
+                      </FailureDiagnosticModal>
+                    ) : null}
+                  </Alert.Content>
+                </FailureLayout>
               </Alert>
             );
           })}

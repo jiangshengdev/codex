@@ -4,6 +4,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { useAppSelector } from "@/app/hooks";
+import { FailureLayout } from "@/feedback/FailureLayout";
 import {
   useActiveThreadId,
   useActiveThreadSessionPhase,
@@ -247,17 +248,24 @@ function HistoryError(props: HistoryErrorProps) {
   return (
     <Alert role="alert" status="danger">
       <Alert.Indicator />
-      <Alert.Content>
-        <Alert.Title>
-          <Trans>Unable to load history</Trans>
-        </Alert.Title>
-        {"error" in props ? <Alert.Description>{errorText(props.error)}</Alert.Description> : null}
-        {props.retry == null ? null : (
-          <Button className="mt-3" onPress={props.retry} variant="tertiary">
-            <Trans>Retry</Trans>
-          </Button>
-        )}
-      </Alert.Content>
+      <FailureLayout
+        actions={
+          props.retry == null ? null : (
+            <Button onPress={props.retry} variant="tertiary">
+              <Trans>Retry</Trans>
+            </Button>
+          )
+        }
+      >
+        <Alert.Content>
+          <Alert.Title>
+            <Trans>Unable to load history</Trans>
+          </Alert.Title>
+          {"error" in props ? (
+            <Alert.Description>{errorText(props.error)}</Alert.Description>
+          ) : null}
+        </Alert.Content>
+      </FailureLayout>
     </Alert>
   );
 }

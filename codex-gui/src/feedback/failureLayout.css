@@ -1,0 +1,74 @@
+.failure-layout {
+  container-type: inline-size;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+.failure-layout__regions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.failure-layout__content {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.failure-layout__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.failure-layout :is(.button, .link) {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.failure-layout .button {
+  height: auto;
+  min-height: 2.5rem;
+  padding-block: 0.25rem;
+}
+
+.failure-layout .button--sm {
+  min-height: 2.25rem;
+}
+
+.failure-layout .button--lg {
+  min-height: 2.75rem;
+}
+
+@media (min-width: 48rem) {
+  .failure-layout .button {
+    min-height: 2.25rem;
+  }
+
+  .failure-layout .button--sm {
+    min-height: 2rem;
+  }
+
+  .failure-layout .button--lg {
+    min-height: 2.5rem;
+  }
+}
+
+@container (min-width: 40rem) {
+  .failure-layout__regions {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .failure-layout__actions {
+    flex-shrink: 0;
+    max-width: 50%;
+  }
+}

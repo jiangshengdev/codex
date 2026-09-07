@@ -785,6 +785,29 @@ test("renders a synchronous activation exception as an unexpected failure", asyn
   await expect.element(diagnostic).not.toBeInTheDocument();
   const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
   await expect.element(disclosure).toBeVisible();
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  try {
+    for (const width of [1280, 375]) {
+      await page.viewport(width, 900);
+      await expect
+        .poll(() => {
+          const summaryBounds = alert
+            .getByText(summary, { exact: true })
+            .element()
+            .getBoundingClientRect();
+          const diagnosticBounds = disclosure.element().getBoundingClientRect();
+          return (
+            diagnosticBounds.top >= summaryBounds.bottom &&
+            Math.abs(diagnosticBounds.left - summaryBounds.left) <= 1
+          );
+        })
+        .toBe(true);
+      expect(alert.element().scrollWidth).toBeLessThanOrEqual(alert.element().clientWidth + 1);
+    }
+    expect(alert.element().querySelectorAll("button")).toHaveLength(1);
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
   await disclosure.click();
   await expect.element(diagnostic).toHaveTextContent(rawFailure.message);
   await expect.element(diagnostic).toBeVisible();

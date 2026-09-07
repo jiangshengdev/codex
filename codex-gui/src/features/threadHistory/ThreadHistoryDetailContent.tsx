@@ -1,5 +1,6 @@
 import { Alert, Button, Typography } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { FailureLayout } from "@/feedback/FailureLayout";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import { ReadOnlyCommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
@@ -75,17 +76,22 @@ function HistoryDetailError({
   return (
     <Alert role="alert" status="danger">
       <Alert.Indicator />
-      <Alert.Content>
-        <Alert.Title>
-          <Trans>Unable to load task history</Trans>
-        </Alert.Title>
-        <Alert.Description>{errorText(error)}</Alert.Description>
-        {retry == null ? null : (
-          <Button className="mt-3" onPress={retry} variant="tertiary">
-            <Trans>Retry</Trans>
-          </Button>
-        )}
-      </Alert.Content>
+      <FailureLayout
+        actions={
+          retry == null ? null : (
+            <Button onPress={retry} variant="tertiary">
+              <Trans>Retry</Trans>
+            </Button>
+          )
+        }
+      >
+        <Alert.Content>
+          <Alert.Title>
+            <Trans>Unable to load task history</Trans>
+          </Alert.Title>
+          <Alert.Description>{errorText(error)}</Alert.Description>
+        </Alert.Content>
+      </FailureLayout>
     </Alert>
   );
 }

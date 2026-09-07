@@ -78,7 +78,7 @@ msgstr "已用 {usedTokensLabel} tokens，共 {contextWindowLabel}"
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:227
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:228
 msgid "Active"
 msgstr "活动中"
 
@@ -90,7 +90,7 @@ msgstr "已激活任务"
 #. Source label for a skill installed by an administrator
 #. Source label for a skill installed by an administrator
 #: src/features/composerEditor/SelectedSkillToken.tsx:180
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:300
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:301
 msgid "Admin"
 msgstr "管理员"
 
@@ -99,11 +99,11 @@ msgstr "管理员"
 msgid "Agent spawn failed"
 msgstr "启动智能体失败"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:46
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:47
 msgid "An unexpected error occurred while continuing the task."
 msgstr "继续此任务时发生意外错误。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:111
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:112
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
@@ -121,16 +121,16 @@ msgstr "浏览历史任务"
 msgid "Cancel"
 msgstr "取消"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:27
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:43
 msgid "Changes could not be saved"
 msgstr "无法保存更改"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:61
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:63
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "继续前，请检查队列、其他打开的页面和会话历史。发送结果未知的消息仍会阻塞后续发送。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:211
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:239
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:215
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:243
 msgid "Cleanup diagnostic:"
 msgstr "清理诊断信息："
 
@@ -144,7 +144,7 @@ msgstr "关闭诊断信息"
 msgid "Closed {receiver}"
 msgstr "已关闭 {receiver}"
 
-#: src/features/appShell/AppShell.tsx:26
+#: src/features/appShell/AppShell.tsx:28
 msgid "Codex GUI could not be started."
 msgstr "Codex GUI 未能启动。"
 
@@ -200,7 +200,7 @@ msgstr "连接已中断，需要重新连接。"
 #~ msgid "Connection needs recovery"
 #~ msgstr "连接需要恢复"
 
-#: src/NotFoundPage.tsx:35
+#: src/NotFoundPage.tsx:20
 msgid "Contact support"
 msgstr "联系支持"
 
@@ -241,7 +241,7 @@ msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗�
 
 #. Resumes sending this page's restored queue; does not open the queue
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:132
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:74
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:76
 msgid "Continue sending"
 msgstr "继续发送"
 
@@ -372,7 +372,7 @@ msgstr "失败。"
 msgid "Finished waiting"
 msgstr "等待结束"
 
-#: src/NotFoundPage.tsx:32
+#: src/NotFoundPage.tsx:17
 msgid "Go back home"
 msgstr "返回首页"
 
@@ -402,19 +402,19 @@ msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项�
 msgid "History"
 msgstr "历史记录"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:68
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:69
 msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
 #: src/features/appShell/AppShellTopBar.tsx:49
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:33
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:34
 msgid "History detail"
 msgstr "历史详情"
 
 #. Short idle-state label for the current task beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:31
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:226
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:227
 msgid "Idle"
 msgstr "空闲"
 
@@ -457,25 +457,25 @@ msgstr "无效技能"
 msgid "Keep"
 msgstr "保留"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:162
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:163
 msgid "Load more"
 msgstr "加载更多"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:50
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:110
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:51
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:111
 msgid "Loading history…"
 msgstr "正在加载历史记录…"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:415
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:421
 msgid "Loading skills…"
 msgstr "正在加载技能…"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:43
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:44
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:200
-#: src/features/currentTask/CurrentTaskPage.tsx:208
+#: src/features/currentTask/CurrentTaskPage.tsx:197
+#: src/features/currentTask/CurrentTaskPage.tsx:205
 msgid "Loading task…"
 msgstr "正在加载任务…"
 
@@ -571,11 +571,11 @@ msgstr "尚无智能体完成任务"
 msgid "No committed messages yet."
 msgstr "暂无已提交的消息。"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:118
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:119
 msgid "No history for the current working directory."
 msgstr "当前工作目录没有历史记录。"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:275
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:276
 msgid "No matching skills"
 msgstr "没有匹配的技能"
 
@@ -590,11 +590,11 @@ msgstr "未找到"
 
 #. Short label for a current task that is not loaded beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:23
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:225
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:226
 msgid "Not loaded"
 msgstr "未加载"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:71
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:72
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
@@ -603,12 +603,12 @@ msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其
 msgid "Open current task"
 msgstr "打开当前任务"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:235
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:239
 msgid "Operation diagnostic:"
 msgstr "操作诊断信息："
 
 #: src/features/documentTitle/DocumentTitleOwner.tsx:51
-#: src/NotFoundPage.tsx:20
+#: src/NotFoundPage.tsx:33
 msgid "Page not found"
 msgstr "找不到页面"
 
@@ -686,7 +686,7 @@ msgstr "请先恢复此任务的连接，再将其移出列表。"
 msgid "Refresh complete. Try the action again."
 msgstr "已刷新，请重试此操作。"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:417
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:423
 msgid "Refreshing skills…"
 msgstr "正在刷新技能…"
 
@@ -697,7 +697,7 @@ msgid "Remove from list"
 msgstr "移出列表"
 
 #. Drops only this local unknown-send record, without retracting server work
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:105
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:107
 msgid "Remove local record"
 msgstr "移除本地记录"
 
@@ -716,7 +716,7 @@ msgstr "保存前请移除或替换无效技能。"
 #. Source label for a skill provided by the current repository
 #. Source label for a skill provided by the current repository
 #: src/features/composerEditor/SelectedSkillToken.tsx:170
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:290
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:291
 msgid "Repository"
 msgstr "仓库"
 
@@ -724,11 +724,11 @@ msgstr "仓库"
 msgid "Request failed"
 msgstr "请求失败"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:97
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:98
 msgid "Resolve the task list error above, then try again."
 msgstr "请先处理上方的任务列表错误，然后重试。"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:58
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:60
 msgid "Restored messages are paused"
 msgstr "恢复的消息已暂停发送"
 
@@ -742,18 +742,18 @@ msgstr "已恢复 {receiver}"
 msgid "Resuming {receiver}"
 msgstr "正在恢复 {receiver}"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:405
-#: src/features/currentTask/CurrentTaskPage.tsx:138
-#: src/features/currentTask/CurrentTaskPage.tsx:159
-#: src/features/currentTask/CurrentTaskPage.tsx:220
-#: src/features/currentTask/CurrentTaskPage.tsx:271
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:85
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:257
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:407
+#: src/features/currentTask/CurrentTaskPage.tsx:121
+#: src/features/currentTask/CurrentTaskPage.tsx:160
+#: src/features/currentTask/CurrentTaskPage.tsx:217
+#: src/features/currentTask/CurrentTaskPage.tsx:264
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:83
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:255
 msgid "Retry"
 msgstr "重试"
 
 #. Retries saving the composer draft and queue in this browser tab
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:40
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:35
 msgid "Retry saving"
 msgstr "重试保存"
 
@@ -761,8 +761,8 @@ msgstr "重试保存"
 msgid "Retry saving this task's state before removing it."
 msgstr "请先重试保存此任务的状态，再将其移出列表。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:140
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:173
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:131
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:163
 msgid "Return to current task"
 msgstr "返回当前任务"
 
@@ -801,7 +801,7 @@ msgstr "使用手机扫描"
 msgid "Send"
 msgstr "发送"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:86
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:88
 msgid "Sending result unknown"
 msgstr "发送结果未知"
 
@@ -822,7 +822,7 @@ msgstr "显示更多引导消息"
 msgid "Show more queued messages"
 msgstr "显示更多排队消息"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:421
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:427
 msgid "Showing saved skills because refresh failed"
 msgstr "刷新失败，正在显示已保存的技能"
 
@@ -831,15 +831,15 @@ msgstr "刷新失败，正在显示已保存的技能"
 msgid "Shutdown"
 msgstr "已关闭"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:419
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:425
 msgid "Skills could not be loaded"
 msgstr "无法加载技能"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:424
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:430
 msgid "Some skills could not be loaded"
 msgstr "部分技能无法加载"
 
-#: src/NotFoundPage.tsx:28
+#: src/NotFoundPage.tsx:41
 msgid "Sorry, we couldn’t find the page you’re looking for."
 msgstr "抱歉，找不到您要访问的页面。"
 
@@ -886,16 +886,16 @@ msgstr "结构化输入"
 #. Source label for a skill provided by the Codex system
 #. Source label for a skill provided by the Codex system
 #: src/features/composerEditor/SelectedSkillToken.tsx:175
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:295
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:296
 msgid "System"
 msgstr "系统"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:228
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:229
 msgid "System error"
 msgstr "系统错误"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:113
-#: src/features/currentTask/CurrentTaskPage.tsx:290
+#: src/features/currentTask/CurrentTaskPage.tsx:127
+#: src/features/currentTask/CurrentTaskPage.tsx:284
 msgid "Task action failed"
 msgstr "任务操作失败"
 
@@ -921,7 +921,7 @@ msgstr "连接恢复前无法查看任务历史。"
 msgid "Task opened"
 msgstr "任务已打开"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:189
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:194
 msgid "Task switched, but cannot be opened"
 msgstr "任务已切换，但当前无法打开"
 
@@ -930,16 +930,16 @@ msgstr "任务已切换，但当前无法打开"
 msgid "Tasks or the connection need attention."
 msgstr "任务或连接存在待处理的异常。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:195
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:200
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "连接在任务切换完成前中断。重新连接后请重试。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:172
-#: src/features/currentTask/CurrentTaskPage.tsx:233
+#: src/features/currentTask/CurrentTaskPage.tsx:174
+#: src/features/currentTask/CurrentTaskPage.tsx:231
 msgid "The current task could not be loaded."
 msgstr "当前任务未能加载。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:159
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:173
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当前任务再切换。"
 
@@ -963,7 +963,7 @@ msgstr "上一个任务连接未能完全清理，后续状态可能受到影响
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:293
+#: src/features/currentTask/CurrentTaskPage.tsx:287
 msgid "The task action could not be completed."
 msgstr "任务操作未能完成。"
 
@@ -971,8 +971,9 @@ msgstr "任务操作未能完成。"
 msgid "The task changed. Review its current state and try again."
 msgstr "任务状态已变化。请检查当前状态后重试。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:261
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:263
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:266
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:268
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:270
 msgid "The task connection could not be prepared."
 msgstr "无法准备任务连接。"
 
@@ -980,25 +981,25 @@ msgstr "无法准备任务连接。"
 #~ msgid "The task connection was closed."
 #~ msgstr "任务连接已关闭。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:67
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:128
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:265
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:68
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:142
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:272
 msgid "The task could not be activated."
 msgstr "无法激活任务。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:117
+#: src/features/currentTask/CurrentTaskPage.tsx:131
 msgid "The task could not be opened."
 msgstr "任务未能打开。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:119
+#: src/features/currentTask/CurrentTaskPage.tsx:133
 msgid "The task could not be removed."
 msgstr "任务未能移出列表。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:259
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:264
 msgid "The task could not be resumed."
 msgstr "无法恢复任务。"
 
-#: src/features/appShell/AppShell.tsx:73
+#: src/features/appShell/AppShell.tsx:77
 msgid "The task list could not be updated."
 msgstr "任务列表未能更新。"
 
@@ -1006,15 +1007,15 @@ msgstr "任务列表未能更新。"
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "任务已打开，但部分状态同步未完成。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:319
+#: src/features/currentTask/CurrentTaskPage.tsx:309
 msgid "The task recovery could not be completed."
 msgstr "任务恢复未能完成。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:200
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:205
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "任务切换已提交，但连接已中断。重新连接后请确认当前任务。"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:89
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:91
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "这些消息不会自动重发。移除本地记录不会取消或撤回服务端的消息。"
 
@@ -1034,7 +1035,7 @@ msgstr "这条消息正在编辑。"
 msgid "This pending message cannot be edited."
 msgstr "无法编辑这条待处理消息。"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:49
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
 msgid "This task has no messages."
 msgstr "此任务没有消息。"
 
@@ -1059,7 +1060,7 @@ msgid "This task still has queued messages."
 msgstr "此任务仍有排队消息。"
 
 #. History date group: tasks last active on the current local day
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:122
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:123
 msgid "Today"
 msgstr "今天"
 
@@ -1073,16 +1074,16 @@ msgstr "上下文分页"
 msgid "Turn {resolvedTurnId}"
 msgstr "轮次 {resolvedTurnId}"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:42
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:64
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:94
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:124
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:187
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:225
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:43
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:65
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:95
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:138
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:192
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:230
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:252
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:262
 msgid "Unable to load history"
 msgstr "无法加载历史记录"
 
@@ -1090,16 +1091,16 @@ msgstr "无法加载历史记录"
 #~ msgid "Unable to load task"
 #~ msgstr "无法加载任务"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:80
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:90
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:169
-#: src/features/currentTask/CurrentTaskPage.tsx:230
+#: src/features/currentTask/CurrentTaskPage.tsx:171
+#: src/features/currentTask/CurrentTaskPage.tsx:228
 msgid "Unable to load the current task"
 msgstr "无法加载当前任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:316
+#: src/features/currentTask/CurrentTaskPage.tsx:306
 msgid "Unable to recover the current task"
 msgstr "无法恢复当前任务"
 
@@ -1107,7 +1108,7 @@ msgstr "无法恢复当前任务"
 #~ msgid "Unable to remove this task. Retry when its state is ready."
 #~ msgstr "无法移出此任务。请等待任务状态就绪后重试。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:76
+#: src/features/currentTask/CurrentTaskPage.tsx:77
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "无法重试此任务。请检查当前状态后再试。"
 
@@ -1119,16 +1120,16 @@ msgstr "无法重试此任务。请检查当前状态后再试。"
 #~ msgid "Unable to save the active task list. Retry the task operation."
 #~ msgstr "无法保存已激活任务列表。请重试任务操作。"
 
-#: src/features/appShell/AppShell.tsx:23
+#: src/features/appShell/AppShell.tsx:25
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:108
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:155
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:109
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:169
 msgid "Unable to switch tasks yet"
 msgstr "暂时无法切换任务"
 
-#: src/features/appShell/AppShell.tsx:70
+#: src/features/appShell/AppShell.tsx:74
 msgid "Unable to update the task list"
 msgstr "无法更新任务列表"
 
@@ -1137,8 +1138,8 @@ msgstr "无法更新任务列表"
 msgid "Unknown"
 msgstr "状态未知"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:34
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:171
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:35
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:172
 msgid "Untitled task"
 msgstr "未命名任务"
 
@@ -1149,11 +1150,11 @@ msgstr "无法加载更新后的待处理顺序"
 #. Source label for a skill installed by the current user
 #. Source label for a skill installed by the current user
 #: src/features/composerEditor/SelectedSkillToken.tsx:165
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:285
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:286
 msgid "User"
 msgstr "用户"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:215
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:216
 msgid "View"
 msgstr "查看"
 
@@ -1223,10 +1224,10 @@ msgid "Will send first"
 msgstr "将优先发送"
 
 #. History date group: tasks last active on the previous local day
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:126
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:127
 msgid "Yesterday"
 msgstr "昨天"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:30
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:46
 msgid "Your input is still here. Sending is blocked until saving succeeds."
 msgstr "输入内容仍保留在此处。保存成功前无法发送。"
