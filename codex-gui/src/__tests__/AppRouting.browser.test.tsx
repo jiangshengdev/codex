@@ -332,7 +332,13 @@ test("history cards open details and preserve one connection across browser back
   readThread.mockRejectedValueOnce(new Error("history read failed"));
   router.history.forward();
 
-  await expect.element(screen.getByRole("alert")).toHaveTextContent("history read failed");
+  const historyError = screen.getByRole("alert");
+  await expect.element(historyError).toHaveTextContent("Unable to load task history");
+  await historyError.getByRole("button", { name: "View diagnostic information" }).click();
+  const diagnostics = page.getByRole("dialog", { name: "Diagnostic information" });
+  await expect.element(diagnostics.getByText("history read failed", { exact: true })).toBeVisible();
+  await diagnostics.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect.element(diagnostics).not.toBeInTheDocument();
   await expect.poll(() => document.title).toBe("History detail · Codex");
   expect(readThread).toHaveBeenNthCalledWith(2, {
     threadId: historyThreadId,
@@ -606,7 +612,15 @@ test("history titles follow route identity through loading, error, retry, and un
   await expect.poll(() => document.title).toBe("History detail · Codex");
 
   nextRead.reject(new Error("second preview failed"));
-  await expect.element(screen.getByRole("alert")).toHaveTextContent("second preview failed");
+  const historyError = screen.getByRole("alert");
+  await expect.element(historyError).toHaveTextContent("Unable to load task history");
+  await historyError.getByRole("button", { name: "View diagnostic information" }).click();
+  const diagnostics = page.getByRole("dialog", { name: "Diagnostic information" });
+  await expect
+    .element(diagnostics.getByText("second preview failed", { exact: true }))
+    .toBeVisible();
+  await diagnostics.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect.element(diagnostics).not.toBeInTheDocument();
   await expect.element(heading).toHaveTextContent("History detail");
   await screen.getByRole("button", { name: "Retry", exact: true }).click();
   await expect.element(heading).toHaveTextContent("Second preview");

@@ -295,9 +295,19 @@ test("App rejects a startup attach that returns a different thread identity", as
   queueAttachProjectionResponse(commands, mismatchedAttach);
   initializeHost(options, commands);
 
+  const taskError = screen.getByRole("main").getByRole("alert");
+  await expect.element(taskError).toHaveTextContent("Unable to load the current task");
+  await taskError.getByRole("button", { name: "View diagnostic information" }).click();
+  const diagnostics = screen.getByRole("dialog", { name: "Diagnostic information" });
   await expect
-    .element(screen.getByRole("main").getByRole("alert"))
-    .toHaveTextContent("thread/projection/attach returned a different thread identity");
+    .element(
+      diagnostics.getByText("thread/projection/attach returned a different thread identity", {
+        exact: true,
+      }),
+    )
+    .toBeVisible();
+  await diagnostics.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect.element(diagnostics).not.toBeInTheDocument();
   expect(selectThreadRuntimeRecord(store.getState(), launchThreadId)).toBeNull();
   expect(createComposerInputQueueCoordinator).not.toHaveBeenCalled();
 });
