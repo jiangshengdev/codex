@@ -77,6 +77,40 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Reclaim Cargo build space (ARM64 archive runner)
+        if: ${{ runner.os == 'Linux' && env.ARCHIVE_CACHE_RUNNER == 'oci-ubuntu-arm64-large' }}
+        shell: bash
+        env:
+          # Initial headroom for compilation and archive creation, not a peak estimate.
+          MIN_FREE_KIB: "20971520"
+        run: |
+          set -euo pipefail
+          cargo_target_dir="$HOME/.cache/codex-ci/cargo-target"
+          mkdir -p "$cargo_target_dir"
+
+          check_space() {
+            local disk_usage
+            disk_usage=$(LC_ALL=C df -Pk "$cargo_target_dir")
+            available_kib=$(awk 'NR == 2 { print $4 }' <<< "$disk_usage")
+            if [[ ! "$available_kib" =~ ^[0-9]+$ ]]; then
+              echo "::error::Unable to determine available Cargo build space"
+              return 1
+            fi
+            echo "Cargo build space: ${available_kib} KiB available; minimum ${MIN_FREE_KIB} KiB"
+          }
+
+          check_space
+          if (( available_kib < MIN_FREE_KIB )); then
+            echo "::warning::Low disk space; cleaning persistent Cargo build artifacts"
+            cargo clean --manifest-path "$GITHUB_WORKSPACE/codex-rs/Cargo.toml" \
+              --target-dir "$cargo_target_dir"
+            check_space
+            if (( available_kib < MIN_FREE_KIB )); then
+              echo "::error::Insufficient disk space after cleaning Cargo build artifacts"
+              exit 1
+            fi
+          fi
+
       - name: Free disk space (Linux x64 remote archive)
         if: ${{ runner.os == 'Linux' && runner.environment == 'github-hosted' && inputs.artifact_id == 'linux-x64-remote' }}
         uses: ./.github/actions/free-linux-disk
