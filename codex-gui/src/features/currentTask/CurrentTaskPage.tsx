@@ -1,4 +1,4 @@
-import { Alert, Button, Surface } from "@heroui/react";
+import { Alert, Button, Spinner, Surface } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
@@ -197,7 +197,7 @@ export function CurrentTaskPage() {
   if (routeTarget.type !== "currentTask" || snapshot.threadId !== routeTarget.threadId) {
     return (
       <main className="app-shell-content-boundary py-3" data-gui-host-status={status.label}>
-        <Trans>Loading task…</Trans>
+        <CurrentTaskLoading />
       </main>
     );
   }
@@ -205,7 +205,7 @@ export function CurrentTaskPage() {
     if (snapshot.phase === "loading") {
       return (
         <main className="app-shell-content-boundary py-3" data-gui-host-status={status.label}>
-          <Trans>Loading task…</Trans>
+          <CurrentTaskLoading />
         </main>
       );
     }
@@ -371,6 +371,20 @@ function CurrentTaskReady({
         routeTarget={routeTarget}
       />
     </main>
+  );
+}
+
+function CurrentTaskLoading() {
+  return (
+    <div
+      className="mx-auto flex w-fit max-w-full items-center gap-2 py-6 text-sm text-muted"
+      role="status"
+    >
+      <Spinner aria-hidden="true" size="sm" />
+      <span>
+        <Trans>Loading task…</Trans>
+      </span>
+    </div>
   );
 }
 

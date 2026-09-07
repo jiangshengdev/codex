@@ -22,12 +22,15 @@ const fitsWithinOwnWidth = (element: HTMLElement): boolean =>
   element.scrollWidth <= element.clientWidth + 1;
 
 test("settles the initial history request and renders its result under StrictMode", async () => {
-  const listThreads = vi
-    .fn<GuiHostCommands["listThreads"]>()
-    .mockResolvedValue(response([thread("strict", { name: "Strict mode task" })], null));
+  const initialPage = deferred<ThreadListResponse>();
+  const listThreads = vi.fn<GuiHostCommands["listThreads"]>().mockReturnValue(initialPage.promise);
   const { screen } = await renderHistory(listThreads, { strictMode: true });
 
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Loading history…");
+  await expect.element(screen.getByRole("article")).not.toBeInTheDocument();
+  initialPage.resolve(response([thread("strict", { name: "Strict mode task" })], null));
   await expect.element(screen.getByRole("article", { name: "Strict mode task" })).toBeVisible();
+  await expect.element(screen.getByRole("status")).not.toBeInTheDocument();
   await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
   expect(listThreads).toHaveBeenCalledExactlyOnceWith({
     archived: false,
@@ -42,9 +45,37 @@ test("keeps loading while the active thread session is pending publication", asy
   const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
   const { screen } = await renderHistory(listThreads, { activeThreadSession: null });
 
-  await expect.element(screen.getByText("Loading history…")).toBeVisible();
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Loading history…");
+  await expect.element(screen.getByRole("article")).not.toBeInTheDocument();
   await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
   expect(listThreads).not.toHaveBeenCalled();
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  try {
+    for (const [width, columns] of [
+      [375, 1],
+      [900, 2],
+      [1440, 3],
+    ] as const) {
+      await page.viewport(width, 720);
+      const main = screen.getByRole("main").element();
+      const cards = Array.from(main.querySelectorAll<HTMLElement>('[data-slot="card"]'));
+      expect(cards.length).toBeGreaterThan(0);
+      const firstCard = cards[0];
+      if (firstCard == null) throw new Error("Expected a loading card");
+      const grid = historyGrid(firstCard);
+      expect(getComputedStyle(grid).gridTemplateColumns.split(" ")).toHaveLength(columns);
+      expect(fitsWithinOwnWidth(grid)).toBe(true);
+      for (const card of cards) {
+        expect(card.getBoundingClientRect().width).toBeGreaterThan(0);
+        expect(fitsWithinOwnWidth(card)).toBe(true);
+        expect(card.getBoundingClientRect().right).toBeLessThanOrEqual(
+          main.getBoundingClientRect().right,
+        );
+      }
+    }
+  } finally {
+    await page.viewport(viewport.width, viewport.height);
+  }
 });
 
 test("fails closed with the complete context error when the settled session is empty", async () => {
@@ -536,15 +567,19 @@ test("keeps load-more and append errors reachable after the history cards", asyn
 });
 
 test("shows the complete initial error and retries into the empty state", async () => {
+  const initialPage = deferred<ThreadListResponse>();
   const rawFailure = new Error("complete backend failure: request id 42");
   const listThreads = vi
     .fn<GuiHostCommands["listThreads"]>()
-    .mockRejectedValueOnce(rawFailure)
+    .mockReturnValueOnce(initialPage.promise)
     .mockResolvedValueOnce(response([], null));
   const { screen } = await renderHistory(listThreads);
 
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Loading history…");
+  initialPage.reject(rawFailure);
   const alert = screen.getByRole("alert");
   await expect.element(alert.getByText("Unable to load history")).toBeVisible();
+  await expect.element(screen.getByRole("status")).not.toBeInTheDocument();
   await expect.element(page.getByText(rawFailure.message, { exact: true })).not.toBeInTheDocument();
   await alert.getByRole("button", { name: "View diagnostic information" }).click();
   const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
@@ -633,7 +668,7 @@ test("removes cards from the previous cwd before the replacement cwd request set
 
   activeThreadSessionHarness.setHistoryCwd("/workspace/replacement");
 
-  await expect.element(screen.getByText("Loading history…")).toBeVisible();
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Loading history…");
   await expect
     .element(screen.getByRole("article", { name: "Old cwd task" }))
     .not.toBeInTheDocument();

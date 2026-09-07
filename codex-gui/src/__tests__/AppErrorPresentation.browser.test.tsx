@@ -66,6 +66,57 @@ beforeEach(() => {
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
 });
 
+test.each(["success", "failure"] as const)(
+  "announces task loading and removes the indicator after %s",
+  async (outcome) => {
+    const commands = createGuiHostCommands();
+    const pendingAttach = queueDeferredAttachProjection(commands);
+    const screen = await renderWithProviders(<App />);
+    initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
+    await expect.poll(pendingAttach.getState).toBe("pending");
+    const loading = screen
+      .getByRole("main")
+      .getByRole("status")
+      .filter({ hasText: "Loading task…" });
+    await expect.element(loading).toHaveTextContent("Loading task…");
+    await expect.element(loading).toBeVisible();
+    await expect
+      .element(screen.getByRole("region", { name: "Message composer" }))
+      .not.toBeInTheDocument();
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    try {
+      for (const width of [375, 1280]) {
+        await page.viewport(width, 720);
+        const mainBounds = screen.getByRole("main").element().getBoundingClientRect();
+        const loadingBounds = loading.element().getBoundingClientRect();
+        expect(loadingBounds.left).toBeGreaterThanOrEqual(mainBounds.left);
+        expect(loadingBounds.right).toBeLessThanOrEqual(mainBounds.right);
+        expect(loadingBounds.left + loadingBounds.width / 2).toBeCloseTo(
+          mainBounds.left + mainBounds.width / 2,
+          0,
+        );
+      }
+    } finally {
+      await page.viewport(viewport.width, viewport.height);
+    }
+    if (outcome === "success") {
+      pendingAttach.resolve();
+    } else {
+      pendingAttach.reject(new Error("Task loading failed"));
+    }
+    const settledContent =
+      outcome === "success"
+        ? screen.getByRole("region", { name: "Message composer" })
+        : screen
+            .getByRole("main")
+            .getByRole("alert")
+            .getByText("The current task could not be loaded.");
+    await expect.element(settledContent).toBeVisible();
+    await expect.element(loading).not.toBeInTheDocument();
+    await expect.element(screen.getByText("Loading task…")).not.toBeInTheDocument();
+  },
+);
+
 test.each([`/task/${launchThreadId}`, "/history", `/history/${launchThreadId}`])(
   "App displays a shared connection error once on %s",
   async (initialEntry) => {
