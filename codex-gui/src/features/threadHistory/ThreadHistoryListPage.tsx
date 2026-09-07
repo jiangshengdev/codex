@@ -1,17 +1,16 @@
-import { Alert, Button, Card, Chip } from "@heroui/react";
+import { Alert, Button, Card, Chip, Skeleton } from "@heroui/react";
 import { cardVariants } from "@heroui/styles";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
-import { useAppSelector } from "@/app/hooks";
+import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
+import { FailureLayout } from "@/feedback/FailureLayout";
 import {
-  useActiveThreadId,
   useActiveThreadSessionPhase,
   useAppCapabilities,
 } from "@/features/appShell/AppCapabilities";
 import { HISTORY_DETAIL_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
-import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import { errorText } from "@/text/errorText";
 import type { Thread } from "@codex-protocol/v2";
 import {
@@ -25,20 +24,19 @@ import { useStrictModeSafeOwner } from "./useStrictModeSafeOwner";
 
 export function ThreadHistoryListPage() {
   const { activeThreadSession, commands, status } = useAppCapabilities();
-  const activeThreadId = useActiveThreadId();
   const activeThreadSessionPhase = useActiveThreadSessionPhase();
-  const runtime = useAppSelector((state) =>
-    activeThreadId == null ? null : selectThreadRuntimeRecord(state, activeThreadId),
+  const cwd = useSyncExternalStore(
+    activeThreadSession?.subscribe ?? subscribeToUnavailableHistory,
+    activeThreadSession?.getHistoryCwd ?? getUnavailableHistoryCwd,
+    activeThreadSession?.getHistoryCwd ?? getUnavailableHistoryCwd,
   );
-  const cwd =
-    activeThreadId != null && runtime?.thread.id === activeThreadId ? runtime.thread.cwd : null;
   const historyContextUnavailable =
     activeThreadSession != null &&
     commands != null &&
     status.label !== "error" &&
     status.label !== "closed" &&
     activeThreadSessionPhase === "empty" &&
-    activeThreadId == null;
+    cwd == null;
 
   useEffect(() => {
     window.scrollTo({ left: 0, top: 0 });
@@ -47,7 +45,7 @@ export function ThreadHistoryListPage() {
   return (
     <main className="app-shell-content-boundary grid min-h-0 flex-1 content-start gap-4 py-3">
       {activeThreadSession == null && status.label !== "error" && status.label !== "closed" ? (
-        renderHistoryMessage(<Trans>Loading history…</Trans>)
+        <HistoryListLoading />
       ) : historyContextUnavailable ? (
         <HistoryContextUnavailable />
       ) : commands != null && cwd != null ? (
@@ -58,6 +56,9 @@ export function ThreadHistoryListPage() {
     </main>
   );
 }
+
+const subscribeToUnavailableHistory = (): (() => void) => () => undefined;
+const getUnavailableHistoryCwd = (): null => null;
 
 function HistoryContextUnavailable() {
   return (
@@ -107,7 +108,7 @@ function HistoryListContent({ state, loadMore, retry }: HistoryListContentProps)
   const { i18n, t } = useLingui();
   const now = new Date(useSyncExternalStore(subscribeToHistoryDay, getHistoryDaySnapshot));
   if (state.type === "initialLoading") {
-    return renderHistoryMessage(<Trans>Loading history…</Trans>);
+    return <HistoryListLoading />;
   }
 
   if (state.type === "initialError") {
@@ -162,6 +163,34 @@ function HistoryListContent({ state, loadMore, retry }: HistoryListContentProps)
           <Trans>Load more</Trans>
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+function HistoryListLoading() {
+  return (
+    <div className="grid min-w-0 gap-3">
+      <p className="sr-only" role="status">
+        <Trans>Loading history…</Trans>
+      </p>
+      <div aria-hidden="true" className="grid min-w-0 gap-3">
+        <Skeleton className="h-4 w-20 motion-reduce:after:animate-none" />
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2].map((index) => (
+            <Card key={index} className="min-w-0 gap-3" variant="default">
+              <Card.Header className="min-w-0 gap-2">
+                <Skeleton className="h-5 w-3/4 motion-reduce:after:animate-none" />
+                <Skeleton className="h-4 w-full motion-reduce:after:animate-none" />
+                <Skeleton className="h-4 w-2/3 motion-reduce:after:animate-none" />
+              </Card.Header>
+              <Card.Footer className="mt-auto gap-2">
+                <Skeleton className="h-4 w-12 motion-reduce:after:animate-none" />
+                <Skeleton className="h-5 w-16 rounded-full motion-reduce:after:animate-none" />
+              </Card.Footer>
+            </Card>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -247,17 +276,26 @@ function HistoryError(props: HistoryErrorProps) {
   return (
     <Alert role="alert" status="danger">
       <Alert.Indicator />
-      <Alert.Content>
-        <Alert.Title>
-          <Trans>Unable to load history</Trans>
-        </Alert.Title>
-        {"error" in props ? <Alert.Description>{errorText(props.error)}</Alert.Description> : null}
-        {props.retry == null ? null : (
-          <Button className="mt-3" onPress={props.retry} variant="tertiary">
-            <Trans>Retry</Trans>
-          </Button>
-        )}
-      </Alert.Content>
+      <FailureLayout
+        actions={
+          props.retry == null ? null : (
+            <Button onPress={props.retry} variant="tertiary">
+              <Trans>Retry</Trans>
+            </Button>
+          )
+        }
+      >
+        <Alert.Content>
+          <Alert.Title>
+            <Trans>Unable to load history</Trans>
+          </Alert.Title>
+          {"error" in props ? (
+            <FailureDiagnosticModal triggerClassName="mt-2 self-start">
+              {errorText(props.error)}
+            </FailureDiagnosticModal>
+          ) : null}
+        </Alert.Content>
+      </FailureLayout>
     </Alert>
   );
 }

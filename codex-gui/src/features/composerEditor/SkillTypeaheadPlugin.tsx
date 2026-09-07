@@ -29,6 +29,7 @@ import {
 import { createPortal } from "react-dom";
 
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
+import { FailureLayout } from "@/feedback/FailureLayout";
 
 import { $createSkillNode } from "./SkillNode";
 import { querySkills, type SkillQueryResult } from "./skillQuery";
@@ -396,15 +397,20 @@ function SkillCatalogStatus({
   return (
     <div
       aria-live="polite"
-      className="flex shrink-0 items-center justify-between gap-2 border-b border-separator px-3 py-2 text-sm text-muted"
+      className="shrink-0 border-b border-separator px-3 py-2 text-sm text-muted"
       role="status"
     >
-      <span>{status}</span>
-      {onRetry != null && canRetryCatalog ? (
-        <Button onPress={onRetry} size="sm" variant="secondary">
-          <Trans>Retry</Trans>
-        </Button>
-      ) : null}
+      <FailureLayout
+        actions={
+          onRetry != null && canRetryCatalog ? (
+            <Button onPress={onRetry} size="sm" variant="secondary">
+              <Trans>Retry</Trans>
+            </Button>
+          ) : null
+        }
+      >
+        <span>{status}</span>
+      </FailureLayout>
     </div>
   );
 }

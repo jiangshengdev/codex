@@ -575,6 +575,43 @@ test("App displays GUI host startup errors in the top notices region", async () 
   await expect.element(dialog).not.toBeInTheDocument();
 });
 
+test.each([1280, 375])(
+  "App keeps startup diagnostics below the description at %i pixels",
+  async (width) => {
+    const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+    try {
+      await page.viewport(width, 720);
+      startGuiHostConnectionMock.mockImplementation(() => {
+        throw new Error("Missing launch token fragment");
+      });
+      const screen = await renderWithProviders(<App />);
+      const description = screen.getByText("Codex GUI could not be started.", { exact: true });
+      const diagnostics = screen.getByRole("button", {
+        name: "View diagnostic information",
+        exact: true,
+      });
+      await expect.element(diagnostics).toBeVisible();
+      await expect
+        .poll(() => {
+          const descriptionRect = description.element().getBoundingClientRect();
+          const diagnosticRect = diagnostics.element().getBoundingClientRect();
+          return {
+            belowDescription: diagnosticRect.top >= descriptionRect.bottom - 1,
+            alignedWithContent: Math.abs(diagnosticRect.left - descriptionRect.left) <= 1,
+            withinViewport: diagnosticRect.left >= 0 && diagnosticRect.right <= window.innerWidth,
+          };
+        })
+        .toEqual({ belowDescription: true, alignedWithContent: true, withinViewport: true });
+      expect(
+        description.element().compareDocumentPosition(diagnostics.element()) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).not.toBe(0);
+    } finally {
+      await page.viewport(originalViewport.width, originalViewport.height);
+    }
+  },
+);
+
 test("App aligns history startup errors with their responsive shell owners", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
 
@@ -593,7 +630,7 @@ test("App aligns history startup errors with their responsive shell owners", asy
       .element()
       .closest('[role="alert"]');
     const topNoticeTitle = screen.getByText("Unable to start Codex GUI").element();
-    const topNoticeAlert = topNoticeTitle.parentElement?.parentElement;
+    const topNoticeAlert = topNoticeTitle.closest(".alert");
     const topNoticeContent = topNoticeAlert?.parentElement;
 
     if (

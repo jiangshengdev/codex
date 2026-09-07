@@ -1,4 +1,5 @@
 import { beforeEach, expect, test, vi } from "vitest";
+import { page } from "vitest/browser";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import { createAppRouter } from "@/router";
@@ -163,3 +164,86 @@ test("navigates to the canonical history list only after Go back home is pressed
   expect(router.state.location.search).toEqual({});
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
 });
+
+test.each([
+  {
+    locale: "en" as const,
+    width: 1280,
+    action: "Go back home",
+    support: "Contact support",
+    description: "Sorry, we couldn’t find the page you’re looking for.",
+  },
+  {
+    locale: "en" as const,
+    width: 375,
+    action: "Go back home",
+    support: "Contact support",
+    description: "Sorry, we couldn’t find the page you’re looking for.",
+  },
+  {
+    locale: "zh-CN" as const,
+    width: 1280,
+    action: "返回首页",
+    support: "联系支持",
+    description: "抱歉，找不到您要访问的页面。",
+  },
+  {
+    locale: "zh-CN" as const,
+    width: 375,
+    action: "返回首页",
+    support: "联系支持",
+    description: "抱歉，找不到您要访问的页面。",
+  },
+])(
+  "places not-found actions after content responsively in $locale at $width pixels",
+  async ({ locale, width, action, support, description }) => {
+    const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+    try {
+      await page.viewport(width, 800);
+      const router = createAppRouter(createMemoryHistory({ initialEntries: ["/"] }));
+      const screen = await renderWithProviders(<RouterProvider router={router} />, { locale });
+      const homeButton = screen.getByRole("button", { name: action, exact: true });
+      const supportLink = screen.getByRole("link", { name: support });
+      const descriptionText = screen.getByText(description, { exact: true });
+      const errorCode = screen.getByText("404", { exact: true });
+      await expect.element(homeButton).toBeVisible();
+      await expect.element(supportLink).toBeVisible();
+      await expect
+        .poll(() => {
+          const actionRect = homeButton.element().getBoundingClientRect();
+          const supportRect = supportLink.element().getBoundingClientRect();
+          const contentRect = descriptionText.element().getBoundingClientRect();
+          const codeRect = errorCode.element().getBoundingClientRect();
+          return {
+            responsivePlacement:
+              width === 375
+                ? actionRect.top >= contentRect.bottom - 1 &&
+                  Math.abs(actionRect.left - contentRect.left) <= 1
+                : actionRect.left >= contentRect.right - 1 &&
+                  Math.abs(actionRect.top - codeRect.top) <= 1,
+            actionsWithinViewport:
+              actionRect.left >= 0 &&
+              actionRect.right <= window.innerWidth &&
+              supportRect.left >= 0 &&
+              supportRect.right <= window.innerWidth,
+            noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+          };
+        })
+        .toEqual({
+          responsivePlacement: true,
+          actionsWithinViewport: true,
+          noHorizontalOverflow: true,
+        });
+      expect(
+        descriptionText.element().compareDocumentPosition(homeButton.element()) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        homeButton.element().compareDocumentPosition(supportLink.element()) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    } finally {
+      await page.viewport(originalViewport.width, originalViewport.height);
+    }
+  },
+);

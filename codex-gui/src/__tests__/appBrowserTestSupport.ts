@@ -71,6 +71,9 @@ export const createGuiHostCommands = ({
   loadedThreadIds?: readonly string[];
   storedThreadIds?: readonly string[];
 } = {}): GuiHostCommands => ({
+  startThread: vi
+    .fn<GuiHostCommands["startThread"]>()
+    .mockRejectedValue(new Error("Unexpected thread/start")),
   compactThread: vi.fn<GuiHostCommands["compactThread"]>().mockResolvedValue({}),
   attachThreadProjection: vi
     .fn<GuiHostCommands["attachThreadProjection"]>()
@@ -264,7 +267,7 @@ export const seedBrowserAuthorizationSession = ({
     storage: window.sessionStorage,
   });
   if (activeThreadId != null) {
-    session.commitActiveThread(activeThreadId);
+    session.commitActiveThread(activeThreadId, attachResponse.snapshot.thread.cwd);
   }
 };
 

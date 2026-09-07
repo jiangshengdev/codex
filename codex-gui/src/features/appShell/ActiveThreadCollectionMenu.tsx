@@ -9,7 +9,7 @@ import type {
 } from "@/features/activeThreadSession/activeThreadSessionCollectionContracts";
 import {
   CURRENT_TASK_ROUTE_PATH,
-  HISTORY_DETAIL_ROUTE_PATH,
+  HISTORY_LIST_ROUTE_PATH,
   selectGuiRouteTarget,
 } from "@/features/browserLaunch/guiRouteTarget";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
@@ -77,8 +77,7 @@ function ActiveThreadCollectionRow({
     ) {
       close();
       await navigate({
-        to: HISTORY_DETAIL_ROUTE_PATH,
-        params: { threadId: outcome.threadId },
+        to: HISTORY_LIST_ROUTE_PATH,
         replace: true,
       }).then(
         () => activeThreadSession?.setOperationError(member.threadId, "navigation", null),

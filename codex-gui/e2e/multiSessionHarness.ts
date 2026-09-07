@@ -25,8 +25,10 @@ import type {
   SkillsListResponse,
   Thread,
   ThreadListResponse,
+  ThreadLoadedListResponse,
   ThreadReadResponse,
   ThreadResumeResponse,
+  ThreadStartResponse,
   ThreadProjectionEventNotification,
   ThreadStatusChangedNotification,
   TurnStartResponse,
@@ -41,15 +43,17 @@ export const secondTitle = "Second parallel task";
 type RpcRequest = {
   id: number;
   method: string;
-  params?: { threadId?: string; subscriptionId?: string };
+  params?: { threadId?: string; subscriptionId?: string; cwd?: string };
 };
 
 export async function createMultiSessionHarness(
   page: Page,
   initiallyActive = true,
   acknowledgeSends = true,
+  newThreadIds: readonly string[] = [],
 ) {
   const requests: RpcRequest[] = [];
+  const loadedThreadIds = new Set<string>();
   const threads = new Map<string, Thread>(
     [firstThreadId, secondThreadId].map((id): [string, Thread] => {
       const attach = attachWithTurns(
@@ -71,6 +75,11 @@ export async function createMultiSessionHarness(
   const subscriptions = new Map<string, string>();
   const heads = new Map<string, string | null>();
   const resumeErrors = new Map<string, string>();
+  let startMode: "reply" | "hold" | "invalid" | "disconnect" = "reply";
+  let pendingStart: (() => void) | undefined;
+  let createdCount = 0;
+  const attachModes = new Map<string, "hold" | "error">();
+  const pendingAttachments = new Map<string, () => void>();
 
   const thread = (id: string): Thread => {
     const value = threads.get(id);
@@ -127,6 +136,12 @@ export async function createMultiSessionHarness(
           return;
         case "initialized":
           return;
+        case "thread/loaded/list":
+          reply({
+            data: [...loadedThreadIds],
+            nextCursor: null,
+          } satisfies ThreadLoadedListResponse);
+          return;
         case "thread/list":
           reply({
             data: [...threads.values()],
@@ -137,6 +152,39 @@ export async function createMultiSessionHarness(
         case "thread/read":
           reply({ thread: requestedThread() } satisfies ThreadReadResponse);
           return;
+        case "thread/start": {
+          const id = newThreadIds[createdCount++];
+          if (id == null) throw new Error("No configured new-session identity");
+          const value: Thread = {
+            ...attachWithTurns(attachWithThreadId(attachBaseline, id), []).snapshot.thread,
+            cwd: request.params?.cwd ?? attachBaseline.snapshot.thread.cwd,
+            name: "Created task",
+            status: { type: "idle" },
+          };
+          threads.set(id, value);
+          loadedThreadIds.add(id);
+          const complete = () => {
+            reply({
+              thread: value,
+              model: "test-model",
+              modelProvider: value.modelProvider,
+              serviceTier: null,
+              cwd: value.cwd,
+              instructionSources: [],
+              approvalPolicy: "never",
+              approvalsReviewer: "user",
+              sandbox: { type: "dangerFullAccess" },
+              reasoningEffort: null,
+            } satisfies ThreadStartResponse);
+          };
+          if (startMode === "hold") pendingStart = complete;
+          else if (startMode === "invalid") reply({});
+          else if (startMode === "disconnect") {
+            // The backend has created the thread, but its identity never reaches the client.
+            void socket.close({ code: 1011, reason: "Creation response lost" });
+          } else complete();
+          return;
+        }
         case "thread/resume": {
           const value = requestedThread();
           const error = resumeErrors.get(value.id);
@@ -150,6 +198,7 @@ export async function createMultiSessionHarness(
             );
             return;
           }
+          loadedThreadIds.add(value.id);
           reply({
             thread: value,
             model: "test-model",
@@ -168,11 +217,25 @@ export async function createMultiSessionHarness(
         }
         case "thread/projection/attach": {
           const value = requestedThread();
+          if (attachModes.get(value.id) === "error") {
+            socket.send(
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id: request.id,
+                error: { code: -32000, message: "New session attach unavailable" },
+              }),
+            );
+            return;
+          }
           const subscriptionId = `${value.id}-subscription-${String(requests.length)}`;
           subscriptions.set(value.id, subscriptionId);
           heads.set(value.id, null);
           const attach = attachWithTurns(attachWithThreadId(attachBaseline, value.id), value.turns);
-          reply(attachWithSnapshotThread(attach, value, subscriptionId));
+          const complete = () => {
+            reply(attachWithSnapshotThread(attach, value, subscriptionId));
+          };
+          if (attachModes.get(value.id) === "hold") pendingAttachments.set(value.id, complete);
+          else complete();
           return;
         }
         case "skills/list":
@@ -213,9 +276,35 @@ export async function createMultiSessionHarness(
   });
   return {
     requests,
+    setThreadCwd(id: string, cwd: string) {
+      thread(id).cwd = cwd;
+    },
+    setStartMode(mode: typeof startMode) {
+      startMode = mode;
+    },
+    releaseStart() {
+      if (pendingStart == null) throw new Error("No held creation response");
+      pendingStart();
+      pendingStart = undefined;
+    },
+    setAttachMode(id: string, mode: "hold" | "error" | null) {
+      if (mode == null) attachModes.delete(id);
+      else attachModes.set(id, mode);
+    },
+    releaseAttachment(id: string) {
+      const complete = pendingAttachments.get(id);
+      if (complete == null) throw new Error(`No held attachment for ${id}`);
+      complete();
+      pendingAttachments.delete(id);
+    },
+    starts: () => requests.filter((request) => request.method === "thread/start"),
     setResumeError(id: string, error: string | null) {
       if (error == null) resumeErrors.delete(id);
-      else resumeErrors.set(id, error);
+      else {
+        // A resume failure requires an unloaded thread; loaded threads attach directly.
+        loadedThreadIds.delete(id);
+        resumeErrors.set(id, error);
+      }
     },
     resumes: (id: string) =>
       requests.filter(

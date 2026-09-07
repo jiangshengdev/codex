@@ -183,6 +183,8 @@ export type CreateComposerInputQueueCoordinatorInput = Readonly<{
 }>;
 
 type CoordinatorState = {
+  // A suspended owner stays isolated; reconnection creates a new restoring owner.
+  sendingBarrier: "restoring" | "suspended" | null;
   queue: ComposerInputQueue;
   interruptState: ReturnType<typeof createComposerInterruptState>;
   recovery: RecoveryBatch | null;
@@ -266,6 +268,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.steerTurn = input.steerTurn;
     this.interruptTurn = input.interruptTurn;
     this.state = {
+      sendingBarrier: null,
       queue: createComposerInputQueue({
         threadId: input.threadId,
         activeTurnId: input.activeTurnId,
@@ -287,8 +290,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     try {
       const stored = this.persistenceStore.read();
       if (stored != null) {
-        this.restoredPaused = true;
-        this.queue.setAutomaticSendingPaused(true);
+        this.state.sendingBarrier = "restoring";
         this.persistenceRevision = stored.revision;
         this.recovery = this.queue.rehydrateState(stored.value.queue);
         this.interruptState.rehydrateState(stored.value.interrupt, this.generation);
@@ -298,9 +300,11 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
           if (imported.type !== "imported") throw new Error("Invalid saved draft");
           this.state.draft = imported.draft;
         }
+        this.restoredPaused = this.hasRestorableWork();
       }
     } catch (error: unknown) {
       this.persistenceError = persistenceErrorText(error);
+      this.state.sendingBarrier = "restoring";
       this.restoredPaused = true;
       this.queue.setAutomaticSendingPaused(true);
     }
@@ -359,11 +363,17 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     const result = this.persistTransaction(() => {
       if (draft != null) this.state.draft = draft;
       for (const fact of pending) fact();
+      if (this.reconciliationRequested && this.state.sendingBarrier === "restoring") {
+        this.state.sendingBarrier = null;
+        this.queue.setAutomaticSendingPaused(this.automaticSendingPaused());
+        this.consumeTransition(this.queue.drain());
+      }
     }, true);
     if (result.type !== "committed") return false;
     if (this.pendingDraft === draft) this.pendingDraft = null;
     this.pendingFacts.splice(0, pending.length);
-    if (this.reconciliationRequested) this.reconciliationComplete = true;
+    if (this.reconciliationRequested && this.state.sendingBarrier !== "suspended")
+      this.reconciliationComplete = true;
     this.liveManagement.flushDeferredDrains();
     this.publishSnapshot();
     return this.persistenceError == null;
@@ -375,7 +385,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   };
 
   reconcileRestoredTurns = (turns: readonly Turn[]): void => {
-    if (!this.restoredPaused) return;
+    if (!this.restoredPaused && this.state.sendingBarrier == null) return;
     this.receiveFact(() => {
       this.consumeTransition(this.queue.reconcileSnapshot(turns));
       const result = this.interruptState.reconcileSnapshot(turns, this.generation);
@@ -394,6 +404,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   resumeRestored = (expectedRevision: number | null): boolean => {
     if (
       this.disposed ||
+      this.state.sendingBarrier != null ||
       !this.reconciliationComplete ||
       expectedRevision !== this.persistenceRevision ||
       this.persistenceError != null
@@ -411,7 +422,8 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
 
   suspendRestored = (): void => {
     if (this.disposed) return;
-    this.restoredPaused = true;
+    this.restoredPaused = this.hasRestorableWork() || this.persistenceError != null;
+    this.state.sendingBarrier = "suspended";
     this.reconciliationComplete = false;
     this.reconciliationRequested = false;
     this.queue.setAutomaticSendingPaused(true);
@@ -451,7 +463,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     try {
       const candidate = original.queue.prepare((queue) => {
         this.state = { ...original, queue, interruptState: original.interruptState.fork() };
-        queue.setAutomaticSendingPaused(this.restoredPaused || this.recoveryPending());
+        queue.setAutomaticSendingPaused(this.automaticSendingPaused());
         return operation();
       });
       prepared = candidate;
@@ -624,7 +636,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     }
     this.recovery = null;
     this.isRecovering = false;
-    this.queue.setAutomaticSendingPaused(this.restoredPaused);
+    this.queue.setAutomaticSendingPaused(this.automaticSendingPaused());
     const resumed = this.queue.drain();
     this.assertNoRecoveryEffect(resumed);
     recoveryEffects.push(...resumed.effects);
@@ -947,7 +959,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       }
       this.recovery = null;
     }
-    this.queue.setAutomaticSendingPaused(this.restoredPaused || this.recoveryPending());
+    this.queue.setAutomaticSendingPaused(this.automaticSendingPaused());
     this.consumeTransition(this.queue.applyInterruptedDisposition(turnId, disposition));
   }
   private clearInterruptForTerminal(turnId: Turn["id"]): void {
@@ -1030,6 +1042,19 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
 
   private recoveryPending(): boolean {
     return this.recovery != null || this.isRecovering;
+  }
+
+  private hasRestorableWork(): boolean {
+    return (
+      this.queue.hasPendingMessages() ||
+      this.recoveryPending() ||
+      this.interruptState.state() != null ||
+      this.failedInterruptTurnId != null
+    );
+  }
+
+  private automaticSendingPaused(): boolean {
+    return this.state.sendingBarrier != null || this.restoredPaused || this.recoveryPending();
   }
 
   private ownerGoneResult(): ComposerPendingInputOwnerGoneResult {

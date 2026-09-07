@@ -186,58 +186,67 @@ test("keeps empty persistence errors blocking without offering empty diagnostics
   expect(harness.controller.retryPersistence).toHaveBeenCalledOnce();
 });
 
-test("aligns the saving retry and diagnostics actions in the wide layout", async () => {
-  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
-  try {
-    await page.viewport(1280, 720);
-    const harness = createQueueControllerHarness(
-      queueSnapshot({
-        persistence: {
-          error: "write failed",
-          restoredPaused: false,
-          revision: 3,
-          unknownMessages: [],
-        },
-      }),
-    );
-    const screen = await renderComposerTurnControl({
-      queue: { type: "provided", controller: harness.controller },
-    });
-    const retry = screen.getByRole("button", { name: "Retry saving", exact: true });
-    const diagnostics = screen.getByRole("button", {
-      name: "View diagnostic information",
-      exact: true,
-    });
-    await expect.element(retry).toBeVisible();
-    await expect.element(diagnostics).toBeVisible();
-    await expect
-      .poll(() => {
-        const retryRect = retry.element().getBoundingClientRect();
-        const diagnosticRect = diagnostics.element().getBoundingClientRect();
-        return Math.abs(retryRect.top - diagnosticRect.top);
-      })
-      .toBeLessThanOrEqual(1);
-    expect(diagnostics.element().getBoundingClientRect().left).toBeGreaterThan(
-      retry.element().getBoundingClientRect().right,
-    );
-    const description = screen.getByText(
-      "Your input is still here. Sending is blocked until saving succeeds.",
-      { exact: true },
-    );
-    expect(retry.element().getBoundingClientRect().left).toBeGreaterThan(
-      description.element().getBoundingClientRect().right,
-    );
-    await page.viewport(375, 720);
-    await expect
-      .poll(
-        () =>
-          retry.element().getBoundingClientRect().top >=
-          description.element().getBoundingClientRect().bottom,
-      )
-      .toBe(true);
-    const alert = screen.getByRole("alert").element();
-    expect(alert.scrollWidth).toBeLessThanOrEqual(alert.clientWidth);
-  } finally {
-    await page.viewport(originalViewport.width, originalViewport.height);
-  }
-});
+test.each([1280, 375])(
+  "keeps saving diagnostics in content and retry responsive at %i pixels",
+  async (width) => {
+    const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+    try {
+      await page.viewport(width, 720);
+      const harness = createQueueControllerHarness(
+        queueSnapshot({
+          persistence: {
+            error: "write failed",
+            restoredPaused: false,
+            revision: 3,
+            unknownMessages: [],
+          },
+        }),
+      );
+      const screen = await renderComposerTurnControl({
+        queue: { type: "provided", controller: harness.controller },
+      });
+      const retry = screen.getByRole("button", { name: "Retry saving", exact: true });
+      const diagnostics = screen.getByRole("button", {
+        name: "View diagnostic information",
+        exact: true,
+      });
+      await expect.element(retry).toBeVisible();
+      await expect.element(diagnostics).toBeVisible();
+      const description = screen.getByText(
+        "Your input is still here. Sending is blocked until saving succeeds.",
+        { exact: true },
+      );
+      const title = screen.getByText("Changes could not be saved", { exact: true });
+      await expect
+        .poll(() => {
+          const retryRect = retry.element().getBoundingClientRect();
+          const diagnosticRect = diagnostics.element().getBoundingClientRect();
+          const descriptionRect = description.element().getBoundingClientRect();
+          const titleRect = title.element().getBoundingClientRect();
+          return {
+            diagnosticBelowDescription: diagnosticRect.top >= descriptionRect.bottom - 1,
+            diagnosticAlignedWithContent: Math.abs(diagnosticRect.left - descriptionRect.left) <= 1,
+            retryInOperationArea:
+              width === 1280
+                ? retryRect.left > descriptionRect.right &&
+                  Math.abs(retryRect.top - titleRect.top) <= 1
+                : retryRect.top >= diagnosticRect.bottom &&
+                  Math.abs(retryRect.left - descriptionRect.left) <= 1,
+          };
+        })
+        .toEqual({
+          diagnosticBelowDescription: true,
+          diagnosticAlignedWithContent: true,
+          retryInOperationArea: true,
+        });
+      expect(
+        diagnostics.element().compareDocumentPosition(retry.element()) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).not.toBe(0);
+      const alert = screen.getByRole("alert").element();
+      expect(alert.scrollWidth).toBeLessThanOrEqual(alert.clientWidth);
+    } finally {
+      await page.viewport(originalViewport.width, originalViewport.height);
+    }
+  },
+);

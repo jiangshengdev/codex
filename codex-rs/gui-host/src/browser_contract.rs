@@ -4,6 +4,7 @@ use serde::Serialize;
 use ts_rs::TS;
 
 pub(crate) const CURRENT_TASK_PATH_SEGMENT: &str = "task";
+pub(crate) const NEW_TASK_PATH_SEGMENT: &str = "new";
 pub(crate) const HISTORY_PATH_SEGMENT: &str = "history";
 pub(crate) const TOKEN_FRAGMENT_KEY: &str = "token";
 pub(crate) const WEBSOCKET_PATH: &str = "/ws";

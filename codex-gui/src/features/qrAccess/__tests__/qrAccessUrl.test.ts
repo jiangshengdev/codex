@@ -54,4 +54,14 @@ describe("buildQrAccessUrl", () => {
       }),
     ).toBeNull();
   });
+
+  it("does not share a tab-local new-session draft", () => {
+    expect(
+      buildQrAccessUrl({
+        authorizationToken: "secret-token",
+        origin: "http://127.0.0.1:57223",
+        routeTarget: { type: "newTask" },
+      }),
+    ).toBeNull();
+  });
 });

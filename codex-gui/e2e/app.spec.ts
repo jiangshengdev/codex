@@ -12,7 +12,11 @@ import {
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import type { InitializeResponse } from "@codex-protocol/InitializeResponse";
-import type { SkillsListResponse, ThreadProjectionAttachResponse } from "@codex-protocol/v2";
+import type {
+  SkillsListResponse,
+  ThreadLoadedListResponse,
+  ThreadProjectionAttachResponse,
+} from "@codex-protocol/v2";
 
 const threadId = attachBaseline.snapshot.thread.id;
 const subscriptionId = "projection-e2e-subscription";
@@ -144,6 +148,15 @@ async function routeGuiHostWebSocket(
         return;
       }
 
+      if (request.method === "thread/loaded/list") {
+        const result = {
+          data: [threadId],
+          nextCursor: null,
+        } satisfies ThreadLoadedListResponse;
+        ws.send(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }));
+        return;
+      }
+
       if (request.method === "thread/projection/attach") {
         const params = rpcParams(request);
         if (params.threadId !== threadId) {
@@ -242,8 +255,9 @@ test("authenticates, attaches, records attach state, and clears token", async ({
   await expect(page.getByText("No committed messages yet.")).toBeVisible();
   await expect(page.getByText("GUI host")).toHaveCount(0);
   await expect
-    .poll(() => sentRequests.slice(0, 3).map((request) => request.method))
-    .toEqual(["gui/authenticate", "initialize", "thread/projection/attach"]);
+    .poll(() => sentRequests.slice(0, 4).map((request) => request.method))
+    .toEqual(["gui/authenticate", "initialize", "thread/loaded/list", "thread/projection/attach"]);
+  expect(sentRequests.some((request) => request.method === "thread/resume")).toBe(false);
   expect(page.url()).not.toContain("#token=");
 });
 

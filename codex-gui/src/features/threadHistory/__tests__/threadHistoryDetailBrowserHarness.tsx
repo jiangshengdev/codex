@@ -14,6 +14,7 @@ import {
 } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
+import { NewSessionOwner } from "@/features/newSession/newSessionOwner";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import { AppShell } from "@/features/appShell/AppShell";
 import { CURRENT_TASK_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
@@ -78,6 +79,7 @@ export const renderDetail = async ({
       ? activeThreadSessionHarness.session
       : suppliedActiveThreadSession;
   const initialCapabilities: AppCapabilities = {
+    newSessionOwner: new NewSessionOwner(),
     activeThreadSession,
     authorizationToken,
     commands,

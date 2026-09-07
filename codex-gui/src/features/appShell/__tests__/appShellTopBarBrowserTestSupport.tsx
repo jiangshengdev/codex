@@ -21,6 +21,7 @@ import {
 import { renderWithProviders } from "@/utils/test-utils";
 import { DocumentTitleOwner } from "@/features/documentTitle/DocumentTitleOwner";
 import { AppShellTopBar } from "../AppShellTopBar";
+import { NewSessionOwner } from "@/features/newSession/newSessionOwner";
 
 export const currentThreadId = attachResponse.snapshot.thread.id;
 const capabilities = ({
@@ -31,6 +32,7 @@ const capabilities = ({
   routeTarget: GuiRouteTarget;
 }>): AppCapabilities => ({
   activeThreadSession: activeThreadSessionHarness.session,
+  newSessionOwner: new NewSessionOwner(),
   authorizationToken: null,
   commands: null,
   routeTarget,

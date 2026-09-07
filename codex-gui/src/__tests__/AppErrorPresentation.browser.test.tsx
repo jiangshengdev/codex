@@ -66,6 +66,57 @@ beforeEach(() => {
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
 });
 
+test.each(["success", "failure"] as const)(
+  "announces task loading and removes the indicator after %s",
+  async (outcome) => {
+    const commands = createGuiHostCommands();
+    const pendingAttach = queueDeferredAttachProjection(commands);
+    const screen = await renderWithProviders(<App />);
+    initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
+    await expect.poll(pendingAttach.getState).toBe("pending");
+    const loading = screen
+      .getByRole("main")
+      .getByRole("status")
+      .filter({ hasText: "Loading task…" });
+    await expect.element(loading).toHaveTextContent("Loading task…");
+    await expect.element(loading).toBeVisible();
+    await expect
+      .element(screen.getByRole("region", { name: "Message composer" }))
+      .not.toBeInTheDocument();
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    try {
+      for (const width of [375, 1280]) {
+        await page.viewport(width, 720);
+        const mainBounds = screen.getByRole("main").element().getBoundingClientRect();
+        const loadingBounds = loading.element().getBoundingClientRect();
+        expect(loadingBounds.left).toBeGreaterThanOrEqual(mainBounds.left);
+        expect(loadingBounds.right).toBeLessThanOrEqual(mainBounds.right);
+        expect(loadingBounds.left + loadingBounds.width / 2).toBeCloseTo(
+          mainBounds.left + mainBounds.width / 2,
+          0,
+        );
+      }
+    } finally {
+      await page.viewport(viewport.width, viewport.height);
+    }
+    if (outcome === "success") {
+      pendingAttach.resolve();
+    } else {
+      pendingAttach.reject(new Error("Task loading failed"));
+    }
+    const settledContent =
+      outcome === "success"
+        ? screen.getByRole("region", { name: "Message composer" })
+        : screen
+            .getByRole("main")
+            .getByRole("alert")
+            .getByText("The current task could not be loaded.");
+    await expect.element(settledContent).toBeVisible();
+    await expect.element(loading).not.toBeInTheDocument();
+    await expect.element(screen.getByText("Loading task…")).not.toBeInTheDocument();
+  },
+);
+
 test.each([`/task/${launchThreadId}`, "/history", `/history/${launchThreadId}`])(
   "App displays a shared connection error once on %s",
   async (initialEntry) => {
@@ -75,6 +126,15 @@ test.each([`/task/${launchThreadId}`, "/history", `/history/${launchThreadId}`])
 
     await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
     await expect.element(screen.getByText("Codex GUI could not be started.")).toBeVisible();
+    const globalAlert = screen
+      .getByText("Unable to start Codex GUI")
+      .element()
+      .closest('[data-slot="alert-root"]');
+    if (globalAlert == null) throw new Error("Expected the global error alert");
+    expect(
+      globalAlert.getBoundingClientRect().top -
+        screen.getByRole("banner").element().getBoundingClientRect().bottom,
+    ).toBeCloseTo(12, 0);
     await expect
       .element(
         screen
@@ -87,6 +147,33 @@ test.each([`/task/${launchThreadId}`, "/history", `/history/${launchThreadId}`])
       detail,
     );
     await expect.element(screen.getByRole("main").getByText(detail)).not.toBeInTheDocument();
+  },
+);
+
+test.each([1280, 375])(
+  "global and history page errors remain 12px apart at %i pixels",
+  async (width) => {
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    try {
+      await page.viewport(width, 720);
+      const screen = await renderWithProviders(<App initialEntry="/history" />);
+      getHostOptions(startGuiHostConnectionMock).onStatus?.({
+        label: "error",
+        message: "Connection failed",
+      });
+      await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
+      const globalAlert = screen
+        .getByText("Unable to start Codex GUI")
+        .element()
+        .closest('[data-slot="alert-root"]');
+      if (globalAlert == null) throw new Error("Expected the global error alert");
+      expect(
+        screen.getByRole("main").getByRole("alert").element().getBoundingClientRect().top -
+          globalAlert.getBoundingClientRect().bottom,
+      ).toBeCloseTo(12, 0);
+    } finally {
+      await page.viewport(viewport.width, viewport.height);
+    }
   },
 );
 
@@ -226,6 +313,10 @@ test("initialization and cleanup failures both remain visible in the task page",
     for (const width of [1280, 375]) {
       await page.viewport(width, 720);
       const retry = notice.getByRole("button", { name: "Retry", exact: true });
+      expect(
+        notice.element().getBoundingClientRect().top -
+          screen.getByRole("banner").element().getBoundingClientRect().bottom,
+      ).toBeCloseTo(12, 0);
       const title = notice.getByText("Unable to load the current task", { exact: true });
       const description = notice.getByText("The current task could not be loaded.", {
         exact: true,
@@ -304,6 +395,38 @@ test("history continuation leaves collection diagnostics global and can retry th
     await expect
       .element(page.getByRole("button", { name: "View diagnostic information", exact: true }))
       .not.toBeInTheDocument();
+  } finally {
+    storageWrite.mockRestore();
+  }
+});
+
+test("consecutive global errors remain 12px apart", async () => {
+  const commands = createGuiHostCommands();
+  const screen = await renderWithProviders(<App initialEntry={`/history/${launchThreadId}`} />);
+  initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
+  const continueTask = screen.getByRole("button", { name: "Continue this task", exact: true });
+  await expect.element(continueTask).toBeEnabled();
+  const storageWrite = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    throw new Error("history membership unavailable");
+  });
+  try {
+    await continueTask.click();
+    await expect.element(screen.getByText("The task list could not be updated.")).toBeVisible();
+    getHostOptions(startGuiHostConnectionMock).onStatus?.({
+      label: "error",
+      message: "Connection failed",
+    });
+    await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
+    const alerts = screen.container.querySelectorAll(
+      '[data-app-shell-top-notices] [data-slot="alert-root"]',
+    );
+    expect(alerts.length).toBe(2);
+    const [first, second] = alerts;
+    if (first == null || second == null) throw new Error("Expected both global alerts");
+    expect(second.getBoundingClientRect().top - first.getBoundingClientRect().bottom).toBeCloseTo(
+      12,
+      0,
+    );
   } finally {
     storageWrite.mockRestore();
   }

@@ -41,6 +41,7 @@ export type ActiveThreadSessionHarnessOptions = Readonly<{
 
 export type ActiveThreadSessionHarness = Readonly<{
   session: ActiveThreadSession;
+  setHistoryCwd(cwd: string | null): void;
   composerRole: ActiveThreadComposerRole;
   compactionRole: ActiveThreadCompactionRole;
   skillsRole: ActiveThreadSkillsRole;
@@ -314,8 +315,10 @@ export const createActiveThreadSessionHarness = (
       wasViewed: collection.viewedThreadId === threadId,
     }),
   );
+  let historyCwd: string | null = null;
   const session: ActiveThreadSession = {
     getSnapshot: () => snapshot,
+    getHistoryCwd: () => historyCwd,
     getCollectionSnapshot: () => collection,
     subscribe,
     activate,
@@ -355,6 +358,10 @@ export const createActiveThreadSessionHarness = (
 
   return {
     session,
+    setHistoryCwd: (cwd) => {
+      historyCwd = cwd;
+      for (const listener of Array.from(listeners)) listener();
+    },
     compactionRole,
     composerRole,
     skillsRole,

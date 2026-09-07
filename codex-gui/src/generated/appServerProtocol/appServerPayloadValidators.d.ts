@@ -59,6 +59,9 @@ export declare const validateV2ThreadReadResponse: ProtocolValidator<
 export declare const validateV2ThreadResumeResponse: ProtocolValidator<
   RequestResponse<"thread/resume">
 >;
+export declare const validateV2ThreadStartResponse: ProtocolValidator<
+  RequestResponse<"thread/start">
+>;
 export declare const validateV2ThreadStatusChangedNotification: ProtocolValidator<
   Extract<
     ServerNotification,

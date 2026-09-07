@@ -84,6 +84,7 @@ type ActiveThreadNotification =
 
 type Member = {
   threadId: string;
+  cwd: string | null;
   phase: "initializing" | "ready" | "failed" | "cleanupPending" | "removalPending";
   live: LiveActiveThreadSession | null;
   roles: ActiveThreadSessionRoles | null;
@@ -142,6 +143,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     this.persistence = persistence;
     this.session = {
       getSnapshot: this.getSnapshot,
+      getHistoryCwd: () => this.authorizationSession.getSnapshot().historyCwd ?? null,
       getCollectionSnapshot: this.getCollectionSnapshot,
       subscribe: this.subscribe,
       activate: this.activate,
@@ -269,7 +271,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     if (result.type !== "ready") return result;
     const warnings: ActiveThreadActivationWarning[] = [];
     try {
-      this.authorizationSession.commitActiveThread(threadId);
+      this.commitSelection(member);
       this.setCollectionError("viewSelection", threadId, null);
     } catch (error: unknown) {
       this.setCollectionError("viewSelection", threadId, error);
@@ -323,7 +325,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       return result;
     const warnings = [...result.warnings];
     try {
-      this.authorizationSession.commitActiveThread(threadId);
+      this.commitSelection(member);
       this.setCollectionError("viewSelection", threadId, null);
     } catch (error: unknown) {
       this.setCollectionError("viewSelection", threadId, error);
@@ -332,6 +334,12 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     this.publish();
     return { type: "ready", threadId, warnings };
   };
+
+  private commitSelection(member: Member): void {
+    if (member.cwd == null)
+      throw new Error("Cannot persist selection before thread initialization");
+    this.authorizationSession.commitActiveThread(member.threadId, member.cwd);
+  }
 
   private async retryInitializationCleanup(member: Member): Promise<ActiveThreadActivationOutcome> {
     try {
@@ -363,6 +371,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     for (const entry of operationErrors) this.setCollectionError(entry.operation, threadId, null);
     return {
       threadId,
+      cwd: null,
       phase: "initializing",
       live: null,
       roles: null,
@@ -500,6 +509,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       if (member.live.getSnapshot().phase === "projectionUnavailable") {
         throw new Error("Candidate projection became unavailable before publication");
       }
+      member.cwd = response.snapshot.thread.cwd;
       member.phase = "ready";
       this.publish();
       return { type: "ready", threadId: member.threadId, warnings: [] };
