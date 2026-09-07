@@ -9,6 +9,7 @@ pub fn is_allowed_client_request_method(method: &str) -> bool {
             | "thread/compact/start"
             | "thread/read"
             | "thread/resume"
+            | "thread/start"
             | "thread/loaded/list"
             | "turn/start"
             | "turn/steer"
@@ -44,6 +45,7 @@ mod tests {
         assert!(is_allowed_client_request_method("thread/compact/start"));
         assert!(is_allowed_client_request_method("thread/read"));
         assert!(is_allowed_client_request_method("thread/resume"));
+        assert!(is_allowed_client_request_method("thread/start"));
         assert!(is_allowed_client_request_method("thread/loaded/list"));
         assert!(is_allowed_client_request_method("turn/start"));
         assert!(is_allowed_client_request_method("turn/steer"));
@@ -66,6 +68,7 @@ mod tests {
             "thread/projection/closed"
         ));
         assert!(!is_allowed_server_notification_method("thread/updated"));
+        assert!(!is_allowed_server_notification_method("thread/started"));
         assert!(!is_allowed_server_notification_method("session/configured"));
     }
 

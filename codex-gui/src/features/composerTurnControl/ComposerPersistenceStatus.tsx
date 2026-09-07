@@ -2,6 +2,7 @@ import { Alert, Button } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import type { ActiveThreadSessionSnapshot } from "@/features/activeThreadSession/activeThreadSession";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
+import { FailureLayout } from "@/feedback/FailureLayout";
 
 export function ComposerPersistenceStatus({
   sessionSnapshot,
@@ -22,14 +23,8 @@ export function ComposerPersistenceStatus({
       {persistence.error != null ? (
         <Alert status="danger" role="alert">
           <Alert.Indicator />
-          <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <Alert.Title>
-              <Trans>Changes could not be saved</Trans>
-            </Alert.Title>
-            <Alert.Description className="col-start-1">
-              <Trans>Your input is still here. Sending is blocked until saving succeeds.</Trans>
-            </Alert.Description>
-            <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
+          <FailureLayout
+            actions={
               <Button
                 variant="primary"
                 isDisabled={!enabled}
@@ -41,13 +36,20 @@ export function ComposerPersistenceStatus({
                   Retry saving
                 </Trans>
               </Button>
+            }
+          >
+            <Alert.Content>
+              <Alert.Title>
+                <Trans>Changes could not be saved</Trans>
+              </Alert.Title>
+              <Alert.Description>
+                <Trans>Your input is still here. Sending is blocked until saving succeeds.</Trans>
+              </Alert.Description>
               {persistence.error !== "" ? (
-                <FailureDiagnosticModal triggerClassName="">
-                  {persistence.error}
-                </FailureDiagnosticModal>
+                <FailureDiagnosticModal>{persistence.error}</FailureDiagnosticModal>
               ) : null}
-            </div>
-          </Alert.Content>
+            </Alert.Content>
+          </FailureLayout>
         </Alert>
       ) : null}
       {persistence.restoredPaused ? (

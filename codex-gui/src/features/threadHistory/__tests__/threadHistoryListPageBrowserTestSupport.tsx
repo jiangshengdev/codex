@@ -16,6 +16,7 @@ import {
 } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
+import { NewSessionOwner } from "@/features/newSession/newSessionOwner";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { renderWithProviders } from "@/utils/test-utils";
@@ -71,6 +72,9 @@ export const renderHistory = async (
 ) => {
   const HistoryDetailPlaceholder = () => <main aria-label="History detail">History detail</main>;
   const activeThreadSessionHarness = createActiveThreadSessionHarness();
+  if (runtimeThreadId === attachResponse.snapshot.thread.id) {
+    activeThreadSessionHarness.setHistoryCwd(attachResponse.snapshot.thread.cwd);
+  }
   activeThreadSessionHarness.publish(
     activeThreadSessionHarness.activeSnapshot({
       threadId: attachResponse.snapshot.thread.id,
@@ -83,6 +87,7 @@ export const renderHistory = async (
       : suppliedActiveThreadSession;
   const target = { type: "historyList" } as const;
   const capabilities: AppCapabilities = {
+    newSessionOwner: new NewSessionOwner(),
     activeThreadSession,
     authorizationToken: null,
     commands: commandsAvailable ? { ...createGuiHostCommands(), listThreads } : null,
@@ -128,5 +133,5 @@ export const renderHistory = async (
       }),
     );
   }
-  return { router, screen };
+  return { router, screen, activeThreadSessionHarness };
 };

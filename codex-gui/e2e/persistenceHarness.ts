@@ -14,6 +14,7 @@ import type { InitializeResponse } from "@codex-protocol/InitializeResponse";
 import type {
   SkillsListResponse,
   Thread,
+  ThreadLoadedListResponse,
   ThreadProjectionDetachResponse,
   ThreadReadResponse,
   ThreadResumeResponse,
@@ -63,6 +64,12 @@ export async function createPersistenceHarness(page: Page, initiallyActive = fal
           // Replaying an old turnStarted event after an empty snapshot is not that state.
           headCommitId = attachBaseline.snapshot.headCommitId;
           reply(attachWithSnapshotThread(attachBaseline, currentThread(), subscriptionId));
+          return;
+        case "thread/loaded/list":
+          reply({
+            data: [persistenceThreadId],
+            nextCursor: null,
+          } satisfies ThreadLoadedListResponse);
           return;
         case "thread/read":
           reply({ thread: currentThread() } satisfies ThreadReadResponse);

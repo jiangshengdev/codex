@@ -332,7 +332,13 @@ test("history cards open details and preserve one connection across browser back
   readThread.mockRejectedValueOnce(new Error("history read failed"));
   router.history.forward();
 
-  await expect.element(screen.getByRole("alert")).toHaveTextContent("history read failed");
+  const historyError = screen.getByRole("alert");
+  await expect.element(historyError).toHaveTextContent("Unable to load task history");
+  await historyError.getByRole("button", { name: "View diagnostic information" }).click();
+  const diagnostics = page.getByRole("dialog", { name: "Diagnostic information" });
+  await expect.element(diagnostics.getByText("history read failed", { exact: true })).toBeVisible();
+  await diagnostics.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect.element(diagnostics).not.toBeInTheDocument();
   await expect.poll(() => document.title).toBe("History detail · Codex");
   expect(readThread).toHaveBeenNthCalledWith(2, {
     threadId: historyThreadId,
@@ -447,6 +453,85 @@ test("aligns history, current task, and detail content with their top bars", asy
   }
 });
 
+test.each(["current task", "history list"])(
+  "keeps history available after removing the last task from %s and rebuilding the page",
+  async (removalRoute) => {
+    seedBrowserAuthorizationSession({ token: "history-secret" });
+    const router = createAppRouter(
+      createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
+    );
+    const screen = await renderWithProviders(<RouterProvider router={router} />);
+    const commands = createHistoryCommands();
+    initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
+    await expect.poll(() => document.title).toBe("Projection fixture · Codex");
+
+    if (removalRoute === "history list") {
+      await router.navigate({ to: "/history" });
+    }
+    await expect
+      .poll(() => screen.getByRole("article", { name: "Projection fixture" }).elements().length)
+      .toBe(removalRoute === "history list" ? 1 : 0);
+    await screen.getByRole("button", { name: "Menu", exact: true }).click();
+    await screen
+      .getByRole("button", { name: "More options for Projection fixture", exact: true })
+      .click();
+    await screen.getByRole("menuitem", { name: "Remove from list", exact: true }).click();
+    await expect.poll(() => vi.mocked(commands.detachThreadProjection).mock.calls.length).toBe(1);
+    await expect
+      .poll(
+        () =>
+          consumeBrowserAuthorizationSession({
+            location: new URL("https://codex.test/history"),
+            replaceState: () => undefined,
+          }).getSnapshot().activeThreadId,
+      )
+      .toBeNull();
+    await expect.poll(() => router.state.location.pathname).toBe("/history");
+    expect(commands.readThread).not.toHaveBeenCalledWith({
+      threadId: launchThreadId,
+      includeTurns: true,
+    });
+    if (removalRoute === "history list") {
+      await screen
+        .getByRole("navigation", { name: "Main navigation" })
+        .getByRole("button", { name: "History", exact: true })
+        .click();
+    }
+    await expect.element(screen.getByRole("article", { name: "Projection fixture" })).toBeVisible();
+    expect(commands.listThreads).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        cwd: attachResponse.snapshot.thread.cwd,
+      }),
+    );
+    await screen.unmount();
+
+    const restoredRouter = createAppRouter(createMemoryHistory({ initialEntries: ["/history"] }));
+    const restored = await renderWithProviders(<RouterProvider router={restoredRouter} />);
+    const restoredCommands = createHistoryCommands();
+    initializeHost(getHostOptions(startGuiHostConnectionMock), restoredCommands);
+    await expect
+      .element(restored.getByRole("article", { name: "Projection fixture" }))
+      .toBeVisible();
+    expect(restoredCommands.listThreads).toHaveBeenCalledExactlyOnceWith({
+      archived: false,
+      cwd: attachResponse.snapshot.thread.cwd,
+      limit: 25,
+      sortDirection: "desc",
+      sortKey: "recency_at",
+    });
+    expect(restoredCommands.attachThreadProjection).not.toHaveBeenCalled();
+    expect(restoredCommands.resumeThread).not.toHaveBeenCalled();
+    await restored.getByRole("link", { name: "Projection fixture", exact: true }).click();
+    await expect
+      .poll(() => restoredRouter.state.location.pathname)
+      .toBe(`/history/${historyThreadId}`);
+    expect(restoredCommands.readThread).toHaveBeenCalledWith({
+      threadId: historyThreadId,
+      includeTurns: true,
+    });
+  },
+);
+
 test("history list with token-only authorization fails closed without attaching or listing", async () => {
   seedBrowserAuthorizationSession({ token: "history-secret" });
   const router = createAppRouter(createMemoryHistory({ initialEntries: ["/history"] }));
@@ -527,7 +612,15 @@ test("history titles follow route identity through loading, error, retry, and un
   await expect.poll(() => document.title).toBe("History detail · Codex");
 
   nextRead.reject(new Error("second preview failed"));
-  await expect.element(screen.getByRole("alert")).toHaveTextContent("second preview failed");
+  const historyError = screen.getByRole("alert");
+  await expect.element(historyError).toHaveTextContent("Unable to load task history");
+  await historyError.getByRole("button", { name: "View diagnostic information" }).click();
+  const diagnostics = page.getByRole("dialog", { name: "Diagnostic information" });
+  await expect
+    .element(diagnostics.getByText("second preview failed", { exact: true }))
+    .toBeVisible();
+  await diagnostics.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect.element(diagnostics).not.toBeInTheDocument();
   await expect.element(heading).toHaveTextContent("History detail");
   await screen.getByRole("button", { name: "Retry", exact: true }).click();
   await expect.element(heading).toHaveTextContent("Second preview");
@@ -698,6 +791,7 @@ test("pure read-only history detail activates its first task and replaces the ro
     expect(storedSession.getSnapshot()).toStrictEqual({
       token: "detail-secret",
       activeThreadId: historyThreadId,
+      historyCwd: attachResponse.snapshot.thread.cwd,
     });
     expectCanonicalRoute(router.state.location.href, `/task/${historyThreadId}`, 1);
     expect(router.history.length).toBe(initialHistoryLength);

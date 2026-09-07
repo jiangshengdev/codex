@@ -108,6 +108,19 @@ async function expectInterruptStillWorks(
 }
 
 describe("GuiHostCommandGateway", () => {
+  it("forwards thread/start cwd and classifies an invalid response as unknown delivery", async () => {
+    const { gateway, socket, transport } = setup();
+    gateway.activate();
+    const result = gateway.commands.startThread({ cwd: "/workspace/new" });
+    const request = readLatestRpcRequest(socket, "thread/start");
+    expect(request.params).toEqual({ cwd: "/workspace/new" });
+    transport.settleResult(request.id, {});
+    const error: unknown = await result.catch((failure: unknown) => failure);
+    expect(isGuiHostCommandError(error)).toBe(true);
+    if (!isGuiHostCommandError(error)) throw new Error("Expected command failure");
+    expect(error.delivery).toBe("deliveryUnknown");
+  });
+
   it("publishes one stable handle only after activation", async () => {
     const { gateway, socket } = setup();
     const commands = gateway.commands;

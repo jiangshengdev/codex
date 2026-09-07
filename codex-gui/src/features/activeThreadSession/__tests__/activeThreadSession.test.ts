@@ -17,6 +17,7 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   attachWithThreadId,
+  attachWithSnapshotThread,
   attachWithTurns,
   eventForThreadOwner,
   eventWithEnvelope,
@@ -54,11 +55,15 @@ const createAuthorizationSession = (
   activeThreadId: string | null = attachBaseline.snapshot.thread.id,
 ) => {
   let currentThreadId = activeThreadId;
+  let historyCwd: string | undefined;
   return {
-    getSnapshot: () => ({ token: "test-token", activeThreadId: currentThreadId }),
-    commitActiveThread: vi.fn<BrowserAuthorizationSession["commitActiveThread"]>((threadId) => {
-      currentThreadId = threadId;
-    }),
+    getSnapshot: () => ({ token: "test-token", activeThreadId: currentThreadId, historyCwd }),
+    commitActiveThread: vi.fn<BrowserAuthorizationSession["commitActiveThread"]>(
+      (threadId, cwd) => {
+        currentThreadId = threadId;
+        historyCwd = cwd;
+      },
+    ),
     clearActiveThread: vi.fn<BrowserAuthorizationSession["clearActiveThread"]>(() => {
       currentThreadId = null;
     }),
@@ -108,6 +113,33 @@ const activateInitial = async (harness: ReturnType<typeof createHarness>) => {
     warnings: [],
   });
 };
+
+it("retains the last successfully selected directory across removal and failed activation", async () => {
+  const h = createHarness();
+  await activateInitial(h);
+  const firstCwd = attachBaseline.snapshot.thread.cwd;
+  expect(h.session.getHistoryCwd()).toBe(firstCwd);
+  vi.mocked(h.commands.attachThreadProjection).mockRejectedValueOnce(new Error("attach failed"));
+  await expect(h.session.activate(replacementThreadId)).resolves.toMatchObject({
+    type: "unavailable",
+  });
+  expect(h.session.getHistoryCwd()).toBe(firstCwd);
+
+  vi.mocked(h.commands.attachThreadProjection).mockResolvedValueOnce(
+    attachWithSnapshotThread(replacementAttach, {
+      ...replacementAttach.snapshot.thread,
+      cwd: "/workspace/second",
+    }),
+  );
+  await expect(h.session.retry(replacementThreadId)).resolves.toMatchObject({ type: "ready" });
+  expect(h.session.getHistoryCwd()).toBe("/workspace/second");
+  await expect(h.session.remove(replacementThreadId)).resolves.toMatchObject({ type: "removed" });
+  expect(h.session.getCollectionSnapshot().viewedThreadId).toBeNull();
+  expect(h.session.getCollectionSnapshot().members).toHaveLength(1);
+  expect(h.session.getHistoryCwd()).toBe("/workspace/second");
+  await h.session.view(attachBaseline.snapshot.thread.id);
+  expect(h.session.getHistoryCwd()).toBe(firstCwd);
+});
 
 const queueReplacementActivation = (commands: GuiHostCommands) => {
   vi.mocked(commands.attachThreadProjection).mockResolvedValueOnce(replacementAttach);
@@ -348,6 +380,7 @@ describe("ActiveThreadSession", () => {
     expect(h.session.getCollectionSnapshot().members).toHaveLength(1);
     expect(h.authorizationSession.commitActiveThread).toHaveBeenCalledExactlyOnceWith(
       attachBaseline.snapshot.thread.id,
+      attachBaseline.snapshot.thread.cwd,
     );
   });
 
@@ -533,6 +566,7 @@ describe("ActiveThreadSession", () => {
     expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(2);
     expect(h.authorizationSession.commitActiveThread).toHaveBeenCalledExactlyOnceWith(
       attachBaseline.snapshot.thread.id,
+      attachBaseline.snapshot.thread.cwd,
     );
   });
 
@@ -609,33 +643,76 @@ describe("ActiveThreadSession", () => {
     });
   });
 
-  it("preserves restored pause independently for every recovered member", async () => {
-    const persistence = createPersistenceTestContext();
-    const original = createHarness(undefined, undefined, persistence);
-    await activateInitial(original);
-    queueReplacementActivation(original.commands);
-    await original.session.activate(replacementThreadId);
-    original.controller.suspendRestoredQueue();
-    original.controller.dispose();
-    const recovered = createHarness(undefined, undefined, persistence);
-    vi.mocked(recovered.commands.attachThreadProjection).mockImplementation(({ threadId }) =>
-      Promise.resolve(threadId === replacementThreadId ? replacementAttach : attachBaseline),
-    );
-    await recovered.controller.activateRecoveryThread();
+  it.each([false, true])(
+    "requires manual continuation only for recovered members with pending messages (%s)",
+    async (hasQueuedMessages) => {
+      const persistence = createPersistenceTestContext();
+      const original = createHarness(undefined, undefined, persistence);
+      const enqueue = () => {
+        if (!hasQueuedMessages) return;
+        const snapshot = original.session.getSnapshot();
+        if (snapshot.phase !== "active") throw new Error("expected active member");
+        expect(
+          snapshot.composerRole.submit(snapshot.revision, composerCapture("queued before refresh")),
+        ).toEqual({ type: "accepted" });
+      };
+      vi.mocked(original.commands.attachThreadProjection).mockResolvedValueOnce(
+        hasQueuedMessages
+          ? attachWithTurns(attachBaseline, [inProgressTurn("running-before-refresh")])
+          : attachBaseline,
+      );
+      await activateInitial(original);
+      enqueue();
+      vi.mocked(original.commands.attachThreadProjection).mockResolvedValueOnce(
+        hasQueuedMessages
+          ? attachWithTurns(replacementAttach, [inProgressTurn("replacement-before-refresh")])
+          : replacementAttach,
+      );
+      await original.session.activate(replacementThreadId);
+      enqueue();
+      original.controller.suspendRestoredQueue();
+      original.controller.dispose();
+      const recovered = createHarness(undefined, undefined, persistence);
+      vi.mocked(recovered.commands.attachThreadProjection).mockImplementation(({ threadId }) =>
+        Promise.resolve(threadId === replacementThreadId ? replacementAttach : attachBaseline),
+      );
+      await recovered.controller.activateRecoveryThread();
+      await vi.waitFor(() => {
+        expect(
+          recovered.session
+            .getCollectionSnapshot()
+            .members.every((member) => member.phase === "ready"),
+        ).toBe(true);
+      });
+      for (const threadId of [attachBaseline.snapshot.thread.id, replacementThreadId]) {
+        const removal = await recovered.session.remove(threadId);
+        expect(removal.type).toBe(hasQueuedMessages ? "blocked" : "removed");
+        const blockers = removal.type === "blocked" ? removal.blockers : [];
+        expect(blockers.includes("restoredPaused")).toBe(hasQueuedMessages);
+      }
+      expect(recovered.commands.startTurn).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps a member suspended when its attachment completes after page suspension", async () => {
+    const h = createHarness();
+    await activateInitial(h);
+    const attach = createDeferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
+    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(attach.promise);
+    const activation = h.session.activate(replacementThreadId);
     await vi.waitFor(() => {
-      expect(
-        recovered.session
-          .getCollectionSnapshot()
-          .members.every((member) => member.phase === "ready"),
-      ).toBe(true);
+      expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(2);
     });
-    for (const threadId of [attachBaseline.snapshot.thread.id, replacementThreadId]) {
-      const removal = await recovered.session.remove(threadId);
-      expect(removal.type).toBe("blocked");
-      if (removal.type !== "blocked") throw new Error("expected blocked removal");
-      expect(removal.blockers).toContain("restoredPaused");
-    }
-    expect(recovered.commands.startTurn).not.toHaveBeenCalled();
+    h.controller.suspendRestoredQueue();
+    attach.resolve(replacementAttach);
+    await expect(activation).resolves.toMatchObject({ type: "ready" });
+    const snapshot = h.session.getSnapshot();
+    if (snapshot.phase !== "active") throw new Error("expected initialized member");
+    expect(snapshot.composer.persistence.restoredPaused).toBe(false);
+    expect(
+      snapshot.composerRole.submit(snapshot.revision, composerCapture("after late attachment")),
+    ).toEqual({ type: "accepted" });
+    expect(h.commands.startTurn).not.toHaveBeenCalled();
   });
 
   it("restores every persisted member when activation retries a transient collection read failure", async () => {
@@ -679,12 +756,13 @@ describe("ActiveThreadSession", () => {
     expect(recovered.session.getCollectionSnapshot().viewedThreadId).toBe(target);
     expect(recovered.authorizationSession.commitActiveThread).toHaveBeenCalledExactlyOnceWith(
       target,
+      attachBaseline.snapshot.thread.cwd,
     );
     expect(recovered.commands.attachThreadProjection).toHaveBeenCalledTimes(2);
     for (const member of recovered.session.getCollectionSnapshot().members) {
       expect(member.snapshot).toMatchObject({
         phase: "active",
-        composer: { persistence: { restoredPaused: true } },
+        composer: { persistence: { restoredPaused: false } },
       });
     }
     expect(recovered.commands.startTurn).not.toHaveBeenCalled();

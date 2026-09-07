@@ -97,7 +97,7 @@ describe("consumeBrowserAuthorizationSession", () => {
       replaceState: vi.fn<History["replaceState"]>(),
       storage,
     });
-    first.commitActiveThread(firstThreadId);
+    first.commitActiveThread(firstThreadId, "/workspace/first");
 
     const restored = consumeBrowserAuthorizationSession({
       location: new URL("https://codex.test/history"),
@@ -106,11 +106,12 @@ describe("consumeBrowserAuthorizationSession", () => {
     });
 
     expect({ snapshot: restored.getSnapshot(), stored: storage.onlyStoredRecord() }).toEqual({
-      snapshot: { token: "secret", activeThreadId: firstThreadId },
+      snapshot: { token: "secret", activeThreadId: firstThreadId, historyCwd: "/workspace/first" },
       stored: {
         token: "secret",
         activeThreadId: firstThreadId,
         persistenceContext: first.getPersistenceContext(),
+        historyCwd: "/workspace/first",
       },
     });
     expect(restored.getPersistenceContext()).toBe(first.getPersistenceContext());
@@ -123,7 +124,7 @@ describe("consumeBrowserAuthorizationSession", () => {
       replaceState: vi.fn<History["replaceState"]>(),
       storage,
     });
-    existing.commitActiveThread(firstThreadId);
+    existing.commitActiveThread(firstThreadId, "/workspace/first");
     storage.operations.length = 0;
 
     const historyState = { key: "tanstack-entry" };
@@ -154,11 +155,12 @@ describe("consumeBrowserAuthorizationSession", () => {
       replacedWith: replaceState.mock.calls,
     }).toEqual({
       operations: ["get", "replace"],
-      snapshot: { token: "secret", activeThreadId: firstThreadId },
+      snapshot: { token: "secret", activeThreadId: firstThreadId, historyCwd: "/workspace/first" },
       stored: {
         token: "secret",
         activeThreadId: firstThreadId,
         persistenceContext: existing.getPersistenceContext(),
+        historyCwd: "/workspace/first",
       },
       replacedWith: [[historyState, "", `/history/${secondThreadId}`]],
     });
@@ -184,7 +186,7 @@ describe("consumeBrowserAuthorizationSession", () => {
       replaceState: vi.fn<History["replaceState"]>(),
       storage,
     });
-    existing.commitActiveThread(firstThreadId);
+    existing.commitActiveThread(firstThreadId, "/workspace/first");
 
     const replacement = consumeBrowserAuthorizationSession({
       location: new URL(`https://codex.test/history/${secondThreadId}#token=new`),
@@ -207,7 +209,7 @@ describe("consumeBrowserAuthorizationSession", () => {
       storage,
     });
 
-    session.commitActiveThread(secondThreadId);
+    session.commitActiveThread(secondThreadId, "/workspace/second");
     const committed = { snapshot: session.getSnapshot(), stored: storage.onlyStoredRecord() };
     session.clearActiveThread();
 
@@ -217,22 +219,54 @@ describe("consumeBrowserAuthorizationSession", () => {
       stored: storage.onlyStoredRecord(),
     }).toEqual({
       committed: {
-        snapshot: { token: "secret", activeThreadId: secondThreadId },
+        snapshot: {
+          token: "secret",
+          activeThreadId: secondThreadId,
+          historyCwd: "/workspace/second",
+        },
         stored: {
           token: "secret",
           activeThreadId: secondThreadId,
           persistenceContext: session.getPersistenceContext(),
+          historyCwd: "/workspace/second",
         },
       },
-      cleared: { token: "secret", activeThreadId: null },
-      stored: { token: "secret", persistenceContext: session.getPersistenceContext() },
+      cleared: { token: "secret", activeThreadId: null, historyCwd: "/workspace/second" },
+      stored: {
+        token: "secret",
+        persistenceContext: session.getPersistenceContext(),
+        historyCwd: "/workspace/second",
+      },
     });
+    const restored = consumeBrowserAuthorizationSession({
+      location: new URL("https://codex.test/history"),
+      replaceState: vi.fn<History["replaceState"]>(),
+      storage,
+    });
+    expect(restored.getSnapshot()).toEqual({
+      token: "secret",
+      activeThreadId: null,
+      historyCwd: "/workspace/second",
+    });
+    expect(restored.getPersistenceContext()).toBe(session.getPersistenceContext());
   });
 
   it.each([
     [null, "Missing launch token fragment"],
     ["not-json", "Stored browser authorization session is malformed"],
     [JSON.stringify({ token: "" }), "Stored browser authorization session is malformed"],
+    [
+      JSON.stringify({ token: "secret", historyCwd: "" }),
+      "Stored browser authorization session is malformed",
+    ],
+    [
+      JSON.stringify({ token: "secret", historyCwd: null }),
+      "Stored browser authorization session is malformed",
+    ],
+    [
+      JSON.stringify({ token: "secret", historyCwd: 123 }),
+      "Stored browser authorization session is malformed",
+    ],
     [
       JSON.stringify({ token: "secret", activeThreadId: "" }),
       "Stored browser authorization session is malformed",
@@ -332,7 +366,7 @@ describe("consumeBrowserAuthorizationSession", () => {
         storage,
       });
     const first = launch();
-    first.commitActiveThread(firstThreadId);
+    first.commitActiveThread(firstThreadId, "/workspace/first");
     const second = launch();
 
     expect(second.getPersistenceContext()).not.toBe(first.getPersistenceContext());
@@ -411,9 +445,44 @@ describe("consumeBrowserAuthorizationSession", () => {
     failWrites = true;
 
     expect(() => {
-      session.commitActiveThread(secondThreadId);
+      session.commitActiveThread(secondThreadId, "/workspace/second");
     }).toThrow(new Error("Unable to write browser authorization session"));
     expect(session.getSnapshot()).toEqual({ token: "secret", activeThreadId: null });
+  });
+
+  it("preserves the last committed history cwd when a replacement cannot be stored", () => {
+    const storage = new MemoryStorage();
+    const session = consumeBrowserAuthorizationSession({
+      location: new URL(`https://codex.test/task/${firstThreadId}#token=secret`),
+      replaceState: vi.fn<History["replaceState"]>(),
+      storage,
+    });
+    session.commitActiveThread(firstThreadId, "/workspace/first");
+    const write = vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw new Error("write failed");
+    });
+
+    expect(() => {
+      session.commitActiveThread(secondThreadId, "/workspace/second");
+    }).toThrow(new Error("Unable to write browser authorization session"));
+    expect(session.getSnapshot()).toEqual({
+      token: "secret",
+      activeThreadId: firstThreadId,
+      historyCwd: "/workspace/first",
+    });
+    expect(storage.onlyStoredRecord()).toEqual({
+      token: "secret",
+      activeThreadId: firstThreadId,
+      historyCwd: "/workspace/first",
+      persistenceContext: session.getPersistenceContext(),
+    });
+    write.mockRestore();
+    const restored = consumeBrowserAuthorizationSession({
+      location: new URL("https://codex.test/history"),
+      replaceState: vi.fn<History["replaceState"]>(),
+      storage,
+    });
+    expect(restored.getSnapshot()).toEqual(session.getSnapshot());
   });
 
   it("rejects an invalid active thread ID without touching storage", () => {
@@ -426,7 +495,7 @@ describe("consumeBrowserAuthorizationSession", () => {
     storage.operations.length = 0;
 
     expect(() => {
-      session.commitActiveThread("not-a-uuid");
+      session.commitActiveThread("not-a-uuid", "/workspace/first");
     }).toThrow(new Error("Active thread ID must be a UUID"));
     expect({ operations: storage.operations, snapshot: session.getSnapshot() }).toEqual({
       operations: [],

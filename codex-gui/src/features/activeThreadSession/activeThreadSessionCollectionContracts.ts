@@ -103,6 +103,7 @@ export type ActiveThreadActivationOutcome =
 
 export type ActiveThreadSession = Readonly<{
   getSnapshot(): ActiveThreadSessionSnapshot;
+  getHistoryCwd(): string | null;
   getCollectionSnapshot(): ActiveThreadCollectionSnapshot;
   subscribe(listener: () => void): () => void;
   activate(threadId: string): Promise<ActiveThreadActivationOutcome>;

@@ -1,14 +1,17 @@
-import { Outlet } from "@tanstack/react-router";
+import { Outlet, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import type { ActiveThreadSession } from "./features/activeThreadSession/activeThreadSession";
 import { type AppCapabilities, useActiveThreadSession } from "./features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "./features/appShell/AppCapabilitiesContext";
 import { AppShell } from "./features/appShell/AppShell";
 import { GuiHostConnectionBridge } from "./features/appShell/GuiHostConnectionBridge";
-import { type GuiRouteTarget } from "./features/browserLaunch/guiRouteTarget";
+import { selectGuiRouteTarget, type GuiRouteTarget } from "./features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands, GuiHostStatus } from "./features/guiHost/guiHostClient";
+import { NewSessionOwner } from "./features/newSession/newSessionOwner";
 
 function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
+  const router = useRouter();
+  const [newSessionOwner] = useState(() => new NewSessionOwner());
   const [status, setStatus] = useState<GuiHostStatus>({
     label: "connecting",
   });
@@ -22,9 +25,29 @@ function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
       commands,
       routeTarget,
       activeThreadSession,
+      newSessionOwner,
     }),
-    [activeThreadSession, authorizationToken, commands, routeTarget, status],
+    [activeThreadSession, authorizationToken, commands, newSessionOwner, routeTarget, status],
   );
+
+  useEffect(() => {
+    const resolved = (): void => {
+      newSessionOwner.setNavigation(
+        selectGuiRouteTarget(router.state.matches)?.type === "newTask",
+        router.state.location,
+      );
+    };
+    resolved();
+    const before = router.subscribe("onBeforeNavigate", (event) => {
+      newSessionOwner.setNavigation(false, event.toLocation);
+    });
+    const after = router.subscribe("onResolved", resolved);
+    return () => {
+      before();
+      after();
+      newSessionOwner.setNavigation(false, null);
+    };
+  }, [newSessionOwner, router]);
 
   return (
     <>
@@ -34,6 +57,7 @@ function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
         setAuthorizationToken={setAuthorizationToken}
         setActiveThreadSession={setActiveThreadSession}
         startupTarget={routeTarget}
+        newSessionOwner={newSessionOwner}
       />
       <AppCapabilitiesProvider capabilities={capabilities}>
         <ActiveThreadRouteSync routeTarget={routeTarget} />

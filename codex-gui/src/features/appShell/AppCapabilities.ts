@@ -6,6 +6,9 @@ import type {
 import type { ActiveThreadCollectionSnapshot } from "@/features/activeThreadSession/activeThreadSessionCollectionContracts";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import type { NewSessionOwner } from "@/features/newSession/newSessionOwner";
+import { useAppSelector } from "@/app/hooks";
+import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 
 export type AppCapabilities = Readonly<{
   status: GuiHostStatus;
@@ -13,6 +16,7 @@ export type AppCapabilities = Readonly<{
   commands: GuiHostCommands | null;
   routeTarget: GuiRouteTarget;
   activeThreadSession: ActiveThreadSession | null;
+  newSessionOwner: NewSessionOwner;
 }>;
 
 export const AppCapabilitiesContext = createContext<AppCapabilities | null>(null);
@@ -27,6 +31,29 @@ export function useAppCapabilities(): AppCapabilities {
 
 export function useActiveThreadSession(): ActiveThreadSession | null {
   return useAppCapabilities().activeThreadSession;
+}
+
+export function useNewSessionSnapshot() {
+  const { newSessionOwner } = useAppCapabilities();
+  return useSyncExternalStore(
+    newSessionOwner.subscribe,
+    newSessionOwner.getSnapshot,
+    newSessionOwner.getSnapshot,
+  );
+}
+
+export function useNewSessionCwd(): string | null {
+  const session = useActiveThreadSession();
+  const threadId = useActiveThreadId();
+  const currentCwd = useAppSelector((state) =>
+    threadId == null ? null : (selectThreadRuntimeRecord(state, threadId)?.thread.cwd ?? null),
+  );
+  const historyCwd = useSyncExternalStore(
+    session?.subscribe ?? subscribeToUnavailableSession,
+    session?.getHistoryCwd ?? getUnavailableCwd,
+    session?.getHistoryCwd ?? getUnavailableCwd,
+  );
+  return currentCwd ?? historyCwd;
 }
 
 export function useActiveThreadSessionSnapshot(): ActiveThreadSessionSnapshot {
@@ -83,3 +110,4 @@ const getUnavailableCollectionSnapshot = (): ActiveThreadCollectionSnapshot =>
 const unavailableSessionSnapshot = { phase: "empty", revision: 0 } as const;
 const subscribeToUnavailableSession = (): (() => void) => () => undefined;
 const getUnavailableSessionSnapshot = (): ActiveThreadSessionSnapshot => unavailableSessionSnapshot;
+const getUnavailableCwd = (): null => null;

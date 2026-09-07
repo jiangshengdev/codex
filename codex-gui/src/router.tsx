@@ -10,6 +10,7 @@ import {
   CURRENT_TASK_ROUTE_PATH,
   HISTORY_DETAIL_ROUTE_PATH,
   HISTORY_LIST_ROUTE_PATH,
+  NEW_TASK_ROUTE_PATH,
   isValidThreadId,
   validateEmptyRouteSearch,
 } from "./features/browserLaunch/guiRouteTarget";
@@ -17,6 +18,7 @@ import { CurrentTaskPage } from "./features/currentTask/CurrentTaskPage";
 import { DocumentTitleOwner } from "./features/documentTitle/DocumentTitleOwner";
 import { ThreadHistoryDetailPage } from "./features/threadHistory/ThreadHistoryDetailPage";
 import { ThreadHistoryListPage } from "./features/threadHistory/ThreadHistoryListPage";
+import { NewSessionPage } from "./features/newSession/NewSessionPage";
 import { AppRouteBoundary, RootRouteError } from "./routerComponents";
 
 const rootRoute = createRootRoute({
@@ -52,6 +54,12 @@ const historyDetailRoute = createRoute({
   params: { parse: parseThreadIdParams },
 });
 
+const newTaskRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: NEW_TASK_ROUTE_PATH,
+  component: NewSessionPage,
+});
+
 function parseThreadIdParams(params: Readonly<{ threadId: string }>): { threadId: string } {
   if (!isValidThreadId(params.threadId)) {
     return notFound({ routeId: rootRoute.id, throw: true }) as never;
@@ -60,7 +68,7 @@ function parseThreadIdParams(params: Readonly<{ threadId: string }>): { threadId
 }
 
 const routeTree = rootRoute.addChildren([
-  appRoute.addChildren([currentTaskRoute, historyRoute, historyDetailRoute]),
+  appRoute.addChildren([currentTaskRoute, historyRoute, historyDetailRoute, newTaskRoute]),
 ]);
 
 export function createAppRouter(history?: RouterHistory) {

@@ -1,6 +1,7 @@
 import { Alert, Button } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
+import { FailureLayout } from "@/feedback/FailureLayout";
 import type { ActiveThreadActivationFailure } from "@/features/activeThreadSession/activeThreadSession";
 import { errorText } from "@/text/errorText";
 
@@ -36,8 +37,8 @@ export function ContinueTaskFailureAlert({
       return (
         <Alert role="alert" status="danger">
           <Alert.Indicator />
-          <Alert.Content className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="min-w-0">
+          <FailureLayout>
+            <Alert.Content className="gap-2">
               <Alert.Title>
                 <Trans>Unable to continue this task</Trans>
               </Alert.Title>
@@ -46,13 +47,13 @@ export function ContinueTaskFailureAlert({
                   <Trans>An unexpected error occurred while continuing the task.</Trans>
                 </span>
               </Alert.Description>
-            </div>
-            <FailureDiagnosticModal triggerClassName="justify-self-start">
-              <span className="block">
-                <Trans>Diagnostic:</Trans> {errorText(state.error)}
-              </span>
-            </FailureDiagnosticModal>
-          </Alert.Content>
+              <FailureDiagnosticModal>
+                <span className="block">
+                  <Trans>Diagnostic:</Trans> {errorText(state.error)}
+                </span>
+              </FailureDiagnosticModal>
+            </Alert.Content>
+          </FailureLayout>
         </Alert>
       );
     case "empty":
@@ -118,8 +119,21 @@ function ContinueTaskUnavailableAlert({
       return (
         <Alert role="alert" status="warning">
           <Alert.Indicator />
-          <Alert.Content className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="min-w-0">
+          <FailureLayout
+            actions={
+              activeThreadId == null ? null : (
+                <Button
+                  onPress={() => {
+                    navigateToCurrentTask(activeThreadId);
+                  }}
+                  variant="secondary"
+                >
+                  <Trans>Return to current task</Trans>
+                </Button>
+              )
+            }
+          >
+            <Alert.Content>
               <Alert.Title>
                 <Trans>Unable to continue this task</Trans>
               </Alert.Title>
@@ -128,19 +142,8 @@ function ContinueTaskUnavailableAlert({
                   <Trans>The task could not be activated.</Trans>
                 </span>
               </Alert.Description>
-            </div>
-            {activeThreadId == null ? null : (
-              <Button
-                className="justify-self-start"
-                onPress={() => {
-                  navigateToCurrentTask(activeThreadId);
-                }}
-                variant="secondary"
-              >
-                <Trans>Return to current task</Trans>
-              </Button>
-            )}
-          </Alert.Content>
+            </Alert.Content>
+          </FailureLayout>
         </Alert>
       );
     }
@@ -149,8 +152,19 @@ function ContinueTaskUnavailableAlert({
       return (
         <Alert role="alert" status="warning">
           <Alert.Indicator />
-          <Alert.Content className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="min-w-0">
+          <FailureLayout
+            actions={
+              <Button
+                onPress={() => {
+                  navigateToCurrentTask(activeThreadId);
+                }}
+                variant="secondary"
+              >
+                <Trans>Return to current task</Trans>
+              </Button>
+            }
+          >
+            <Alert.Content>
               <Alert.Title>
                 <Trans>Unable to switch tasks yet</Trans>
               </Alert.Title>
@@ -162,17 +176,8 @@ function ContinueTaskUnavailableAlert({
                   </Trans>
                 </span>
               </Alert.Description>
-            </div>
-            <Button
-              className="justify-self-start"
-              onPress={() => {
-                navigateToCurrentTask(activeThreadId);
-              }}
-              variant="secondary"
-            >
-              <Trans>Return to current task</Trans>
-            </Button>
-          </Alert.Content>
+            </Alert.Content>
+          </FailureLayout>
         </Alert>
       );
     }
@@ -180,8 +185,8 @@ function ContinueTaskUnavailableAlert({
       return (
         <Alert role="alert" status="danger">
           <Alert.Indicator />
-          <Alert.Content className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="min-w-0">
+          <FailureLayout>
+            <Alert.Content className="gap-2">
               <Alert.Title>
                 {failure.progress === "beforeCommit" ? (
                   <Trans>Unable to continue this task</Trans>
@@ -204,23 +209,23 @@ function ContinueTaskUnavailableAlert({
                   )}
                 </span>
               </Alert.Description>
-            </div>
-            {failure.cleanupError == null ? null : (
-              <FailureDiagnosticModal triggerClassName="justify-self-start">
-                <span className="block">
-                  <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
-                </span>
-              </FailureDiagnosticModal>
-            )}
-          </Alert.Content>
+              {failure.cleanupError == null ? null : (
+                <FailureDiagnosticModal>
+                  <span className="block">
+                    <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
+                  </span>
+                </FailureDiagnosticModal>
+              )}
+            </Alert.Content>
+          </FailureLayout>
         </Alert>
       );
     case "operationFailed":
       return (
         <Alert role="alert" status="danger">
           <Alert.Indicator />
-          <Alert.Content className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="min-w-0">
+          <FailureLayout>
+            <Alert.Content className="gap-2">
               <Alert.Title>
                 <Trans>Unable to continue this task</Trans>
               </Alert.Title>
@@ -229,18 +234,18 @@ function ContinueTaskUnavailableAlert({
                   <OperationFailureSummary phase={failure.phase} />
                 </span>
               </Alert.Description>
-            </div>
-            <FailureDiagnosticModal triggerClassName="justify-self-start">
-              <span className="block">
-                <Trans>Operation diagnostic:</Trans> {errorText(failure.error)}
-              </span>
-              {failure.cleanupError == null ? null : (
+              <FailureDiagnosticModal>
                 <span className="block">
-                  <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
+                  <Trans>Operation diagnostic:</Trans> {errorText(failure.error)}
                 </span>
-              )}
-            </FailureDiagnosticModal>
-          </Alert.Content>
+                {failure.cleanupError == null ? null : (
+                  <span className="block">
+                    <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
+                  </span>
+                )}
+              </FailureDiagnosticModal>
+            </Alert.Content>
+          </FailureLayout>
         </Alert>
       );
   }

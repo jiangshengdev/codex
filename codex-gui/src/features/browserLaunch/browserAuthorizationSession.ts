@@ -9,6 +9,7 @@ type AuthorizationSessionStorage = Pick<Storage, "getItem" | "setItem">;
 export type BrowserAuthorizationSessionSnapshot = Readonly<{
   token: string;
   activeThreadId: string | null;
+  historyCwd?: string;
 }>;
 
 export class BrowserAuthorizationSession {
@@ -30,17 +31,17 @@ export class BrowserAuthorizationSession {
 
   getPersistenceContext = (): string => this.persistenceContext;
 
-  commitActiveThread = (threadId: string): void => {
+  commitActiveThread = (threadId: string, historyCwd: string): void => {
     if (!isValidThreadId(threadId)) {
       throw new Error("Active thread ID must be a UUID");
     }
-    const next = { token: this.snapshot.token, activeThreadId: threadId };
+    const next = { token: this.snapshot.token, activeThreadId: threadId, historyCwd };
     writeStoredSession(this.storage, next, this.persistenceContext);
     this.snapshot = next;
   };
 
   clearActiveThread = (): void => {
-    const next = { token: this.snapshot.token, activeThreadId: null };
+    const next = { ...this.snapshot, activeThreadId: null };
     writeStoredSession(this.storage, next, this.persistenceContext);
     this.snapshot = next;
   };
@@ -122,14 +123,20 @@ function parseStoredSession(value: unknown): {
   const keys = Object.keys(record);
   const hasActiveThreadId = Object.hasOwn(record, "activeThreadId");
   const hasPersistenceContext = Object.hasOwn(record, "persistenceContext");
+  const hasHistoryCwd = Object.hasOwn(record, "historyCwd");
   if (
     keys.some(
-      (key) => key !== "token" && key !== "activeThreadId" && key !== "persistenceContext",
+      (key) =>
+        key !== "token" &&
+        key !== "activeThreadId" &&
+        key !== "persistenceContext" &&
+        key !== "historyCwd",
     ) ||
     typeof record.token !== "string" ||
     record.token.length === 0 ||
     (hasActiveThreadId && !isValidThreadId(record.activeThreadId)) ||
-    (hasPersistenceContext && !isValidThreadId(record.persistenceContext))
+    (hasPersistenceContext && !isValidThreadId(record.persistenceContext)) ||
+    (hasHistoryCwd && (typeof record.historyCwd !== "string" || record.historyCwd.length === 0))
   ) {
     throw new Error("Stored browser authorization session is malformed");
   }
@@ -138,6 +145,7 @@ function parseStoredSession(value: unknown): {
     snapshot: {
       token: record.token,
       activeThreadId: hasActiveThreadId ? (record.activeThreadId as string) : null,
+      ...(hasHistoryCwd ? { historyCwd: record.historyCwd as string } : {}),
     },
     persistenceContext: hasPersistenceContext ? (record.persistenceContext as string) : null,
   };
@@ -160,7 +168,13 @@ function writeStoredSession(
       ? { token: snapshot.token, persistenceContext }
       : { token: snapshot.token, activeThreadId: snapshot.activeThreadId, persistenceContext };
   try {
-    storage.setItem(authorizationSessionStorageKey, JSON.stringify(stored));
+    storage.setItem(
+      authorizationSessionStorageKey,
+      JSON.stringify({
+        ...stored,
+        ...(snapshot.historyCwd == null ? {} : { historyCwd: snapshot.historyCwd }),
+      }),
+    );
   } catch (error: unknown) {
     throw new Error("Unable to write browser authorization session", { cause: error });
   }

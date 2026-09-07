@@ -7,6 +7,7 @@ import { useAppSelector } from "@/app/hooks";
 import {
   CURRENT_TASK_ROUTE_PATH,
   HISTORY_LIST_ROUTE_PATH,
+  NEW_TASK_ROUTE_PATH,
 } from "@/features/browserLaunch/guiRouteTarget";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import { useHistoryDetailTitle } from "@/features/documentTitle/historyDetailTitleContext";
@@ -14,6 +15,8 @@ import {
   useActiveThreadCollectionSnapshot,
   useActiveThreadId,
   useAppCapabilities,
+  useNewSessionCwd,
+  useNewSessionSnapshot,
 } from "./AppCapabilities";
 import { ActiveThreadCollectionMenu } from "./ActiveThreadCollectionMenu";
 import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation";
@@ -22,7 +25,10 @@ export function AppShellTopBar() {
   const { t } = useLingui();
   const navigate = useNavigate();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const { routeTarget, status } = useAppCapabilities();
+  const { routeTarget, status, newSessionOwner } = useAppCapabilities();
+  const newSession = useNewSessionSnapshot();
+  const newSessionCwd = useNewSessionCwd();
+  const canOpenNewSession = newSession != null || newSessionCwd != null;
   const activeThreadId = useActiveThreadId();
   const collection = useActiveThreadCollectionSnapshot();
   const runtime = useAppSelector((state) =>
@@ -36,6 +42,8 @@ export function AppShellTopBar() {
     collection.members.some(activeThreadMemberHasError);
   const isCurrentTask = routeTarget.type === "currentTask";
   const isHistoryDetail = routeTarget.type === "historyDetail";
+  const isNewTask = routeTarget.type === "newTask";
+  const isHistory = routeTarget.type === "historyList" || isHistoryDetail;
   const historyDetailTitle = useHistoryDetailTitle();
   const currentTaskTitle =
     isCurrentTask && runtime?.threadId === routeTarget.threadId
@@ -47,7 +55,9 @@ export function AppShellTopBar() {
     ? (currentTaskTitle ?? t`Current task`)
     : isHistoryDetail
       ? (historyDetailTitle ?? t`History detail`)
-      : t`History`;
+      : isNewTask
+        ? t`New session`
+        : t`History`;
 
   const navigateToCurrentTask = (): void => {
     if (activeThreadId == null) {
@@ -63,6 +73,12 @@ export function AppShellTopBar() {
   const navigateToHistory = (): void => {
     setIsDrawerOpen(false);
     void navigate({ to: HISTORY_LIST_ROUTE_PATH });
+  };
+
+  const navigateToNewSession = (): void => {
+    if (!newSessionOwner.open(newSessionCwd)) return;
+    setIsDrawerOpen(false);
+    void navigate({ to: NEW_TASK_ROUTE_PATH });
   };
 
   return (
@@ -108,6 +124,46 @@ export function AppShellTopBar() {
             <Drawer.Body className="-mx-1 -my-px min-h-0 overflow-y-auto p-1">
               <nav aria-label={t`Main navigation`} className="flex flex-col gap-1">
                 <Button
+                  aria-describedby="new-session-navigation-description"
+                  aria-current={isNewTask ? "page" : undefined}
+                  aria-labelledby="new-session-navigation-label"
+                  className="h-auto min-h-9 justify-start gap-3 rounded-2xl px-2 py-1.5 text-start whitespace-normal md:h-auto"
+                  fullWidth
+                  isDisabled={!canOpenNewSession}
+                  variant="ghost"
+                  onPress={navigateToNewSession}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="flex w-4 shrink-0 items-center justify-center self-stretch"
+                  >
+                    {isNewTask ? (
+                      <span
+                        className="size-2 rounded-full bg-muted"
+                        data-current-page-indicator="true"
+                      />
+                    ) : null}
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col items-start">
+                    <span
+                      className="text-sm font-medium text-foreground"
+                      id="new-session-navigation-label"
+                    >
+                      <Trans>New session</Trans>
+                    </span>
+                    <span
+                      className="text-xs font-normal text-wrap wrap-break-word text-muted"
+                      id="new-session-navigation-description"
+                    >
+                      {canOpenNewSession ? (
+                        <Trans>Start a conversation</Trans>
+                      ) : (
+                        <Trans>A working directory is required to start a session.</Trans>
+                      )}
+                    </span>
+                  </span>
+                </Button>
+                <Button
                   aria-describedby="current-task-navigation-description"
                   aria-current={isCurrentTask ? "page" : undefined}
                   aria-labelledby="current-task-navigation-label"
@@ -148,7 +204,7 @@ export function AppShellTopBar() {
                 </Button>
                 <Button
                   aria-describedby="history-navigation-description"
-                  aria-current={!isCurrentTask ? "page" : undefined}
+                  aria-current={isHistory ? "page" : undefined}
                   aria-labelledby="history-navigation-label"
                   className="h-auto min-h-9 justify-start gap-3 rounded-2xl px-2 py-1.5 text-start whitespace-normal md:h-auto"
                   fullWidth
@@ -159,7 +215,7 @@ export function AppShellTopBar() {
                     aria-hidden="true"
                     className="flex w-4 shrink-0 items-center justify-center self-stretch"
                   >
-                    {!isCurrentTask ? (
+                    {isHistory ? (
                       <span
                         aria-hidden="true"
                         className="size-2 rounded-full bg-muted"

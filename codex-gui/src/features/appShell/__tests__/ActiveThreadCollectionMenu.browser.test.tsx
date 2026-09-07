@@ -1,6 +1,7 @@
 import { expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { attachResponse } from "@/__tests__/appBrowserTestSupport";
+import { createDeferred } from "@/__tests__/testDeferred";
 import {
   activeThreadReadModelSlotCreated,
   activeThreadReadModelTransitionApplied,
@@ -54,43 +55,75 @@ test("keeps a waiting task unmarked, removal disabled, and its title route selec
   expect(harness.remove).not.toHaveBeenCalled();
 });
 
-test("removing the viewed idle task navigates to its history without selecting another member", async () => {
-  const {
-    screen,
-    router,
-    activeThreadSessionHarness: harness,
-  } = await renderTopBar({
-    initialEntry: `/task/${currentThreadId}`,
-    routeTarget: { type: "currentTask", threadId: currentThreadId },
-  });
-  harness.publishCollection({
-    viewedThreadId: currentThreadId,
-    errors: [],
-    members: [
-      {
-        threadId: currentThreadId,
-        phase: "ready",
-        snapshot: harness.activeSnapshot({
-          threadId: currentThreadId,
-          threadStatus: { type: "idle" },
-        }),
-        error: null,
-        operationErrors: [],
-        canRemove: true,
-        removalBlockers: [],
-      },
-    ],
-  });
-  harness.remove.mockResolvedValue({ type: "removed", threadId: currentThreadId, wasViewed: true });
-  await screen.getByRole("button", { name: "Menu", exact: true }).click();
-  await screen
-    .getByRole("button", { name: `More options for ${currentThreadId}`, exact: true })
-    .click();
-  await screen.getByRole("menuitem", { name: "Remove from list", exact: true }).click();
-  await expect.poll(() => router.state.location.pathname).toBe(`/history/${currentThreadId}`);
-  expect(harness.remove).toHaveBeenCalledExactlyOnceWith(currentThreadId);
-  expect(harness.activate).not.toHaveBeenCalled();
-});
+test.each(["viewed", "background", "changed route", "failed"])(
+  "removing a %s task preserves the intended destination",
+  async (scenario) => {
+    const {
+      screen,
+      router,
+      activeThreadSessionHarness: harness,
+    } = await renderTopBar({
+      initialEntry: `/task/${currentThreadId}`,
+      routeTarget: { type: "currentTask", threadId: currentThreadId },
+    });
+    const removedThreadId = scenario === "background" ? backgroundThreadId : currentThreadId;
+    const initialHistoryLength = router.history.length;
+    harness.publishCollection({
+      viewedThreadId: currentThreadId,
+      errors: [],
+      members: [
+        {
+          threadId: removedThreadId,
+          phase: "ready",
+          snapshot: harness.activeSnapshot({
+            threadId: removedThreadId,
+            threadStatus: { type: "idle" },
+          }),
+          error: null,
+          operationErrors: [],
+          canRemove: true,
+          removalBlockers: [],
+        },
+      ],
+    });
+    const removal = createDeferred<Awaited<ReturnType<typeof harness.remove>>>();
+    harness.remove.mockReturnValueOnce(removal.promise);
+    await screen.getByRole("button", { name: "Menu", exact: true }).click();
+    await screen
+      .getByRole("button", { name: `More options for ${removedThreadId}`, exact: true })
+      .click();
+    await screen.getByRole("menuitem", { name: "Remove from list", exact: true }).click();
+    expect(harness.remove).toHaveBeenCalledExactlyOnceWith(removedThreadId);
+    if (scenario === "changed route") {
+      await router.navigate({ to: "/task/$threadId", params: { threadId: backgroundThreadId } });
+    }
+    const failure = new Error("Remove operation rejected");
+    if (scenario === "failed") {
+      removal.reject(failure);
+    } else {
+      removal.resolve({
+        type: "removed",
+        threadId: removedThreadId,
+        wasViewed: scenario !== "background",
+      });
+    }
+    await expect
+      .poll(() => harness.setOperationError.mock.calls)
+      .toContainEqual([removedThreadId, "remove", scenario === "failed" ? failure : null]);
+    const expectedPath =
+      scenario === "viewed"
+        ? "/history"
+        : `/task/${scenario === "changed route" ? backgroundThreadId : currentThreadId}`;
+    await expect.poll(() => router.state.location.pathname).toBe(expectedPath);
+    expect(router.history.length).toBe(
+      initialHistoryLength + (scenario === "changed route" ? 1 : 0),
+    );
+    await expect
+      .poll(() => screen.getByRole("dialog", { name: "Navigation" }).elements().length)
+      .toBe(scenario === "viewed" ? 0 : 1);
+    expect(harness.activate).not.toHaveBeenCalled();
+  },
+);
 
 for (const phase of ["failed", "cleanupPending", "ready"] as const) {
   test(`marks the ${phase} background member and opens its task page for recovery`, async () => {

@@ -10,6 +10,7 @@ import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "@/features/guiHost/guiHostClient";
 import { errorText } from "@/text/errorText";
+import type { NewSessionOwner } from "@/features/newSession/newSessionOwner";
 
 export type GuiHostConnectionBridgeProps = {
   setStatus: (status: GuiHostStatus) => void;
@@ -17,6 +18,7 @@ export type GuiHostConnectionBridgeProps = {
   startupTarget: GuiRouteTarget;
   setAuthorizationToken: (token: string | null) => void;
   setActiveThreadSession: (session: ActiveThreadSession | null) => void;
+  newSessionOwner: NewSessionOwner;
 };
 
 export function GuiHostConnectionBridge({
@@ -25,6 +27,7 @@ export function GuiHostConnectionBridge({
   startupTarget,
   setAuthorizationToken,
   setActiveThreadSession,
+  newSessionOwner,
 }: GuiHostConnectionBridgeProps) {
   const dispatch = useAppDispatch();
   const frozenStartupTarget = useRef(startupTarget);
@@ -71,6 +74,7 @@ export function GuiHostConnectionBridge({
     window.addEventListener("pageshow", handlePageShow);
 
     const connectionUnavailable = (): void => {
+      newSessionOwner.setConnection(null);
       activeThreadController?.connectionUnavailable();
       if (isMounted) setCommands(null);
     };
@@ -106,6 +110,7 @@ export function GuiHostConnectionBridge({
             persistence: { authorizationContext: authorizationSession.getPersistenceContext() },
           });
           activeThreadController = controller;
+          newSessionOwner.setConnection({ commands, session: controller.session });
           setActiveThreadSession(controller.session);
           const target = frozenStartupTarget.current;
           void controller.activateRecoveryThread(
@@ -124,6 +129,7 @@ export function GuiHostConnectionBridge({
 
     return () => {
       isMounted = false;
+      newSessionOwner.setConnection(null);
       window.removeEventListener("pagehide", suspendRestoredQueue);
       window.removeEventListener("pageshow", handlePageShow);
       activeThreadController?.dispose();
@@ -135,6 +141,7 @@ export function GuiHostConnectionBridge({
     };
   }, [
     dispatch,
+    newSessionOwner,
     pageSessionRevision,
     setActiveThreadSession,
     setAuthorizationToken,

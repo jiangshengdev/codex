@@ -1,6 +1,6 @@
 import { createRef, useState, type CSSProperties, type RefObject } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import type {
   SkillCatalogCandidate,
@@ -564,6 +564,104 @@ test("preserves catalog loading, refresh, partial error, total error, retry, emp
     .element(screen.getByRole("listbox", { name: "Typeahead menu" }))
     .not.toBeInTheDocument();
 });
+
+test.each([
+  {
+    locale: "en" as const,
+    type: "failed" as const,
+    message: "Skills could not be loaded",
+    retryLabel: "Retry",
+  },
+  {
+    locale: "en" as const,
+    type: "stale" as const,
+    message: "Showing saved skills because refresh failed",
+    retryLabel: "Retry",
+  },
+  {
+    locale: "en" as const,
+    type: "ready" as const,
+    message: "Some skills could not be loaded",
+    retryLabel: "Retry",
+  },
+  {
+    locale: "zh-CN" as const,
+    type: "failed" as const,
+    message: "无法加载技能",
+    retryLabel: "重试",
+  },
+  {
+    locale: "zh-CN" as const,
+    type: "stale" as const,
+    message: "刷新失败，正在显示已保存的技能",
+    retryLabel: "重试",
+  },
+  {
+    locale: "zh-CN" as const,
+    type: "ready" as const,
+    message: "部分技能无法加载",
+    retryLabel: "重试",
+  },
+])(
+  "places $type skill retry after its content in a narrow menu at a wide viewport in $locale",
+  async ({ locale, type, message, retryLabel }) => {
+    const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+    try {
+      await page.viewport(1280, 800);
+      const onRetrySkillCatalog = vi.fn<() => void>();
+      const renderMenu = (withRetry: boolean) => (
+        <div style={{ width: 320 }}>
+          <ComposerEditorFixture
+            ariaLabel="Message"
+            disabled={false}
+            guardCompositionEndEnter={false}
+            onRetrySkillCatalog={withRetry ? onRetrySkillCatalog : undefined}
+            onSubmit={() => undefined}
+            placeholder="Message Codex"
+            skillCatalog={catalog(type, [], type === "ready" ? 1 : 0)}
+          />
+        </div>
+      );
+      const screen = await renderWithProviders(renderMenu(true), { locale });
+      await screen.getByRole("combobox", { name: "Message" }).fill("$");
+      const description = screen.getByText(message, { exact: true });
+      const retry = screen.getByRole("button", { name: retryLabel, exact: true });
+      await expect.element(description).toBeVisible();
+      await expect.element(retry).toBeVisible();
+      const status = description.element().closest('[role="status"]');
+      if (!(status instanceof HTMLElement)) {
+        throw new Error("skill catalog feedback must have a status region");
+      }
+      await expect
+        .poll(() => {
+          const contentBounds = description.element().getBoundingClientRect();
+          const retryBounds = retry.element().getBoundingClientRect();
+          const statusBounds = status.getBoundingClientRect();
+          return (
+            statusBounds.width <= 320 &&
+            retryBounds.top >= contentBounds.bottom &&
+            Math.abs(retryBounds.left - contentBounds.left) <= 1 &&
+            retryBounds.right <= statusBounds.right &&
+            status.scrollWidth <= status.clientWidth
+          );
+        })
+        .toBe(true);
+      expect(
+        description.element().compareDocumentPosition(retry.element()) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).not.toBe(0);
+      await retry.click();
+      expect(onRetrySkillCatalog).toHaveBeenCalledOnce();
+      await screen.rerender(renderMenu(false));
+      await screen.getByRole("combobox", { name: "Message" }).fill("$");
+      await expect.element(description).toBeVisible();
+      await expect.element(retry).not.toBeInTheDocument();
+      expect(onRetrySkillCatalog).toHaveBeenCalledOnce();
+    } finally {
+      await page.viewport(originalViewport.width, originalViewport.height);
+    }
+  },
+);
 
 function optionIsUnobstructed(option: Element): boolean {
   const bounds = option.getBoundingClientRect();

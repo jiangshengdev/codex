@@ -1,5 +1,7 @@
 import { Alert, Button, Typography } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
+import { FailureLayout } from "@/feedback/FailureLayout";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import { ReadOnlyCommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
@@ -39,13 +41,17 @@ export function ThreadHistoryDetailContent({
         <HistoryDetailDocumentTitleFactPublisher threadId={state.thread.id} title={title} />
       ) : null}
       {state.type === "loading" ? (
-        <Typography color="muted" role="status" type="body-sm">
+        <Typography className="pt-3" color="muted" role="status" type="body-sm">
           <Trans>Loading task history…</Trans>
         </Typography>
       ) : null}
-      {state.type === "error" ? <HistoryDetailError error={state.error} retry={retry} /> : null}
+      {state.type === "error" ? (
+        <div className="pt-3">
+          <HistoryDetailError error={state.error} retry={retry} />
+        </div>
+      ) : null}
       {state.type === "ready" && state.thread.turns.length === 0 ? (
-        <Typography color="muted" type="body-sm">
+        <Typography className="pt-3" color="muted" type="body-sm">
           <Trans>This task has no messages.</Trans>
         </Typography>
       ) : null}
@@ -75,17 +81,24 @@ function HistoryDetailError({
   return (
     <Alert role="alert" status="danger">
       <Alert.Indicator />
-      <Alert.Content>
-        <Alert.Title>
-          <Trans>Unable to load task history</Trans>
-        </Alert.Title>
-        <Alert.Description>{errorText(error)}</Alert.Description>
-        {retry == null ? null : (
-          <Button className="mt-3" onPress={retry} variant="tertiary">
-            <Trans>Retry</Trans>
-          </Button>
-        )}
-      </Alert.Content>
+      <FailureLayout
+        actions={
+          retry == null ? null : (
+            <Button onPress={retry} variant="tertiary">
+              <Trans>Retry</Trans>
+            </Button>
+          )
+        }
+      >
+        <Alert.Content>
+          <Alert.Title>
+            <Trans>Unable to load task history</Trans>
+          </Alert.Title>
+          <FailureDiagnosticModal triggerClassName="mt-2 self-start">
+            {errorText(error)}
+          </FailureDiagnosticModal>
+        </Alert.Content>
+      </FailureLayout>
     </Alert>
   );
 }

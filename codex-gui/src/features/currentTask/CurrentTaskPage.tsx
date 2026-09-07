@@ -1,4 +1,4 @@
-import { Alert, Button, Surface } from "@heroui/react";
+import { Alert, Button, Spinner, Surface } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
@@ -20,6 +20,7 @@ import type { ActiveThreadSessionIdentity } from "@/features/activeThreadSession
 import type { ActiveThreadMemberOperationError } from "@/features/activeThreadSession/activeThreadSessionCollectionContracts";
 import { errorText } from "@/text/errorText";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
+import { FailureLayout } from "@/feedback/FailureLayout";
 
 function isMacAppleWebKitRuntime(): boolean {
   return (
@@ -108,26 +109,8 @@ export function CurrentTaskPage() {
   const operationNotices = member?.operationErrors.map(({ operation, error }) => (
     <Alert key={operation} role="alert" status="danger">
       <Alert.Indicator />
-      <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <Alert.Title>
-          <Trans>Task action failed</Trans>
-        </Alert.Title>
-        <Alert.Description className="col-start-1">
-          {operation === "navigation" ? (
-            <Trans>The task could not be opened.</Trans>
-          ) : (
-            <Trans>The task could not be removed.</Trans>
-          )}
-        </Alert.Description>
-        {taskErrorText(error) !== "" ? (
-          <FailureDiagnosticModal
-            triggerClassName="col-start-1 mt-2 justify-self-start"
-            triggerSize="sm"
-          >
-            {taskErrorText(error)}
-          </FailureDiagnosticModal>
-        ) : null}
-        <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
+      <FailureLayout
+        actions={
           <Button
             size="sm"
             variant={operation === "remove" ? "danger" : "primary"}
@@ -137,8 +120,26 @@ export function CurrentTaskPage() {
           >
             <Trans>Retry</Trans>
           </Button>
-        </div>
-      </Alert.Content>
+        }
+      >
+        <Alert.Content>
+          <Alert.Title>
+            <Trans>Task action failed</Trans>
+          </Alert.Title>
+          <Alert.Description>
+            {operation === "navigation" ? (
+              <Trans>The task could not be opened.</Trans>
+            ) : (
+              <Trans>The task could not be removed.</Trans>
+            )}
+          </Alert.Description>
+          {taskErrorText(error) !== "" ? (
+            <FailureDiagnosticModal triggerClassName="mt-2 self-start" triggerSize="sm">
+              {taskErrorText(error)}
+            </FailureDiagnosticModal>
+          ) : null}
+        </Alert.Content>
+      </FailureLayout>
     </Alert>
   ));
 
@@ -160,29 +161,28 @@ export function CurrentTaskPage() {
         </Button>
       ) : null;
     return (
-      <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label}>
+      <main
+        className="app-shell-content-boundary space-y-3 py-3"
+        data-gui-host-status={status.label}
+      >
         {retryError != null ? (
           <Alert role="alert" status="danger">
             <Alert.Indicator />
-            <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <Alert.Title>
-                <Trans>Unable to load the current task</Trans>
-              </Alert.Title>
-              <Alert.Description className="col-start-1">
-                <Trans>The current task could not be loaded.</Trans>
-              </Alert.Description>
-              {retryError !== "" ? (
-                <FailureDiagnosticModal
-                  triggerClassName="col-start-1 mt-2 justify-self-start"
-                  triggerSize="sm"
-                >
-                  {retryError}
-                </FailureDiagnosticModal>
-              ) : null}
-              <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
-                {retryAction}
-              </div>
-            </Alert.Content>
+            <FailureLayout actions={retryAction}>
+              <Alert.Content>
+                <Alert.Title>
+                  <Trans>Unable to load the current task</Trans>
+                </Alert.Title>
+                <Alert.Description>
+                  <Trans>The current task could not be loaded.</Trans>
+                </Alert.Description>
+                {retryError !== "" ? (
+                  <FailureDiagnosticModal triggerClassName="mt-2 self-start" triggerSize="sm">
+                    {retryError}
+                  </FailureDiagnosticModal>
+                ) : null}
+              </Alert.Content>
+            </FailureLayout>
           </Alert>
         ) : null}
         {retryError == null ? retryAction : null}
@@ -191,21 +191,21 @@ export function CurrentTaskPage() {
   }
 
   if (activeThreadSession == null || sessionPhase === "empty" || sessionPhase === "disposed") {
-    return <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label} />;
+    return <main className="app-shell-content-boundary py-3" data-gui-host-status={status.label} />;
   }
 
   if (routeTarget.type !== "currentTask" || snapshot.threadId !== routeTarget.threadId) {
     return (
-      <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label}>
-        <Trans>Loading task…</Trans>
+      <main className="app-shell-content-boundary py-3" data-gui-host-status={status.label}>
+        <CurrentTaskLoading />
       </main>
     );
   }
   if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") {
     if (snapshot.phase === "loading") {
       return (
-        <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label}>
-          <Trans>Loading task…</Trans>
+        <main className="app-shell-content-boundary py-3" data-gui-host-status={status.label}>
+          <CurrentTaskLoading />
         </main>
       );
     }
@@ -221,29 +221,28 @@ export function CurrentTaskPage() {
       </Button>
     );
     return (
-      <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label}>
+      <main
+        className="app-shell-content-boundary space-y-3 py-3"
+        data-gui-host-status={status.label}
+      >
         {snapshot.error != null || retryError != null ? (
           <Alert role="alert" status="danger">
             <Alert.Indicator />
-            <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <Alert.Title>
-                <Trans>Unable to load the current task</Trans>
-              </Alert.Title>
-              <Alert.Description className="col-start-1">
-                <Trans>The current task could not be loaded.</Trans>
-              </Alert.Description>
-              {(retryError ?? taskErrorText(snapshot.error)) !== "" ? (
-                <FailureDiagnosticModal
-                  triggerClassName="col-start-1 mt-2 justify-self-start"
-                  triggerSize="sm"
-                >
-                  {retryError ?? taskErrorText(snapshot.error)}
-                </FailureDiagnosticModal>
-              ) : null}
-              <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
-                {retryAction}
-              </div>
-            </Alert.Content>
+            <FailureLayout actions={retryAction}>
+              <Alert.Content>
+                <Alert.Title>
+                  <Trans>Unable to load the current task</Trans>
+                </Alert.Title>
+                <Alert.Description>
+                  <Trans>The current task could not be loaded.</Trans>
+                </Alert.Description>
+                {(retryError ?? taskErrorText(snapshot.error)) !== "" ? (
+                  <FailureDiagnosticModal triggerClassName="mt-2 self-start" triggerSize="sm">
+                    {retryError ?? taskErrorText(snapshot.error)}
+                  </FailureDiagnosticModal>
+                ) : null}
+              </Alert.Content>
+            </FailureLayout>
           </Alert>
         ) : null}
         {operationNotices}
@@ -285,25 +284,21 @@ export function CurrentTaskPage() {
           {member?.error != null ? (
             <Alert role="alert" status="danger">
               <Alert.Indicator />
-              <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-                <Alert.Title>
-                  <Trans>Task action failed</Trans>
-                </Alert.Title>
-                <Alert.Description className="col-start-1">
-                  <Trans>The task action could not be completed.</Trans>
-                </Alert.Description>
-                {taskErrorText(member.error) !== "" ? (
-                  <FailureDiagnosticModal
-                    triggerClassName="col-start-1 mt-2 justify-self-start"
-                    triggerSize="sm"
-                  >
-                    {taskErrorText(member.error)}
-                  </FailureDiagnosticModal>
-                ) : null}
-                <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
-                  {retryError == null ? recoveryAction : null}
-                </div>
-              </Alert.Content>
+              <FailureLayout actions={retryError == null ? recoveryAction : null}>
+                <Alert.Content>
+                  <Alert.Title>
+                    <Trans>Task action failed</Trans>
+                  </Alert.Title>
+                  <Alert.Description>
+                    <Trans>The task action could not be completed.</Trans>
+                  </Alert.Description>
+                  {taskErrorText(member.error) !== "" ? (
+                    <FailureDiagnosticModal triggerClassName="mt-2 self-start" triggerSize="sm">
+                      {taskErrorText(member.error)}
+                    </FailureDiagnosticModal>
+                  ) : null}
+                </Alert.Content>
+              </FailureLayout>
             </Alert>
           ) : null}
           {operationNotices}
@@ -311,25 +306,21 @@ export function CurrentTaskPage() {
             retryError != null ? (
               <Alert role="alert" status="danger">
                 <Alert.Indicator />
-                <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <Alert.Title>
-                    <Trans>Unable to recover the current task</Trans>
-                  </Alert.Title>
-                  <Alert.Description className="col-start-1">
-                    <Trans>The task recovery could not be completed.</Trans>
-                  </Alert.Description>
-                  {retryError !== "" ? (
-                    <FailureDiagnosticModal
-                      triggerClassName="col-start-1 mt-2 justify-self-start"
-                      triggerSize="sm"
-                    >
-                      {retryError}
-                    </FailureDiagnosticModal>
-                  ) : null}
-                  <div className="mt-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0">
-                    {recoveryAction}
-                  </div>
-                </Alert.Content>
+                <FailureLayout actions={recoveryAction}>
+                  <Alert.Content>
+                    <Alert.Title>
+                      <Trans>Unable to recover the current task</Trans>
+                    </Alert.Title>
+                    <Alert.Description>
+                      <Trans>The task recovery could not be completed.</Trans>
+                    </Alert.Description>
+                    {retryError !== "" ? (
+                      <FailureDiagnosticModal triggerClassName="mt-2 self-start" triggerSize="sm">
+                        {retryError}
+                      </FailureDiagnosticModal>
+                    ) : null}
+                  </Alert.Content>
+                </FailureLayout>
               </Alert>
             ) : member?.error == null ? (
               recoveryAction
@@ -380,6 +371,20 @@ function CurrentTaskReady({
         routeTarget={routeTarget}
       />
     </main>
+  );
+}
+
+function CurrentTaskLoading() {
+  return (
+    <div
+      className="mx-auto flex w-fit max-w-full items-center gap-2 py-6 text-sm text-muted"
+      role="status"
+    >
+      <Spinner aria-hidden="true" size="sm" />
+      <span>
+        <Trans>Loading task…</Trans>
+      </span>
+    </div>
   );
 }
 

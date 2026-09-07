@@ -58,7 +58,44 @@ test("loads with exact read parameters, preserves the complete error, and retrie
   initialRead.reject(rawFailure);
   const alert = screen.getByRole("alert");
   await expect.element(alert.getByText("Unable to load task history")).toBeVisible();
-  await expect.element(alert.getByText(rawFailure.message, { exact: true })).toBeVisible();
+  await expect.element(page.getByText(rawFailure.message, { exact: true })).not.toBeInTheDocument();
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
+  await expect.element(dialog.getByText(rawFailure.message, { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Close diagnostics" }).click();
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  const retry = alert.getByRole("button", { name: "Retry" });
+  const description = alert.getByRole("button", { name: "View diagnostic information" });
+  try {
+    for (const width of [1280, 375]) {
+      await page.viewport(width, 900);
+      expect(alert.element().getBoundingClientRect().top).toBeGreaterThan(
+        screen.getByRole("banner").element().getBoundingClientRect().bottom,
+      );
+      await expect
+        .poll(() => {
+          const contentBounds = description.element().getBoundingClientRect();
+          const retryBounds = retry.element().getBoundingClientRect();
+          return width === 1280
+            ? retryBounds.left >= contentBounds.right &&
+                Math.abs(
+                  retryBounds.top -
+                    alert.getByText("Unable to load task history").element().getBoundingClientRect()
+                      .top,
+                ) <= 1
+            : retryBounds.top >= contentBounds.bottom &&
+                Math.abs(retryBounds.left - contentBounds.left) <= 1;
+        })
+        .toBe(true);
+      expect(alert.element().scrollWidth).toBeLessThanOrEqual(alert.element().clientWidth + 1);
+    }
+    expect(
+      description.element().compareDocumentPosition(retry.element()) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
   await alert.getByRole("button", { name: "Retry" }).click();
 
   await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
@@ -97,9 +134,15 @@ test("rejects a mismatched thread identity and retries the requested detail", as
 
   const alert = screen.getByRole("alert");
   await expect.element(alert.getByText("Unable to load task history")).toBeVisible();
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
   await expect
-    .element(alert.getByText("thread/read returned a different thread identity", { exact: true }))
+    .element(
+      page
+        .getByRole("dialog")
+        .getByText("thread/read returned a different thread identity", { exact: true }),
+    )
     .toBeVisible();
+  await page.getByRole("button", { name: "Close diagnostics" }).click();
   await expect.element(screen.getByText("Wrong thread content")).not.toBeInTheDocument();
   await expect
     .element(screen.getByRole("button", { name: "Continue this task" }))
@@ -166,7 +209,11 @@ test("settles a deferred read into error after StrictMode effect replay", async 
 
   const alert = screen.getByRole("alert");
   await expect.element(alert.getByText("Unable to load task history")).toBeVisible();
-  await expect.element(alert.getByText(failure.message, { exact: true })).toBeVisible();
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  await expect
+    .element(page.getByRole("dialog").getByText(failure.message, { exact: true }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "Close diagnostics" }).click();
   await expect.element(screen.getByRole("status")).not.toBeInTheDocument();
   await expect
     .element(screen.getByRole("banner").getByRole("heading", { level: 1 }))

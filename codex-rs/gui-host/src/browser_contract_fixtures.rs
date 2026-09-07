@@ -19,6 +19,7 @@ use crate::browser_contract::CURRENT_TASK_PATH_SEGMENT;
 use crate::browser_contract::GuiAuthenticateParams;
 use crate::browser_contract::GuiAuthenticateResult;
 use crate::browser_contract::HISTORY_PATH_SEGMENT;
+use crate::browser_contract::NEW_TASK_PATH_SEGMENT;
 use crate::browser_contract::TOKEN_FRAGMENT_KEY;
 use crate::browser_contract::WEBSOCKET_PATH;
 
@@ -231,6 +232,7 @@ fn unique_sibling_path(destination: &Path, role: &str) -> Result<PathBuf> {
 fn generate_typescript_contract() -> Result<String> {
     let constants = [
         ("CURRENT_TASK_PATH_SEGMENT", CURRENT_TASK_PATH_SEGMENT),
+        ("NEW_TASK_PATH_SEGMENT", NEW_TASK_PATH_SEGMENT),
         ("HISTORY_PATH_SEGMENT", HISTORY_PATH_SEGMENT),
         ("TOKEN_FRAGMENT_KEY", TOKEN_FRAGMENT_KEY),
         ("WEBSOCKET_PATH", WEBSOCKET_PATH),

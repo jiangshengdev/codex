@@ -46,7 +46,7 @@ export function ThreadHistoryDetailPage() {
     <main className="task-reading-boundary grid min-h-0 flex-1 content-start gap-4">
       {retainedCapability == null ? (
         status.label === "error" || status.label === "closed" ? (
-          <p className="text-sm text-muted">
+          <p className="pt-3 text-sm text-muted">
             <Trans>Task history is unavailable until the connection is restored.</Trans>
           </p>
         ) : (

@@ -5,6 +5,7 @@ import {
   deferredStart,
   live,
   pendingItem,
+  type InterruptTurn,
   type StartTurn,
   type SteerTurn,
 } from "./composerInputQueueCoordinatorTestFixtures";
@@ -48,6 +49,146 @@ function owner(fixture: ReturnType<typeof persistenceFixture>, activeTurnId: str
 }
 
 describe("coordinator persistence boundaries", () => {
+  it.each([false, true])(
+    "restores an empty queue without manual continuation (draft: %s)",
+    (hasDraft) => {
+      const fixture = persistenceFixture();
+      const initial = owner(fixture, null);
+      const capture = composerDraftCapture("first explicit message");
+      if (hasDraft) initial.coordinator.saveDraft(capture.draft);
+      initial.coordinator.dispose();
+
+      const restored = owner(fixture, null);
+      expect(restored.coordinator.getSnapshot().persistence).toMatchObject({
+        error: null,
+        restoredPaused: false,
+        revision: null,
+        unknownMessages: [],
+      });
+      expect(restored.coordinator.getDraft() === null).toBe(!hasDraft);
+      expect(restored.startTurn).not.toHaveBeenCalled();
+      expect(restored.coordinator.submit(capture)).toEqual({ type: "accepted" });
+      expect(restored.startTurn).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ input: capture.input }),
+      );
+    },
+  );
+
+  it.each([
+    { activeTurnId: null, status: "completed" },
+    { activeTurnId: "running-turn", status: "completed" },
+    { activeTurnId: "running-turn", status: "interrupted" },
+  ] as const)(
+    "keeps an empty suspended session isolated during submits and retries ($activeTurnId, $status)",
+    ({ activeTurnId, status }) => {
+      const fixture = persistenceFixture();
+      const current = owner(fixture, activeTurnId);
+      current.coordinator.suspendRestored();
+      expect(current.coordinator.getSnapshot().persistence.restoredPaused).toBe(false);
+      expect(current.coordinator.submit(composerDraftCapture("after suspension"))).toEqual({
+        type: "accepted",
+      });
+      const guide =
+        activeTurnId == null
+          ? null
+          : current.coordinator.submitSteer(composerDraftCapture("suspended guide"));
+      expect(guide).toEqual(activeTurnId == null ? null : { type: "accepted" });
+      if (activeTurnId != null) {
+        current.coordinator.observeAcceptedEvent(
+          live(
+            turnCompleted(eventTurnCompleted, "suspended-terminal", {
+              ...baseTurn(activeTurnId),
+              status,
+            }),
+          ),
+        );
+      }
+      expect(current.coordinator.retryPersistence()).toBe(true);
+      current.coordinator.completeRestoreReconciliation();
+      expect(
+        current.coordinator.resumeRestored(current.coordinator.getSnapshot().persistence.revision),
+      ).toBe(false);
+      expect(current.startTurn).not.toHaveBeenCalled();
+      expect(current.steerTurn).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps restored empty state isolated until reconciliation is saved successfully", () => {
+    const fixture = persistenceFixture();
+    owner(fixture, null).coordinator.dispose();
+    const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
+    const restored = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: null,
+      persistence: fixture.context,
+      startTurn,
+      steerTurn: vi.fn<SteerTurn>(),
+    });
+    expect(restored.submit(composerDraftCapture("submitted while restoring"))).toEqual({
+      type: "accepted",
+    });
+    expect(startTurn).not.toHaveBeenCalled();
+    fixture.failWrites(true);
+    restored.completeRestoreReconciliation();
+    expect(restored.getSnapshot().persistence.error).not.toBeNull();
+    expect(startTurn).not.toHaveBeenCalled();
+    fixture.failWrites(false);
+    expect(restored.retryPersistence()).toBe(true);
+    expect(restored.getSnapshot().persistence.restoredPaused).toBe(false);
+    expect(startTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not treat unreadable storage as an empty recovered session", () => {
+    const fixture = persistenceFixture();
+    vi.spyOn(fixture.context.storage, "getItem").mockImplementation(() => {
+      throw new Error("storage unavailable");
+    });
+    const restored = owner(fixture, null);
+    expect(restored.coordinator.getSnapshot().persistence.error).not.toBeNull();
+    expect(restored.coordinator.submit(composerDraftCapture("must stay local"))).toEqual({
+      type: "rejected",
+      reason: "persistenceFailed",
+    });
+    expect(
+      restored.coordinator.resumeRestored(restored.coordinator.getSnapshot().persistence.revision),
+    ).toBe(false);
+    expect(restored.startTurn).not.toHaveBeenCalled();
+  });
+
+  it("keeps lifecycle isolation when a later local stop produces a recovery batch", async () => {
+    const fixture = persistenceFixture();
+    const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "running-turn",
+      persistence: fixture.context,
+      startTurn,
+      steerTurn: vi.fn<SteerTurn>(),
+      interruptTurn: vi.fn<InterruptTurn>().mockResolvedValue({}),
+    });
+    coordinator.completeRestoreReconciliation();
+    coordinator.suspendRestored();
+    coordinator.submit(composerDraftCapture("queued during suspension"));
+    expect(coordinator.interruptActiveTurn()).toBe(true);
+    await Promise.resolve();
+    coordinator.observeAcceptedEvent(
+      live(
+        turnCompleted(eventTurnCompleted, "local-stop-while-suspended", {
+          ...baseTurn("running-turn"),
+          status: "interrupted",
+        }),
+      ),
+    );
+    expect(coordinator.getSnapshot()).toMatchObject({
+      recoveryCount: 1,
+      persistence: { restoredPaused: false },
+    });
+    expect(coordinator.recover()).toBe(true);
+    expect(coordinator.retryPersistence()).toBe(true);
+    expect(coordinator.getSnapshot()).toMatchObject({ recoveryCount: 0, ordinaryQueuedCount: 1 });
+    expect(startTurn).not.toHaveBeenCalled();
+  });
+
   it("retries a failed sending preparation after a management save without replaying its effect", () => {
     const fixture = persistenceFixture();
     const { coordinator, startTurn } = owner(fixture, "running-turn");
@@ -186,6 +327,10 @@ describe("coordinator persistence boundaries", () => {
       restored.coordinator.resumeRestored(restored.coordinator.getSnapshot().persistence.revision),
     ).toBe(true);
     expect(restored.startTurn).not.toHaveBeenCalled();
+    const persistence = restored.coordinator.getSnapshot().persistence;
+    expect(persistence.restoredPaused).toBe(false);
+    expect(persistence.revision).toBeTypeOf("number");
+    expect(persistence.unknownMessages.map(({ text }) => text)).toEqual(["possibly received"]);
     restored.coordinator.submit(composerDraftCapture("later input"));
     expect(restored.startTurn).not.toHaveBeenCalled();
   });

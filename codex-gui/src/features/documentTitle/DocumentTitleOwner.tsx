@@ -49,6 +49,7 @@ export function DocumentTitleOwner({ children }: PropsWithChildren) {
   const historyLabel = t`History`;
   const historyDetailLabel = t`History detail`;
   const notFoundLabel = t`Page not found`;
+  const newTaskLabel = t`New session`;
   const historyDetailTitle =
     routeTarget?.type === "historyDetail"
       ? (historyDetailFacts.findLast((fact) => fact.threadId === routeTarget.threadId)?.title ??
@@ -57,6 +58,9 @@ export function DocumentTitleOwner({ children }: PropsWithChildren) {
   let title: string;
 
   switch (routeTarget?.type) {
+    case "newTask":
+      title = formatDocumentTitle(newTaskLabel);
+      break;
     case "currentTask":
       title =
         runtime?.threadId === routeTarget.threadId
