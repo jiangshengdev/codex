@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { attachResponse } from "@/__tests__/appBrowserTestSupport";
+import { attachResponse, createDeferred } from "@/__tests__/appBrowserTestSupport";
 import { activeThreadSessionSnapshot } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSessionCollectionContracts";
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
@@ -25,7 +25,7 @@ function setup() {
     reasoningEffort: null,
   });
   const session: ActiveThreadSession = {
-    getSnapshot: vi.fn(() => target),
+    getSnapshot: vi.fn<ActiveThreadSession["getSnapshot"]>(() => target),
     getHistoryCwd: () => "/x",
     getCollectionSnapshot: () => ({ viewedThreadId: target.threadId, members: [], errors: [] }),
     subscribe: () => () => undefined,
@@ -79,7 +79,7 @@ describe("NewSessionOwner", () => {
 
   it("does not activate a late create result after navigation and reuses its ID on retry", async () => {
     const h = setup();
-    const deferred = Promise.withResolvers<Awaited<ReturnType<GuiHostCommands["startThread"]>>>();
+    const deferred = createDeferred<Awaited<ReturnType<GuiHostCommands["startThread"]>>>();
     const response = await h.startThread({ cwd: "/x" });
     h.startThread.mockClear().mockReturnValueOnce(deferred.promise);
     const submitting = h.owner.submit(h.capture);
@@ -102,8 +102,7 @@ describe("NewSessionOwner", () => {
     "does not hand off when %s changes during activation",
     async (change) => {
       const h = setup();
-      const deferred =
-        Promise.withResolvers<Awaited<ReturnType<ActiveThreadSession["activate"]>>>();
+      const deferred = createDeferred<Awaited<ReturnType<ActiveThreadSession["activate"]>>>();
       vi.mocked(h.session.activate).mockReturnValue(deferred.promise);
       const submitting = h.owner.submit(h.capture);
       await Promise.resolve();
@@ -155,7 +154,7 @@ describe("NewSessionOwner", () => {
   it("keeps a returned ID after connection replacement while creating", async () => {
     const h = setup();
     const response = await h.startThread({ cwd: "/x" });
-    const deferred = Promise.withResolvers<typeof response>();
+    const deferred = createDeferred<typeof response>();
     h.startThread.mockReturnValueOnce(deferred.promise);
     const pending = h.owner.submit(h.capture);
     h.owner.setConnection(null);

@@ -46,7 +46,7 @@ export class NewSessionOwner {
   private pending = false;
 
   readonly getSnapshot = (): NewSessionSnapshot => this.snapshot;
-  readonly subscribe = this.listeners.subscribe;
+  readonly subscribe = (listener: () => void): (() => void) => this.listeners.subscribe(listener);
 
   open(cwd: string | null): boolean {
     if (this.snapshot !== null) return true;
