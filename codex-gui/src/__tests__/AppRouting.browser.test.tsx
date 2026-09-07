@@ -480,12 +480,12 @@ test.each(["current task", "history list"])(
           }).getSnapshot().activeThreadId,
       )
       .toBeNull();
-    await expect
-      .poll(() => router.state.location.pathname)
-      .toBe(removalRoute === "current task" ? `/history/${launchThreadId}` : "/history");
-    if (removalRoute === "current task") {
-      await router.navigate({ to: "/history" });
-    } else {
+    await expect.poll(() => router.state.location.pathname).toBe("/history");
+    expect(commands.readThread).not.toHaveBeenCalledWith({
+      threadId: launchThreadId,
+      includeTurns: true,
+    });
+    if (removalRoute === "history list") {
       await screen
         .getByRole("navigation", { name: "Main navigation" })
         .getByRole("button", { name: "History", exact: true })
