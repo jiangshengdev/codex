@@ -21,7 +21,7 @@ test("history survives removing the last active task and a real browser reload",
   await openMenu(page);
   await openTaskActions(page, firstThreadId);
   await page.getByRole("menuitem", { name: "Remove from list", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/history/${firstThreadId}$`));
+  await expect(page).toHaveURL(/\/history$/);
   await openMenu(page);
   await expect(activeRow(page, firstThreadId)).toHaveCount(0);
   await page
@@ -186,6 +186,8 @@ test("running tasks cannot be removed and removing an idle viewed task preserves
   await openMenu(page);
   await openTaskActions(page, firstThreadId);
   await page.getByRole("menuitem", { name: "Remove from list", exact: true }).click();
+  await expect(page).toHaveURL(/\/history$/);
+  await page.getByRole("link", { name: firstTitle, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/history/${firstThreadId}$`));
   await expect(page.getByText("History remains after removal", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: firstTitle, exact: true })).toBeVisible();
