@@ -3,6 +3,7 @@ import { cardVariants } from "@heroui/styles";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import {
   useActiveThreadSessionPhase,
@@ -261,7 +262,9 @@ function HistoryError(props: HistoryErrorProps) {
             <Trans>Unable to load history</Trans>
           </Alert.Title>
           {"error" in props ? (
-            <Alert.Description>{errorText(props.error)}</Alert.Description>
+            <FailureDiagnosticModal triggerClassName="mt-2 self-start">
+              {errorText(props.error)}
+            </FailureDiagnosticModal>
           ) : null}
         </Alert.Content>
       </FailureLayout>

@@ -408,7 +408,7 @@ msgstr "History context unavailable"
 
 #: src/features/appShell/AppShellTopBar.tsx:49
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:34
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:35
 msgid "History detail"
 msgstr "History detail"
 
@@ -461,7 +461,7 @@ msgstr "Keep"
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:51
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:48
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:111
 msgid "Loading history…"
 msgstr "Loading history…"
@@ -470,7 +470,7 @@ msgstr "Loading history…"
 msgid "Loading skills…"
 msgstr "Loading skills…"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:44
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:45
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
@@ -747,7 +747,7 @@ msgstr "Resuming {receiver}"
 #: src/features/currentTask/CurrentTaskPage.tsx:160
 #: src/features/currentTask/CurrentTaskPage.tsx:217
 #: src/features/currentTask/CurrentTaskPage.tsx:264
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:83
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:88
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:255
 msgid "Retry"
 msgstr "Retry"
@@ -1035,7 +1035,7 @@ msgstr "This message is being edited."
 msgid "This pending message cannot be edited."
 msgstr "This pending message cannot be edited."
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:55
 msgid "This task has no messages."
 msgstr "This task has no messages."
 
@@ -1091,7 +1091,7 @@ msgstr "Unable to load history"
 #~ msgid "Unable to load task"
 #~ msgstr "Unable to load task"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:90
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:95
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
@@ -1138,7 +1138,7 @@ msgstr "Unable to update the task list"
 msgid "Unknown"
 msgstr "Unknown"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:35
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:36
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:172
 msgid "Untitled task"
 msgstr "Untitled task"

@@ -515,7 +515,14 @@ test("keeps load-more and append errors reachable after the history cards", asyn
     await loadMore.click();
     append.reject(rawFailure);
     const alert = screen.getByRole("alert");
-    await expect.element(alert.getByText(rawFailure.message, { exact: true })).toBeVisible();
+    await expect
+      .element(page.getByText(rawFailure.message, { exact: true }))
+      .not.toBeInTheDocument();
+    await alert.getByRole("button", { name: "View diagnostic information" }).click();
+    await expect
+      .element(page.getByRole("dialog").getByText(rawFailure.message, { exact: true }))
+      .toBeVisible();
+    await page.getByRole("button", { name: "Close diagnostics" }).click();
     await expect
       .poll(() => {
         const alertRect = alert.element().getBoundingClientRect();
@@ -538,10 +545,14 @@ test("shows the complete initial error and retries into the empty state", async 
 
   const alert = screen.getByRole("alert");
   await expect.element(alert.getByText("Unable to load history")).toBeVisible();
-  await expect.element(alert.getByText(rawFailure.message, { exact: true })).toBeVisible();
+  await expect.element(page.getByText(rawFailure.message, { exact: true })).not.toBeInTheDocument();
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
+  await expect.element(dialog.getByText(rawFailure.message, { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Close diagnostics" }).click();
   const originalViewport = { width: window.innerWidth, height: window.innerHeight };
   const retry = alert.getByRole("button", { name: "Retry" });
-  const description = alert.getByText(rawFailure.message, { exact: true });
+  const description = alert.getByRole("button", { name: "View diagnostic information" });
   try {
     for (const width of [1280, 375]) {
       await page.viewport(width, 900);
@@ -595,7 +606,12 @@ test("keeps loaded cards while load-more is pending and retries an append failur
 
   append.reject(rawFailure);
   const alert = screen.getByRole("alert");
-  await expect.element(alert.getByText(rawFailure.message, { exact: true })).toBeVisible();
+  await expect.element(page.getByText(rawFailure.message, { exact: true })).not.toBeInTheDocument();
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  await expect
+    .element(page.getByRole("dialog").getByText(rawFailure.message, { exact: true }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "Close diagnostics" }).click();
   await expect.element(screen.getByRole("article", { name: "First task" })).toBeVisible();
   await alert.getByRole("button", { name: "Retry" }).click();
 

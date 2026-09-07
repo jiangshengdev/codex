@@ -408,7 +408,7 @@ msgstr "历史记录上下文不可用"
 
 #: src/features/appShell/AppShellTopBar.tsx:49
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:34
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:35
 msgid "History detail"
 msgstr "历史详情"
 
@@ -461,7 +461,7 @@ msgstr "保留"
 msgid "Load more"
 msgstr "加载更多"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:51
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:48
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:111
 msgid "Loading history…"
 msgstr "正在加载历史记录…"
@@ -470,7 +470,7 @@ msgstr "正在加载历史记录…"
 msgid "Loading skills…"
 msgstr "正在加载技能…"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:44
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:45
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
@@ -747,7 +747,7 @@ msgstr "正在恢复 {receiver}"
 #: src/features/currentTask/CurrentTaskPage.tsx:160
 #: src/features/currentTask/CurrentTaskPage.tsx:217
 #: src/features/currentTask/CurrentTaskPage.tsx:264
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:83
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:88
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:255
 msgid "Retry"
 msgstr "重试"
@@ -1035,7 +1035,7 @@ msgstr "这条消息正在编辑。"
 msgid "This pending message cannot be edited."
 msgstr "无法编辑这条待处理消息。"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:55
 msgid "This task has no messages."
 msgstr "此任务没有消息。"
 
@@ -1091,7 +1091,7 @@ msgstr "无法加载历史记录"
 #~ msgid "Unable to load task"
 #~ msgstr "无法加载任务"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:90
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:95
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
@@ -1138,7 +1138,7 @@ msgstr "无法更新任务列表"
 msgid "Unknown"
 msgstr "状态未知"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:35
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:36
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:172
 msgid "Untitled task"
 msgstr "未命名任务"
