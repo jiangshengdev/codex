@@ -259,6 +259,8 @@ function OperationFailureSummary({
       return <Trans>The task could not be resumed.</Trans>;
     case "attach":
       return <Trans>The task connection could not be prepared.</Trans>;
+    case "loaded":
+      return <Trans>The task connection could not be prepared.</Trans>;
     case "prepare":
       return <Trans>The task connection could not be prepared.</Trans>;
     case "activate":

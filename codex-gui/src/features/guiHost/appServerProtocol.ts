@@ -21,6 +21,7 @@ export const APP_SERVER_REQUEST_METHODS = [
   "thread/projection/attach",
   "thread/projection/detach",
   "thread/list",
+  "thread/loaded/list",
   "thread/read",
   "thread/resume",
   "turn/start",

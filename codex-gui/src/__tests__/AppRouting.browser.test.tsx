@@ -60,7 +60,10 @@ const historyThreadId = "00000000-0000-0000-0000-000000000002";
 const historyThread = attachWithThreadId(attachResponse, historyThreadId).snapshot.thread;
 
 const createHistoryCommands = () => {
-  const commands = createGuiHostCommands();
+  const commands = createGuiHostCommands({
+    loadedThreadIds: [],
+    storedThreadIds: [launchThreadId, historyThreadId],
+  });
   vi.mocked(commands.listThreads).mockResolvedValue({
     data: [historyThread],
     nextCursor: null,
@@ -767,6 +770,50 @@ test("pure read-only history detail preserves its route when first activation fa
   } finally {
     storageSetItem.mockRestore();
   }
+});
+
+test("history Continue reports a loaded-query failure and rechecks loading when retried", async () => {
+  window.history.replaceState({}, "", `/history/${historyThreadId}`);
+  seedBrowserAuthorizationSession({ token: "detail-secret" });
+  const router = createAppRouter(
+    createMemoryHistory({ initialEntries: [`/history/${historyThreadId}`] }),
+  );
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const commands = createHistoryCommands();
+  vi.mocked(commands.readThread).mockResolvedValueOnce({ thread: historyThread });
+  vi.mocked(commands.listLoadedThreads)
+    .mockRejectedValueOnce(new Error("Loaded task query unavailable"))
+    .mockResolvedValueOnce({ data: [historyThreadId], nextCursor: null });
+  queueAttachProjectionResponse(commands, attachWithThreadId(attachResponse, historyThreadId));
+  initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
+  const continueButton = screen.getByRole("button", { name: "Continue this task", exact: true });
+  await expect.element(continueButton).toBeEnabled();
+
+  await continueButton.click();
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert).toHaveTextContent("Unable to continue this task");
+  await expect.element(alert).toHaveTextContent("The task connection could not be prepared.");
+  expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
+  expect(commands.resumeThread).not.toHaveBeenCalled();
+  expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  const diagnostic = page.getByRole("dialog", { name: "Diagnostic information" });
+  await expect.element(diagnostic).toHaveTextContent("Loaded task query unavailable");
+  await diagnostic.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect.element(diagnostic).not.toBeInTheDocument();
+
+  await continueButton.click();
+
+  await expect
+    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+    .toBeVisible();
+  expectCanonicalRoute(router.state.location.href, `/task/${historyThreadId}`, 1);
+  expect(commands.listLoadedThreads).toHaveBeenCalledTimes(2);
+  expect(commands.resumeThread).not.toHaveBeenCalled();
+  expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+    threadId: historyThreadId,
+  });
 });
 
 test("opens a historical task and retains the previous task without detaching", async () => {

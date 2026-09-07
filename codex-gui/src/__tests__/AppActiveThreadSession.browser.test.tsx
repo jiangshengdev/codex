@@ -45,8 +45,10 @@ import {
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
+  agentMessage,
   attachWithThreadId,
   attachWithTurns,
+  baseTurn,
   contextCompaction,
   eventWithEnvelope,
   inProgressTurn,
@@ -294,6 +296,94 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
+});
+
+test("App opens an unpersisted loaded task with empty history and sends its first message", async () => {
+  const commands = createGuiHostCommands({
+    loadedThreadIds: [launchThreadId],
+    storedThreadIds: [],
+  });
+  const screen = await renderWithProviders(
+    <App currentTaskComponent={ThreadSwitchComposerProbe} />,
+  );
+  const options = getHostOptions(startGuiHostConnectionMock);
+  queueAttachProjectionResponse(commands, attachWithTurns(attachResponse, []));
+  initializeHost(options, commands);
+
+  const composer = getAppComposer(screen);
+  await expect.element(composer).toBeVisible();
+  const { snapshot } = await waitForThreadSwitchProbeSession();
+  expect(snapshot.threadId).toBe(launchThreadId);
+  expect(commands.resumeThread).not.toHaveBeenCalled();
+  expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+    threadId: launchThreadId,
+  });
+  expect(commands.startTurn).not.toHaveBeenCalled();
+
+  await composer.fill("First message from a new task");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+
+  await expect.poll(() => vi.mocked(commands.startTurn).mock.calls.length).toBe(1);
+  expectStartTurnCalledOnceWithText(vi.mocked(commands.startTurn), "First message from a new task");
+  await expect.element(composer).toHaveTextContent(/^$/);
+  expect(commands.resumeThread).not.toHaveBeenCalled();
+});
+
+test("App opens a persisted loaded task with its history and running turn without resuming", async () => {
+  const commands = createGuiHostCommands({
+    loadedThreadIds: [launchThreadId],
+    storedThreadIds: [launchThreadId],
+  });
+  const screen = await renderWithProviders(
+    <App currentTaskComponent={ThreadSwitchComposerProbe} />,
+  );
+  const options = getHostOptions(startGuiHostConnectionMock);
+  queueAttachProjectionResponse(
+    commands,
+    attachWithTurns(attachResponse, [
+      baseTurn("stored-history", [agentMessage("stored-answer", "Earlier stored answer")]),
+      inProgressTurn("already-running"),
+    ]),
+  );
+  initializeHost(options, commands);
+
+  await expect.element(screen.getByText("Earlier stored answer", { exact: true })).toBeVisible();
+  await expect.element(getAppComposer(screen)).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Stop", exact: true })).toBeEnabled();
+  expect(commands.resumeThread).not.toHaveBeenCalled();
+  expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+    threadId: launchThreadId,
+  });
+  expect(commands.startTurn).not.toHaveBeenCalled();
+});
+
+test("App resumes a persisted unloaded task and displays its existing history", async () => {
+  const commands = createGuiHostCommands({
+    loadedThreadIds: [],
+    storedThreadIds: [launchThreadId],
+  });
+  const screen = await renderWithProviders(
+    <App currentTaskComponent={ThreadSwitchComposerProbe} />,
+  );
+  queueAttachProjectionResponse(
+    commands,
+    attachWithTurns(attachResponse, [
+      baseTurn("restored-history", [agentMessage("restored-answer", "Answer restored from disk")]),
+    ]),
+  );
+  initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
+
+  await expect
+    .element(screen.getByText("Answer restored from disk", { exact: true }))
+    .toBeVisible();
+  await expect.element(getAppComposer(screen)).toBeVisible();
+  expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: launchThreadId });
+  expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+    threadId: launchThreadId,
+  });
+  expect(vi.mocked(commands.resumeThread).mock.invocationCallOrder[0]).toBeLessThan(
+    vi.mocked(commands.attachThreadProjection).mock.invocationCallOrder[0] ?? 0,
+  );
 });
 
 test("App releases an edited owner only after its marker settles and drains", async () => {

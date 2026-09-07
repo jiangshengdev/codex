@@ -75,7 +75,10 @@ test("a failed membership write shows the requested task error and retries witho
     createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
   );
   const screen = await renderWithProviders(<RouterProvider router={router} />);
-  const commands = createGuiHostCommands();
+  const commands = createGuiHostCommands({
+    loadedThreadIds: [],
+    storedThreadIds: [launchThreadId, secondThreadId],
+  });
   queueAttachProjectionResponse(commands, first);
   initializeHost(getHostOptions(hostMock.startGuiHostConnection), commands);
   const composer = screen.getByRole("combobox", { name: "Message Codex", exact: true });
@@ -166,7 +169,10 @@ test("interleaved background projection updates preserve the viewed title, trans
     createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
   );
   const screen = await renderWithProviders(<RouterProvider router={router} />);
-  const commands = createGuiHostCommands();
+  const commands = createGuiHostCommands({
+    loadedThreadIds: [],
+    storedThreadIds: [launchThreadId, secondThreadId],
+  });
   queueAttachProjectionResponse(commands, first);
   const options = getHostOptions(hostMock.startGuiHostConnection);
   initializeHost(options, commands);

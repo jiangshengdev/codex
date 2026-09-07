@@ -87,7 +87,7 @@ export type ActiveThreadActivationFailure =
     }>
   | Readonly<{
       type: "operationFailed";
-      phase: "resume" | "attach" | "prepare" | "activate";
+      phase: "loaded" | "resume" | "attach" | "prepare" | "activate";
       error: unknown;
       cleanupError: unknown;
     }>;

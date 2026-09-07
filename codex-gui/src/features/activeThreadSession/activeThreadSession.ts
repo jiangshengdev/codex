@@ -44,6 +44,7 @@ type ActiveThreadSessionCommands = Pick<
   | "detachThreadProjection"
   | "interruptTurn"
   | "listSkills"
+  | "listLoadedThreads"
   | "readThread"
   | "resumeThread"
   | "startTurn"
@@ -419,12 +420,23 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   }
 
   private async initialize(member: Member): Promise<ActiveThreadActivationOutcome> {
-    let phase: "resume" | "attach" | "prepare" = "resume";
+    let phase: "loaded" | "resume" | "attach" | "prepare" = "loaded";
     try {
-      const resumed = await this.commands.resumeThread({ threadId: member.threadId });
-      if (resumed.thread.id !== member.threadId)
-        throw new Error("thread/resume returned a different thread identity");
-      if (this.isDisposed()) return this.connectionFailure(member.threadId);
+      let cursor: string | null = null;
+      let loaded = false;
+      do {
+        const page = await this.commands.listLoadedThreads(cursor == null ? {} : { cursor });
+        if (this.isDisposed()) return this.connectionFailure(member.threadId);
+        loaded = page.data.includes(member.threadId);
+        cursor = page.nextCursor;
+      } while (!loaded && cursor != null);
+      if (!loaded) {
+        phase = "resume";
+        const resumed = await this.commands.resumeThread({ threadId: member.threadId });
+        if (resumed.thread.id !== member.threadId)
+          throw new Error("thread/resume returned a different thread identity");
+        if (this.isDisposed()) return this.connectionFailure(member.threadId);
+      }
       phase = "attach";
       const response = await this.commands.attachThreadProjection({ threadId: member.threadId });
       member.attached = true;
@@ -827,7 +839,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   }
 
   private failure(
-    phase: "resume" | "attach" | "prepare" | "activate",
+    phase: "loaded" | "resume" | "attach" | "prepare" | "activate",
     error: unknown,
     cleanupError: unknown = null,
   ): ActiveThreadActivationOutcome {

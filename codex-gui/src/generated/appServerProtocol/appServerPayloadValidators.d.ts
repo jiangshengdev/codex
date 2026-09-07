@@ -20,6 +20,9 @@ export declare const validateV2ThreadCompactStartResponse: ProtocolValidator<
 export declare const validateV2ThreadListResponse: ProtocolValidator<
   RequestResponse<"thread/list">
 >;
+export declare const validateV2ThreadLoadedListResponse: ProtocolValidator<
+  RequestResponse<"thread/loaded/list">
+>;
 export declare const validateV2ThreadProjectionAttachResponse: ProtocolValidator<
   RequestResponse<"thread/projection/attach">
 >;

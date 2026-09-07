@@ -677,6 +677,7 @@ test("releases the diagnostic modal scroll lock when the history detail unmounts
 });
 
 test.each([
+  ["loaded", "The task connection could not be prepared."],
   ["resume", "The task could not be resumed."],
   ["attach", "The task connection could not be prepared."],
   ["prepare", "The task connection could not be prepared."],

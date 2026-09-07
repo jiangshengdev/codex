@@ -17,6 +17,7 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   attachWithThreadId,
+  attachWithTurns,
   eventForThreadOwner,
   eventWithEnvelope,
   inProgressTurn,
@@ -68,8 +69,8 @@ const createHarness = (
   shouldRejectDispatch: () => boolean = () => false,
   afterDispatch: () => void = () => undefined,
   persistence = createPersistenceTestContext(),
+  commands = createGuiHostCommands(),
 ) => {
-  const commands = createGuiHostCommands();
   vi.mocked(commands.listSkills).mockImplementation(() => new Promise(() => undefined));
   const authorizationSession = createAuthorizationSession();
   const store = makeStore();
@@ -113,6 +114,166 @@ const queueReplacementActivation = (commands: GuiHostCommands) => {
 };
 
 describe("ActiveThreadSession", () => {
+  it("opens a live empty recovery thread whose rollout has not been persisted", async () => {
+    const h = createHarness(
+      undefined,
+      undefined,
+      undefined,
+      createGuiHostCommands({
+        loadedThreadIds: [attachBaseline.snapshot.thread.id],
+        storedThreadIds: [],
+      }),
+    );
+    vi.mocked(h.commands.attachThreadProjection).mockResolvedValue(
+      attachWithTurns(attachBaseline, []),
+    );
+
+    await activateInitial(h);
+
+    expect(h.session.getSnapshot()).toMatchObject({
+      phase: "active",
+      threadId: attachBaseline.snapshot.thread.id,
+    });
+    expect(h.commands.resumeThread).not.toHaveBeenCalled();
+  });
+
+  it("opens an already loaded persisted thread without resuming it", async () => {
+    const h = createHarness(
+      undefined,
+      undefined,
+      undefined,
+      createGuiHostCommands({
+        loadedThreadIds: [attachBaseline.snapshot.thread.id],
+        storedThreadIds: [attachBaseline.snapshot.thread.id],
+      }),
+    );
+    await activateInitial(h);
+    expect(h.session.getSnapshot()).toMatchObject({ phase: "active" });
+    expect(h.commands.resumeThread).not.toHaveBeenCalled();
+    expect(h.commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+      threadId: attachBaseline.snapshot.thread.id,
+    });
+  });
+
+  it("finds a live thread on a later loaded page without requiring a rollout", async () => {
+    const h = createHarness();
+    vi.mocked(h.commands.resumeThread).mockRejectedValue(new Error("no rollout found"));
+    vi.mocked(h.commands.listLoadedThreads)
+      .mockResolvedValueOnce({ data: [replacementThreadId], nextCursor: "page-two" })
+      .mockResolvedValueOnce({ data: [attachBaseline.snapshot.thread.id], nextCursor: "unused" });
+
+    await activateInitial(h);
+
+    expect(h.commands.listLoadedThreads).toHaveBeenNthCalledWith(1, {});
+    expect(h.commands.listLoadedThreads).toHaveBeenNthCalledWith(2, { cursor: "page-two" });
+    expect(h.commands.listLoadedThreads).toHaveBeenCalledTimes(2);
+    expect(h.commands.resumeThread).not.toHaveBeenCalled();
+  });
+
+  it("resumes a persisted unloaded thread only after exhausting loaded pages", async () => {
+    const h = createHarness();
+    const lastPage = createDeferred<Awaited<ReturnType<GuiHostCommands["listLoadedThreads"]>>>();
+    vi.mocked(h.commands.listLoadedThreads)
+      .mockResolvedValueOnce({ data: [replacementThreadId], nextCursor: "page-two" })
+      .mockReturnValueOnce(lastPage.promise);
+    const activation = h.controller.activateRecoveryThread();
+    await vi.waitFor(() => {
+      expect(h.commands.listLoadedThreads).toHaveBeenCalledTimes(2);
+    });
+    expect(h.commands.resumeThread).not.toHaveBeenCalled();
+    expect(h.commands.attachThreadProjection).not.toHaveBeenCalled();
+    lastPage.resolve({ data: [], nextCursor: null });
+    await expect(activation).resolves.toMatchObject({ type: "ready" });
+    expect(h.commands.resumeThread).toHaveBeenCalledExactlyOnceWith({
+      threadId: attachBaseline.snapshot.thread.id,
+    });
+  });
+
+  it("preserves loaded query failures and queries again on retry", async () => {
+    const h = createHarness();
+    const error = new Error("loaded query failed");
+    vi.mocked(h.commands.listLoadedThreads).mockRejectedValueOnce(error);
+    await expect(h.controller.activateRecoveryThread()).resolves.toMatchObject({
+      type: "unavailable",
+      failure: { type: "operationFailed", phase: "loaded", error },
+    });
+    expect(h.commands.resumeThread).not.toHaveBeenCalled();
+    expect(h.commands.attachThreadProjection).not.toHaveBeenCalled();
+    vi.mocked(h.commands.listLoadedThreads).mockResolvedValueOnce({
+      data: [attachBaseline.snapshot.thread.id],
+      nextCursor: null,
+    });
+    await expect(h.session.retry(attachBaseline.snapshot.thread.id)).resolves.toMatchObject({
+      type: "ready",
+    });
+    expect(h.commands.listLoadedThreads).toHaveBeenCalledTimes(2);
+    expect(h.commands.resumeThread).not.toHaveBeenCalled();
+  });
+
+  it("does not infer an unloaded thread when a later loaded page fails", async () => {
+    const h = createHarness();
+    const error = new Error("second page unavailable");
+    vi.mocked(h.commands.listLoadedThreads)
+      .mockResolvedValueOnce({ data: [], nextCursor: "page-two" })
+      .mockRejectedValueOnce(error);
+    await expect(h.controller.activateRecoveryThread()).resolves.toMatchObject({
+      type: "unavailable",
+      failure: { phase: "loaded", error },
+    });
+    expect(h.commands.resumeThread).not.toHaveBeenCalled();
+    expect(h.commands.attachThreadProjection).not.toHaveBeenCalled();
+  });
+
+  it("retains the missing rollout error for a thread that is neither loaded nor stored", async () => {
+    const h = createHarness(
+      undefined,
+      undefined,
+      undefined,
+      createGuiHostCommands({ loadedThreadIds: [], storedThreadIds: [] }),
+    );
+    await expect(h.controller.activateRecoveryThread()).resolves.toMatchObject({
+      type: "unavailable",
+      failure: {
+        phase: "resume",
+        error: new Error(`no rollout found for thread id ${attachBaseline.snapshot.thread.id}`),
+      },
+    });
+    expect(h.commands.attachThreadProjection).not.toHaveBeenCalled();
+  });
+
+  it("does not fall back to resume after attach fails and rechecks loading on retry", async () => {
+    const h = createHarness();
+    const error = new Error("thread unloaded before attach");
+    vi.mocked(h.commands.listLoadedThreads).mockResolvedValueOnce({
+      data: [attachBaseline.snapshot.thread.id],
+      nextCursor: null,
+    });
+    vi.mocked(h.commands.attachThreadProjection).mockRejectedValueOnce(error);
+    await expect(h.controller.activateRecoveryThread()).resolves.toMatchObject({
+      type: "unavailable",
+      failure: { phase: "attach", error },
+    });
+    expect(h.commands.resumeThread).not.toHaveBeenCalled();
+    await expect(h.session.retry(attachBaseline.snapshot.thread.id)).resolves.toMatchObject({
+      type: "ready",
+    });
+    expect(h.commands.listLoadedThreads).toHaveBeenCalledTimes(2);
+    expect(h.commands.resumeThread).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops initialization when the connection closes during loaded pagination", async () => {
+    const h = createHarness();
+    const page = createDeferred<Awaited<ReturnType<GuiHostCommands["listLoadedThreads"]>>>();
+    vi.mocked(h.commands.listLoadedThreads).mockReturnValueOnce(page.promise);
+    const activation = h.controller.activateRecoveryThread();
+    h.controller.dispose();
+    page.resolve({ data: [], nextCursor: "next-page" });
+    await expect(activation).resolves.toMatchObject({ type: "unavailable" });
+    expect(h.commands.listLoadedThreads).toHaveBeenCalledTimes(1);
+    expect(h.commands.resumeThread).not.toHaveBeenCalled();
+    expect(h.commands.attachThreadProjection).not.toHaveBeenCalled();
+  });
+
   it("flushes a background member independently without changing the viewed snapshot", async () => {
     const h = createHarness();
     await activateInitial(h);

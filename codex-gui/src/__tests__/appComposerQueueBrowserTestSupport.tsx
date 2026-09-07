@@ -157,6 +157,7 @@ export const readGuiHostCommandCallCounts = (
   attachThreadProjection: vi.mocked(commands.attachThreadProjection).mock.calls.length,
   listSkills: vi.mocked(commands.listSkills).mock.calls.length,
   listThreads: vi.mocked(commands.listThreads).mock.calls.length,
+  listLoadedThreads: vi.mocked(commands.listLoadedThreads).mock.calls.length,
   readThread: vi.mocked(commands.readThread).mock.calls.length,
   resumeThread: vi.mocked(commands.resumeThread).mock.calls.length,
   detachThreadProjection: vi.mocked(commands.detachThreadProjection).mock.calls.length,
