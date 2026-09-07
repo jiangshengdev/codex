@@ -78,7 +78,7 @@ msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:228
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:256
 msgid "Active"
 msgstr "Active"
 
@@ -106,11 +106,6 @@ msgstr "An unexpected error occurred while continuing the task."
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:112
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
-
-#. Accessible description of the navigation menu; backgroundStatus lists the statuses of open tasks other than the one being viewed
-#: src/features/appShell/AppShellTopBar.tsx:87
-#~ msgid "Background tasks: {backgroundStatus}"
-#~ msgstr "Background tasks: {backgroundStatus}"
 
 #. Description for the task history destination in the navigation drawer
 #: src/features/appShell/AppShellTopBar.tsx:181
@@ -188,17 +183,9 @@ msgstr "Compress context"
 msgid "Compressing"
 msgstr "Compressing"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:14
-#~ msgid "Connection cleanup needs retry"
-#~ msgstr "Connection cleanup needs retry"
-
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:93
 msgid "Connection interrupted. Reconnect required."
 msgstr "Connection interrupted. Reconnect required."
-
-#: src/features/appShell/activeThreadCollectionMessages.ts:23
-#~ msgid "Connection needs recovery"
-#~ msgstr "Connection needs recovery"
 
 #: src/NotFoundPage.tsx:20
 msgid "Contact support"
@@ -290,11 +277,6 @@ msgstr "Current task status is unknown"
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:98
 msgid "Currently unable to guide; added to queue"
 msgstr "Currently unable to guide; added to queue"
-
-#. Marks the task selected for viewing in the active task list
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:151
-#~ msgid "Currently viewed"
-#~ msgstr "Currently viewed"
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:294
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:374
@@ -414,7 +396,7 @@ msgstr "History detail"
 
 #. Short idle-state label for the current task beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:31
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:227
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:255
 msgid "Idle"
 msgstr "Idle"
 
@@ -461,8 +443,7 @@ msgstr "Keep"
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:48
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:111
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:174
 msgid "Loading history…"
 msgstr "Loading history…"
 
@@ -474,8 +455,7 @@ msgstr "Loading skills…"
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:200
-#: src/features/currentTask/CurrentTaskPage.tsx:208
+#: src/features/currentTask/CurrentTaskPage.tsx:385
 msgid "Loading task…"
 msgstr "Loading task…"
 
@@ -500,16 +480,12 @@ msgstr "Message Codex"
 msgid "Message composer"
 msgstr "Message composer"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:31
-#~ msgid "Messages need review"
-#~ msgstr "Messages need review"
-
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:325
 msgid "More move options for pending message: {previewText}"
 msgstr "More move options for pending message: {previewText}"
 
 #. Accessible name of the active task row actions button; title is the task name or UUID
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:135
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:134
 msgid "More options for {title}"
 msgstr "More options for {title}"
 
@@ -590,7 +566,7 @@ msgstr "Not found"
 
 #. Short label for a current task that is not loaded beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:23
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:226
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:254
 msgid "Not loaded"
 msgstr "Not loaded"
 
@@ -691,8 +667,8 @@ msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
 #. Remove only from the active GUI task list; history and draft are kept
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:157
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:161
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:156
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:160
 msgid "Remove from list"
 msgstr "Remove from list"
 
@@ -704,14 +680,6 @@ msgstr "Remove local record"
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:93
 msgid "Remove or replace invalid skills before saving."
 msgstr "Remove or replace invalid skills before saving."
-
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:36
-#~ msgid "Removing a task from this list keeps its history and draft."
-#~ msgstr "Removing a task from this list keeps its history and draft."
-
-#: src/features/appShell/activeThreadCollectionMessages.ts:16
-#~ msgid "Removing from active tasks…"
-#~ msgstr "Removing from active tasks…"
 
 #. Source label for a skill provided by the current repository
 #. Source label for a skill provided by the current repository
@@ -748,7 +716,7 @@ msgstr "Resuming {receiver}"
 #: src/features/currentTask/CurrentTaskPage.tsx:220
 #: src/features/currentTask/CurrentTaskPage.tsx:270
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:88
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:255
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:283
 msgid "Retry"
 msgstr "Retry"
 
@@ -766,18 +734,9 @@ msgstr "Retry saving this task's state before removing it."
 msgid "Return to current task"
 msgstr "Return to current task"
 
-#. Allows this page to advance its restored queue after the user checks it
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:65
-#~ msgid "Review and continue"
-#~ msgstr "Review and continue"
-
 #: src/features/appShell/activeThreadCollectionMessages.ts:20
 msgid "Review and continue this task after reload before removing it."
 msgstr "Review and continue this task after reload before removing it."
-
-#: src/features/appShell/activeThreadCollectionMessages.ts:25
-#~ msgid "Review required after reload"
-#~ msgstr "Review required after reload"
 
 #: src/features/appShell/activeThreadCollectionMessages.ts:29
 msgid "Review unresolved messages in this task before removing it."
@@ -865,11 +824,6 @@ msgstr "Spawned {receiver} ({reasoningEffort})"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:22
-#: src/features/appShell/activeThreadCollectionMessages.ts:33
-#~ msgid "Status unavailable"
-#~ msgstr "Status unavailable"
-
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:238
 msgid "Stop"
 msgstr "Stop"
@@ -890,7 +844,7 @@ msgstr "Structured input"
 msgid "System"
 msgstr "System"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:229
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:257
 msgid "System error"
 msgstr "System error"
 
@@ -900,21 +854,13 @@ msgid "Task action failed"
 msgstr "Task action failed"
 
 #. Accessible label for the active task row dropdown containing Remove from list
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:145
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:144
 msgid "Task actions"
 msgstr "Task actions"
-
-#: src/features/appShell/activeThreadCollectionMessages.ts:38
-#~ msgid "Task error"
-#~ msgstr "Task error"
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:50
 msgid "Task history is unavailable until the connection is restored."
 msgstr "Task history is unavailable until the connection is restored."
-
-#: src/features/appShell/activeThreadCollectionMessages.ts:36
-#~ msgid "Task not loaded"
-#~ msgstr "Task not loaded"
 
 #: src/features/threadHistory/ContinueTaskAction.tsx:48
 #: src/features/threadHistory/ContinueTaskAction.tsx:52
@@ -977,10 +923,6 @@ msgstr "The task changed. Review its current state and try again."
 msgid "The task connection could not be prepared."
 msgstr "The task connection could not be prepared."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:51
-#~ msgid "The task connection was closed."
-#~ msgstr "The task connection was closed."
-
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:68
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:142
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:272
@@ -1039,10 +981,6 @@ msgstr "This pending message cannot be edited."
 msgid "This task has no messages."
 msgstr "This task has no messages."
 
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:128
-#~ msgid "This task is no longer available."
-#~ msgstr "This task is no longer available."
-
 #: src/features/appShell/activeThreadCollectionMessages.ts:40
 msgid "This task is no longer connected."
 msgstr "This task is no longer connected."
@@ -1051,7 +989,7 @@ msgstr "This task is no longer connected."
 msgid "This task is still running."
 msgstr "This task is still running."
 
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:172
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:171
 msgid "This task needs attention."
 msgstr "This task needs attention."
 
@@ -1083,13 +1021,9 @@ msgstr "Turn {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:262
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:290
 msgid "Unable to load history"
 msgstr "Unable to load history"
-
-#: src/features/appShell/activeThreadCollectionMessages.ts:12
-#~ msgid "Unable to load task"
-#~ msgstr "Unable to load task"
 
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:95
 msgid "Unable to load task history"
@@ -1104,21 +1038,9 @@ msgstr "Unable to load the current task"
 msgid "Unable to recover the current task"
 msgstr "Unable to recover the current task"
 
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:120
-#~ msgid "Unable to remove this task. Retry when its state is ready."
-#~ msgstr "Unable to remove this task. Retry when its state is ready."
-
 #: src/features/currentTask/CurrentTaskPage.tsx:77
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "Unable to retry this task. Review its current state and try again."
-
-#: src/features/appShell/activeThreadCollectionMessages.ts:24
-#~ msgid "Unable to save task state"
-#~ msgstr "Unable to save task state"
-
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:40
-#~ msgid "Unable to save the active task list. Retry the task operation."
-#~ msgstr "Unable to save the active task list. Retry the task operation."
 
 #: src/features/appShell/AppShell.tsx:25
 msgid "Unable to start Codex GUI"
@@ -1139,7 +1061,7 @@ msgid "Unknown"
 msgstr "Unknown"
 
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:36
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:172
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:200
 msgid "Untitled task"
 msgstr "Untitled task"
 
@@ -1154,7 +1076,7 @@ msgstr "Updated pending order could not be loaded"
 msgid "User"
 msgstr "User"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:216
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:244
 msgid "View"
 msgstr "View"
 
