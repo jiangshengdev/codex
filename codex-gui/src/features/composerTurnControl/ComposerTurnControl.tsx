@@ -29,6 +29,8 @@ import { ComposerPendingInputRegion } from "./ComposerPendingInputRegion";
 import { ComposerSkillMenuLayer } from "./ComposerSkillMenuLayer";
 import { CurrentThreadStatus } from "./CurrentThreadStatus";
 import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
+import { ComposerPersistenceStatus } from "./ComposerPersistenceStatus";
+import { usePersistComposerDraft } from "./usePersistComposerDraft";
 
 export type ComposerTurnControlProps = {
   authorizationToken: string | null;
@@ -56,7 +58,12 @@ export function ComposerTurnControl({
   const composerShellRef = useRef<HTMLElement | null>(null);
   const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
   const composerFocusVisible = useComposerFocusVisible(composerShellRef);
-  const tokenUsage = useAppSelector(selectThreadRuntimeTokenUsage);
+  const tokenUsage = useAppSelector((state) =>
+    state.threadRuntime.byThreadId[sessionSnapshot.threadId]?.identity.instanceId ===
+    sessionSnapshot.identity.instanceId
+      ? selectThreadRuntimeTokenUsage(state, sessionSnapshot.threadId)
+      : null,
+  );
   const contextUsage = contextUsageModelFromTokenUsage(tokenUsage);
   const {
     activeTurnId,
@@ -68,6 +75,8 @@ export function ComposerTurnControl({
     skills: skillCatalog,
   } = sessionSnapshot;
   const { skillsRole } = sessionSnapshot;
+  const initialDraft = useMemo(() => composerRole.getDraft(), [composerRole]);
+  const saveDraft = usePersistComposerDraft(composerRole, revision);
   const editorSnapshot = useSyncExternalStore<ComposerEditorSnapshot | null>(
     composerEditorController?.subscribe ?? subscribeUnavailableEditor,
     composerEditorController?.getSnapshot ?? getUnavailableEditorSnapshot,
@@ -170,10 +179,13 @@ export function ComposerTurnControl({
       >
         <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
         <ComposerEditor
+          key={sessionSnapshot.subscriptionId}
           ariaLabel={t`Message Codex`}
           disabled={!controlView.operationsEnabled}
           guardCompositionEndEnter={guardCompositionEndEnter}
           onControllerChange={setComposerEditorController}
+          initialDraft={initialDraft}
+          onDraftChange={saveDraft}
           onRetrySkillCatalog={() => {
             skillsRole.retrySkills(revision);
           }}
@@ -183,6 +195,7 @@ export function ComposerTurnControl({
           skillMenuParent={skillMenuParent}
           skillValidity={skillValidity}
         />
+        <ComposerPersistenceStatus sessionSnapshot={sessionSnapshot} />
         <ComposerPendingInputRegion
           canRecover={controlView.recoverEnabled}
           composerRole={composerRole}

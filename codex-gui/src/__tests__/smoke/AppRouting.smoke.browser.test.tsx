@@ -75,13 +75,14 @@ const installActiveThreadSessionController = (
     handleSkillsChanged: vi.fn<ActiveThreadSessionController["handleSkillsChanged"]>(),
     handleThreadStatusChanged: vi.fn<ActiveThreadSessionController["handleThreadStatusChanged"]>(),
     connectionUnavailable: vi.fn<ActiveThreadSessionController["connectionUnavailable"]>(),
+    suspendRestoredQueue: vi.fn<ActiveThreadSessionController["suspendRestoredQueue"]>(),
     dispose: vi.fn<ActiveThreadSessionController["dispose"]>(),
   };
   activeThreadSessionFactoryState.controller = controller;
   return controller;
 };
 
-test("route sync observes the active thread only after atomic startup publication", async () => {
+test("route sync retains its requested thread when another collection member publishes", async () => {
   seedBrowserAuthorizationSession({ token: "task-secret", activeThreadId: launchThreadId });
   const startup = deferred<ActiveThreadActivationOutcome>();
   const sessionHarness = createActiveThreadSessionHarness({ activate: () => startup.promise });
@@ -95,10 +96,10 @@ test("route sync observes the active thread only after atomic startup publicatio
 
   initializeHost(options, createGuiHostCommands());
 
-  await expect.poll(() => sessionHarness.activate.mock.calls.length).toBe(1);
+  await expect.poll(() => sessionHarness.activate.mock.calls.length).toBeGreaterThan(0);
   sessionHarness.publish(sessionHarness.activeSnapshot({ threadId: historyThreadId }));
 
-  await expect.poll(sessionHarness.listenerCount).toBe(0);
+  await expect.poll(sessionHarness.listenerCount).toBeGreaterThan(0);
   await expect.poll(() => router.state.location.pathname).toBe(`/task/${launchThreadId}`);
   await expect
     .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
@@ -106,9 +107,9 @@ test("route sync observes the active thread only after atomic startup publicatio
 
   startup.resolve({ type: "ready", threadId: historyThreadId, warnings: [] });
 
-  await expect.poll(() => router.state.location.pathname).toBe(`/task/${historyThreadId}`);
+  await expect.poll(() => router.state.location.pathname).toBe(`/task/${launchThreadId}`);
   await expect.poll(() => router.history.length).toBe(initialHistoryLength);
   await expect
     .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
-    .toBeVisible();
+    .not.toBeInTheDocument();
 });

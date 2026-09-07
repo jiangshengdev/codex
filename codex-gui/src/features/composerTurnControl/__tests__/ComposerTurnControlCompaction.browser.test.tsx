@@ -6,10 +6,12 @@ import type {
 import type { ActiveThreadCompactionView } from "@/features/activeThreadSession/activeThreadSessionContracts";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import {
+  activeThreadReadModelSlotCreated,
   activeThreadReadModelTransitionApplied,
   buildActiveThreadCandidateReadModelTransition,
 } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
+import { attachWithThreadId } from "@/features/projection/__tests__/projectionTestBuilders";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "../ComposerTurnControl";
 
@@ -40,9 +42,14 @@ test("routes context compression through the session role and follows session st
     compaction: { phase: "idle", canRequest: true, startFailure: null },
   });
   const screen = await renderWithProviders(composer(initial));
+  screen.store.dispatch(activeThreadReadModelSlotCreated(initial.identity));
   screen.store.dispatch(
     activeThreadReadModelTransitionApplied(
-      buildActiveThreadCandidateReadModelTransition(1, attachBaseline),
+      buildActiveThreadCandidateReadModelTransition(
+        initial.identity,
+        1,
+        attachWithThreadId(attachBaseline, threadId),
+      ),
     ),
   );
   const idleTrigger = screen.getByRole("button", {

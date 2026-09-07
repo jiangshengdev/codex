@@ -135,7 +135,7 @@ test("App batches accepted projection deltas until the next animation frame", as
     queueAttachProjectionResponse(commands, attachWithTurns(attachResponse, []));
     initializeHost(options, commands);
     await expect
-      .poll(() => selectThreadRuntimeRecord(store.getState())?.threadId)
+      .poll(() => selectThreadRuntimeRecord(store.getState(), launchThreadId)?.threadId)
       .toBe(launchThreadId);
     const turnStartedEvent = turnStarted(
       eventTurnStarted,
@@ -159,7 +159,9 @@ test("App batches accepted projection deltas until the next animation frame", as
     );
 
     const entryId = transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch");
-    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual({
+    expect(
+      store.getState().transcriptState.byThreadId[launchThreadId]?.transcript.entriesById[entryId],
+    ).toStrictEqual({
       type: "live",
       id: "agent-raf-batch",
       key: entryId,
@@ -170,13 +172,15 @@ test("App batches accepted projection deltas until the next animation frame", as
       transientText: "",
       revision: 0,
     });
-    expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
+    expect(selectTranscriptEntry(store.getState(), launchThreadId, entryId)).toBeNull();
 
     vi.advanceTimersToNextFrame();
 
     await expect.element(screen.getByText("Hello world")).toBeVisible();
 
-    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual({
+    expect(
+      store.getState().transcriptState.byThreadId[launchThreadId]?.transcript.entriesById[entryId],
+    ).toStrictEqual({
       type: "live",
       id: "agent-raf-batch",
       key: entryId,
@@ -187,7 +191,7 @@ test("App batches accepted projection deltas until the next animation frame", as
       transientText: "Hello world",
       revision: 1,
     });
-    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual({
+    expect(selectTranscriptEntry(store.getState(), launchThreadId, entryId)).toStrictEqual({
       type: "message",
       id: "agent-raf-batch",
       turnId: "turn-raf-batch",
@@ -211,7 +215,7 @@ test("App flushes pending projection deltas before structural projection events"
     queueAttachProjectionResponse(commands, attachWithTurns(attachResponse, []));
     initializeHost(options, commands);
     await expect
-      .poll(() => selectThreadRuntimeRecord(store.getState())?.threadId)
+      .poll(() => selectThreadRuntimeRecord(store.getState(), launchThreadId)?.threadId)
       .toBe(launchThreadId);
     const turnStartedEvent = turnStarted(
       eventTurnStarted,
@@ -251,7 +255,9 @@ test("App flushes pending projection deltas before structural projection events"
     emitProjectionEvent(options, itemCompletedEvent);
 
     const entryId = transcriptEntryIdFor("turn-raf-flush-event", "agent-raf-flush-event");
-    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual({
+    expect(
+      store.getState().transcriptState.byThreadId[launchThreadId]?.transcript.entriesById[entryId],
+    ).toStrictEqual({
       type: "message",
       id: "agent-raf-flush-event",
       turnId: "turn-raf-flush-event",
@@ -261,7 +267,7 @@ test("App flushes pending projection deltas before structural projection events"
       phase: "final_answer",
       revision: 2,
     });
-    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual({
+    expect(selectTranscriptEntry(store.getState(), launchThreadId, entryId)).toStrictEqual({
       type: "message",
       id: "agent-raf-flush-event",
       turnId: "turn-raf-flush-event",
@@ -562,18 +568,30 @@ test("App cancels pending projection delta frame dispatch when unmounted", async
       revision: 0,
     } as const;
     await expect
-      .poll(() => store.getState().transcriptState.entriesById[entryId])
+      .poll(
+        () =>
+          store.getState().transcriptState.byThreadId[launchThreadId]?.transcript.entriesById[
+            entryId
+          ],
+      )
       .toStrictEqual(baselineEntry);
     emitProjectionDelta(
       options,
       agentMessageDelta(eventAgentMessageDelta, "turn-raf-cleanup", "agent-raf-cleanup", "Lost"),
     );
     await screen.unmount();
+    const stateAfterUnmount = store.getState();
+    expect(stateAfterUnmount.transcriptState.byThreadId[launchThreadId]).toBeUndefined();
+    expect(stateAfterUnmount.threadRuntime.byThreadId[launchThreadId]).toBeUndefined();
+    const storeChanged = vi.fn<() => void>();
+    const unsubscribe = store.subscribe(storeChanged);
     vi.advanceTimersToNextFrame();
+    unsubscribe();
 
     expect(getCleanupConnectionCallCount()).toBe(1);
-    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual(baselineEntry);
-    expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
+    expect(storeChanged).not.toHaveBeenCalled();
+    expect(store.getState()).toBe(stateAfterUnmount);
+    expect(selectTranscriptEntry(store.getState(), launchThreadId, entryId)).toBeNull();
   } finally {
     vi.useRealTimers();
   }

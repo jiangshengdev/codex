@@ -11,6 +11,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   captureComposerDraft,
+  exportComposerDraft,
+  importComposerDraft,
   projectComposerDraft,
   restoreComposerDraft,
   type ComposerDraft,
@@ -223,6 +225,90 @@ describe("composerDraft", () => {
 
     expect(restoreComposerDraft(editor, invalidDraft)).toEqual({ type: "invalidDraft" });
     expect(captureComposerDraft(editor.getEditorState()).textContent).toBe("current draft");
+  });
+
+  it("restores JSON-persisted text and skill identity into a different editor", () => {
+    const source = createTestEditor();
+    const selectedSkill = skill("canonical", "/skills/example/SKILL.md", "Display", "User");
+    source.update(
+      () => {
+        $getRoot().append(
+          $createParagraphNode().append($createTextNode("Use "), $createSkillNode(selectedSkill)),
+          $createParagraphNode().append($createTextNode("second paragraph")),
+        );
+      },
+      { discrete: true },
+    );
+    const capture = captureComposerDraft(source.getEditorState());
+    const stored: unknown = JSON.parse(JSON.stringify(exportComposerDraft(capture.draft)));
+    const imported = importComposerDraft(stored);
+    expect(imported.type).toBe("imported");
+    if (imported.type !== "imported") throw new Error("Expected an imported draft");
+
+    const target = createEditorWithText("existing input");
+    expect(imported.draft).not.toBe(capture.draft);
+    expect(restoreComposerDraft(target, imported.draft)).toEqual({ type: "restored" });
+    const restored = captureComposerDraft(target.getEditorState());
+    expect(restored.input).toEqual(capture.input);
+    expect(restored.textContent).toEqual(capture.textContent);
+    expect(restored.selectedSkillPaths).toEqual(capture.selectedSkillPaths);
+    expect(readSkills(target)).toEqual([selectedSkill]);
+  });
+
+  it("keeps an exported draft independent from later editor updates", () => {
+    const source = createEditorWithText("saved input");
+    const stored = exportComposerDraft(captureComposerDraft(source.getEditorState()).draft);
+    source.update(
+      () => {
+        $getRoot()
+          .clear()
+          .append($createParagraphNode().append($createTextNode("later input")));
+      },
+      { discrete: true },
+    );
+    const imported = importComposerDraft(stored);
+    if (imported.type !== "imported") throw new Error("Expected an imported draft");
+    const target = createEditorWithText("current input");
+    expect(restoreComposerDraft(target, imported.draft)).toEqual({ type: "restored" });
+    expect(captureComposerDraft(target.getEditorState()).textContent).toBe("saved input");
+    expect(captureComposerDraft(source.getEditorState()).textContent).toBe("later input");
+  });
+
+  it.each([
+    null,
+    {},
+    { version: 2, editorStateJson: "{}" },
+    { version: 1, editorStateJson: {} },
+    { version: 1, editorStateJson: "{" },
+    { version: 1, editorStateJson: "{}" },
+    { version: 1, editorStateJson: '{"root":{"type":"unknown-node","version":1}}' },
+  ])("rejects an invalid persisted draft: %j", (value) => {
+    expect(importComposerDraft(value)).toEqual({ type: "invalidDraft" });
+  });
+
+  it("uses SkillNode validation when importing stored content", () => {
+    const source = createTestEditor();
+    source.update(
+      () => {
+        $getRoot().append(
+          $createParagraphNode().append(
+            $createSkillNode(skill("example", "/skills/example", "Example")),
+          ),
+        );
+      },
+      { discrete: true },
+    );
+    const stored = exportComposerDraft(captureComposerDraft(source.getEditorState()).draft);
+    const invalidSkill = stored.editorStateJson.replace('"path":"/skills/example"', '"path":42');
+    expect(importComposerDraft({ ...stored, editorStateJson: invalidSkill })).toEqual({
+      type: "invalidDraft",
+    });
+  });
+
+  it("does not export an unregistered opaque draft", () => {
+    expect(() => exportComposerDraft({} as ComposerDraft)).toThrow(
+      "Cannot export an invalid composer draft",
+    );
   });
 
   it("keeps the editor unchanged when Lexical parsing fails", () => {

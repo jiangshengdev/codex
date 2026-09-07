@@ -11,6 +11,17 @@ import { isGuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway"
 import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
 import { createListenerSet } from "@/subscriptions/listenerSet";
+import { randomUuid } from "@/identity/randomUuid";
+import { BrowserPersistenceStore } from "@/features/browserPersistence/browserPersistenceStore";
+import {
+  exportComposerDraft,
+  importComposerDraft,
+  type ComposerDraft,
+} from "@/features/composerEditor/composerDraft";
+import {
+  decodeComposerCoordinatorRecord,
+  type ComposerCoordinatorRecord,
+} from "./composerCoordinatorPersistence";
 import {
   createComposerInputQueue,
   type ComposerInputQueue,
@@ -59,6 +70,12 @@ export type {
 } from "./composerPendingInputLiveManagement";
 
 export type ComposerInputQueueCoordinatorSnapshot = Readonly<{
+  persistence: Readonly<{
+    error: string | null;
+    restoredPaused: boolean;
+    revision: number | null;
+    unknownMessages: readonly Readonly<{ id: string; text: string }>[];
+  }>;
   ordinaryQueuedCount: number;
   guidingCount: number;
   detailRevision: number;
@@ -81,6 +98,7 @@ export type ComposerInputQueueSubmitResult =
         | "recoveryPending"
         | "releaseReserved"
         | "managementPending"
+        | "persistenceFailed"
         | "invalidInput";
     }>;
 
@@ -91,6 +109,7 @@ export type ComposerInputQueueCoordinatorReleaseBlocker =
   | Readonly<{ type: "releaseReserved" }>
   | Readonly<{ type: "interruptPending"; phase: InterruptPhase }>
   | Readonly<{ type: "managementPending" }>
+  | Readonly<{ type: "persistenceFailed" }>
   | Readonly<{ type: "disposed" }>;
 
 export type ComposerInputQueueCoordinatorReleaseReadiness =
@@ -115,6 +134,14 @@ export type ComposerInputQueueCoordinatorReserveReleaseResult =
     }>;
 
 export type ComposerInputQueueCoordinator = Readonly<{
+  getDraft(): ComposerDraft | null;
+  saveDraft(draft: ComposerDraft): boolean;
+  retryPersistence(): boolean;
+  resumeRestored(expectedRevision: number | null): boolean;
+  suspendRestored(): void;
+  completeRestoreReconciliation(): void;
+  reconcileRestoredTurns(turns: readonly Turn[]): void;
+  discardUnknown(id: string, expectedRevision: number | null): boolean;
   ownerThreadId: string;
   submit(capture: ComposerDraftCapture): ComposerInputQueueSubmitResult;
   submitSteer(capture: ComposerDraftCapture): ComposerInputQueueSubmitResult;
@@ -144,6 +171,10 @@ export type ComposerInputQueueCoordinator = Readonly<{
 }>;
 
 export type CreateComposerInputQueueCoordinatorInput = Readonly<{
+  persistence: Readonly<{
+    authorizationContext: string;
+    storage?: Pick<Storage, "getItem" | "setItem">;
+  }>;
   threadId: string;
   activeTurnId: Turn["id"] | null;
   startTurn(params: TurnStartParams): Promise<TurnStartResponse>;
@@ -151,7 +182,14 @@ export type CreateComposerInputQueueCoordinatorInput = Readonly<{
   interruptTurn(params: TurnInterruptParams): Promise<TurnInterruptResponse>;
 }>;
 
-let nextMessageSequence = 0;
+type CoordinatorState = {
+  queue: ComposerInputQueue;
+  interruptState: ReturnType<typeof createComposerInterruptState>;
+  recovery: RecoveryBatch | null;
+  deferredEffects: readonly ComposerInputQueueEffect[];
+  failedInterruptTurnId: Turn["id"] | null;
+  draft: ComposerDraft | null;
+};
 
 function recoveryCount(batch: RecoveryBatch | null): number {
   if (batch == null) return 0;
@@ -172,34 +210,105 @@ function deliveryFailure(error: unknown): Exclude<InterruptSettlement["type"], "
 }
 
 class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator {
-  private readonly queue: ComposerInputQueue;
+  private state: CoordinatorState;
+  private readonly persistenceStore: BrowserPersistenceStore<ComposerCoordinatorRecord>;
+  private persistenceRevision: number | null = null;
+  private persistenceError: string | null = null;
+  private restoredPaused = false;
+  private reconciliationComplete = false;
+  private reconciliationRequested = false;
+  private pendingDraft: ComposerDraft | null = null;
+  private transactionEffects: (() => void)[] | null = null;
+  private readonly pendingFacts: (() => void)[] = [];
+  private get queue() {
+    return this.state.queue;
+  }
+  private get interruptState() {
+    return this.state.interruptState;
+  }
+  private set interruptState(value: ReturnType<typeof createComposerInterruptState>) {
+    this.state.interruptState = value;
+  }
+  private get recovery() {
+    return this.state.recovery;
+  }
+  private set recovery(value: RecoveryBatch | null) {
+    this.state.recovery = value;
+  }
+  private get deferredEffects() {
+    return this.state.deferredEffects;
+  }
+  private set deferredEffects(value: readonly ComposerInputQueueEffect[]) {
+    this.state.deferredEffects = value;
+  }
+  private get failedInterruptTurnId() {
+    return this.state.failedInterruptTurnId;
+  }
+  private set failedInterruptTurnId(value: Turn["id"] | null) {
+    this.state.failedInterruptTurnId = value;
+  }
   private readonly liveManagement: ComposerPendingInputLiveManagement;
   private readonly threadId: string;
   private readonly startTurn: CreateComposerInputQueueCoordinatorInput["startTurn"];
   private readonly steerTurn: CreateComposerInputQueueCoordinatorInput["steerTurn"];
   private readonly interruptTurn: CreateComposerInputQueueCoordinatorInput["interruptTurn"];
-  private interruptState = createComposerInterruptState();
   private readonly listeners = createListenerSet();
-  private recovery: RecoveryBatch | null = null;
-  private deferredEffects: readonly ComposerInputQueueEffect[] = [];
   private snapshot: ComposerInputQueueCoordinatorSnapshot;
   private generation = 0;
   private releaseReservation: object | null = null;
   private disposed = false;
   private disposeCause: ComposerPendingInputOwnerGoneCause | null = null;
   private isRecovering = false;
-  private failedInterruptTurnId: Turn["id"] | null = null;
 
   constructor(input: CreateComposerInputQueueCoordinatorInput) {
     this.threadId = input.threadId;
     this.startTurn = input.startTurn;
     this.steerTurn = input.steerTurn;
     this.interruptTurn = input.interruptTurn;
-    this.queue = createComposerInputQueue({
+    this.state = {
+      queue: createComposerInputQueue({
+        threadId: input.threadId,
+        activeTurnId: input.activeTurnId,
+      }),
+      interruptState: createComposerInterruptState(),
+      recovery: null,
+      deferredEffects: [],
+      failedInterruptTurnId: null,
+      draft: null,
+    };
+    this.persistenceStore = new BrowserPersistenceStore({
+      ...input.persistence,
       threadId: input.threadId,
-      activeTurnId: input.activeTurnId,
+      codec: {
+        encode: (value) => value,
+        decode: (value) => decodeComposerCoordinatorRecord(value, input.threadId),
+      },
     });
+    try {
+      const stored = this.persistenceStore.read();
+      if (stored != null) {
+        this.restoredPaused = true;
+        this.queue.setAutomaticSendingPaused(true);
+        this.persistenceRevision = stored.revision;
+        this.recovery = this.queue.rehydrateState(stored.value.queue);
+        this.interruptState.rehydrateState(stored.value.interrupt, this.generation);
+        this.failedInterruptTurnId = stored.value.failedInterruptTurnId;
+        if (stored.value.draft != null) {
+          const imported = importComposerDraft(stored.value.draft);
+          if (imported.type !== "imported") throw new Error("Invalid saved draft");
+          this.state.draft = imported.draft;
+        }
+      }
+    } catch (error: unknown) {
+      this.persistenceError = persistenceErrorText(error);
+      this.restoredPaused = true;
+      this.queue.setAutomaticSendingPaused(true);
+    }
     this.liveManagement = createComposerPendingInputLiveManagement(this.queue, {
+      transact: (operation) => {
+        const result = this.persistTransaction(() => operation(this.queue));
+        return result.type === "committed" ? result : { type: "persistenceFailed" };
+      },
       applyAcceptedEvent: (payload) => {
         this.applyAcceptedEvent(payload);
       },
@@ -208,11 +317,15 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       },
       drainPendingInput: (intent) => {
         if (this.recoveryPending()) return "deferred";
-        this.consumeTransition(this.queue.drainPendingInput(intent));
+        const result = this.persistTransaction(() => {
+          this.consumeTransition(this.queue.drainPendingInput(intent));
+        });
+        if (result.type !== "committed") return "deferred";
         return this.recoveryPending() ? "consumedRecoveryPending" : "consumed";
       },
     });
     this.snapshot = {
+      persistence: this.persistenceSnapshot(),
       ordinaryQueuedCount: 0,
       guidingCount: 0,
       detailRevision: this.queue.detailRevision(),
@@ -225,18 +338,198 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       interrupt: null,
       pendingInputManagementOutcome: null,
     };
+    this.publishSnapshot();
   }
   get ownerThreadId(): string {
     return this.threadId;
   }
 
+  getDraft = (): ComposerDraft | null => this.pendingDraft ?? this.state.draft;
+
+  saveDraft = (draft: ComposerDraft): boolean => {
+    if (this.disposed) return false;
+    this.pendingDraft = draft;
+    return this.retryPersistence();
+  };
+
+  retryPersistence = (): boolean => {
+    if (this.disposed) return false;
+    const pending = [...this.pendingFacts];
+    const draft = this.pendingDraft;
+    const result = this.persistTransaction(() => {
+      if (draft != null) this.state.draft = draft;
+      for (const fact of pending) fact();
+    }, true);
+    if (result.type !== "committed") return false;
+    if (this.pendingDraft === draft) this.pendingDraft = null;
+    this.pendingFacts.splice(0, pending.length);
+    if (this.reconciliationRequested) this.reconciliationComplete = true;
+    this.liveManagement.flushDeferredDrains();
+    this.publishSnapshot();
+    return this.persistenceError == null;
+  };
+
+  completeRestoreReconciliation = (): void => {
+    this.reconciliationRequested = true;
+    this.retryPersistence();
+  };
+
+  reconcileRestoredTurns = (turns: readonly Turn[]): void => {
+    if (!this.restoredPaused) return;
+    this.receiveFact(() => {
+      this.consumeTransition(this.queue.reconcileSnapshot(turns));
+      const result = this.interruptState.reconcileSnapshot(turns, this.generation);
+      if (result != null && "terminal" in result && result.terminal != null) {
+        const turn = turns.find(({ id }) => id === result.terminal?.fact.params.turnId);
+        if (turn == null) throw new Error("Reconciled interrupt is missing its snapshot turn");
+        this.queue.prepareInterruptedSnapshot(turn);
+        this.applyInterruptedDisposition(
+          result.terminal.fact.params.turnId,
+          result.terminal.disposition,
+        );
+      }
+    });
+  };
+
+  resumeRestored = (expectedRevision: number | null): boolean => {
+    if (
+      this.disposed ||
+      !this.reconciliationComplete ||
+      expectedRevision !== this.persistenceRevision ||
+      this.persistenceError != null
+    )
+      return false;
+    const result = this.persistTransaction(() => {
+      this.queue.setAutomaticSendingPaused(this.recoveryPending());
+      this.consumeTransition(this.queue.drain());
+    });
+    if (result.type !== "committed") return false;
+    this.restoredPaused = false;
+    this.publishSnapshot();
+    return true;
+  };
+
+  suspendRestored = (): void => {
+    if (this.disposed) return;
+    this.restoredPaused = true;
+    this.reconciliationComplete = false;
+    this.reconciliationRequested = false;
+    this.queue.setAutomaticSendingPaused(true);
+    this.publishSnapshot();
+  };
+
+  discardUnknown = (id: string, expectedRevision: number | null): boolean => {
+    if (this.disposed || expectedRevision !== this.persistenceRevision) return false;
+    const result = this.persistTransaction(() => this.queue.discardUnknown(id));
+    return result.type === "committed" && result.result;
+  };
+
+  private persistenceSnapshot(): ComposerInputQueueCoordinatorSnapshot["persistence"] {
+    const unknownMessages = this.queue.unknownMessages();
+    return {
+      error: this.persistenceError,
+      restoredPaused: this.restoredPaused,
+      revision: this.restoredPaused || unknownMessages.length > 0 ? this.persistenceRevision : null,
+      unknownMessages,
+    };
+  }
+
+  private persistTransaction<T>(
+    operation: () => T,
+    retry = false,
+  ): Readonly<{ type: "committed"; result: T }> | Readonly<{ type: "persistenceFailed" }> {
+    if (this.transactionEffects != null) return { type: "committed", result: operation() };
+    if (this.disposed || (!retry && this.persistenceError != null))
+      return { type: "persistenceFailed" };
+    const original = this.state;
+    const originalRecord = this.record(original);
+    const wasRecovering = this.isRecovering;
+    const effects: (() => void)[] = [];
+    this.transactionEffects = effects;
+    let prepared: ReturnType<ComposerInputQueue["prepare"]>;
+    let result: T;
+    try {
+      const candidate = original.queue.prepare((queue) => {
+        this.state = { ...original, queue, interruptState: original.interruptState.fork() };
+        queue.setAutomaticSendingPaused(this.restoredPaused || this.recoveryPending());
+        return operation();
+      });
+      prepared = candidate;
+      result = candidate.result;
+    } catch (error: unknown) {
+      this.state = original;
+      this.isRecovering = wasRecovering;
+      this.transactionEffects = null;
+      throw error;
+    }
+    try {
+      const record = this.record(this.state);
+      const changed = JSON.stringify(record) !== JSON.stringify(originalRecord);
+      const saved =
+        changed || retry ? this.persistenceStore.commit(record, this.persistenceRevision) : null;
+      prepared.commit();
+      this.state.queue = original.queue;
+      if (saved != null) this.persistenceRevision = saved.revision;
+      this.persistenceError = null;
+    } catch (error: unknown) {
+      this.state = original;
+      this.isRecovering = wasRecovering;
+      this.persistenceError = persistenceErrorText(error);
+      this.transactionEffects = null;
+      this.publishSnapshot();
+      return { type: "persistenceFailed" };
+    }
+    this.transactionEffects = null;
+    for (const effect of effects) {
+      if (this.currentOwnerIsGone()) break;
+      effect();
+    }
+    return { type: "committed", result };
+  }
+
+  private record(state: CoordinatorState): ComposerCoordinatorRecord {
+    return {
+      version: 1,
+      queue: state.queue.exportState(state.recovery),
+      draft: state.draft == null ? null : exportComposerDraft(state.draft),
+      interrupt: state.interruptState.exportState(),
+      failedInterruptTurnId: state.failedInterruptTurnId,
+    };
+  }
+
+  private receiveFact(operation: () => void): void {
+    if (this.disposed) return;
+    if (this.pendingFacts.length > 0 || this.persistenceError != null) {
+      this.pendingFacts.push(operation);
+      return;
+    }
+    if (this.persistTransaction(operation).type !== "committed") this.pendingFacts.push(operation);
+  }
+
+  private afterCommit(effect: () => void): void {
+    if (this.transactionEffects != null) this.transactionEffects.push(effect);
+    else effect();
+  }
+
   submit(capture: ComposerDraftCapture): ComposerInputQueueSubmitResult {
-    return this.submitInput(capture, this.queue.submit);
+    if (this.disposed) return { type: "rejected", reason: "disposed" };
+    const result = this.persistTransaction(() => this.submitInput(capture, this.queue.submit));
+    return result.type === "committed"
+      ? result.result
+      : { type: "rejected", reason: "persistenceFailed" };
   }
   submitSteer(capture: ComposerDraftCapture): ComposerInputQueueSubmitResult {
-    return this.submitInput(capture, this.queue.submitSteer);
+    if (this.disposed) return { type: "rejected", reason: "disposed" };
+    const result = this.persistTransaction(() => this.submitInput(capture, this.queue.submitSteer));
+    return result.type === "committed"
+      ? result.result
+      : { type: "rejected", reason: "persistenceFailed" };
   }
   promoteOrdinaryFrontToSteer(): boolean {
+    const result = this.persistTransaction(() => this.promoteOrdinaryFrontToSteerImpl());
+    return result.type === "committed" && result.result;
+  }
+  private promoteOrdinaryFrontToSteerImpl(): boolean {
     if (
       this.disposed ||
       this.releaseReservation != null ||
@@ -253,6 +546,10 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     return true;
   }
   interruptActiveTurn(): boolean {
+    const result = this.persistTransaction(() => this.interruptActiveTurnImpl());
+    return result.type === "committed" && result.result;
+  }
+  private interruptActiveTurnImpl(): boolean {
     const turnId = this.queue.currentTurnId();
     if (!this.canInterrupt(turnId)) return false;
     const issued = this.interruptState.transition({
@@ -275,12 +572,29 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     return true;
   }
   recover(): boolean {
+    if (
+      this.disposed ||
+      this.releaseReservation != null ||
+      this.recovery == null ||
+      this.isRecovering ||
+      this.liveManagement.mutationPending() ||
+      this.liveManagement.hasActiveSession()
+    )
+      return false;
+    this.isRecovering = true;
+    this.publishSnapshot();
+    if (this.currentOwnerIsGone()) return false;
+    const result = this.persistTransaction(() => this.recoverImpl());
+    this.isRecovering = false;
+    this.publishSnapshot();
+    return result.type === "committed" && result.result;
+  }
+  private recoverImpl(): boolean {
     const batch = this.recovery;
     const unavailable =
       this.disposed ||
       this.releaseReservation != null ||
       batch == null ||
-      this.isRecovering ||
       this.liveManagement.mutationPending() ||
       this.liveManagement.hasActiveSession();
     if (unavailable) return false;
@@ -310,11 +624,17 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     }
     this.recovery = null;
     this.isRecovering = false;
+    this.queue.setAutomaticSendingPaused(this.restoredPaused);
+    const resumed = this.queue.drain();
+    this.assertNoRecoveryEffect(resumed);
+    recoveryEffects.push(...resumed.effects);
     const effects = [...recoveryEffects, ...this.deferredEffects];
     this.deferredEffects = [];
     this.runEffects(effects);
     if (this.currentOwnerDiffersFrom(generation)) return false;
-    this.liveManagement.flushDeferredDrains();
+    this.afterCommit(() => {
+      this.liveManagement.flushDeferredDrains();
+    });
     this.publishSnapshot();
     return true;
   }
@@ -323,6 +643,11 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.liveManagement.observeAcceptedEvent(payload);
   }
   private applyAcceptedEvent(payload: Readonly<ActiveThreadProjectionAcceptedEvent>): void {
+    this.receiveFact(() => {
+      this.applyAcceptedEventImpl(payload);
+    });
+  }
+  private applyAcceptedEventImpl(payload: Readonly<ActiveThreadProjectionAcceptedEvent>): void {
     const observation = runtimeObservationFromAcceptedProjectionEvent(payload);
     if (observation == null) return;
     if (observation.type === "turnCompleted") {
@@ -383,6 +708,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       blockers.push({ type: "recoveryPending", count: recoveryCount(this.recovery) });
     if (this.isRecovering) blockers.push({ type: "recovering" });
     if (this.liveManagement.mutationPending()) blockers.push({ type: "managementPending" });
+    if (this.persistenceError != null) blockers.push({ type: "persistenceFailed" });
     if (this.releaseReservation != null) blockers.push({ type: "releaseReserved" });
     const interrupt = this.interruptState.state();
     if (interrupt != null) blockers.push({ type: "interruptPending", phase: interrupt.phase });
@@ -422,6 +748,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.deferredEffects = [];
     this.isRecovering = false;
     this.failedInterruptTurnId = null;
+    this.pendingFacts.length = 0;
     this.liveManagement.dispose(this.ownerGoneResult());
     this.snapshot = {
       ...this.snapshot,
@@ -432,7 +759,9 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   }
 
   private consumeTransition(transition: ComposerInputQueueTransition): void {
-    this.liveManagement.consumeEditInvalidation(transition.editInvalidation);
+    this.afterCommit(() => {
+      this.liveManagement.consumeEditInvalidation(transition.editInvalidation);
+    });
     this.runEffects(transition.effects);
     if (transition.result.type === "interruptedTerminalPrepared") {
       this.classifyInterrupted(transition.result.turnId);
@@ -450,10 +779,9 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     }
     if (this.releaseReservation != null) return { type: "rejected", reason: "releaseReserved" };
     if (this.recovery != null) return { type: "rejected", reason: "recoveryPending" };
-    nextMessageSequence += 1;
     const message: ComposerQueueMessage = {
       type: "recoverable",
-      id: `composer-message-${String(nextMessageSequence)}`,
+      id: `composer-message-${randomUuid()}`,
       draft: capture.draft,
       input: capture.input,
     };
@@ -462,6 +790,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       return { type: "rejected", reason: "invalidInput" };
     }
     this.consumeTransition(transition);
+    this.state.draft = null;
     return { type: "accepted" };
   }
   private runEffects(effects: readonly ComposerInputQueueEffect[]): void {
@@ -484,6 +813,12 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     }
   }
   private performStart(claim: StartClaim): void {
+    if (this.transactionEffects != null) {
+      this.transactionEffects.push(() => {
+        this.performStart(claim);
+      });
+      return;
+    }
     const generation = this.generation;
     this.startTurn({
       threadId: this.ownerThreadId,
@@ -500,9 +835,17 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   }
   private settle(generation: number, settlement: StartSettlement): void {
     if (this.disposed || generation !== this.generation) return;
-    this.consumeTransition(this.queue.settleStart(settlement));
+    this.receiveFact(() => {
+      this.consumeTransition(this.queue.settleStart(settlement));
+    });
   }
   private performSteer(claim: SteerClaim): void {
+    if (this.transactionEffects != null) {
+      this.transactionEffects.push(() => {
+        this.performSteer(claim);
+      });
+      return;
+    }
     const generation = this.generation;
     this.steerTurn({
       threadId: claim.intent.threadId,
@@ -525,6 +868,12 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     );
   }
   private performInterrupt(claim: InterruptClaim): void {
+    if (this.transactionEffects != null) {
+      this.transactionEffects.push(() => {
+        this.performInterrupt(claim);
+      });
+      return;
+    }
     const generation = this.generation;
     this.interruptTurn(claim.params).then(
       () => {
@@ -540,6 +889,11 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   }
   private settleInterrupt(generation: number, settlement: InterruptSettlement): void {
     if (this.disposed || generation !== this.generation) return;
+    this.receiveFact(() => {
+      this.settleInterruptImpl(settlement);
+    });
+  }
+  private settleInterruptImpl(settlement: InterruptSettlement): void {
     const result = this.interruptState.transition({ type: "settle", settlement });
     if (result.type === "definitelyNotAccepted") {
       this.failedInterruptTurnId = settlement.claim.params.turnId;
@@ -593,6 +947,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       }
       this.recovery = null;
     }
+    this.queue.setAutomaticSendingPaused(this.restoredPaused || this.recoveryPending());
     this.consumeTransition(this.queue.applyInterruptedDisposition(turnId, disposition));
   }
   private clearInterruptForTerminal(turnId: Turn["id"]): void {
@@ -603,10 +958,18 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   }
   private settleSteer(generation: number, settlement: SteerSettlement): void {
     if (this.disposed || generation !== this.generation) return;
-    this.consumeTransition(this.queue.settleSteer(settlement));
+    this.receiveFact(() => {
+      this.consumeTransition(this.queue.settleSteer(settlement));
+    });
   }
   private publishSnapshot(): void {
     if (this.disposed) return;
+    if (this.transactionEffects != null) {
+      this.transactionEffects.push(() => {
+        this.publishSnapshot();
+      });
+      return;
+    }
     const queueView = this.queue.view();
     const count = recoveryCount(this.recovery);
     const interrupt = this.interruptState.state();
@@ -615,6 +978,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     const interruptPhase =
       interrupt?.phase ?? (this.failedInterruptTurnId == null ? null : "definitelyNotAccepted");
     const next: ComposerInputQueueCoordinatorSnapshot = {
+      persistence: this.persistenceSnapshot(),
       ordinaryQueuedCount: queueView.ordinaryQueuedCount,
       guidingCount: queueView.guidingCount,
       detailRevision: queueView.detailRevision,
@@ -680,6 +1044,10 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       throw new Error("Composer input queue produced a second recovery batch");
     }
   }
+}
+
+function persistenceErrorText(error: unknown): string {
+  return error instanceof Error ? error.message : "Unable to save this session";
 }
 
 export function createComposerInputQueueCoordinator(

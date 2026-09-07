@@ -220,7 +220,13 @@ describe("composer input queue", () => {
     const pending = nonLocal.submitSteer(message("pending")).effects[0];
     if (pending?.type !== "performSteer") throw new Error("expected steer claim");
     nonLocal.submitSteer(message("unsent"));
-    nonLocal.settleSteer({ type: "accepted", claim: pending.claim, turnId: "turn-non-local" });
+    const successor = nonLocal.settleSteer({
+      type: "accepted",
+      claim: pending.claim,
+      turnId: "turn-non-local",
+    }).effects[0];
+    if (successor?.type !== "performSteer") throw new Error("expected successor steer claim");
+    nonLocal.settleSteer({ type: "accepted", claim: successor.claim, turnId: "turn-non-local" });
     nonLocal.prepareInterruptedTerminal({
       type: "turnCompleted",
       turnId: "turn-non-local",

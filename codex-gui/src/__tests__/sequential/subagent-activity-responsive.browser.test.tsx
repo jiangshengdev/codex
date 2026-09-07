@@ -1,6 +1,9 @@
 import { expect, test } from "vitest";
 import { page } from "vitest/browser";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import {
   attachWithTurns,
@@ -12,10 +15,12 @@ import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurfac
 import { renderWithProviders } from "@/utils/test-utils";
 
 let sessionRevision = 0;
+const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "responsive-subagent" };
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) =>
   activeThreadReadModelTransitionApplied({
+    identity,
     sessionRevision: ++sessionRevision,
     facts: [{ type: "baselineAttached", response }],
   });
@@ -31,8 +36,11 @@ test("keeps a fixed bounded set of sub-agent chips responsive", async () => {
 
   try {
     await page.viewport(390, 900);
-    const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+    const { store, ...screen } = await renderWithProviders(
+      <CommittedTranscriptSurface identity={identity} />,
+    );
     unmount = screen.unmount;
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
     store.dispatch(
       threadRuntimeAttached(
         attachWithTurns(attachBaseline, [

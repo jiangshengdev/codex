@@ -75,18 +75,25 @@ test("fails closed with the complete context error when the settled session is e
   expect(listThreads).not.toHaveBeenCalled();
 });
 
-test("shows the startup activation error only after the session settles empty", async () => {
+test("keeps collection errors in the global owner when history context is unavailable", async () => {
   const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
-  const emptySession = createActiveThreadSessionHarness();
   const startupError = "Startup activation failed";
+  const emptySession = createActiveThreadSessionHarness({
+    initialCollection: {
+      viewedThreadId: null,
+      members: [],
+      errors: [{ operation: "collectionRead", threadId: null, error: new Error(startupError) }],
+    },
+  });
   const { screen } = await renderHistory(listThreads, {
     activeThreadSession: emptySession.session,
-    activeThreadStartupError: startupError,
   });
 
   const alert = screen.getByRole("alert");
-  await expect.element(alert.getByText("Unable to load history", { exact: true })).toBeVisible();
-  await expect.element(alert.getByText(startupError, { exact: true })).toBeVisible();
+  await expect
+    .element(alert.getByText("History context unavailable", { exact: true }))
+    .toBeVisible();
+  await expect.element(screen.getByText(startupError, { exact: true })).not.toBeInTheDocument();
   await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
   expect(listThreads).not.toHaveBeenCalled();
 });

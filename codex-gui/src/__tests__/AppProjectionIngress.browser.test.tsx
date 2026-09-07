@@ -157,13 +157,15 @@ test("App dispatches projection display facts and updates the active session", a
   const commands = createGuiHostCommands();
   queueAttachProjectionResponse(commands);
   initializeHost(options, commands);
-  await expect.poll(() => selectThreadRuntimeRecord(store.getState())?.threadId).toBe(threadId);
+  await expect
+    .poll(() => selectThreadRuntimeRecord(store.getState(), launchThreadId)?.threadId)
+    .toBe(threadId);
   emitProjectionEvent(options, projectionEvent);
 
   const { snapshot: sessionSnapshot } = await waitForThreadSwitchProbeSession();
   if (sessionSnapshot.phase !== "active") throw new Error("expected an active session");
   const { turns: _turns, status: _status, ...thread } = attachResponse.snapshot.thread;
-  const runtime = selectThreadRuntimeRecord(store.getState());
+  const runtime = selectThreadRuntimeRecord(store.getState(), launchThreadId);
   expect(runtime).toStrictEqual({
     sessionRevision: sessionSnapshot.revision,
     threadId,
@@ -194,14 +196,16 @@ test("App classifies snapshot-ahead projection events as snapshot duplicate repl
   queueAttachProjectionResponse(commands, snapshotAheadWithOldHead);
   initializeHost(options, commands);
   await expect
-    .poll(() => selectThreadRuntimeRecord(store.getState())?.threadId)
+    .poll(() => selectThreadRuntimeRecord(store.getState(), launchThreadId)?.threadId)
     .toBe(launchThreadId);
   emitProjectionEvent(options, eventTurnStarted);
 
   const { snapshot } = await waitForThreadSwitchProbeSession();
   if (snapshot.phase !== "active") throw new Error("expected an active session");
   expect(snapshot.activeTurnId).toBe(eventTurnStarted.event.notification.turn.id);
-  expect(selectThreadRuntimeRecord(store.getState())?.threadId).toBe(launchThreadId);
+  expect(selectThreadRuntimeRecord(store.getState(), launchThreadId)?.threadId).toBe(
+    launchThreadId,
+  );
 });
 
 test("App replays startup notifications against the accepted attach baseline", async () => {
@@ -294,7 +298,7 @@ test("App rejects a startup attach that returns a different thread identity", as
   await expect
     .element(screen.getByRole("main").getByRole("alert"))
     .toHaveTextContent("thread/projection/attach returned a different thread identity");
-  expect(selectThreadRuntimeRecord(store.getState())).toBeNull();
+  expect(selectThreadRuntimeRecord(store.getState(), launchThreadId)).toBeNull();
   expect(createComposerInputQueueCoordinator).not.toHaveBeenCalled();
 });
 

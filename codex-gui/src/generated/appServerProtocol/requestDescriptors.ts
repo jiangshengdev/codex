@@ -7,6 +7,7 @@ import {
   validateV2ThreadProjectionAttachResponse,
   validateV2ThreadProjectionDetachResponse,
   validateV2ThreadListResponse,
+  validateV2ThreadLoadedListResponse,
   validateV2ThreadReadResponse,
   validateV2ThreadResumeResponse,
   validateV2TurnStartResponse,
@@ -50,6 +51,12 @@ export const requestDescriptors = {
     responseSchema: "v2/ThreadListResponse",
     validateResponse: validateV2ThreadListResponse,
   },
+  "thread/loaded/list": {
+    method: "thread/loaded/list",
+    paramsSchema: "v2/ThreadLoadedListParams",
+    responseSchema: "v2/ThreadLoadedListResponse",
+    validateResponse: validateV2ThreadLoadedListResponse,
+  },
   "thread/read": {
     method: "thread/read",
     paramsSchema: "v2/ThreadReadParams",
@@ -88,6 +95,7 @@ export const requestDescriptors = {
     | "thread/projection/attach"
     | "thread/projection/detach"
     | "thread/list"
+    | "thread/loaded/list"
     | "thread/read"
     | "thread/resume"
     | "turn/start"

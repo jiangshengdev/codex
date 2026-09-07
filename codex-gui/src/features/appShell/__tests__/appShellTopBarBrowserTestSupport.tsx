@@ -31,7 +31,6 @@ const capabilities = ({
   routeTarget: GuiRouteTarget;
 }>): AppCapabilities => ({
   activeThreadSession: activeThreadSessionHarness.session,
-  activeThreadStartupError: null,
   authorizationToken: null,
   commands: null,
   routeTarget,
@@ -91,5 +90,5 @@ export const renderTopBar = async ({
     routeTree: rootRoute.addChildren([currentTaskRoute, historyRoute, historyDetailRoute]),
   });
   const screen = await renderWithProviders(<RouterProvider router={router} />);
-  return { router, screen };
+  return { router, screen, activeThreadSessionHarness };
 };

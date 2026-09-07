@@ -73,6 +73,7 @@ describe("ComposerInputQueueCoordinator", () => {
       turnId: "turn-active",
     });
     expect(coordinator.getSnapshot()).toEqual({
+      persistence: { error: null, restoredPaused: false, revision: null, unknownMessages: [] },
       ordinaryQueuedCount: 2,
       guidingCount: 0,
       detailRevision: 2,
@@ -144,6 +145,7 @@ describe("ComposerInputQueueCoordinator", () => {
       recoveryCount: 3,
       recovery: { reason: "userStopped", count: 3 },
       isRecovering: true,
+      persistence: { error: null, restoredPaused: false, revision: null, unknownMessages: [] },
       rejectedSteers: [],
       hasUnknownSteer: false,
       canStop: false,

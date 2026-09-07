@@ -44,6 +44,7 @@ import {
   type ComposerStartMessage,
   type StartClaim,
   type StartSettlement,
+  type PersistedComposerStartState,
 } from "./composerStartQueueState";
 import {
   createComposerSteerQueue,
@@ -52,7 +53,19 @@ import {
   type SteerEditReservation,
   type SteerRecoveryTransfer,
   type SteerClaim,
+  type PersistedComposerSteerState,
+  type PersistedRejectedSteer,
+  type PersistedSteerIntent,
 } from "./composerSteerQueueState";
+import {
+  decodeComposerQueueInput,
+  exportComposerQueueMessage,
+  importComposerQueueMessage,
+  persistenceArray,
+  persistenceIdentity,
+  persistenceObject,
+  type PersistedComposerQueueMessage,
+} from "./composerQueueMessagePersistence";
 
 export type {
   ComposerInputQueuePendingStartPhase,
@@ -109,7 +122,56 @@ export type ComposerInputQueueTransition = Readonly<{
   editInvalidation?: ComposerPendingInputEditInvalidation;
 }>;
 
+type PersistedStartMessage =
+  | PersistedComposerQueueMessage
+  | Readonly<{
+      type: "rejectedSteerMerge";
+      id: string;
+      input: ComposerStartMessage["input"];
+      transfer: readonly PersistedRejectedSteer<PersistedComposerQueueMessage>[];
+    }>;
+
+type PersistedRecovery =
+  | Readonly<{
+      reason: "startDefinitelyNotAccepted";
+      messages: readonly PersistedComposerQueueMessage[];
+    }>
+  | Readonly<{
+      reason: "steerDefinitelyNotAccepted";
+      transfer: readonly PersistedSteerIntent<PersistedComposerQueueMessage>[];
+    }>
+  | Readonly<{
+      reason: "userStopped";
+      messages: readonly PersistedComposerQueueMessage[];
+      rejected: readonly PersistedRejectedSteer<PersistedComposerQueueMessage>[] | null;
+    }>;
+
+export type ComposerInputQueuePersistedState = Readonly<{
+  version: 1;
+  threadId: string;
+  activeTurnId: TurnIdentity | null;
+  preparedInterruptedTurnId: TurnIdentity | null;
+  knownMessageIds: readonly string[];
+  ordinary: readonly PersistedComposerQueueMessage[];
+  start: PersistedComposerStartState<PersistedStartMessage>;
+  steer: PersistedComposerSteerState<PersistedComposerQueueMessage>;
+  recovery: PersistedRecovery | null;
+}>;
+
 export type ComposerInputQueue = Readonly<{
+  prepare<T>(operation: (candidate: ComposerInputQueue) => T): Readonly<{
+    result: T;
+    queue: ComposerInputQueue;
+    commit(): void;
+  }>;
+  setAutomaticSendingPaused(paused: boolean): void;
+  drain(): ComposerInputQueueTransition;
+  exportState(recovery: RecoveryBatch | null): ComposerInputQueuePersistedState;
+  rehydrateState(value: unknown): RecoveryBatch | null;
+  reconcileSnapshot(turns: readonly Turn[]): ComposerInputQueueTransition;
+  prepareInterruptedSnapshot(turn: Turn): void;
+  unknownMessages(): readonly Readonly<{ id: string; text: string }>[];
+  discardUnknown(id: string): boolean;
   view(): ComposerInputQueueView;
   detailRevision(): number;
   readPendingInputPage(request: ComposerPendingInputPageRequest): ComposerPendingInputPageResult;
@@ -220,7 +282,7 @@ type MessageAcceptance =
 class ComposerInputQueueImpl implements ComposerInputQueue {
   private readonly ordinaryState = createComposerOrdinaryQueueState();
   private readonly knownMessageIds = new Set<string>();
-  private readonly userStoppedRecoveryOwners = new WeakSet<UserStoppedRecoveryBatch>();
+  private readonly userStoppedRecoveryOwners = new Set<UserStoppedRecoveryBatch>();
   private readonly startState = new ComposerStartQueueState();
   private readonly steerState = createComposerSteerQueue();
   private readonly threadId: string;
@@ -229,10 +291,333 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   private activeEdit: PendingEditReservation | null = null;
   private activeTurnId: TurnIdentity | null;
   private preparedInterruptedTurnId: TurnIdentity | null = null;
+  private automaticSendingPaused = false;
+  private preparingCandidate: ComposerInputQueueImpl | null = null;
 
   constructor(input: CreateComposerInputQueueInput) {
     this.threadId = input.threadId;
     this.activeTurnId = input.activeTurnId;
+  }
+
+  public prepare<T>(operation: (candidate: ComposerInputQueue) => T): Readonly<{
+    result: T;
+    queue: ComposerInputQueue;
+    commit(): void;
+  }> {
+    if (this.preparingCandidate != null) {
+      throw new Error("Composer queue candidate preparation cannot be nested");
+    }
+    const candidate = new ComposerInputQueueImpl({
+      threadId: this.threadId,
+      activeTurnId: this.activeTurnId,
+    });
+    candidate.adopt(this);
+    this.preparingCandidate = candidate;
+    let result: T;
+    try {
+      result = operation(candidate);
+    } finally {
+      this.preparingCandidate = null;
+    }
+    let committed = false;
+    return {
+      result,
+      queue: candidate,
+      commit: () => {
+        if (committed) throw new Error("Composer queue candidate already committed");
+        committed = true;
+        this.adopt(candidate);
+      },
+    };
+  }
+
+  private adopt(candidate: ComposerInputQueueImpl): void {
+    this.ordinaryState.adopt(candidate.ordinaryState);
+    this.startState.adopt(candidate.startState);
+    this.steerState.adopt(candidate.steerState);
+    this.pendingInputIdentity.adopt(candidate.pendingInputIdentity);
+    this.knownMessageIds.clear();
+    for (const id of candidate.knownMessageIds) this.knownMessageIds.add(id);
+    this.userStoppedRecoveryOwners.clear();
+    for (const batch of candidate.userStoppedRecoveryOwners)
+      this.userStoppedRecoveryOwners.add(batch);
+    this.activeEditAcquisition = candidate.activeEditAcquisition;
+    this.activeEdit = candidate.activeEdit;
+    this.activeTurnId = candidate.activeTurnId;
+    this.preparedInterruptedTurnId = candidate.preparedInterruptedTurnId;
+    this.automaticSendingPaused = candidate.automaticSendingPaused;
+  }
+
+  public setAutomaticSendingPaused(paused: boolean): void {
+    this.automaticSendingPaused = paused;
+  }
+
+  public drain(): ComposerInputQueueTransition {
+    if (this.activeEditAcquisition != null) return this.editAcquisitionConflictTransition();
+    return this.drainTransition(
+      "pendingInputManagementDrained",
+      this.activeTurnId == null ? this.drainNextStart() : this.drainSteer(),
+    );
+  }
+
+  public exportState(recovery: RecoveryBatch | null): ComposerInputQueuePersistedState {
+    return {
+      version: 1,
+      threadId: this.threadId,
+      activeTurnId: this.activeTurnId,
+      preparedInterruptedTurnId: this.preparedInterruptedTurnId,
+      knownMessageIds: [...this.knownMessageIds],
+      ordinary: this.ordinaryState.exportState(exportComposerQueueMessage),
+      start: this.startState.exportState(
+        (message): PersistedStartMessage =>
+          message.type === "recoverable"
+            ? exportComposerQueueMessage(message)
+            : {
+                type: "rejectedSteerMerge",
+                id: message.id,
+                input: copyComposerInputPayload(message.input),
+                transfer: this.steerState.exportRejectedTransfer(
+                  message.transfer,
+                  exportComposerQueueMessage,
+                ),
+              },
+      ),
+      steer: this.steerState.exportState(exportComposerQueueMessage),
+      recovery: this.exportRecovery(recovery),
+    };
+  }
+
+  public rehydrateState(value: unknown): RecoveryBatch | null {
+    const record = persistenceObject(value);
+    if (record.version !== 1 || record.threadId !== this.threadId) {
+      throw new Error("Invalid persisted composer queue version or owner");
+    }
+    if (record.activeTurnId !== null) persistenceIdentity(record.activeTurnId);
+    const candidate = new ComposerInputQueueImpl({
+      threadId: this.threadId,
+      activeTurnId: this.activeTurnId,
+    });
+    candidate.preparedInterruptedTurnId =
+      record.preparedInterruptedTurnId === null
+        ? null
+        : persistenceIdentity(record.preparedInterruptedTurnId);
+    for (const id of persistenceArray(record.knownMessageIds)) {
+      const identity = persistenceIdentity(id);
+      if (candidate.knownMessageIds.has(identity))
+        throw new Error("Duplicate persisted composer identity");
+      candidate.knownMessageIds.add(identity);
+    }
+    candidate.ordinaryState.rehydrateState(
+      persistenceArray(record.ordinary),
+      importComposerQueueMessage,
+    );
+    candidate.steerState.rehydrateState(record.steer, importComposerQueueMessage);
+    candidate.startState.rehydrateState(record.start, (message) =>
+      candidate.importStartMessage(message),
+    );
+    const recovery = candidate.importRecovery(record.recovery);
+    const restoredState = candidate.exportState(recovery);
+    candidate.assertPersistedSteerOwnership(restoredState);
+    candidate.assertPersistedMessageOwnership(restoredState);
+    for (const message of candidate.ordinaryState.readPendingInputs(
+      0,
+      candidate.ordinaryState.count(),
+      false,
+    )) {
+      candidate.pendingInputIdentity.ownDisplayKey(message.messageId);
+    }
+    for (const message of candidate.steerState.readPendingInputs(
+      0,
+      candidate.steerState.pendingInputCount(),
+    )) {
+      candidate.pendingInputIdentity.ownDisplayKey(message.messageId);
+    }
+    candidate.automaticSendingPaused = true;
+    this.adopt(candidate);
+    return recovery;
+  }
+
+  public unknownMessages(): readonly Readonly<{ id: string; text: string }>[] {
+    return [...this.startState.unknownMessages(), ...this.steerState.unknownMessages()].map(
+      (message) => ({
+        id: message.id,
+        text: projectComposerInputTextDetail(message.input) ?? "",
+      }),
+    );
+  }
+
+  public reconcileSnapshot(turns: readonly Turn[]): ComposerInputQueueTransition {
+    const start = this.startState.reconcileSnapshot(turns);
+    if (start.type === "resolved") this.releaseStartClaim(start.claim);
+    let editInvalidation: ComposerPendingInputEditInvalidation | undefined;
+    for (const result of this.steerState.reconcileSnapshot(turns)) {
+      if (result.type === "committed") {
+        this.knownMessageIds.delete(result.messageId);
+        this.removeNormalDisplayKeys([result.messageId]);
+      } else if (result.type === "terminal") {
+        editInvalidation =
+          this.consumeSteerEditInvalidation(result.editInvalidations) ?? editInvalidation;
+        this.removeNormalDisplayKeys(result.messageIds);
+      }
+    }
+    const effect = this.activeTurnId == null ? this.drainNextStart() : this.drainSteer();
+    return this.drainTransition("observationRecorded", effect, editInvalidation);
+  }
+
+  public prepareInterruptedSnapshot(turn: Turn): void {
+    if (turn.status !== "interrupted") {
+      throw new Error("Cannot prepare a non-interrupted snapshot as local interruption");
+    }
+    this.preparedInterruptedTurnId = turn.id;
+  }
+
+  public discardUnknown(id: string): boolean {
+    const removed = this.startState.discardUnknown(id) || this.steerState.discardUnknown(id);
+    if (!removed) return false;
+    this.knownMessageIds.delete(id);
+    this.pendingInputIdentity.forgetDisplayKey(id);
+    this.pendingInputIdentity.advanceRevision();
+    return true;
+  }
+
+  private importStartMessage(value: unknown): ComposerStartMessage {
+    const record = persistenceObject(value);
+    if (record.type === "recoverable") return importComposerQueueMessage(record);
+    if (record.type !== "rejectedSteerMerge") throw new Error("Invalid persisted start message");
+    return {
+      type: "rejectedSteerMerge",
+      id: persistenceIdentity(record.id),
+      input: decodeComposerQueueInput(record.input),
+      transfer: this.steerState.rehydrateRejectedTransfer(
+        record.transfer,
+        importComposerQueueMessage,
+      ),
+    };
+  }
+
+  private assertPersistedSteerOwnership(state: ComposerInputQueuePersistedState): void {
+    const intents = [
+      ...state.steer.queued,
+      ...state.steer.pending.map(({ intent }) => intent),
+      ...state.steer.rejected.map(({ intent }) => intent),
+    ];
+    const start = state.start.pending?.message;
+    if (start?.type === "rejectedSteerMerge")
+      intents.push(...start.transfer.map(({ intent }) => intent));
+    if (state.recovery?.reason === "steerDefinitelyNotAccepted")
+      intents.push(...state.recovery.transfer);
+    if (state.recovery?.reason === "userStopped")
+      intents.push(...(state.recovery.rejected?.map(({ intent }) => intent) ?? []));
+    if (
+      intents.some(({ threadId }) => threadId !== this.threadId) ||
+      state.steer.closedTargets.some(({ threadId }) => threadId !== this.threadId)
+    ) {
+      throw new Error("Persisted steer belongs to another thread");
+    }
+  }
+
+  private assertPersistedMessageOwnership(state: ComposerInputQueuePersistedState): void {
+    const messageIds = new Set<string>();
+    const expectedKnownIds = new Set<string>();
+    const register = (id: string, queueOwned: boolean): void => {
+      if (messageIds.has(id)) throw new Error("Persisted composer message has multiple owners");
+      messageIds.add(id);
+      if (queueOwned) expectedKnownIds.add(id);
+    };
+    for (const message of state.ordinary) register(message.id, true);
+    const start = state.start.pending?.message;
+    if (start != null) {
+      register(start.id, true);
+      if (start.type === "rejectedSteerMerge") {
+        for (const { intent } of start.transfer) register(intent.message.id, true);
+      }
+    }
+    for (const intent of state.steer.queued) register(intent.message.id, true);
+    for (const { intent } of state.steer.pending) register(intent.message.id, true);
+    for (const { intent } of state.steer.rejected) register(intent.message.id, true);
+    const recovery = state.recovery;
+    if (recovery != null) {
+      switch (recovery.reason) {
+        case "startDefinitelyNotAccepted":
+          for (const message of recovery.messages) register(message.id, false);
+          break;
+        case "steerDefinitelyNotAccepted":
+          for (const intent of recovery.transfer) register(intent.message.id, false);
+          break;
+        case "userStopped":
+          for (const message of recovery.messages) register(message.id, false);
+          for (const { intent } of recovery.rejected ?? []) register(intent.message.id, true);
+          break;
+      }
+    }
+    if (
+      state.knownMessageIds.length !== expectedKnownIds.size ||
+      state.knownMessageIds.some((id) => !expectedKnownIds.has(id))
+    ) {
+      throw new Error("Persisted composer known identities do not match their owners");
+    }
+  }
+
+  private exportRecovery(batch: RecoveryBatch | null): PersistedRecovery | null {
+    if (batch == null) return null;
+    switch (batch.reason) {
+      case "startDefinitelyNotAccepted":
+        return { reason: batch.reason, messages: batch.messages.map(exportComposerQueueMessage) };
+      case "steerDefinitelyNotAccepted":
+        return {
+          reason: batch.reason,
+          transfer: this.steerState.exportRecoveryTransfer(
+            batch.transfer,
+            exportComposerQueueMessage,
+          ),
+        };
+      case "userStopped":
+        return {
+          reason: batch.reason,
+          messages: batch.messages.map(exportComposerQueueMessage),
+          rejected:
+            batch.rejected == null
+              ? null
+              : this.steerState.exportRejectedTransfer(batch.rejected, exportComposerQueueMessage),
+        };
+    }
+  }
+
+  private importRecovery(value: unknown): RecoveryBatch | null {
+    if (value === null) return null;
+    const record = persistenceObject(value);
+    switch (record.reason) {
+      case "startDefinitelyNotAccepted":
+        return {
+          reason: record.reason,
+          messages: persistenceArray(record.messages).map(importComposerQueueMessage),
+        };
+      case "steerDefinitelyNotAccepted":
+        return {
+          reason: record.reason,
+          transfer: this.steerState.rehydrateRecoveryTransfer(
+            record.transfer,
+            importComposerQueueMessage,
+          ),
+        };
+      case "userStopped": {
+        const batch: UserStoppedRecoveryBatch = {
+          reason: record.reason,
+          messages: persistenceArray(record.messages).map(importComposerQueueMessage),
+          rejected:
+            record.rejected === null
+              ? null
+              : this.steerState.rehydrateRejectedTransfer(
+                  record.rejected,
+                  importComposerQueueMessage,
+                ),
+        };
+        this.userStoppedRecoveryOwners.add(batch);
+        return batch;
+      }
+      default:
+        throw new Error("Invalid persisted composer recovery");
+    }
   }
 
   public view = (): ComposerInputQueueView => {
@@ -582,8 +967,9 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     reservation: PendingEditReservation,
   ): ComposerPendingInputEditReservation {
     return {
-      save: (capture) => this.saveEditReservation(reservation, capture),
-      cancel: () => this.cancelEditReservation(reservation),
+      save: (capture) =>
+        (this.preparingCandidate ?? this).saveEditReservation(reservation, capture),
+      cancel: () => (this.preparingCandidate ?? this).cancelEditReservation(reservation),
     };
   }
 
@@ -688,6 +1074,11 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   }
 
   private drainNextStart(): ComposerInputQueueEffect | null {
+    if (
+      this.automaticSendingPaused ||
+      this.steerState.state().pendingSteers.some(({ phase }) => phase !== "acceptedAwaitingCommit")
+    )
+      return null;
     if (this.activeTurnId != null || this.startState.hasPending()) {
       return null;
     }
@@ -721,6 +1112,8 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   }
 
   private drainSteer(): ComposerInputQueueEffect | null {
+    if (this.automaticSendingPaused || this.startState.pendingPhase() === "deliveryUnknown")
+      return null;
     if (this.activeTurnId == null) {
       return null;
     }
@@ -869,6 +1262,10 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
 
     const ownedMessage = acceptance.message;
     if (
+      !this.automaticSendingPaused &&
+      !this.steerState
+        .state()
+        .pendingSteers.some(({ phase }) => phase !== "acceptedAwaitingCommit") &&
       this.activeTurnId == null &&
       !this.startState.hasPending() &&
       this.ordinaryState.count() === 0

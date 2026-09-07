@@ -177,16 +177,17 @@ test("settles a deferred read into error after StrictMode effect replay", async 
   expect(commands.attachThreadProjection).not.toHaveBeenCalled();
 });
 
-test("shows a terminal connection error without an invalid Retry before commands exist", async () => {
+test("shows a connection dependency notice without an invalid Retry before commands exist", async () => {
   const { screen } = await renderDetail({
     activeThreadSession: null,
     commands: null,
     status: { label: "closed" },
   });
 
-  const alert = screen.getByRole("alert");
-  await expect.element(alert.getByText("The task connection was closed.")).toBeVisible();
-  await expect.element(alert.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByText("Task history is unavailable until the connection is restored."))
+    .toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   await expect.element(screen.getByText("Loading task history…")).not.toBeInTheDocument();
 });
 
@@ -224,7 +225,9 @@ test("retains a loaded read-only snapshot when commands later become unavailable
 
   await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
   await expect.element(screen.getByRole("heading", { name: "Historical task" })).toBeVisible();
-  await expect.element(screen.getByText("The task connection was closed.")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByText("Task history is unavailable until the connection is restored."))
+    .not.toBeInTheDocument();
   await expect.element(screen.getByRole("button", { name: "Continue this task" })).toBeDisabled();
 });
 

@@ -805,8 +805,11 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
 
   controller.observeAcceptedEvent({ notification: eventTurnCompleted, replay: "live" });
 
-  await expect.poll(() => controller.getSnapshot().guidingCount).toBe(0);
+  await expect.poll(() => controller.getSnapshot().guidingCount).toBe(1);
+  expect(commandHandle.steerTurn).toHaveBeenCalledTimes(1);
+  expect(commandHandle.startTurn).not.toHaveBeenCalled();
   const heldDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  await expect.element(heldDialog.getByText("Already issued steer", { exact: true })).toBeVisible();
   await expect
     .element(heldDialog.getByText("Pending message changed", { exact: true }))
     .toBeVisible();
@@ -820,9 +823,13 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
   await expect.element(heldDialog.getByRole("heading", { name: "Pending details" })).toHaveFocus();
   await heldDialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect.element(heldDialog).not.toBeInTheDocument();
-  await expect.element(composer).toHaveFocus();
+  await expect
+    .element(screen.getByRole("button", { name: "Pending: Guide 1", exact: true }))
+    .toHaveFocus();
   expect(save).not.toHaveBeenCalled();
   expect(cancel).not.toHaveBeenCalled();
+  expect(commandHandle.steerTurn).toHaveBeenCalledTimes(1);
+  expect(commandHandle.startTurn).not.toHaveBeenCalled();
 });
 
 test("tears down an active edit without settling its reservation when projection is unavailable", async () => {

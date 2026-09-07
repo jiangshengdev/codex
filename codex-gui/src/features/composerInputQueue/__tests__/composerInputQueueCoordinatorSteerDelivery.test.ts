@@ -74,7 +74,9 @@ describe("ComposerInputQueueCoordinator", () => {
     expect(serializedSnapshot).not.toContain('"input":');
     expect(serializedSnapshot).not.toContain('"path":');
     expect(serializedSnapshot).not.toContain('"claim":');
-    expect(serializedSnapshot).not.toContain('"error":');
+    const { persistence, ...deliverySnapshot } = coordinator.getSnapshot();
+    expect(persistence.error).toBeNull();
+    expect(JSON.stringify(deliverySnapshot)).not.toContain('"error":');
     expect(serializedSnapshot).not.toContain("clientUserMessageId");
 
     responses[0]?.resolve({ turnId: "turn-1" });

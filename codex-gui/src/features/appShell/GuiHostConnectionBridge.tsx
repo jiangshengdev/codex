@@ -1,10 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppDispatch } from "@/app/hooks";
 import {
   createActiveThreadSession,
-  type ActiveThreadActivationFailure,
-  type ActiveThreadActivationOutcome,
-  type ActiveThreadActivationWarning,
   type ActiveThreadSession,
   type ActiveThreadSessionController,
 } from "@/features/activeThreadSession/activeThreadSession";
@@ -20,7 +17,6 @@ export type GuiHostConnectionBridgeProps = {
   startupTarget: GuiRouteTarget;
   setAuthorizationToken: (token: string | null) => void;
   setActiveThreadSession: (session: ActiveThreadSession | null) => void;
-  setActiveThreadStartupError: (error: string | null) => void;
 };
 
 export function GuiHostConnectionBridge({
@@ -29,16 +25,15 @@ export function GuiHostConnectionBridge({
   startupTarget,
   setAuthorizationToken,
   setActiveThreadSession,
-  setActiveThreadStartupError,
 }: GuiHostConnectionBridgeProps) {
   const dispatch = useAppDispatch();
   const frozenStartupTarget = useRef(startupTarget);
+  const [pageSessionRevision, setPageSessionRevision] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
     let cleanupConnection: (() => void) | undefined;
     let activeThreadController: ActiveThreadSessionController | null = null;
-    let activationGeneration = 0;
     const scheduler = {
       requestFrame: (callback: () => void) => window.requestAnimationFrame(callback),
       cancelFrame: (frameId: number) => {
@@ -61,13 +56,21 @@ export function GuiHostConnectionBridge({
         isMounted = false;
         setAuthorizationToken(null);
         setActiveThreadSession(null);
-        setActiveThreadStartupError(null);
       };
     }
     setAuthorizationToken(authorizationSession.getSnapshot().token);
+    const suspendRestoredQueue = (): void => {
+      activeThreadController?.suspendRestoredQueue();
+    };
+    const handlePageShow = (event: PageTransitionEvent): void => {
+      if (!event.persisted) return;
+      suspendRestoredQueue();
+      setPageSessionRevision((revision) => revision + 1);
+    };
+    window.addEventListener("pagehide", suspendRestoredQueue);
+    window.addEventListener("pageshow", handlePageShow);
 
     const connectionUnavailable = (): void => {
-      activationGeneration += 1;
       activeThreadController?.connectionUnavailable();
       if (isMounted) setCommands(null);
     };
@@ -95,35 +98,19 @@ export function GuiHostConnectionBridge({
         onCommandsReady: (commands) => {
           if (!isMounted) return;
           setCommands(commands);
-          setActiveThreadStartupError(null);
           const controller = createActiveThreadSession({
             authorizationSession,
             commands,
             dispatch,
             scheduler,
+            persistence: { authorizationContext: authorizationSession.getPersistenceContext() },
           });
           activeThreadController = controller;
-          const generation = ++activationGeneration;
+          setActiveThreadSession(controller.session);
           const target = frozenStartupTarget.current;
-          const activation =
-            target.type === "currentTask"
-              ? controller.session.activate(target.threadId)
-              : controller.activateRecoveryThread();
-          void activation.then((outcome) => {
-            if (
-              !isMounted ||
-              activationGeneration !== generation ||
-              activeThreadController !== controller
-            ) {
-              return;
-            }
-            setActiveThreadSession(controller.session);
-            const activationError = startupActivationError(outcome);
-            setActiveThreadStartupError(activationError);
-            const warning = activationWarning(outcome);
-            const statusError = activationError ?? warning;
-            if (statusError != null) setStatus({ label: "error", message: statusError });
-          });
+          void controller.activateRecoveryThread(
+            target.type === "currentTask" ? target.threadId : undefined,
+          );
         },
         onCommandsUnavailable: connectionUnavailable,
       });
@@ -137,67 +124,23 @@ export function GuiHostConnectionBridge({
 
     return () => {
       isMounted = false;
-      activationGeneration += 1;
+      window.removeEventListener("pagehide", suspendRestoredQueue);
+      window.removeEventListener("pageshow", handlePageShow);
       activeThreadController?.dispose();
       activeThreadController = null;
       setCommands(null);
       setAuthorizationToken(null);
       setActiveThreadSession(null);
-      setActiveThreadStartupError(null);
       cleanupConnection?.();
     };
   }, [
     dispatch,
+    pageSessionRevision,
     setActiveThreadSession,
-    setActiveThreadStartupError,
     setAuthorizationToken,
     setCommands,
     setStatus,
   ]);
 
   return null;
-}
-
-function startupActivationError(outcome: ActiveThreadActivationOutcome): string | null {
-  switch (outcome.type) {
-    case "empty":
-    case "ready":
-      return null;
-    case "unavailable":
-      return activationFailureText(outcome.failure);
-  }
-}
-
-function activationWarning(outcome: ActiveThreadActivationOutcome): string | null {
-  if (outcome.type !== "ready" || outcome.warnings.length === 0) return null;
-  return outcome.warnings.map(activationWarningText).join("; ");
-}
-
-function activationWarningText(warning: ActiveThreadActivationWarning): string {
-  switch (warning.type) {
-    case "authorizationPersistenceFailed":
-      return `authorizationSession: ${errorText(warning.error)}`;
-    case "previousOwnerCleanupFailed":
-      return `previousOwnerCleanup: ${errorText(warning.error)}`;
-  }
-}
-
-function activationFailureText(failure: ActiveThreadActivationFailure): string {
-  switch (failure.type) {
-    case "switchInProgress":
-      return "Active thread activation is already in progress";
-    case "currentThreadChanged":
-      return `Active thread changed during activation (expected revision ${String(failure.expectedRevision)}, actual revision ${String(failure.actualRevision)})`;
-    case "currentThreadUnresolved":
-      return `Active thread could not be released: ${failure.blockers.map(({ type }) => type).join(", ")}`;
-    case "connectionLost":
-      return "GUI host connection was lost during active thread activation";
-    case "operationFailed": {
-      const failures = [`${failure.phase}: ${errorText(failure.error)}`];
-      if (failure.cleanupError != null) {
-        failures.push(`cleanup: ${errorText(failure.cleanupError)}`);
-      }
-      return failures.join("; ");
-    }
-  }
 }

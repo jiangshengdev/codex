@@ -79,7 +79,6 @@ export const renderDetail = async ({
       : suppliedActiveThreadSession;
   const initialCapabilities: AppCapabilities = {
     activeThreadSession,
-    activeThreadStartupError: null,
     authorizationToken,
     commands,
     routeTarget: { type: "historyDetail", threadId: detailThreadId },

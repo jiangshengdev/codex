@@ -27,12 +27,16 @@ import {
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import { selectCommittedTranscriptScrollCommitKey } from "@/features/transcriptState/transcriptStateSlice";
-import { renderWithProviders } from "@/utils/test-utils";
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
+import { transcriptIdentity, renderTranscriptWithProviders } from "./transcriptSurfaceFixtures";
 
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+  activeThreadReadModelTransitionApplied({
+    identity: transcriptIdentity,
+    sessionRevision: ++sessionRevision,
+    facts,
+  });
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
@@ -64,14 +68,20 @@ const quotaError = {
 } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
 
 test("renders an empty committed transcript region", async () => {
-  const screen = await renderWithProviders(<CommittedTranscriptSurface />);
+  const screen = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
 });
 
 test("renders committed user and assistant messages from an attached baseline", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -99,7 +109,10 @@ test("renders committed user and assistant messages from an attached baseline", 
 });
 
 test("renders an attached failed-turn error after the turn content", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   const turnId = "turn-attached-failed-error";
 
   store.dispatch(
@@ -142,7 +155,10 @@ test("renders an attached failed-turn error after the turn content", async () =>
 });
 
 test("renders one error alert for a repeated live error-only turn completion", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   const turnId = "turn-live-error-only";
   const failedNotification = turnCompleted(
     eventTurnCompleted,
@@ -166,7 +182,10 @@ test("renders one error alert for a repeated live error-only turn completion", a
 });
 
 test("keeps same raw item ids isolated between turns", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -191,7 +210,10 @@ test("keeps same raw item ids isolated between turns", async () => {
 });
 
 test("renders assistant transcript markdown", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -297,7 +319,10 @@ test("renders assistant transcript markdown", async () => {
 });
 
 test("keeps user markdown syntax as plain text", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -317,7 +342,10 @@ test("keeps user markdown syntax as plain text", async () => {
 });
 
 test("keeps raw html and images inactive while allowing markdown links", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -358,7 +386,10 @@ test("keeps raw html and images inactive while allowing markdown links", async (
 });
 
 test("updates committed message text after snapshot reattach with stable ids", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(
     threadRuntimeAttached(
@@ -383,10 +414,16 @@ test("updates committed message text after snapshot reattach with stable ids", a
 });
 
 test("renders live assistant text between intermediate updates and final answers", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-  const attachScrollKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+  const attachScrollKey = selectCommittedTranscriptScrollCommitKey(
+    store.getState(),
+    transcriptIdentity.threadId,
+  );
   store.dispatch(
     threadRuntimeEventBuffered({
       notification: turnStarted(eventTurnStarted, "commit-turn-live", inProgressTurn("turn-live")),
@@ -439,7 +476,9 @@ test("renders live assistant text between intermediate updates and final answers
       '.committed-transcript-live-assistant-message [data-streamdown="strong"]',
     ),
   ).not.toBeNull();
-  expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachScrollKey);
+  expect(
+    selectCommittedTranscriptScrollCommitKey(store.getState(), transcriptIdentity.threadId),
+  ).toBe(attachScrollKey);
 
   store.dispatch(
     threadRuntimeEventBuffered({
@@ -462,7 +501,10 @@ test("renders live assistant text between intermediate updates and final answers
 });
 
 test("keeps middle message order stable while live messages settle out of order", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
 
   store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
   const turn = screen.getByRole("article", { name: "Turn turn-middle-order" });
@@ -527,7 +569,10 @@ test("keeps middle message order stable while live messages settle out of order"
 });
 
 test("renders manual reconnect interruption status", async () => {
-  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   const attach = attachWithTurns(attachBaseline, []);
 
   store.dispatch(threadRuntimeAttached(attach));

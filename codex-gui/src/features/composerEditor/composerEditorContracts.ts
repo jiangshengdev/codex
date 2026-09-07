@@ -3,5 +3,7 @@
 export type {
   ComposerDraft,
   ComposerDraftCapture,
+  ComposerDraftImportResult,
   ComposerDraftRestoreResult,
+  PersistedComposerDraft,
 } from "./composerDraft";

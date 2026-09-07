@@ -204,6 +204,27 @@ export const attachWithHeadCommitId = (
   },
 });
 
+export const attachWithSnapshotThread = (
+  attach: ThreadProjectionAttachResponse,
+  thread: ThreadProjectionAttachResponse["snapshot"]["thread"],
+  subscriptionId = attach.subscriptionId,
+): ThreadProjectionAttachResponse => ({
+  ...attach,
+  subscriptionId,
+  snapshot: { ...attach.snapshot, thread },
+});
+
+export const attachWithThreadName = (
+  attach: ThreadProjectionAttachResponse,
+  name: string | null,
+): ThreadProjectionAttachResponse => ({
+  ...attach,
+  snapshot: {
+    ...attach.snapshot,
+    thread: { ...attach.snapshot.thread, name },
+  },
+});
+
 export const attachWithThreadId = (
   attach: ThreadProjectionAttachResponse,
   threadId: string,

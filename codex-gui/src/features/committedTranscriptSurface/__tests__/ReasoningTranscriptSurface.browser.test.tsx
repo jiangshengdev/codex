@@ -23,8 +23,9 @@ import {
   reasoningTextDelta,
   subAgentActivity,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import { renderWithProviders } from "@/utils/test-utils";
+import type { renderWithProviders } from "@/utils/test-utils";
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
+import { transcriptIdentity, renderTranscriptWithProviders } from "./transcriptSurfaceFixtures";
 
 type SurfaceRender = Awaited<ReturnType<typeof renderWithProviders>>;
 type SurfaceStore = SurfaceRender["store"];
@@ -32,7 +33,11 @@ type ProjectionEvent = ActiveThreadProjectionAcceptedEvent["notification"];
 
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+  activeThreadReadModelTransitionApplied({
+    identity: transcriptIdentity,
+    sessionRevision: ++sessionRevision,
+    facts,
+  });
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
@@ -46,7 +51,10 @@ const threadRuntimeDeltasAccepted = ({
 >) => readModelAction({ type: "deltasAccepted", notifications });
 
 const renderSurface = async () => {
-  const result = await renderWithProviders(<CommittedTranscriptSurface />);
+  const result = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
   result.store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
   return result;
 };

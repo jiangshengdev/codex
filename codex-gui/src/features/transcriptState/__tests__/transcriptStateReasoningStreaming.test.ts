@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import { requiredTranscriptState } from "./requiredTranscriptState";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
   ActiveThreadProjectionAcceptedEvent,
   ActiveThreadProjectionReadModelFact,
@@ -32,9 +36,10 @@ import {
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
+const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
 const threadRuntimeAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) => readModelAction({ type: "baselineAttached", response });
@@ -49,6 +54,7 @@ const threadRuntimeDeltasAccepted = ({
 
 const startReasoning = (turnId: string, itemId: string) => {
   const store = makeStore();
+  store.dispatch(activeThreadReadModelSlotCreated(identity));
   store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
   store.dispatch(
     threadRuntimeEventBuffered({
@@ -90,11 +96,11 @@ const liveReasoningSnapshot = (
 ) => {
   const entryId = transcriptEntryIdFor(turnId, itemId);
   return {
-    entry: store.getState().transcriptState.entriesById[entryId],
-    view: selectTranscriptEntry(store.getState(), entryId),
-    chunk: selectTranscriptChunk(store.getState(), turnId + ":chunk:0"),
-    turn: selectTranscriptTurn(store.getState(), turnId),
-    pulse: selectTranscriptLiveScrollPulse(store.getState()),
+    entry: requiredTranscriptState(store.getState(), identity.threadId).entriesById[entryId],
+    view: selectTranscriptEntry(store.getState(), identity.threadId, entryId),
+    chunk: selectTranscriptChunk(store.getState(), identity.threadId, turnId + ":chunk:0"),
+    turn: selectTranscriptTurn(store.getState(), identity.threadId, turnId),
+    pulse: selectTranscriptLiveScrollPulse(store.getState(), identity.threadId),
   };
 };
 
@@ -151,7 +157,7 @@ const runReasoningStages = (
   stages: { notifications: ReturnType<typeof summaryText>[]; expected: StreamingExpectation }[],
 ) => {
   const store = startReasoning(turnId, itemId);
-  const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
+  const initialPulse = selectTranscriptLiveScrollPulse(store.getState(), identity.threadId);
   for (const { notifications, expected } of stages) {
     acceptDeltas(store, ...notifications);
     const [parts, current, title, revision, chunkRevision, count, pulseDelta] = expected;
@@ -221,7 +227,7 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
     acceptDeltas(store, summaryText(turnId, itemId, "**Kept**", 0));
-    const beforeState = store.getState().transcriptState;
+    const beforeState = requiredTranscriptState(store.getState(), identity.threadId);
     const expected = liveReasoningSnapshot(store, turnId, itemId);
     acceptDeltas(
       store,
@@ -232,7 +238,7 @@ describe("transcript state live streaming reducer", () => {
       summaryText(turnId, wrongTarget.id, "wrong item type", 0),
       summaryPart(turnId, "missing-reasoning-entry", 1),
     );
-    const afterState = store.getState().transcriptState;
+    const afterState = requiredTranscriptState(store.getState(), identity.threadId);
     expect(afterState.sessionRevision).toBeGreaterThan(beforeState.sessionRevision);
     expect({ ...afterState, sessionRevision: beforeState.sessionRevision }).toStrictEqual(
       beforeState,
@@ -284,17 +290,17 @@ describe("transcript state live streaming reducer", () => {
         middleEntryCount: 1,
         finalAssistantEntryIds: [],
       },
-      pulse: selectTranscriptLiveScrollPulse(store.getState()),
+      pulse: selectTranscriptLiveScrollPulse(store.getState(), identity.threadId),
     };
     expect(liveReasoningSnapshot(store, turnId, itemId)).toStrictEqual(expected);
-    const beforeLateDeltas = store.getState().transcriptState;
+    const beforeLateDeltas = requiredTranscriptState(store.getState(), identity.threadId);
     acceptDeltas(
       store,
       summaryText(turnId, itemId, "late summary", 0),
       summaryPart(turnId, itemId, 1),
       reasoningTextDelta(eventReasoningTextDelta, turnId, itemId, "late raw", 0),
     );
-    const afterLateDeltas = store.getState().transcriptState;
+    const afterLateDeltas = requiredTranscriptState(store.getState(), identity.threadId);
     expect(afterLateDeltas.sessionRevision).toBeGreaterThan(beforeLateDeltas.sessionRevision);
     expect({ ...afterLateDeltas, sessionRevision: beforeLateDeltas.sessionRevision }).toStrictEqual(
       beforeLateDeltas,

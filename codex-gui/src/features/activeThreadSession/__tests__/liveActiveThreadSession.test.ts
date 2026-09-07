@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createPersistenceTestContext } from "@/features/composerInputQueue/__tests__/composerInputQueueCoordinatorTestFixtures";
 import { createDeferred } from "@/__tests__/testDeferred";
 import { makeStore } from "@/app/store";
 import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
@@ -26,6 +27,8 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createActiveThreadProjection } from "../activeThreadProjection";
 import { createLiveActiveThreadSession } from "../liveActiveThreadSession";
+import { createActiveThreadSessionIdentity } from "../activeThreadSessionIdentity";
+import { activeThreadReadModelSlotCreated } from "../activeThreadSessionReadModel";
 
 const createHarness = () => {
   const store = makeStore();
@@ -47,12 +50,16 @@ const createHarness = () => {
     threadId: attachBaseline.snapshot.thread.id,
     attachResponse: attachBaseline,
   });
+  const identity = createActiveThreadSessionIdentity(attachBaseline.snapshot.thread.id);
+  store.dispatch(activeThreadReadModelSlotCreated(identity));
   const session = createLiveActiveThreadSession({
+    identity,
     sessionRevision: 1,
     attachResponse: attachBaseline,
     projection,
     commands,
     dispatch: store.dispatch,
+    persistence: createPersistenceTestContext(),
   });
   return { commands, compactThread, listSkills, readThread, session, startTurn, store };
 };
@@ -309,7 +316,7 @@ describe("LiveActiveThreadSession", () => {
     expect(snapshot.revision).toBe(2);
     expect(snapshot.activeTurnId).toBe(eventTurnStarted.event.notification.turn.id);
     expect(snapshot.composer.canStop).toBe(true);
-    expect(store.getState().threadRuntime.sessionRevision).toBe(2);
+    expect(store.getState().threadRuntime.byThreadId[snapshot.threadId]?.sessionRevision).toBe(2);
     expect(revisions).toEqual([2]);
   });
 
@@ -389,6 +396,25 @@ describe("LiveActiveThreadSession", () => {
       type: "blocked",
       blockers: [{ type: "releaseReserved" }],
     });
+  });
+
+  it("rejects release commit after a child transition and releases its reservation without restoring stale state", async () => {
+    const h = createHarness();
+    const snapshot = h.session.getSnapshot();
+    const reserved = h.session.reserveRelease(snapshot.revision);
+    if (reserved.type !== "reserved") throw new Error("expected reservation");
+    h.readThread.mockResolvedValueOnce({
+      thread: { ...attachBaseline.snapshot.thread, status: { type: "active", activeFlags: [] } },
+    });
+    h.session.invalidateThreadStatus();
+    await h.session.settleThreadStatusInvalidations();
+    expect(reserved.reservation.commit()).toMatchObject({ type: "unavailable" });
+    expect(reserved.reservation.release()).toEqual({ type: "released" });
+    expect(h.session.getSnapshot()).toMatchObject({ threadStatus: { type: "active" } });
+    expect(h.session.getReleaseReadiness()).toEqual({ type: "safe" });
+    expect(
+      h.session.submit(h.session.getSnapshot().revision, composerCapture("after aborted release")),
+    ).toEqual({ type: "accepted" });
   });
 
   it("rejects settled and disposed release handoff closures", () => {

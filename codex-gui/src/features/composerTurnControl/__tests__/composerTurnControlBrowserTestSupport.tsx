@@ -1,4 +1,5 @@
 import { Toast } from "@heroui/react";
+import { createPersistenceTestContext } from "@/features/composerInputQueue/__tests__/composerInputQueueCoordinatorTestFixtures";
 import type { Turn } from "@codex-protocol/v2";
 import { StrictMode, useSyncExternalStore } from "react";
 import { vi } from "vitest";
@@ -9,7 +10,11 @@ import {
   type ActiveThreadSessionHarness,
 } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import { createActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
 import type {
   ActiveThreadComposerRole,
   ActiveThreadSession,
@@ -88,6 +93,21 @@ const composerRoleFor = (
   controller: ComposerInputQueueCoordinator,
   getRevision: () => number,
 ): Partial<ActiveThreadComposerRole> => ({
+  getDraft: controller.getDraft,
+  saveDraft: (revision, draft) =>
+    revision === getRevision() ? controller.saveDraft(draft) : staleSessionOperation(getRevision()),
+  retryPersistence: (revision) =>
+    revision === getRevision()
+      ? controller.retryPersistence()
+      : staleSessionOperation(getRevision()),
+  resumeRestored: (revision, persistenceRevision) =>
+    revision === getRevision()
+      ? controller.resumeRestored(persistenceRevision)
+      : staleSessionOperation(getRevision()),
+  discardUnknown: (revision, id, persistenceRevision) =>
+    revision === getRevision()
+      ? controller.discardUnknown(id, persistenceRevision)
+      : staleSessionOperation(getRevision()),
   beginPendingInputEdit: (revision, request, restore) =>
     revision === getRevision()
       ? controller.beginPendingInputEdit(request, restore)
@@ -209,6 +229,7 @@ export async function renderComposerTurnControl({
   } else {
     const commands = queue.commands ?? createGuiHostCommands();
     controller = createComposerInputQueueCoordinator({
+      persistence: createPersistenceTestContext(),
       threadId,
       activeTurnId: activeTurn?.id ?? null,
       startTurn: commands.startTurn,
@@ -227,6 +248,7 @@ export async function renderComposerTurnControl({
       ? capturePendingInputEditReservations(controller)
       : [];
   let revision = 1;
+  const identity = createActiveThreadSessionIdentity(threadId);
   const sessionHarness = createActiveThreadSessionHarness({
     composerRole: composerRoleFor(controller, () => revision),
     skillsRole: skillsRoleFor(skills),
@@ -238,6 +260,7 @@ export async function renderComposerTurnControl({
     revision += 1;
     sessionHarness.publish(
       sessionHarness.activeSnapshot({
+        identity,
         revision,
         threadId,
         subscriptionId: attachResponse.subscriptionId,
@@ -249,6 +272,7 @@ export async function renderComposerTurnControl({
   };
   sessionHarness.publish(
     sessionHarness.activeSnapshot({
+      identity,
       revision,
       threadId,
       subscriptionId: attachResponse.subscriptionId,
@@ -271,9 +295,13 @@ export async function renderComposerTurnControl({
   const screen = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app, {
     locale,
   });
+  screen.store.dispatch(activeThreadReadModelSlotCreated(identity));
   const dispatchProjectionFacts = (facts: readonly ActiveThreadProjectionReadModelFact[]): void => {
-    const sessionRevision = screen.store.getState().threadRuntime.sessionRevision + 1;
-    screen.store.dispatch(activeThreadReadModelTransitionApplied({ sessionRevision, facts }));
+    const sessionRevision =
+      (screen.store.getState().threadRuntime.byThreadId[threadId]?.sessionRevision ?? 0) + 1;
+    screen.store.dispatch(
+      activeThreadReadModelTransitionApplied({ identity, sessionRevision, facts }),
+    );
   };
   dispatchProjectionFacts([{ type: "baselineAttached", response: attachResponse }]);
   return {
