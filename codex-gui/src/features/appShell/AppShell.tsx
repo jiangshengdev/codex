@@ -103,6 +103,7 @@ function contentLayoutForRouteTarget(routeTarget: GuiRouteTarget): "reading" | "
   switch (routeTarget.type) {
     case "currentTask":
     case "historyDetail":
+    case "newTask":
       return "reading";
     case "historyList":
       return "wide";

@@ -78,6 +78,11 @@ msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 
+#: src/features/appShell/AppShellTopBar.tsx:161
+#: src/features/newSession/NewSessionPage.tsx:39
+msgid "A working directory is required to start a session."
+msgstr "A working directory is required to start a session."
+
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:256
 msgid "Active"
 msgstr "Active"
@@ -108,7 +113,7 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:181
+#: src/features/appShell/AppShellTopBar.tsx:237
 msgid "Browse task history"
 msgstr "Browse task history"
 
@@ -183,6 +188,10 @@ msgstr "Compress context"
 msgid "Compressing"
 msgstr "Compressing"
 
+#: src/features/newSession/NewSessionPage.tsx:50
+msgid "Connect to Codex to send this draft."
+msgstr "Connect to Codex to send this draft."
+
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:93
 msgid "Connection interrupted. Reconnect required."
 msgstr "Connection interrupted. Reconnect required."
@@ -236,8 +245,8 @@ msgstr "Continue sending"
 msgid "Continue this task"
 msgstr "Continue this task"
 
-#: src/features/appShell/AppShellTopBar.tsx:47
-#: src/features/appShell/AppShellTopBar.tsx:137
+#: src/features/appShell/AppShellTopBar.tsx:55
+#: src/features/appShell/AppShellTopBar.tsx:193
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "Current task"
@@ -378,8 +387,8 @@ msgstr "Guiding"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 
-#: src/features/appShell/AppShellTopBar.tsx:50
-#: src/features/appShell/AppShellTopBar.tsx:175
+#: src/features/appShell/AppShellTopBar.tsx:60
+#: src/features/appShell/AppShellTopBar.tsx:231
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "History"
@@ -388,7 +397,7 @@ msgstr "History"
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
-#: src/features/appShell/AppShellTopBar.tsx:49
+#: src/features/appShell/AppShellTopBar.tsx:57
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:35
 msgid "History detail"
@@ -406,6 +415,11 @@ msgstr "Idle"
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:39
 msgid "In progress"
 msgstr "In progress"
+
+#. Input may already belong to the existing task queue; do not offer another send
+#: src/features/newSession/NewSessionPage.tsx:102
+msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
+msgstr "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 
 #. Activity showing sub-agents that were contacted and any omitted count
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:389
@@ -459,11 +473,11 @@ msgstr "Loading task history…"
 msgid "Loading task…"
 msgstr "Loading task…"
 
-#: src/features/appShell/AppShellTopBar.tsx:109
+#: src/features/appShell/AppShellTopBar.tsx:125
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:81
+#: src/features/appShell/AppShellTopBar.tsx:97
 msgid "Menu"
 msgstr "Menu"
 
@@ -473,6 +487,8 @@ msgstr "Message cannot be empty"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:183
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:193
+#: src/features/newSession/NewSessionPage.tsx:141
+#: src/features/newSession/NewSessionPage.tsx:159
 msgid "Message Codex"
 msgstr "Message Codex"
 
@@ -525,9 +541,15 @@ msgstr "Move up"
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:105
+#: src/features/appShell/AppShellTopBar.tsx:121
 msgid "Navigation"
 msgstr "Navigation"
+
+#: src/features/appShell/AppShellTopBar.tsx:59
+#: src/features/appShell/AppShellTopBar.tsx:152
+#: src/features/documentTitle/DocumentTitleOwner.tsx:52
+msgid "New session"
+msgstr "New session"
 
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:112
 msgid "Next"
@@ -575,9 +597,13 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:143
+#: src/features/appShell/AppShellTopBar.tsx:199
 msgid "Open current task"
 msgstr "Open current task"
+
+#: src/features/newSession/NewSessionPage.tsx:131
+msgid "Open session"
+msgstr "Open session"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:239
 msgid "Operation diagnostic:"
@@ -715,6 +741,7 @@ msgstr "Resuming {receiver}"
 #: src/features/currentTask/CurrentTaskPage.tsx:160
 #: src/features/currentTask/CurrentTaskPage.tsx:220
 #: src/features/currentTask/CurrentTaskPage.tsx:270
+#: src/features/newSession/NewSessionPage.tsx:173
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:88
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:283
 msgid "Retry"
@@ -757,6 +784,7 @@ msgid "Scan with phone"
 msgstr "Scan with phone"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:262
+#: src/features/newSession/NewSessionPage.tsx:173
 msgid "Send"
 msgstr "Send"
 
@@ -819,6 +847,10 @@ msgstr "Spawned {receiver} ({model} {reasoningEffort})"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "Spawned {receiver} ({reasoningEffort})"
 
+#: src/features/appShell/AppShellTopBar.tsx:159
+msgid "Start a conversation"
+msgstr "Start a conversation"
+
 #. Activity showing sub-agents that started and any omitted count
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:381
 msgid "Started <0/> <1/>"
@@ -872,13 +904,18 @@ msgid "Task switched, but cannot be opened"
 msgstr "Task switched, but cannot be opened"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:89
+#: src/features/appShell/AppShellTopBar.tsx:105
 msgid "Tasks or the connection need attention."
 msgstr "Tasks or the connection need attention."
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:200
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "The connection was interrupted before the task switch completed. Reconnect and try again."
+
+#. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
+#: src/features/newSession/NewSessionPage.tsx:108
+msgid "The creation result is unknown. Retrying may leave an extra empty session."
+msgstr "The creation result is unknown. Retrying may leave an extra empty session."
 
 #: src/features/currentTask/CurrentTaskPage.tsx:177
 #: src/features/currentTask/CurrentTaskPage.tsx:237
@@ -1046,6 +1083,10 @@ msgstr "Unable to retry this task. Review its current state and try again."
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
+#: src/features/newSession/NewSessionPage.tsx:98
+msgid "Unable to start the conversation"
+msgstr "Unable to start the conversation"
+
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:109
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:169
 msgid "Unable to switch tasks yet"
@@ -1145,10 +1186,19 @@ msgstr "Waiting for input"
 msgid "Will send first"
 msgstr "Will send first"
 
+#. The fixed working directory of the single new-session draft; it does not follow later task switches
+#: src/features/newSession/NewSessionPage.tsx:44
+msgid "Working directory: {draftCwd}"
+msgstr "Working directory: {draftCwd}"
+
 #. History date group: tasks last active on the previous local day
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:127
 msgid "Yesterday"
 msgstr "Yesterday"
+
+#: src/features/newSession/NewSessionPage.tsx:112
+msgid "Your input is retained. Retry to continue."
+msgstr "Your input is retained. Retry to continue."
 
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:46
 msgid "Your input is still here. Sending is blocked until saving succeeds."

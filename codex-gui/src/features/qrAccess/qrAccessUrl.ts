@@ -35,6 +35,7 @@ function pathnameForRouteTarget(routeTarget: GuiRouteTarget): string | null {
     case "currentTask":
       return CURRENT_TASK_ROUTE_PATH.replace("$threadId", routeTarget.threadId);
     case "historyList":
+    case "newTask":
       return null;
     case "historyDetail":
       return HISTORY_DETAIL_ROUTE_PATH.replace("$threadId", routeTarget.threadId);

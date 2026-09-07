@@ -16,6 +16,7 @@ import {
 } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
+import { NewSessionOwner } from "@/features/newSession/newSessionOwner";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { renderWithProviders } from "@/utils/test-utils";
@@ -86,6 +87,7 @@ export const renderHistory = async (
       : suppliedActiveThreadSession;
   const target = { type: "historyList" } as const;
   const capabilities: AppCapabilities = {
+    newSessionOwner: new NewSessionOwner(),
     activeThreadSession,
     authorizationToken: null,
     commands: commandsAvailable ? { ...createGuiHostCommands(), listThreads } : null,

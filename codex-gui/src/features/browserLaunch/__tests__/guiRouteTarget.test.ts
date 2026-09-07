@@ -4,6 +4,7 @@ import {
   CURRENT_TASK_ROUTE_PATH,
   HISTORY_DETAIL_ROUTE_PATH,
   HISTORY_LIST_ROUTE_PATH,
+  NEW_TASK_ROUTE_PATH,
   selectGuiRouteTarget,
   validateEmptyRouteSearch,
 } from "../guiRouteTarget";
@@ -20,6 +21,7 @@ describe("selectGuiRouteTarget", () => {
       { type: "currentTask", threadId: currentThreadId },
     ],
     [HISTORY_LIST_ROUTE_PATH, {}, { type: "historyList" }],
+    [NEW_TASK_ROUTE_PATH, {}, { type: "newTask" }],
     [
       HISTORY_DETAIL_ROUTE_PATH,
       { threadId: historyThreadId },

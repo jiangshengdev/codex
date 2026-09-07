@@ -78,6 +78,11 @@ msgstr "已用 {usedTokensLabel} tokens，共 {contextWindowLabel}"
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 
+#: src/features/appShell/AppShellTopBar.tsx:161
+#: src/features/newSession/NewSessionPage.tsx:39
+msgid "A working directory is required to start a session."
+msgstr "需要工作目录才能新建会话。"
+
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:256
 msgid "Active"
 msgstr "活动中"
@@ -108,7 +113,7 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:181
+#: src/features/appShell/AppShellTopBar.tsx:237
 msgid "Browse task history"
 msgstr "浏览历史任务"
 
@@ -183,6 +188,10 @@ msgstr "压缩上下文"
 msgid "Compressing"
 msgstr "正在压缩"
 
+#: src/features/newSession/NewSessionPage.tsx:50
+msgid "Connect to Codex to send this draft."
+msgstr "连接到 Codex 后即可发送此草稿。"
+
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:93
 msgid "Connection interrupted. Reconnect required."
 msgstr "连接已中断，需要重新连接。"
@@ -236,8 +245,8 @@ msgstr "继续发送"
 msgid "Continue this task"
 msgstr "继续此任务"
 
-#: src/features/appShell/AppShellTopBar.tsx:47
-#: src/features/appShell/AppShellTopBar.tsx:137
+#: src/features/appShell/AppShellTopBar.tsx:55
+#: src/features/appShell/AppShellTopBar.tsx:193
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "当前任务"
@@ -378,8 +387,8 @@ msgstr "引导中"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
-#: src/features/appShell/AppShellTopBar.tsx:50
-#: src/features/appShell/AppShellTopBar.tsx:175
+#: src/features/appShell/AppShellTopBar.tsx:60
+#: src/features/appShell/AppShellTopBar.tsx:231
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "历史记录"
@@ -388,7 +397,7 @@ msgstr "历史记录"
 msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
-#: src/features/appShell/AppShellTopBar.tsx:49
+#: src/features/appShell/AppShellTopBar.tsx:57
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:35
 msgid "History detail"
@@ -406,6 +415,11 @@ msgstr "空闲"
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:39
 msgid "In progress"
 msgstr "进行中"
+
+#. Input may already belong to the existing task queue; do not offer another send
+#: src/features/newSession/NewSessionPage.tsx:102
+msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
+msgstr "无法确认消息是否已加入队列。请打开会话，检查队列后再继续。"
 
 #. Activity showing sub-agents that were contacted and any omitted count
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:389
@@ -459,11 +473,11 @@ msgstr "正在加载任务历史…"
 msgid "Loading task…"
 msgstr "正在加载任务…"
 
-#: src/features/appShell/AppShellTopBar.tsx:109
+#: src/features/appShell/AppShellTopBar.tsx:125
 msgid "Main navigation"
 msgstr "主导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:81
+#: src/features/appShell/AppShellTopBar.tsx:97
 msgid "Menu"
 msgstr "菜单"
 
@@ -473,6 +487,8 @@ msgstr "消息不能为空"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:183
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:193
+#: src/features/newSession/NewSessionPage.tsx:141
+#: src/features/newSession/NewSessionPage.tsx:159
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
@@ -525,9 +541,15 @@ msgstr "上移"
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:105
+#: src/features/appShell/AppShellTopBar.tsx:121
 msgid "Navigation"
 msgstr "导航"
+
+#: src/features/appShell/AppShellTopBar.tsx:59
+#: src/features/appShell/AppShellTopBar.tsx:152
+#: src/features/documentTitle/DocumentTitleOwner.tsx:52
+msgid "New session"
+msgstr "新建会话"
 
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:112
 msgid "Next"
@@ -575,9 +597,13 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:143
+#: src/features/appShell/AppShellTopBar.tsx:199
 msgid "Open current task"
 msgstr "打开当前任务"
+
+#: src/features/newSession/NewSessionPage.tsx:131
+msgid "Open session"
+msgstr "打开会话"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:239
 msgid "Operation diagnostic:"
@@ -715,6 +741,7 @@ msgstr "正在恢复 {receiver}"
 #: src/features/currentTask/CurrentTaskPage.tsx:160
 #: src/features/currentTask/CurrentTaskPage.tsx:220
 #: src/features/currentTask/CurrentTaskPage.tsx:270
+#: src/features/newSession/NewSessionPage.tsx:173
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:88
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:283
 msgid "Retry"
@@ -757,6 +784,7 @@ msgid "Scan with phone"
 msgstr "使用手机扫描"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:262
+#: src/features/newSession/NewSessionPage.tsx:173
 msgid "Send"
 msgstr "发送"
 
@@ -819,6 +847,10 @@ msgstr "已启动 {receiver}（{model} {reasoningEffort}）"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "已启动 {receiver}（{reasoningEffort}）"
 
+#: src/features/appShell/AppShellTopBar.tsx:159
+msgid "Start a conversation"
+msgstr "开始新对话"
+
 #. Activity showing sub-agents that started and any omitted count
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:381
 msgid "Started <0/> <1/>"
@@ -872,13 +904,18 @@ msgid "Task switched, but cannot be opened"
 msgstr "任务已切换，但当前无法打开"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:89
+#: src/features/appShell/AppShellTopBar.tsx:105
 msgid "Tasks or the connection need attention."
 msgstr "任务或连接存在待处理的异常。"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:200
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "连接在任务切换完成前中断。重新连接后请重试。"
+
+#. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
+#: src/features/newSession/NewSessionPage.tsx:108
+msgid "The creation result is unknown. Retrying may leave an extra empty session."
+msgstr "创建结果未知。重试可能留下额外的空会话。"
 
 #: src/features/currentTask/CurrentTaskPage.tsx:177
 #: src/features/currentTask/CurrentTaskPage.tsx:237
@@ -1046,6 +1083,10 @@ msgstr "无法重试此任务。请检查当前状态后再试。"
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
+#: src/features/newSession/NewSessionPage.tsx:98
+msgid "Unable to start the conversation"
+msgstr "无法开始对话"
+
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:109
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:169
 msgid "Unable to switch tasks yet"
@@ -1145,10 +1186,19 @@ msgstr "等待输入"
 msgid "Will send first"
 msgstr "将优先发送"
 
+#. The fixed working directory of the single new-session draft; it does not follow later task switches
+#: src/features/newSession/NewSessionPage.tsx:44
+msgid "Working directory: {draftCwd}"
+msgstr "工作目录：{draftCwd}"
+
 #. History date group: tasks last active on the previous local day
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:127
 msgid "Yesterday"
 msgstr "昨天"
+
+#: src/features/newSession/NewSessionPage.tsx:112
+msgid "Your input is retained. Retry to continue."
+msgstr "输入内容已保留。重试以继续。"
 
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:46
 msgid "Your input is still here. Sending is blocked until saving succeeds."
