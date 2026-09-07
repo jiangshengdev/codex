@@ -161,7 +161,10 @@ export function CurrentTaskPage() {
         </Button>
       ) : null;
     return (
-      <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label}>
+      <main
+        className="app-shell-content-boundary space-y-3 py-3"
+        data-gui-host-status={status.label}
+      >
         {retryError != null ? (
           <Alert role="alert" status="danger">
             <Alert.Indicator />
@@ -188,12 +191,12 @@ export function CurrentTaskPage() {
   }
 
   if (activeThreadSession == null || sessionPhase === "empty" || sessionPhase === "disposed") {
-    return <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label} />;
+    return <main className="app-shell-content-boundary py-3" data-gui-host-status={status.label} />;
   }
 
   if (routeTarget.type !== "currentTask" || snapshot.threadId !== routeTarget.threadId) {
     return (
-      <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label}>
+      <main className="app-shell-content-boundary py-3" data-gui-host-status={status.label}>
         <Trans>Loading task…</Trans>
       </main>
     );
@@ -201,7 +204,7 @@ export function CurrentTaskPage() {
   if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") {
     if (snapshot.phase === "loading") {
       return (
-        <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label}>
+        <main className="app-shell-content-boundary py-3" data-gui-host-status={status.label}>
           <Trans>Loading task…</Trans>
         </main>
       );
@@ -218,7 +221,10 @@ export function CurrentTaskPage() {
       </Button>
     );
     return (
-      <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label}>
+      <main
+        className="app-shell-content-boundary space-y-3 py-3"
+        data-gui-host-status={status.label}
+      >
         {snapshot.error != null || retryError != null ? (
           <Alert role="alert" status="danger">
             <Alert.Indicator />

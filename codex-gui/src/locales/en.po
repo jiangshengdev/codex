@@ -474,8 +474,8 @@ msgstr "Loading skills…"
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:197
-#: src/features/currentTask/CurrentTaskPage.tsx:205
+#: src/features/currentTask/CurrentTaskPage.tsx:200
+#: src/features/currentTask/CurrentTaskPage.tsx:208
 msgid "Loading task…"
 msgstr "Loading task…"
 
@@ -745,8 +745,8 @@ msgstr "Resuming {receiver}"
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:407
 #: src/features/currentTask/CurrentTaskPage.tsx:121
 #: src/features/currentTask/CurrentTaskPage.tsx:160
-#: src/features/currentTask/CurrentTaskPage.tsx:217
-#: src/features/currentTask/CurrentTaskPage.tsx:264
+#: src/features/currentTask/CurrentTaskPage.tsx:220
+#: src/features/currentTask/CurrentTaskPage.tsx:270
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:88
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:255
 msgid "Retry"
@@ -895,7 +895,7 @@ msgid "System error"
 msgstr "System error"
 
 #: src/features/currentTask/CurrentTaskPage.tsx:127
-#: src/features/currentTask/CurrentTaskPage.tsx:284
+#: src/features/currentTask/CurrentTaskPage.tsx:290
 msgid "Task action failed"
 msgstr "Task action failed"
 
@@ -934,8 +934,8 @@ msgstr "Tasks or the connection need attention."
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "The connection was interrupted before the task switch completed. Reconnect and try again."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:174
-#: src/features/currentTask/CurrentTaskPage.tsx:231
+#: src/features/currentTask/CurrentTaskPage.tsx:177
+#: src/features/currentTask/CurrentTaskPage.tsx:237
 msgid "The current task could not be loaded."
 msgstr "The current task could not be loaded."
 
@@ -963,7 +963,7 @@ msgstr "The previous task connection could not be fully cleaned up. Later state 
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:287
+#: src/features/currentTask/CurrentTaskPage.tsx:293
 msgid "The task action could not be completed."
 msgstr "The task action could not be completed."
 
@@ -1007,7 +1007,7 @@ msgstr "The task list could not be updated."
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:309
+#: src/features/currentTask/CurrentTaskPage.tsx:315
 msgid "The task recovery could not be completed."
 msgstr "The task recovery could not be completed."
 
@@ -1095,12 +1095,12 @@ msgstr "Unable to load history"
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:171
-#: src/features/currentTask/CurrentTaskPage.tsx:228
+#: src/features/currentTask/CurrentTaskPage.tsx:174
+#: src/features/currentTask/CurrentTaskPage.tsx:234
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:306
+#: src/features/currentTask/CurrentTaskPage.tsx:312
 msgid "Unable to recover the current task"
 msgstr "Unable to recover the current task"
 

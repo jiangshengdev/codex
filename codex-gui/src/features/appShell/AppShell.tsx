@@ -41,7 +41,7 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
 function AppShellTopNotices({ children }: { children: ReactNode }) {
   return (
     <div className="sticky top-14 z-20" data-app-shell-top-notices="">
-      <div className="app-shell-content-boundary grid gap-2 pt-3">{children}</div>
+      <div className="app-shell-content-boundary grid gap-3 pt-3">{children}</div>
     </div>
   );
 }
