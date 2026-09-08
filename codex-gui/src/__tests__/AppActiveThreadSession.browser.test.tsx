@@ -499,6 +499,10 @@ test("App releases an edited owner only after its marker settles and drains", as
   await expect.element(oldEditor).toBeVisible();
 
   await screen.getByRole("button", { name: "Cancel", exact: true }).click();
+  await screen
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Discard changes", exact: true })
+    .click();
   const oldListDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect
     .element(oldListDialog.getByText("No pending messages", { exact: true }))
