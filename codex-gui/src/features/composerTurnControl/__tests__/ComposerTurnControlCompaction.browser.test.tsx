@@ -14,18 +14,21 @@ import { attachBaseline } from "@/features/projection/__tests__/projectionFixtur
 import { attachWithThreadId } from "@/features/projection/__tests__/projectionTestBuilders";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "../ComposerTurnControl";
+import { ComposerPendingInputProvider } from "../ComposerPendingInputProvider";
 
 const threadId = "thread-composer-compaction";
 
 type ActiveSnapshot = Extract<ActiveThreadSessionSnapshot, { phase: "active" }>;
 
 const composer = (sessionSnapshot: ActiveSnapshot) => (
-  <ComposerTurnControl
-    authorizationToken={null}
-    guardCompositionEndEnter={false}
-    routeTarget={{ type: "currentTask", threadId }}
-    sessionSnapshot={sessionSnapshot}
-  />
+  <ComposerPendingInputProvider>
+    <ComposerTurnControl
+      authorizationToken={null}
+      guardCompositionEndEnter={false}
+      routeTarget={{ type: "currentTask", threadId }}
+      sessionSnapshot={sessionSnapshot}
+    />
+  </ComposerPendingInputProvider>
 );
 
 test("routes context compression through the session role and follows session state", async () => {

@@ -20,6 +20,9 @@ describe("sub-agent activity presentation", () => {
     ["/root/gui_composer_surface", "Gui composer surface"],
     ["/root/url_route_semantics", "Url route semantics"],
     ["/root/task1_test_app_server", "Task1 test app server"],
+    ["/root/_", "_"],
+    ["/root/__", "__"],
+    ["/root/___", "___"],
   ])("formats the task leaf in %s", (agentPath, expected) => {
     expect(formatSubAgentTaskName(agentPath)).toBe(expected);
   });
@@ -45,14 +48,42 @@ describe("sub-agent activity presentation", () => {
     });
   });
 
-  it.each(["/root/___", "/root/   "])(
-    "rejects task leaves without visible text in %s",
-    (agentPath) => {
-      expect(() => formatSubAgentTaskName(agentPath)).toThrow(
-        "Expected sub-agent path segment to contain visible text",
-      );
-    },
-  );
+  it.each(["/root/   "])("rejects task leaves without visible text in %s", (agentPath) => {
+    expect(() => formatSubAgentTaskName(agentPath)).toThrow(
+      "Expected sub-agent path segment to contain visible text",
+    );
+  });
+
+  it("preserves underscore-only parent names when distinguishing matching leaves", () => {
+    const presentation = presentSubAgentActivityGroup([
+      activity("activity-one", "thread-one", "/root/_/validation"),
+      activity("activity-two", "thread-two", "/root/__/validation"),
+      activity("activity-three", "thread-three", "/root/___/validation"),
+    ]);
+
+    expect(presentation.items.map((item) => item.label)).toStrictEqual([
+      "_ / Validation",
+      "__ / Validation",
+      "___ / Validation",
+    ]);
+    expect(presentation.omittedCount).toBe(0);
+  });
+
+  it("keeps visible activities and the omitted count when an underscore-only name is omitted", () => {
+    const presentation = presentSubAgentActivityGroup([
+      activity("activity-one", "thread-one", "/root/one"),
+      activity("activity-two", "thread-two", "/root/two"),
+      activity("activity-three", "thread-three", "/root/three"),
+      activity("activity-four", "thread-four", "/root/___"),
+    ]);
+
+    expect(presentation.items.map((item) => [item.id, item.label])).toStrictEqual([
+      ["activity-one", "One"],
+      ["activity-two", "Two"],
+      ["activity-three", "Three"],
+    ]);
+    expect(presentation.omittedCount).toBe(1);
+  });
 
   it("adds only the shortest parent path needed to distinguish agents", () => {
     expect(

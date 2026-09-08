@@ -1,7 +1,22 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
 import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import { exportComposerDraft } from "@/features/composerEditor/composerDraft";
+import { BrowserPersistenceStore } from "@/features/browserPersistence/browserPersistenceStore";
+import {
+  decodeComposerCoordinatorRecord,
+  type ComposerCoordinatorRecord,
+} from "@/features/composerInputQueue/composerCoordinatorPersistence";
+import {
+  createCoordinator,
+  createPersistenceTestContext,
+  type StartTurn,
+  type SteerTurn,
+} from "@/features/composerInputQueue/__tests__/composerInputQueueCoordinatorTestFixtures";
+import {
+  attachBaseline,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
 import { renderComposerTurnControl } from "./composerTurnControlBrowserTestSupport";
 import {
   createQueueControllerHarness,
@@ -125,6 +140,132 @@ test("uses the existing Pending drawer independently from continuing the restore
   await screen.getByRole("button", { name: "Continue sending", exact: true }).click();
   expect(harness.controller.resumeRestored).toHaveBeenCalledExactlyOnceWith(7);
   await expect.element(drawer).not.toBeInTheDocument();
+});
+
+test("removes a restored unknown start and continues the saved queue using the refreshed revision", async () => {
+  const persistence = createPersistenceTestContext();
+  const threadId = attachBaseline.snapshot.thread.id;
+  const initial = createCoordinator({
+    threadId,
+    activeTurnId: null,
+    persistence,
+    startTurn: vi.fn<StartTurn>(() => new Promise(() => undefined)),
+    steerTurn: vi.fn<SteerTurn>(),
+  });
+  initial.submit(composerCapture("Possibly delivered start"));
+  initial.submit(composerCapture("Send after local removal"));
+  initial.dispose();
+  const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
+  const controller = createCoordinator({
+    threadId,
+    activeTurnId: null,
+    persistence,
+    startTurn,
+    steerTurn: vi.fn<SteerTurn>(),
+  });
+  controller.completeRestoreReconciliation();
+  const beforeRevision = controller.getSnapshot().persistence.revision;
+  const screen = await renderComposerTurnControl({ queue: { type: "provided", controller } });
+
+  await expect.element(screen.getByText("Possibly delivered start", { exact: true })).toBeVisible();
+  await screen.getByRole("button", { name: "Remove local record", exact: true }).click();
+  await expect
+    .element(screen.getByText("Possibly delivered start", { exact: true }))
+    .not.toBeInTheDocument();
+  expect(controller.getSnapshot().persistence).toMatchObject({
+    error: null,
+    unknownMessages: [],
+    restoredPaused: true,
+  });
+  expect(controller.getSnapshot().persistence.revision).toBeGreaterThan(beforeRevision ?? 0);
+  expect(startTurn).not.toHaveBeenCalled();
+  await screen.getByRole("button", { name: "Continue sending", exact: true }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "Continue sending", exact: true }))
+    .not.toBeInTheDocument();
+  expect(startTurn).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ input: composerCapture("Send after local removal").input }),
+  );
+});
+
+test("removes successive unknown steers through real coordinator subscriptions", async () => {
+  if (eventTurnStarted.event.type !== "turnStarted")
+    throw new Error("Expected turnStarted fixture");
+  const activeTurnId = eventTurnStarted.event.notification.turn.id;
+  const threadId = attachBaseline.snapshot.thread.id;
+  const persistence = createPersistenceTestContext();
+  const initial = createCoordinator({
+    threadId,
+    activeTurnId,
+    persistence,
+    startTurn: vi.fn<StartTurn>(),
+    steerTurn: vi.fn<SteerTurn>().mockResolvedValue({ turnId: activeTurnId }),
+  });
+  initial.submitSteer(composerCapture("First unknown guide"));
+  initial.submitSteer(composerCapture("Second unknown guide"));
+  await Promise.resolve();
+  await Promise.resolve();
+  initial.dispose();
+  const store = new BrowserPersistenceStore<ComposerCoordinatorRecord>({
+    ...persistence,
+    threadId,
+    codec: {
+      encode: (value) => value,
+      decode: (value) => decodeComposerCoordinatorRecord(value, threadId),
+    },
+  });
+  const saved = store.read();
+  if (saved == null) throw new Error("Expected saved guides");
+  // Seed valid unresolved owners through the production persistence validator.
+  store.commit(
+    {
+      ...saved.value,
+      queue: {
+        ...saved.value.queue,
+        steer: {
+          ...saved.value.queue.steer,
+          pending: saved.value.queue.steer.pending.map((pending) => ({
+            ...pending,
+            phase: "deliveryUnknown",
+          })),
+        },
+      },
+    },
+    saved.revision,
+  );
+  const startTurn = vi.fn<StartTurn>();
+  const steerTurn = vi.fn<SteerTurn>();
+  const controller = createCoordinator({
+    threadId,
+    activeTurnId,
+    persistence,
+    startTurn,
+    steerTurn,
+  });
+  controller.completeRestoreReconciliation();
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller },
+  });
+
+  await expect.element(screen.getByText("First unknown guide", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("Second unknown guide", { exact: true })).toBeVisible();
+  await screen.getByRole("button", { name: "Remove local record", exact: true }).first().click();
+  await expect
+    .element(screen.getByText("First unknown guide", { exact: true }))
+    .not.toBeInTheDocument();
+  await expect.element(screen.getByText("Second unknown guide", { exact: true })).toBeVisible();
+  await screen.getByRole("button", { name: "Remove local record", exact: true }).click();
+  await expect
+    .element(screen.getByText("Second unknown guide", { exact: true }))
+    .not.toBeInTheDocument();
+  expect(controller.getSnapshot().persistence).toMatchObject({
+    error: null,
+    unknownMessages: [],
+    restoredPaused: true,
+  });
+  expect(startTurn).not.toHaveBeenCalled();
+  expect(steerTurn).not.toHaveBeenCalled();
 });
 
 test("keeps continuing and removing unknown records disabled until saving succeeds", async () => {

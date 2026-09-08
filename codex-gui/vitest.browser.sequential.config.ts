@@ -1,4 +1,5 @@
 import path from "node:path";
+import { playwright } from "@vitest/browser-playwright";
 import packageJson from "./package.json" with { type: "json" };
 import { defineBrowserConfig } from "./vitest.browser.shared.config.js";
 
@@ -15,6 +16,13 @@ export default defineBrowserConfig({
   },
   browser: {
     enabled: true,
-    instances: [{ browser: "chromium" }, { browser: "firefox" }, { browser: "webkit" }],
+    instances: [
+      {
+        browser: "chromium",
+        provider: playwright({ contextOptions: { permissions: ["clipboard-write"] } }),
+      },
+      { browser: "firefox" },
+      { browser: "webkit" },
+    ],
   },
 });

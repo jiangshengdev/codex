@@ -8,6 +8,7 @@ import { GuiHostConnectionBridge } from "./features/appShell/GuiHostConnectionBr
 import { selectGuiRouteTarget, type GuiRouteTarget } from "./features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands, GuiHostStatus } from "./features/guiHost/guiHostClient";
 import { NewSessionOwner } from "./features/newSession/newSessionOwner";
+import { ComposerPendingInputProvider } from "./features/composerTurnControl/ComposerPendingInputProvider";
 
 function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
   const router = useRouter();
@@ -61,9 +62,11 @@ function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
       />
       <AppCapabilitiesProvider capabilities={capabilities}>
         <ActiveThreadRouteSync routeTarget={routeTarget} />
-        <AppShell>
-          <Outlet />
-        </AppShell>
+        <ComposerPendingInputProvider>
+          <AppShell>
+            <Outlet />
+          </AppShell>
+        </ComposerPendingInputProvider>
       </AppCapabilitiesProvider>
     </>
   );

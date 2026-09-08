@@ -33,7 +33,7 @@ msgid "{0, plural, one {# mention} other {# mentions}}"
 msgstr "{0, plural, one {# 个提及} other {# 个提及}}"
 
 #. placeholder {0}: snapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:118
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:108
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# 条消息尚未发送} other {# 条消息尚未发送}}"
 
@@ -117,9 +117,13 @@ msgstr "另一项任务切换正在进行中。请稍后重试。"
 msgid "Browse task history"
 msgstr "浏览历史任务"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:273
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:281
 msgid "Cancel"
 msgstr "取消"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:257
+msgid "Changes copied"
+msgstr "已复制修改内容"
 
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:43
 msgid "Changes could not be saved"
@@ -236,7 +240,7 @@ msgid "Context usage details, {usedTokensLabel} tokens used, context window capa
 msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗口容量未知"
 
 #. Resumes sending this page's restored queue; does not open the queue
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:132
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:122
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:76
 msgid "Continue sending"
 msgstr "继续发送"
@@ -244,6 +248,15 @@ msgstr "继续发送"
 #: src/features/threadHistory/ContinueTaskAction.tsx:253
 msgid "Continue this task"
 msgstr "继续此任务"
+
+#. Copy the unsaved pending-message edit to the clipboard
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:296
+msgid "Copy changes"
+msgstr "复制修改内容"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:259
+msgid "Copy failed. Select the text and copy it manually."
+msgstr "复制失败。请选中文字并手动复制。"
 
 #: src/features/appShell/AppShellTopBar.tsx:55
 #: src/features/appShell/AppShellTopBar.tsx:193
@@ -283,7 +296,7 @@ msgstr "当前任务等待输入"
 msgid "Current task status is unknown"
 msgstr "当前任务状态未知"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:98
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:88
 msgid "Currently unable to guide; added to queue"
 msgstr "当前无法引导，已加入队列"
 
@@ -305,17 +318,28 @@ msgstr "诊断信息"
 msgid "Diagnostic:"
 msgstr "诊断信息："
 
+#. Discard only the unsaved edit, not the original queued message
+#. Discard only the unsaved edit, not the original queued message
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:306
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:346
+msgid "Discard changes"
+msgstr "丢弃修改"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:320
+msgid "Discard unsaved changes?"
+msgstr "丢弃尚未保存的修改？"
+
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:364
 msgid "Edit"
 msgstr "编辑"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:214
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:200
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:70
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:78
 msgid "Edit pending message"
 msgstr "编辑待处理消息"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:328
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:440
 msgid "Enter a message before saving."
 msgstr "请先输入消息再保存。"
 
@@ -367,15 +391,15 @@ msgstr "等待结束"
 msgid "Go back home"
 msgstr "返回首页"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:250
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:270
 msgid "Guide"
 msgstr "引导"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:194
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:387
 msgid "Guide {guidingCount}"
 msgstr "引导 {guidingCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:78
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:68
 msgid "Guide status unknown"
 msgstr "引导状态未知"
 
@@ -383,7 +407,7 @@ msgstr "引导状态未知"
 msgid "Guiding"
 msgstr "引导中"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:229
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:215
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
@@ -445,7 +469,7 @@ msgstr "已中断。"
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:41
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:90
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:105
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:109
 msgid "Invalid skill"
 msgstr "无效技能"
 
@@ -481,18 +505,18 @@ msgstr "主导航"
 msgid "Menu"
 msgstr "菜单"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:297
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:409
 msgid "Message cannot be empty"
 msgstr "消息不能为空"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:183
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:193
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:202
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:212
 #: src/features/newSession/NewSessionPage.tsx:141
 #: src/features/newSession/NewSessionPage.tsx:159
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:169
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:188
 msgid "Message composer"
 msgstr "消息输入区"
 
@@ -614,11 +638,11 @@ msgstr "操作诊断信息："
 msgid "Page not found"
 msgstr "找不到页面"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:191
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:384
 msgid "Pending"
 msgstr "待处理"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:212
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:198
 msgid "Pending details"
 msgstr "待处理详情"
 
@@ -627,27 +651,31 @@ msgstr "待处理详情"
 msgid "Pending init"
 msgstr "等待初始化"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:303
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:415
 msgid "Pending message changed"
 msgstr "待处理消息已发生变化"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:299
+#: src/features/composerTurnControl/ComposerPendingInputProvider.tsx:29
+msgid "Pending message editor"
+msgstr "待发送消息编辑区"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:411
 msgid "Pending message was not reordered"
 msgstr "待处理消息未重新排序"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:144
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:134
 msgid "Pending messages"
 msgstr "待处理消息"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:180
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:373
 msgid "Pending: Guide {guidingCount}"
 msgstr "待处理：引导 {guidingCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:178
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:371
 msgid "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
 msgstr "待处理：引导 {guidingCount}，排队 {ordinaryQueuedCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:181
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:374
 msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "待处理：排队 {ordinaryQueuedCount}"
 
@@ -672,11 +700,11 @@ msgstr "当前 GUI URL 的二维码。"
 msgid "Queued"
 msgstr "已排队"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:199
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:392
 msgid "Queued {ordinaryQueuedCount}"
 msgstr "排队 {ordinaryQueuedCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:225
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:211
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "已将已排队消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
@@ -684,7 +712,7 @@ msgstr "已将已排队消息移到第 {movedPosition} 项，共 {movedCount} �
 msgid "Recover this task's connection before removing it."
 msgstr "请先恢复此任务的连接，再将其移出列表。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:330
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:444
 msgid "Refresh complete. Try the action again."
 msgstr "已刷新，请重试此操作。"
 
@@ -761,6 +789,11 @@ msgstr "请先重试保存此任务的状态，再将其移出列表。"
 msgid "Return to current task"
 msgstr "返回当前任务"
 
+#. Return to the pending-message edit without discarding it
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:336
+msgid "Return to edit"
+msgstr "返回编辑"
+
 #: src/features/appShell/activeThreadCollectionMessages.ts:20
 msgid "Review and continue this task after reload before removing it."
 msgstr "刷新后，请先检查并继续此任务，再将其移出列表。"
@@ -774,7 +807,7 @@ msgstr "请先检查此任务中尚未处理完的消息，再将其移出列表
 msgid "Running"
 msgstr "运行中"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:276
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:284
 msgid "Save"
 msgstr "保存"
 
@@ -783,7 +816,7 @@ msgstr "保存"
 msgid "Scan with phone"
 msgstr "使用手机扫描"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:262
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:282
 #: src/features/newSession/NewSessionPage.tsx:173
 msgid "Send"
 msgstr "发送"
@@ -856,11 +889,11 @@ msgstr "开始新对话"
 msgid "Started <0/> <1/>"
 msgstr "已启动 <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:238
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:258
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:229
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:249
 msgid "Stop failed"
 msgstr "停止失败"
 
@@ -926,15 +959,15 @@ msgstr "当前任务未能加载。"
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当前任务再切换。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:317
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:429
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "消息已移动，但队列反复变化，无法加载更新后的顺序。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:312
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:424
 msgid "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
 msgstr "待处理消息的顺序没有改变，但由于队列持续变化，无法加载刷新后的顺序。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:310
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:422
 msgid "The pending-message order did not change. Refresh complete; try again."
 msgstr "待处理消息的顺序没有改变。已刷新，请重试。"
 
@@ -942,7 +975,7 @@ msgstr "待处理消息的顺序没有改变。已刷新，请重试。"
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "上一个任务连接未能完全清理，后续状态可能受到影响。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:322
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:434
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
@@ -998,7 +1031,11 @@ msgstr "任务切换已提交，但连接已中断。重新连接后请确认当
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "这些消息不会自动重发。移除本地记录不会取消或撤回服务端的消息。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:324
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:442
+msgid "This editing session is no longer available."
+msgstr "本次编辑已失效，无法继续保存。"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:436
 msgid "This message has entered the sending process and can no longer be managed."
 msgstr "这条消息已进入发送流程，无法再管理。"
 
@@ -1010,7 +1047,7 @@ msgstr "这条消息已进入发送流程。"
 msgid "This message is being edited."
 msgstr "这条消息正在编辑。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:308
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:420
 msgid "This pending message cannot be edited."
 msgstr "无法编辑这条待处理消息。"
 
@@ -1101,12 +1138,16 @@ msgstr "无法更新任务列表"
 msgid "Unknown"
 msgstr "状态未知"
 
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:249
+msgid "Unsaved pending message"
+msgstr "尚未保存的待发送消息"
+
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:36
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:200
 msgid "Untitled task"
 msgstr "未命名任务"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:301
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:413
 msgid "Updated pending order could not be loaded"
 msgstr "无法加载更新后的待处理顺序"
 
@@ -1182,7 +1223,7 @@ msgstr "等待批准"
 msgid "Waiting for input"
 msgstr "等待输入"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:91
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:81
 msgid "Will send first"
 msgstr "将优先发送"
 
@@ -1195,6 +1236,14 @@ msgstr "工作目录：{draftCwd}"
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:127
 msgid "Yesterday"
 msgstr "昨天"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:245
+msgid "Your changes could not be saved. Copy them before discarding."
+msgstr "修改未能保存。请先复制需要保留的内容，再丢弃修改。"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:324
+msgid "Your changes have not been saved. Return to copy them, or discard them to continue."
+msgstr "修改尚未保存。可以返回复制内容，或丢弃修改后继续。"
 
 #: src/features/newSession/NewSessionPage.tsx:112
 msgid "Your input is retained. Retry to continue."

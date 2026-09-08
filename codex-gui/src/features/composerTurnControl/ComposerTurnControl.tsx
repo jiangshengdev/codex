@@ -22,7 +22,10 @@ import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import { composerShortcutsForPlatform } from "@/features/composerEditor/composerShortcuts";
 import { selectThreadRuntimeTokenUsage } from "@/features/threadRuntime/threadRuntimeSlice";
 import { ContextUsagePopover } from "./ContextUsagePopover";
-import { createComposerPendingInputSession } from "./composerPendingInputSession";
+import {
+  useComposerPendingInput,
+  useComposerPendingInputBinding,
+} from "./composerPendingInputHost";
 import { createComposerTurnApplication } from "./composerTurnApplication";
 import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
 import { ComposerPendingInputRegion } from "./ComposerPendingInputRegion";
@@ -51,7 +54,9 @@ export function ComposerTurnControl({
   const { t } = useLingui();
   const [composerEditorController, setComposerEditorController] =
     useState<ComposerEditorController | null>(null);
-  const [pendingInputSession] = useState(createComposerPendingInputSession);
+  const pendingHost = useComposerPendingInput();
+  const pendingInputSession = pendingHost.session;
+  const pendingTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [turnApplication] = useState(createComposerTurnApplication);
   const adapterLifecycleRef = useRef({ generation: 0, mounted: false });
   const recoveryDescriptionId = useId();
@@ -97,11 +102,10 @@ export function ComposerTurnControl({
     mutationsEnabled: controlView.operationsEnabled,
     snapshot: queueSnapshot,
   } as const;
-  pendingInputSession.project(pendingFacts);
   const pendingInputSnapshot = useSyncExternalStore(
-    pendingInputSession.subscribe,
-    pendingInputSession.getSnapshot,
-  );
+    pendingHost.subscribe,
+    pendingHost.getSnapshot,
+  ).pending;
   const invalidStatusText = t`Invalid skill`;
   const skillValidity = useMemo(
     () => ({ invalidPaths: controlView.invalidSelectedSkillPaths, statusText: invalidStatusText }),
@@ -123,6 +127,22 @@ export function ComposerTurnControl({
     else root.setAttribute("tabindex", previousTabIndex);
   }, [composerEditorController, controlView.operationsEnabled]);
 
+  const focusPendingTrigger = useCallback(() => {
+    if (pendingTriggerRef.current != null) pendingTriggerRef.current.focus();
+    else focusComposer();
+  }, [focusComposer]);
+  const retryPendingSkills = useCallback(() => {
+    skillsRole.retrySkills(revision);
+  }, [skillsRole, revision]);
+  useComposerPendingInputBinding({
+    ...pendingFacts,
+    guardCompositionEndEnter,
+    skillCatalog,
+    onRetrySkillCatalog: retryPendingSkills,
+    onFocusComposer: focusComposer,
+    onFocusTrigger: focusPendingTrigger,
+  });
+
   useEffect(() => {
     const lifecycle = adapterLifecycleRef.current;
     const generation = ++lifecycle.generation;
@@ -131,11 +151,10 @@ export function ComposerTurnControl({
       lifecycle.mounted = false;
       queueMicrotask(() => {
         if (lifecycle.mounted || lifecycle.generation !== generation) return;
-        pendingInputSession.dispose();
         turnApplication.dispose();
       });
     };
-  }, [pendingInputSession, turnApplication]);
+  }, [turnApplication]);
 
   useRevealComposerOnViewportResize(composerShellRef);
 
@@ -212,6 +231,7 @@ export function ComposerTurnControl({
           snapshot={queueSnapshot}
           pendingInputSession={pendingInputSession}
           pendingInputSnapshot={pendingInputSnapshot}
+          triggerRef={pendingTriggerRef}
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="composer-footer-left flex shrink-0 items-center gap-2">

@@ -440,12 +440,45 @@ describe("ActiveThreadSession", () => {
     });
     expect(h.session.getCollectionSnapshot()).toMatchObject({
       errors: [{ operation: "removeSelection", threadId, error }],
-      members: [{ phase: "ready", error: null }],
+      members: [{ phase: "ready", error: null, canRemove: true, removalBlockers: [] }],
     });
+    expect(h.commands.detachThreadProjection).not.toHaveBeenCalled();
+    expect(h.store.getState().threadRuntime.byThreadId[threadId]).toBeDefined();
     await h.session.retry(threadId);
     expect(h.session.getCollectionSnapshot().errors).toHaveLength(1);
     await expect(h.session.remove(threadId)).resolves.toMatchObject({ type: "removed" });
     expect(h.session.getCollectionSnapshot().errors).toEqual([]);
+  });
+
+  it("rejects removal when clearing selection synchronously changes the reserved member", async () => {
+    const h = createHarness();
+    await activateInitial(h);
+    const threadId = attachBaseline.snapshot.thread.id;
+    h.authorizationSession.clearActiveThread.mockImplementationOnce(() => {
+      h.controller.handleProjectionEvent(eventTurnStarted);
+    });
+
+    await expect(h.session.remove(threadId)).resolves.toEqual({
+      type: "blocked",
+      threadId,
+      blockers: ["changed"],
+    });
+
+    expect(h.commands.detachThreadProjection).not.toHaveBeenCalled();
+    expect(h.session.getCollectionSnapshot()).toMatchObject({
+      viewedThreadId: threadId,
+      members: [{ phase: "ready", error: null, removalBlockers: ["activeTurn"] }],
+      errors: [],
+    });
+    const active = h.session.getSnapshot();
+    if (active.phase !== "active") throw new Error("expected an active session");
+    expect(active.activeTurnId).not.toBeNull();
+    expect(h.store.getState().threadRuntime.byThreadId[threadId]?.sessionRevision).toBe(
+      active.revision,
+    );
+    expect(
+      active.composerRole.submit(active.revision, composerCapture("after cancelled removal")),
+    ).toEqual({ type: "accepted" });
   });
 
   it("retains navigation and remove rejections independently of lifecycle retries and removal", async () => {
@@ -527,6 +560,34 @@ describe("ActiveThreadSession", () => {
     expect(h.authorizationSession.clearActiveThread).toHaveBeenCalled();
     expect(h.session.getCollectionSnapshot()).toMatchObject({ viewedThreadId: null, members: [] });
     expect(h.session.getCollectionSnapshot().errors).toEqual([]);
+  });
+
+  it("does not continue removal cleanup after disposal during a cleanup retry", async () => {
+    const h = createHarness();
+    await activateInitial(h);
+    const threadId = attachBaseline.snapshot.thread.id;
+    vi.mocked(h.commands.detachThreadProjection).mockRejectedValueOnce(new Error("detach failed"));
+    await expect(h.session.remove(threadId)).resolves.toMatchObject({
+      type: "failed",
+      phase: "detach",
+    });
+    expect(h.session.getCollectionSnapshot().members).toMatchObject([
+      { threadId, phase: "cleanupPending" },
+    ]);
+
+    const removal = h.session.remove(threadId);
+    h.controller.dispose();
+    const selectionCallsAtDisposal = h.authorizationSession.clearActiveThread.mock.calls.length;
+    const detachCallsAtDisposal = vi.mocked(h.commands.detachThreadProjection).mock.calls.length;
+
+    await expect(removal).resolves.toEqual({ type: "unavailable", threadId });
+    expect(h.authorizationSession.clearActiveThread).toHaveBeenCalledTimes(
+      selectionCallsAtDisposal,
+    );
+    expect(h.commands.detachThreadProjection).toHaveBeenCalledTimes(detachCallsAtDisposal);
+    expect(h.session.getSnapshot()).toMatchObject({ phase: "disposed" });
+    expect(h.session.getCollectionSnapshot().members).toEqual([]);
+    expect(h.store.getState().threadRuntime.byThreadId[threadId]).toBeUndefined();
   });
 
   it("never reattaches while failed initialization cleanup is unresolved", async () => {
