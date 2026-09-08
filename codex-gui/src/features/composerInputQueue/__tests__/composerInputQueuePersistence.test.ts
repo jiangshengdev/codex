@@ -88,6 +88,33 @@ describe("composer queue persistence transactions", () => {
     expect(next.drainPendingInput({ lane: "ordinary" }).effects[0]?.type).toBe("performStart");
   });
 
+  it.each(["start", "steer"] as const)(
+    "preserves other records and round-trips a discarded unknown %s",
+    (lane) => {
+      const queue = createComposerInputQueue({
+        threadId: "thread-a",
+        activeTurnId: lane === "steer" ? "turn-a" : null,
+      });
+      if (lane === "steer") queue.submitSteer(composerQueueMessage("unknown"));
+      else queue.submit(composerQueueMessage("unknown"));
+      queue.submit(composerQueueMessage("preserved"));
+      const next = restored(queue);
+      const before = next.exportState(null);
+      const revision = next.detailRevision();
+      expect(next.discardUnknown("missing")).toBe(false);
+      expect(next.exportState(null)).toEqual(before);
+      expect(next.detailRevision()).toBe(revision);
+      expect(next.discardUnknown("unknown")).toBe(true);
+      expect(next.detailRevision()).not.toBe(revision);
+      const after = next.exportState(null);
+      expect(after.knownMessageIds).toEqual(["preserved"]);
+      expect(after.ordinary).toEqual(before.ordinary);
+      expect(restored(next).unknownMessages()).toEqual([]);
+      expect(restored(next).view().ordinaryQueuedCount).toBe(1);
+      expect(next.discardUnknown("unknown")).toBe(false);
+    },
+  );
+
   it("preserves live claim ownership across prepared adoption", () => {
     const queue = createComposerInputQueue({ threadId: "thread-a", activeTurnId: null });
     const first = queue.prepare((candidate) => candidate.submit(composerQueueMessage("a")));

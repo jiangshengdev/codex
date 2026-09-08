@@ -35,6 +35,7 @@ import type { AppLocale } from "@/i18n";
 import { renderWithProviders } from "@/utils/test-utils";
 
 import { ComposerTurnControl } from "../ComposerTurnControl";
+import { ComposerPendingInputProvider } from "../ComposerPendingInputProvider";
 
 const attachResponse = attachBaseline;
 const threadId = attachResponse.snapshot.thread.id;
@@ -284,13 +285,13 @@ export async function renderComposerTurnControl({
   controller.subscribe(publishActiveSnapshot);
   skills.subscribe(publishActiveSnapshot);
   const app = (
-    <>
+    <ComposerPendingInputProvider>
       <Toast.Provider placement="top" />
       <SessionComposerTurnControl
         guardCompositionEndEnter={guardCompositionEndEnter}
         session={sessionHarness.session}
       />
-    </>
+    </ComposerPendingInputProvider>
   );
   const screen = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app, {
     locale,

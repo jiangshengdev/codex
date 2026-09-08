@@ -20,6 +20,7 @@ import type { SkillCatalogCandidate } from "@/features/skillCatalog/skillCatalog
 import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
 
 import { ComposerTurnControl } from "../ComposerTurnControl";
+import { ComposerPendingInputProvider } from "../ComposerPendingInputProvider";
 import {
   createComposerSkillCatalogHarness,
   renderComposerTurnControl,
@@ -636,6 +637,11 @@ test("edits and deletes an ordinary pending message in one Drawer without changi
   const firstCancel = vi.spyOn(firstReservation, "cancel");
   await pendingEditor.fill("Discard this edit");
   await screen.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(firstCancel).not.toHaveBeenCalled();
+  await screen
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Discard changes", exact: true })
+    .click();
   expect(firstCancel).toHaveBeenCalledOnce();
   const cancelledListDialog = screen.getByRole("dialog", {
     name: "Pending details",
@@ -655,6 +661,11 @@ test("edits and deletes an ordinary pending message in one Drawer without changi
   const secondCancel = vi.spyOn(secondReservation, "cancel");
   await escapeEditor.fill("Discard this edit with Escape");
   await screen.user.keyboard("{Escape}");
+  expect(secondCancel).not.toHaveBeenCalled();
+  await screen
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Discard changes", exact: true })
+    .click();
   expect(secondCancel).toHaveBeenCalledOnce();
   await expect
     .element(screen.getByRole("dialog", { name: "Edit pending message", exact: true }))
@@ -808,8 +819,10 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
   await expect.poll(() => controller.getSnapshot().guidingCount).toBe(1);
   expect(commandHandle.steerTurn).toHaveBeenCalledTimes(1);
   expect(commandHandle.startTurn).not.toHaveBeenCalled();
-  const heldDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
-  await expect.element(heldDialog.getByText("Already issued steer", { exact: true })).toBeVisible();
+  const heldDialog = screen.getByRole("dialog", { name: "Edit pending message", exact: true });
+  await expect
+    .element(heldDialog.getByRole("textbox", { name: "Unsaved pending message", exact: true }))
+    .toHaveValue("Still unsent steer");
   await expect
     .element(heldDialog.getByText("Pending message changed", { exact: true }))
     .toBeVisible();
@@ -820,12 +833,20 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
     .toBeVisible();
   expect(save).not.toHaveBeenCalled();
   expect(cancel).not.toHaveBeenCalled();
-  await expect.element(heldDialog.getByRole("heading", { name: "Pending details" })).toHaveFocus();
-  await heldDialog.getByRole("button", { name: "Close", exact: true }).click();
-  await expect.element(heldDialog).not.toBeInTheDocument();
   await expect
-    .element(screen.getByRole("button", { name: "Pending: Guide 1", exact: true }))
+    .element(heldDialog.getByRole("heading", { name: "Edit pending message" }))
     .toHaveFocus();
+  await heldDialog.getByRole("button", { name: "Close", exact: true }).click();
+  await screen
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Discard changes", exact: true })
+    .click();
+  await expect.element(heldDialog).not.toBeInTheDocument();
+  await expect.element(composer).toHaveFocus();
+  await screen.getByRole("button", { name: "Pending: Guide 1", exact: true }).click();
+  await expect
+    .element(screen.getByRole("dialog").getByText("Already issued steer", { exact: true }))
+    .toBeVisible();
   expect(save).not.toHaveBeenCalled();
   expect(cancel).not.toHaveBeenCalled();
   expect(commandHandle.steerTurn).toHaveBeenCalledTimes(1);
@@ -867,11 +888,13 @@ test("tears down an active edit without settling its reservation when projection
   );
 
   await expect
-    .element(screen.getByRole("dialog", { name: "Edit pending message", exact: true }))
-    .not.toBeInTheDocument();
+    .element(screen.getByRole("textbox", { name: "Unsaved pending message", exact: true }))
+    .toHaveValue("Owner-bound queued message");
   expect(save).not.toHaveBeenCalled();
-  expect(cancel).not.toHaveBeenCalled();
-  await expect.element(screen.composer()).toHaveFocus();
+  expect(cancel).toHaveBeenCalledOnce();
+  await expect
+    .element(screen.getByRole("button", { name: "Save", exact: true }))
+    .not.toBeInTheDocument();
 });
 
 test("restores delete focus only to a neighbor in the same lane", async () => {
@@ -1104,7 +1127,7 @@ test("replaces an open pending-input owner without leaking its cached view into 
     skills: skillHarness.controller.getSnapshot(),
   });
   const renderSnapshot = (snapshot: typeof firstSnapshot) => (
-    <>
+    <ComposerPendingInputProvider>
       <Toast.Provider placement="top" />
       <ComposerTurnControl
         authorizationToken={null}
@@ -1112,7 +1135,7 @@ test("replaces an open pending-input owner without leaking its cached view into 
         routeTarget={{ type: "currentTask", threadId }}
         sessionSnapshot={snapshot}
       />
-    </>
+    </ComposerPendingInputProvider>
   );
   const screen = await renderWithProviders(renderSnapshot(firstSnapshot));
 

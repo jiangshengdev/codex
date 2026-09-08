@@ -72,6 +72,12 @@ export type ComposerPendingInputEditView =
       item: ComposerPendingInputPageItem;
       preparationToken: number;
       valid: boolean;
+    }>
+  | Readonly<{
+      phase: "retained";
+      item: ComposerPendingInputPageItem;
+      preparationToken: number;
+      text: string;
     }>;
 
 export type ComposerPendingInputView = Readonly<{
@@ -89,6 +95,7 @@ export type ComposerPendingInputSessionSnapshot = Readonly<{
   alert: ComposerPendingInputAlert | null;
   announcement: ComposerPendingInputAnnouncement | null;
   effects: readonly ComposerPendingInputSemanticEffect[];
+  confirmDiscard: boolean;
 }>;
 
 export type ComposerPendingInputCommandOutcome =
@@ -113,6 +120,9 @@ export type ComposerPendingInputSession = Readonly<{
   project(facts: ComposerPendingInputCurrentFacts): ComposerPendingInputSessionSnapshot;
   open(facts: ComposerPendingInputCurrentFacts): ComposerPendingInputCommandOutcome;
   requestClose(facts: ComposerPendingInputCurrentFacts): ComposerPendingInputCommandOutcome;
+  disconnect(facts: ComposerPendingInputCurrentFacts): void;
+  returnToEdit(facts: ComposerPendingInputCurrentFacts): void;
+  discardEdit(facts: ComposerPendingInputCurrentFacts): void;
   beginEdit(
     facts: ComposerPendingInputCurrentFacts,
     item: ComposerPendingInputPageItem,
@@ -175,10 +185,18 @@ type ActiveEdit = Readonly<{
   outcomeAtBegin: ComposerInputQueueCoordinatorSnapshot["pendingInputManagementOutcome"];
   reservation: ActiveThreadPendingInputEditReservation;
   capture: () => ComposerDraftCapture;
+  initialInput: string;
   valid: boolean;
 }>;
 
-type EditSession = PreparingEdit | ActiveEdit;
+type RetainedEdit = Readonly<{
+  phase: "retained";
+  item: ComposerPendingInputPageItem;
+  preparationToken: number;
+  capture: ComposerDraftCapture;
+}>;
+
+type EditSession = PreparingEdit | ActiveEdit | RetainedEdit;
 
 type ExhaustedMoveRefresh = Readonly<{
   composerRole: ActiveThreadComposerRole;
@@ -207,6 +225,8 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
   private nextPreparationToken = 0;
   private nextEffectId = 0;
   private disposed = false;
+  private confirmDiscard = false;
+  private discardClosesDrawer = false;
   private snapshot: ComposerPendingInputSessionSnapshot = this.createSnapshot(null);
 
   getSnapshot = (): ComposerPendingInputSessionSnapshot => this.snapshot;
@@ -223,7 +243,8 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
   };
 
   open = (facts: ComposerPendingInputCurrentFacts): ComposerPendingInputCommandOutcome => {
-    if (this.disposed || !hasPendingInputs(facts.snapshot)) return ignored;
+    if (this.disposed || this.phase !== "closed" || !hasPendingInputs(facts.snapshot))
+      return ignored;
     const result = readInitialComposerPendingInputPrefixes(
       facts.composerRole,
       facts.snapshot.detailRevision,
@@ -242,6 +263,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     this.exhaustedMoveRefresh = null;
     this.handledOutcome = null;
     this.focusAfterClose = null;
+    this.confirmDiscard = false;
     this.publish(facts);
     return applied;
   };
@@ -249,6 +271,12 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
   requestClose = (facts: ComposerPendingInputCurrentFacts): ComposerPendingInputCommandOutcome => {
     this.reconcile(facts);
     if (!this.accepts(facts)) return ignored;
+    if (this.hasUnsavedChanges()) {
+      this.confirmDiscard = true;
+      this.discardClosesDrawer = true;
+      this.publish(facts);
+      return applied;
+    }
     if (this.edit?.phase === "active") {
       const result = this.runManagement(() => this.editActive().reservation.cancel());
       const settled = this.settleEditResult(facts, result, true);
@@ -259,6 +287,50 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     this.beginClosing(hasPendingInputs(facts.snapshot) ? "trigger" : "composer");
     this.publish(facts);
     return applied;
+  };
+
+  disconnect = (facts: ComposerPendingInputCurrentFacts): void => {
+    if (!this.accepts(facts)) return;
+    if (!this.hasUnsavedChanges()) {
+      const edit = this.edit;
+      this.edit = null;
+      if (edit?.phase === "active") this.runManagement(edit.reservation.cancel);
+      this.pages = null;
+      this.beginClosing(null);
+      this.publish(facts);
+      return;
+    }
+    this.retainEdit("sessionInvalidated", true);
+    this.pages = null;
+    if (this.edit?.phase === "retained") {
+      this.confirmDiscard = true;
+      this.discardClosesDrawer = true;
+    } else this.beginClosing(null);
+    this.publish(facts);
+  };
+
+  returnToEdit = (facts: ComposerPendingInputCurrentFacts): void => {
+    if (!this.accepts(facts)) return;
+    this.confirmDiscard = false;
+    if (this.edit != null) {
+      this.enqueueEffect({ type: "editor", preparationToken: this.edit.preparationToken });
+    }
+    this.publish(facts);
+  };
+
+  discardEdit = (facts: ComposerPendingInputCurrentFacts): void => {
+    if (!this.accepts(facts)) return;
+    const close = this.discardClosesDrawer || this.edit?.phase === "retained";
+    this.confirmDiscard = false;
+    if (this.edit?.phase === "active") {
+      const active = this.edit;
+      const result = this.runManagement(active.reservation.cancel);
+      this.settleEditResult(facts, result, close);
+    }
+    this.edit = null;
+    this.alert = null;
+    if (close) this.beginClosing("composer");
+    this.publish(facts);
   };
 
   beginEdit = (
@@ -324,6 +396,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
         phase: "active",
         reservation: result.reservation,
         capture: attachment.capture,
+        initialInput: JSON.stringify(attachment.capture().input),
         valid: true,
       };
       if (this.pages != null) this.pages = { ...this.pages, revision: result.revision };
@@ -404,6 +477,12 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
       this.edit.preparationToken !== preparationToken
     ) {
       return ignored;
+    }
+    if (this.hasUnsavedChanges()) {
+      this.confirmDiscard = true;
+      this.discardClosesDrawer = false;
+      this.publish(facts);
+      return applied;
     }
     const result = this.runManagement(() => this.editActive().reservation.cancel());
     const settled = this.settleEditResult(facts, result, false);
@@ -574,6 +653,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     this.exhaustedMoveRefresh = null;
     this.handledOutcome = null;
     this.focusAfterClose = null;
+    this.confirmDiscard = false;
     if (target != null) this.enqueueEffect({ type: target });
     this.publish(null);
   };
@@ -602,9 +682,11 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
   private reconcile(facts: ComposerPendingInputCurrentFacts): void {
     if (this.phase !== "open" || this.owner == null) return;
     if (facts.composerRole !== this.owner) {
-      this.beginClosing("composer");
+      this.retainEdit("sessionInvalidated", true);
+      if (this.edit?.phase !== "retained") this.beginClosing("composer");
       return;
     }
+    if (this.edit?.phase === "retained") return;
 
     const outcome = facts.snapshot.pendingInputManagementOutcome;
     if (
@@ -615,7 +697,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
       outcome.key === this.edit.item.key
     ) {
       this.handledOutcome = outcome;
-      this.edit = null;
+      if (!this.retainEdit("targetInvalidated", false)) this.edit = null;
       this.completionHold = true;
       this.alert = "targetInvalidated";
       this.announcement = null;
@@ -623,7 +705,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     }
 
     if (!facts.mutationsEnabled && this.edit != null) {
-      this.beginClosing("composer");
+      if (!this.retainEdit("sessionInvalidated", true)) this.beginClosing("composer");
       return;
     }
 
@@ -636,7 +718,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
         facts.snapshot.detailRevision,
       );
       if (result.type !== "ready") {
-        this.beginClosing("composer");
+        this.closeInvalid();
         return;
       }
       this.pages = { composerRole: facts.composerRole, ...result.prefixes };
@@ -645,7 +727,12 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
       this.pages = null;
     }
 
-    if (!hasPendingInputs(facts.snapshot) && !this.completionHold && this.managementDepth === 0) {
+    if (
+      !hasPendingInputs(facts.snapshot) &&
+      !this.completionHold &&
+      this.edit == null &&
+      this.managementDepth === 0
+    ) {
       this.beginClosing("composer");
     }
   }
@@ -662,6 +749,8 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
 
   private closeInvalid(): void {
     this.pages = null;
+    this.retainEdit("sessionInvalidated", true);
+    if (this.edit?.phase === "retained") return;
     this.edit = null;
     this.alert = null;
     this.announcement = null;
@@ -695,10 +784,11 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     facts: ComposerPendingInputCurrentFacts,
   ): void {
     this.completionHold = true;
-    this.edit = null;
+    this.retainEdit(alert, false);
+    if (this.edit?.phase !== "retained") this.edit = null;
     this.alert = alert;
     this.announcement = null;
-    this.refreshPages(facts, revision);
+    if (this.edit?.phase !== "retained") this.refreshPages(facts, revision);
     this.enqueueEffect({ type: "drawerHeading" });
   }
 
@@ -712,14 +802,10 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     const active = this.edit?.phase === "active" ? this.edit : null;
     if (active == null) return false;
     if (result.type === "unavailable") {
-      if (result.scope === "ownerGone") this.closeInvalid();
-      else {
-        this.handleLiveFailure(
-          result.reason === "targetInvalidated" ? "targetInvalidated" : "sessionInvalidated",
-          result.revision,
-          facts,
-        );
-      }
+      this.retainEdit(
+        result.reason === "targetInvalidated" ? "targetInvalidated" : "sessionInvalidated",
+        false,
+      );
       return false;
     }
     if (result.type === "invalidInput") {
@@ -757,6 +843,33 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     return this.edit;
   }
 
+  private hasUnsavedChanges(): boolean {
+    if (this.edit?.phase === "retained") return true;
+    return (
+      this.edit?.phase === "active" &&
+      JSON.stringify(this.edit.capture().input) !== this.edit.initialInput
+    );
+  }
+
+  private retainEdit(alert: ComposerPendingInputAlert, cancel: boolean): boolean {
+    const active = this.edit;
+    if (active?.phase !== "active") return active?.phase === "retained";
+    const capture = active.capture();
+    this.edit = {
+      phase: "retained",
+      item: active.item,
+      preparationToken: active.preparationToken,
+      capture,
+    };
+    this.pages = null;
+    this.alert = alert;
+    this.announcement = null;
+    this.completionHold = true;
+    if (cancel) this.runManagement(active.reservation.cancel);
+    this.enqueueEffect({ type: "drawerHeading" });
+    return true;
+  }
+
   private enqueueEffect(target: ComposerPendingInputEffectTarget): void {
     this.effects.push({ id: ++this.nextEffectId, ownerGeneration: this.ownerGeneration, target });
   }
@@ -784,10 +897,15 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
       phase: this.phase,
       ownerGeneration: this.ownerGeneration,
       view,
-      actionsEnabled: open && facts?.mutationsEnabled === true && this.edit?.phase !== "preparing",
+      actionsEnabled:
+        open &&
+        facts?.mutationsEnabled === true &&
+        this.edit?.phase !== "preparing" &&
+        this.edit?.phase !== "retained",
       alert: open ? this.alert : null,
       announcement: open ? this.announcement : null,
       effects: [...this.effects],
+      confirmDiscard: open && this.confirmDiscard,
     };
   }
 }
@@ -815,6 +933,14 @@ function stripPageOwner(pages: PendingInputPages): ComposerPendingInputPrefixes 
 
 function editView(edit: EditSession | null): ComposerPendingInputEditView | null {
   if (edit == null) return null;
+  if (edit.phase === "retained") {
+    return {
+      phase: edit.phase,
+      item: edit.item,
+      preparationToken: edit.preparationToken,
+      text: edit.capture.textContent,
+    };
+  }
   if (edit.phase === "preparing") {
     return {
       phase: edit.phase,

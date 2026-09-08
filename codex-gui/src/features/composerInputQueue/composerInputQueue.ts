@@ -484,9 +484,13 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   }
 
   public discardUnknown(id: string): boolean {
-    const removed = this.startState.discardUnknown(id) || this.steerState.discardUnknown(id);
-    if (!removed) return false;
-    this.knownMessageIds.delete(id);
+    const releasedStart = this.startState.discardUnknown(id);
+    if (releasedStart != null) {
+      this.releaseStartClaim(releasedStart);
+    } else {
+      if (!this.steerState.discardUnknown(id)) return false;
+      this.knownMessageIds.delete(id);
+    }
     this.pendingInputIdentity.forgetDisplayKey(id);
     this.pendingInputIdentity.advanceRevision();
     return true;

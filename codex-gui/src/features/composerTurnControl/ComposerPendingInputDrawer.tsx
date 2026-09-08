@@ -1,6 +1,6 @@
-import { Alert, Button, Chip, Drawer } from "@heroui/react";
+import { Alert, AlertDialog, Button, Chip, Drawer, TextArea } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState, type Ref } from "react";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ComposerEditorController } from "@/features/composerEditor/ComposerEditor";
 import type {
@@ -28,6 +28,7 @@ export type ComposerPendingInputDrawerProps = Readonly<{
   guardCompositionEndEnter: boolean;
   mutationsEnabled: boolean;
   onFocusComposer: () => void;
+  onFocusTrigger: () => void;
   onRetrySkillCatalog: () => void;
   pendingInputSession: ComposerPendingInputSession;
   pendingInputSnapshot: ComposerPendingInputSessionSnapshot;
@@ -41,6 +42,7 @@ export function ComposerPendingInputDrawer({
   guardCompositionEndEnter,
   mutationsEnabled,
   onFocusComposer,
+  onFocusTrigger,
   onRetrySkillCatalog,
   pendingInputSession,
   pendingInputSnapshot,
@@ -50,7 +52,11 @@ export function ComposerPendingInputDrawer({
 }: ComposerPendingInputDrawerProps) {
   const { t } = useLingui();
   const { guidingCount, ordinaryQueuedCount } = snapshot;
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const retainedRef = useRef<HTMLTextAreaElement | null>(null);
+  const [copyStatus, setCopyStatus] = useState<{
+    token: number;
+    result: "copied" | "failed";
+  } | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const editorControllerRef = useRef<Readonly<{
     preparationToken: number;
@@ -61,7 +67,6 @@ export function ComposerPendingInputDrawer({
   const scheduledEffectIdsRef = useRef(new Set<number>());
   const adapterMountedRef = useRef(false);
   const presenceGenerationRef = useRef(pendingInputSnapshot.ownerGeneration);
-  const hasPendingInputs = guidingCount > 0 || ordinaryQueuedCount > 0;
   const facts: ComposerPendingInputCurrentFacts = {
     composerRole,
     sessionRevision,
@@ -70,6 +75,7 @@ export function ComposerPendingInputDrawer({
   };
   const view = pendingInputSnapshot.view;
   const edit = view?.edit ?? null;
+  const copyResult = copyStatus?.token === edit?.preparationToken ? copyStatus?.result : null;
   const visiblePages: ComposerPendingInputListPages | null =
     view?.pages == null ? null : { composerRole, ...view.pages };
   const displayedIsOpen = pendingInputSnapshot.phase === "open";
@@ -109,15 +115,13 @@ export function ComposerPendingInputDrawer({
         if (target.type === "composer") {
           onFocusComposer();
         } else if (target.type === "trigger") {
-          const trigger = triggerRef.current;
-          if (trigger == null) onFocusComposer();
-          else trigger.focus();
+          onFocusTrigger();
         } else if (target.type === "drawerHeading") {
           headingRef.current?.focus();
         } else if (target.type === "editor") {
           const attached = editorControllerRef.current;
           if (attached?.preparationToken === target.preparationToken) attached.controller.focus();
-          else headingRef.current?.focus();
+          else (retainedRef.current ?? headingRef.current)?.focus();
         } else if (target.type === "laneHeading") {
           (laneHeadingRefs.current.get(target.lane) ?? headingRef.current)?.focus();
         } else {
@@ -128,11 +132,7 @@ export function ComposerPendingInputDrawer({
         pendingInputSession.consumeEffect(effect.id);
       });
     }
-  }, [onFocusComposer, pendingInputSession, pendingInputSnapshot.effects]);
-
-  const openDrawer = (): void => {
-    pendingInputSession.open(facts);
-  };
+  }, [onFocusComposer, onFocusTrigger, pendingInputSession, pendingInputSnapshot.effects]);
 
   const onOpenChange = (open: boolean): void => {
     if (open) pendingInputSession.open(facts);
@@ -173,34 +173,20 @@ export function ComposerPendingInputDrawer({
     pendingInputSession.moveItem(facts, item, destination);
   };
 
-  const triggerLabel =
-    guidingCount > 0 && ordinaryQueuedCount > 0
-      ? t`Pending: Guide ${guidingCount}, Queued ${ordinaryQueuedCount}`
-      : guidingCount > 0
-        ? t`Pending: Guide ${guidingCount}`
-        : t`Pending: Queued ${ordinaryQueuedCount}`;
-  const renderTrigger =
-    pendingInputSnapshot.phase !== "closing" && (hasPendingInputs || displayedIsOpen);
+  const copyRetained = async (): Promise<void> => {
+    if (edit?.phase !== "retained") return;
+    try {
+      await navigator.clipboard.writeText(edit.text);
+      setCopyStatus({ token: edit.preparationToken, result: "copied" });
+    } catch {
+      setCopyStatus({ token: edit.preparationToken, result: "failed" });
+    }
+  };
   const movedPosition = pendingInputSnapshot.announcement?.position ?? 0;
   const movedCount = pendingInputSnapshot.announcement?.count ?? 0;
 
   return (
     <>
-      {renderTrigger ? (
-        <Button ref={triggerRef} aria-label={triggerLabel} onPress={openDrawer} variant="secondary">
-          <Trans>Pending</Trans>
-          {guidingCount > 0 ? (
-            <Chip size="sm" variant="secondary">
-              <Trans>Guide {guidingCount}</Trans>
-            </Chip>
-          ) : null}
-          {ordinaryQueuedCount > 0 ? (
-            <Chip size="sm" variant="tertiary">
-              <Trans>Queued {ordinaryQueuedCount}</Trans>
-            </Chip>
-          ) : null}
-        </Button>
-      ) : null}
       <Drawer.Backdrop isOpen={displayedIsOpen} onOpenChange={onOpenChange}>
         <Drawer.Content placement="right">
           <Drawer.Dialog>
@@ -208,7 +194,7 @@ export function ComposerPendingInputDrawer({
             <Drawer.CloseTrigger />
             <Drawer.Header>
               <Drawer.Heading ref={headingRef} tabIndex={-1}>
-                {edit?.phase !== "active" ? (
+                {edit == null || edit.phase === "preparing" ? (
                   <Trans>Pending details</Trans>
                 ) : (
                   <Trans>Edit pending message</Trans>
@@ -232,7 +218,7 @@ export function ComposerPendingInputDrawer({
                   )}
                 </p>
               )}
-              {edit?.phase !== "active" ? (
+              {edit == null || edit.phase === "preparing" ? (
                 <ComposerPendingInputList
                   actionsDisabled={!pendingInputSnapshot.actionsEnabled}
                   deleteItem={deleteItem}
@@ -253,7 +239,29 @@ export function ComposerPendingInputDrawer({
                   }}
                 />
               ) : null}
-              {edit == null ? null : (
+              {edit?.phase === "retained" ? (
+                <div className="grid gap-3">
+                  <p>
+                    <Trans>Your changes could not be saved. Copy them before discarding.</Trans>
+                  </p>
+                  <TextArea
+                    ref={retainedRef}
+                    aria-label={t`Unsaved pending message`}
+                    readOnly
+                    value={edit.text}
+                    fullWidth
+                  />
+                  {copyResult == null ? null : (
+                    <p role="status">
+                      {copyResult === "copied" ? (
+                        <Trans>Changes copied</Trans>
+                      ) : (
+                        <Trans>Copy failed. Select the text and copy it manually.</Trans>
+                      )}
+                    </p>
+                  )}
+                </div>
+              ) : edit == null ? null : (
                 <div hidden={edit.phase === "preparing"}>
                   <ComposerPendingInputEditorAdapter
                     controllerRef={editorControllerRef}
@@ -277,10 +285,114 @@ export function ComposerPendingInputDrawer({
                 </Button>
               </Drawer.Footer>
             )}
+            {edit?.phase === "retained" ? (
+              <Drawer.Footer>
+                <Button
+                  onPress={() => {
+                    void copyRetained();
+                  }}
+                  variant="secondary"
+                >
+                  <Trans comment="Copy the unsaved pending-message edit to the clipboard">
+                    Copy changes
+                  </Trans>
+                </Button>
+                <Button
+                  onPress={() => {
+                    pendingInputSession.requestClose(facts);
+                  }}
+                  variant="danger"
+                >
+                  <Trans comment="Discard only the unsaved edit, not the original queued message">
+                    Discard changes
+                  </Trans>
+                </Button>
+              </Drawer.Footer>
+            ) : null}
           </Drawer.Dialog>
         </Drawer.Content>
       </Drawer.Backdrop>
+      <AlertDialog.Backdrop isOpen={pendingInputSnapshot.confirmDiscard}>
+        <AlertDialog.Container>
+          <AlertDialog.Dialog>
+            <AlertDialog.Header>
+              <AlertDialog.Heading>
+                <Trans>Discard unsaved changes?</Trans>
+              </AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body>
+              <Trans>
+                Your changes have not been saved. Return to copy them, or discard them to continue.
+              </Trans>
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button
+                autoFocus
+                onPress={() => {
+                  pendingInputSession.returnToEdit(facts);
+                }}
+                variant="secondary"
+              >
+                <Trans comment="Return to the pending-message edit without discarding it">
+                  Return to edit
+                </Trans>
+              </Button>
+              <Button
+                onPress={() => {
+                  pendingInputSession.discardEdit(facts);
+                }}
+                variant="danger"
+              >
+                <Trans comment="Discard only the unsaved edit, not the original queued message">
+                  Discard changes
+                </Trans>
+              </Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
     </>
+  );
+}
+
+export function ComposerPendingInputTrigger({
+  facts,
+  session,
+  triggerRef,
+}: Readonly<{
+  facts: ComposerPendingInputCurrentFacts;
+  session: ComposerPendingInputSession;
+  triggerRef: Ref<HTMLButtonElement>;
+}>) {
+  const { t } = useLingui();
+  const { guidingCount, ordinaryQueuedCount } = facts.snapshot;
+  const triggerLabel =
+    guidingCount > 0 && ordinaryQueuedCount > 0
+      ? t`Pending: Guide ${guidingCount}, Queued ${ordinaryQueuedCount}`
+      : guidingCount > 0
+        ? t`Pending: Guide ${guidingCount}`
+        : t`Pending: Queued ${ordinaryQueuedCount}`;
+  return (
+    <Button
+      ref={triggerRef}
+      aria-label={triggerLabel}
+      onPress={() => {
+        session.open(facts);
+      }}
+      variant="secondary"
+    >
+      <Trans>Pending</Trans>
+      {guidingCount > 0 ? (
+        <Chip size="sm" variant="secondary">
+          <Trans>Guide {guidingCount}</Trans>
+        </Chip>
+      ) : null}
+      {ordinaryQueuedCount > 0 ? (
+        <Chip size="sm" variant="tertiary">
+          <Trans>Queued {ordinaryQueuedCount}</Trans>
+        </Chip>
+      ) : null}
+    </Button>
   );
 }
 
@@ -326,6 +438,8 @@ function PendingManagementAlert({ alert }: Readonly<{ alert: ComposerPendingInpu
             </Trans>
           ) : alert === "empty" ? (
             <Trans>Enter a message before saving.</Trans>
+          ) : alert === "sessionInvalidated" ? (
+            <Trans>This editing session is no longer available.</Trans>
           ) : (
             <Trans>Refresh complete. Try the action again.</Trans>
           )}

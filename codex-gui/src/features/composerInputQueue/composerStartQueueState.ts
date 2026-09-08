@@ -248,12 +248,10 @@ export class ComposerStartQueueState {
     return this.pendingStart?.phase === "deliveryUnknown" ? [this.pendingStart.claim.message] : [];
   }
 
-  public discardUnknown(id: string): boolean {
+  public discardUnknown(id: string): StartClaim | null {
     if (this.pendingStart?.phase !== "deliveryUnknown" || this.pendingStart.claim.message.id !== id)
-      return false;
-    this.pendingStart = null;
-    this.pendingFacts = null;
-    return true;
+      return null;
+    return this.releasePending();
   }
 
   public pendingPhase(): ComposerInputQueuePendingStartPhase | null {

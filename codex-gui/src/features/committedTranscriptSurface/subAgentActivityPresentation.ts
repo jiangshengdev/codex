@@ -44,7 +44,7 @@ const pathSegments = (agentPath: string): string[] => {
 };
 
 const formatPathSegment = (segment: string): string => {
-  const words = segment.replaceAll("_", " ");
+  const words = segment.replaceAll("_", " ").trim() || segment.trim();
   const firstVisibleIndex = words.search(/\S/u);
   if (firstVisibleIndex === -1) {
     throw new Error("Expected sub-agent path segment to contain visible text");

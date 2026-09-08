@@ -11,7 +11,7 @@ export type ActiveThreadReadModelTransition = Readonly<{
 }>;
 
 /**
- * The collection owner creates an empty slot before publishing its first transition.
+ * The member lifecycle owner creates an empty slot before publishing its first transition.
  * Creation only applies to an absent thread slot; replacing an owner requires removal
  * of the previous identity first. Repeated creation must not reset an existing slot.
  */
