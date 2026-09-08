@@ -33,6 +33,7 @@ import type {
 } from "@/features/skillCatalog/skillCatalogOwner";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
+import { ComposerPendingInputProvider } from "@/features/composerTurnControl/ComposerPendingInputProvider";
 
 const emptySkillCatalogSnapshot = {
   type: "ready",
@@ -134,7 +135,9 @@ async function renderAttached(
   const result = await renderWithProviders(
     <>
       <Toast.Provider placement="top" />
-      <SessionComposerTurnControl session={sessionHarness.session} />
+      <ComposerPendingInputProvider>
+        <SessionComposerTurnControl session={sessionHarness.session} />
+      </ComposerPendingInputProvider>
     </>,
   );
   result.store.dispatch(activeThreadReadModelSlotCreated(identity));
@@ -517,6 +520,10 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
       .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
       .toBeVisible();
     controller.observeAcceptedEvent({ notification: eventTurnCompleted, replay: "live" });
+    const retainedDialog = screen.getByRole("dialog", {
+      name: "Edit pending message",
+      exact: true,
+    });
     const alert = screen.getByRole("alert");
     await expect.element(alert).toBeVisible();
     alert.element().scrollIntoView({ block: "nearest" });
@@ -530,7 +537,7 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
       .poll(() => ({
         alertHorizontallyClosed: alert.element().scrollWidth <= alert.element().clientWidth + 1,
         dialogHorizontallyClosed:
-          listDialog.element().scrollWidth <= listDialog.element().clientWidth + 1,
+          retainedDialog.element().scrollWidth <= retainedDialog.element().clientWidth + 1,
       }))
       .toEqual({ alertHorizontallyClosed: true, dialogHorizontallyClosed: true });
 
@@ -540,7 +547,7 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
         if (!(documentScroller instanceof HTMLElement)) {
           return null;
         }
-        const dialogElement = listDialog.element();
+        const dialogElement = retainedDialog.element();
         const dialogBounds = dialogElement.getBoundingClientRect();
         const triggerBounds = triggerElement.getBoundingClientRect();
 
@@ -568,10 +575,14 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
         triggerWithinViewport: true,
       });
 
-    const close = listDialog.getByRole("button", { name: "Close", exact: true });
+    const close = retainedDialog.getByRole("button", { name: "Close", exact: true });
     await expect.element(close).toBeInViewport();
     await close.click();
-    await expect.element(listDialog).not.toBeInTheDocument();
+    await screen
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Discard changes", exact: true })
+      .click();
+    await expect.element(retainedDialog).not.toBeInTheDocument();
     await composer.click();
     await expect.element(composer).toHaveFocus();
   } finally {

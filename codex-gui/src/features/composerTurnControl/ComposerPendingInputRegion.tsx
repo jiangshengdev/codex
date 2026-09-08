@@ -1,11 +1,11 @@
 import { Button, Chip, Separator, Surface } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ReactNode, type Ref } from "react";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import { ComposerInputPreviewContent } from "./ComposerInputPreviewContent";
-import { ComposerPendingInputDrawer } from "./ComposerPendingInputDrawer";
+import { ComposerPendingInputTrigger } from "./ComposerPendingInputDrawer";
 import type {
   ComposerPendingInputSession,
   ComposerPendingInputSessionSnapshot,
@@ -25,46 +25,36 @@ export type ComposerPendingInputRegionProps = Readonly<{
   snapshot: ComposerInputQueueCoordinatorSnapshot;
   pendingInputSession: ComposerPendingInputSession;
   pendingInputSnapshot: ComposerPendingInputSessionSnapshot;
+  triggerRef: Ref<HTMLButtonElement>;
 }>;
 
 export function ComposerPendingInputRegion({
   canRecover,
   composerRole,
-  guardCompositionEndEnter,
   mutationsEnabled,
-  onFocusComposer,
   onRecover,
-  onRetrySkillCatalog,
   recoveryDescriptionId,
   sessionRevision,
-  skillCatalog,
   snapshot,
   pendingInputSession,
   pendingInputSnapshot,
+  triggerRef,
 }: ComposerPendingInputRegionProps) {
   const { t } = useLingui();
   const groups: { key: string; node: ReactNode }[] = [];
   const hasNormalPending = snapshot.guidingCount > 0 || snapshot.ordinaryQueuedCount > 0;
 
   if (
-    hasNormalPending ||
-    pendingInputSnapshot.phase !== "closed" ||
-    pendingInputSnapshot.effects.length > 0
+    pendingInputSnapshot.phase !== "closing" &&
+    (hasNormalPending || pendingInputSnapshot.phase === "open")
   ) {
     groups.push({
       key: "normal",
       node: (
-        <ComposerPendingInputDrawer
-          composerRole={composerRole}
-          guardCompositionEndEnter={guardCompositionEndEnter}
-          mutationsEnabled={mutationsEnabled}
-          onFocusComposer={onFocusComposer}
-          onRetrySkillCatalog={onRetrySkillCatalog}
-          pendingInputSession={pendingInputSession}
-          pendingInputSnapshot={pendingInputSnapshot}
-          sessionRevision={sessionRevision}
-          skillCatalog={skillCatalog}
-          snapshot={snapshot}
+        <ComposerPendingInputTrigger
+          facts={{ composerRole, mutationsEnabled, sessionRevision, snapshot }}
+          session={pendingInputSession}
+          triggerRef={triggerRef}
         />
       ),
     });

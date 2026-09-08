@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
+import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ActiveThreadPendingInputEditReservation } from "@/features/activeThreadSession/activeThreadSessionContracts";
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
@@ -134,6 +135,7 @@ function beginActiveEdit(
   harness: RoleHarness,
   current: ComposerPendingInputCurrentFacts,
   reservation: ActiveThreadPendingInputEditReservation,
+  capture: () => ComposerDraftCapture = () => composerCapture("original"),
 ): number {
   harness.beginEdit.mockReturnValueOnce({ type: "begun", revision: 2, reservation });
   const begun = session.beginEdit(current, item("one"));
@@ -144,13 +146,122 @@ function beginActiveEdit(
       preparationToken: begun.preparationToken,
       itemKey: "one",
       restore: () => ({ type: "restored" }),
-      capture: () => ({}) as ComposerDraftCapture,
+      capture,
     }),
   ).toEqual({ type: "applied" });
   return begun.preparationToken;
 }
 
 describe("ComposerPendingInputSession", () => {
+  test("retains failed save content and requires explicit discard without settling twice", () => {
+    const { session, harness, current } = openSession();
+    let capture = composerCapture("original");
+    const reservation: ActiveThreadPendingInputEditReservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "unavailable",
+        scope: "activeThreadSession",
+        reason: "projectionUnavailable",
+        revision: 2,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "cancelled",
+        revision: 2,
+      })),
+    };
+    const token = beginActiveEdit(session, harness, current, reservation, () => capture);
+    capture = composerCapture("Do not lose this change");
+    expect(session.saveEdit(current, token)).toEqual({ type: "ignored" });
+    expect(session.getSnapshot()).toMatchObject({
+      phase: "open",
+      actionsEnabled: false,
+      view: { edit: { phase: "retained", text: "Do not lose this change" } },
+    });
+    session.requestClose(current);
+    expect(session.getSnapshot().confirmDiscard).toBe(true);
+    session.returnToEdit(current);
+    expect(session.getSnapshot()).toMatchObject({
+      confirmDiscard: false,
+      view: { edit: { text: "Do not lose this change" } },
+    });
+    session.saveEdit(current, token);
+    expect(reservation.save).toHaveBeenCalledOnce();
+    session.requestClose(current);
+    session.discardEdit(current);
+    expect(session.getSnapshot()).toMatchObject({ phase: "closing", view: null });
+    expect(reservation.cancel).not.toHaveBeenCalled();
+  });
+
+  test("leaves a dirty reservation active when the user returns from closing", () => {
+    const { session, harness, current } = openSession();
+    let capture = composerCapture("original");
+    const reservation: ActiveThreadPendingInputEditReservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved",
+        revision: 2,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "cancelled",
+        revision: 2,
+      })),
+    };
+    const token = beginActiveEdit(session, harness, current, reservation, () => capture);
+    capture = composerCapture("changed");
+    session.requestClose(current);
+    expect(session.getSnapshot().confirmDiscard).toBe(true);
+    expect(reservation.cancel).not.toHaveBeenCalled();
+    session.returnToEdit(current);
+    expect(session.getSnapshot().view?.edit?.phase).toBe("active");
+    expect(session.saveEdit(current, token)).toEqual({ type: "applied" });
+    expect(reservation.save).toHaveBeenCalledExactlyOnceWith(capture);
+  });
+
+  test("disconnects once and does not permit old content to be saved through a new owner", () => {
+    const { session, harness, current } = openSession();
+    let capture = composerCapture("before");
+    const reservation: ActiveThreadPendingInputEditReservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved",
+        revision: 2,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "cancelled",
+        revision: 2,
+      })),
+    };
+    const token = beginActiveEdit(session, harness, current, reservation, () => capture);
+    capture = composerCapture("original");
+    session.disconnect(current);
+    session.disconnect(current);
+    const replacement = facts(createRoleHarness().role);
+    expect(session.saveEdit(replacement, token)).toEqual({ type: "ignored" });
+    expect(session.open(replacement)).toEqual({ type: "ignored" });
+    expect(reservation.cancel).toHaveBeenCalledOnce();
+    expect(reservation.save).not.toHaveBeenCalled();
+    expect(session.getSnapshot().view?.edit).toMatchObject({ phase: "retained", text: "original" });
+  });
+
+  test("closes an unchanged edit on disconnect without asking to discard", () => {
+    const { session, harness, current } = openSession();
+    const reservation: ActiveThreadPendingInputEditReservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved",
+        revision: 2,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "cancelled",
+        revision: 2,
+      })),
+    };
+    beginActiveEdit(session, harness, current, reservation);
+    session.disconnect(current);
+    expect(session.getSnapshot()).toMatchObject({
+      phase: "closing",
+      confirmDiscard: false,
+      view: null,
+    });
+    expect(reservation.cancel).toHaveBeenCalledOnce();
+  });
+
   test("keeps one session across revisions and synchronously closes only for owner replacement", () => {
     const { session, harness, current } = openSession();
     harness.setItems([item("two")]);
@@ -171,7 +282,7 @@ describe("ComposerPendingInputSession", () => {
     expect(session.moveItem(current, item("one"), "later")).toEqual({ type: "ignored" });
   });
 
-  test("keeps browsing projection unavailable as read-only but closes an edit without settling it", () => {
+  test("keeps browsing read-only and retains edits when projection becomes unavailable", () => {
     const browsing = openSession();
     expect(
       browsing.session.project(
@@ -196,9 +307,13 @@ describe("ComposerPendingInputSession", () => {
       editing.session.project(
         facts(editing.harness.role, { mutationsEnabled: false, snapshot: queueSnapshot() }),
       ),
-    ).toMatchObject({ phase: "closing", view: null });
+    ).toMatchObject({
+      phase: "open",
+      actionsEnabled: false,
+      view: { edit: { phase: "retained", text: "original" } },
+    });
     expect(reservation.save).not.toHaveBeenCalled();
-    expect(reservation.cancel).not.toHaveBeenCalled();
+    expect(reservation.cancel).toHaveBeenCalledOnce();
   });
 
   test("accepts only the current preparation token, owner generation, and item", () => {
@@ -380,7 +495,7 @@ describe("ComposerPendingInputSession", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
-  test("publishes closing when request-close cancellation loses its owner", () => {
+  test("retains content when request-close cancellation loses its owner", () => {
     const { session, harness, current } = openSession();
     const currentAfterAttach = facts(harness.role, {
       sessionRevision: 2,
@@ -406,7 +521,10 @@ describe("ComposerPendingInputSession", () => {
     expect(reservation.cancel).toHaveBeenCalledOnce();
     expect(reservation.save).not.toHaveBeenCalled();
     expect(listener).toHaveBeenCalledOnce();
-    expect(session.getSnapshot()).toMatchObject({ phase: "closing", view: null });
+    expect(session.getSnapshot()).toMatchObject({
+      phase: "open",
+      view: { edit: { phase: "retained", text: "original" } },
+    });
   });
 
   test("publishes a live-session alert when request-close cancellation is invalidated", () => {
@@ -444,7 +562,7 @@ describe("ComposerPendingInputSession", () => {
     expect(session.getSnapshot()).toMatchObject({
       phase: "open",
       alert: "sessionInvalidated",
-      view: { pages: { revision: 3 }, edit: null },
+      view: { pages: null, edit: { phase: "retained", text: "original" } },
       effects: [{ target: { type: "drawerHeading" } }],
     });
   });
@@ -501,7 +619,7 @@ describe("ComposerPendingInputSession", () => {
     expect(session.project(invalidated)).toMatchObject({
       phase: "open",
       alert: "targetInvalidated",
-      view: { pages: { revision: 2 }, edit: null },
+      view: { edit: { phase: "retained" } },
     });
 
     const afterInvalidation = session.getSnapshot();
