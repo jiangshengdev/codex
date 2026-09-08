@@ -261,7 +261,6 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       this.queue.beginPendingInputEdit(request, restore),
     );
     if (isSessionUnavailable(result) || result.type !== "begun") return result;
-    const capabilityRevision = this.revision;
     const capabilityGeneration = this.generation;
     const childReservation = result.reservation;
     let cleanupCompleted = false;
@@ -279,7 +278,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     const runCapabilityOperation = <Result>(
       operation: () => Result,
     ): ActiveThreadSessionOperationResult<Result> => {
-      const unavailable = this.capabilityUnavailable(capabilityRevision, capabilityGeneration);
+      const unavailable = this.pendingEditUnavailable(capabilityGeneration);
       if (unavailable != null) return unavailableAfterCleanup(unavailable);
       return this.runChildTransaction(operation);
     };
@@ -466,8 +465,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     }
   }
 
-  private capabilityUnavailable(
-    expectedRevision: number,
+  private pendingEditUnavailable(
     expectedGeneration: number,
   ): ActiveThreadSessionOperationUnavailable | null {
     if (this.disposed) return this.unavailable("disposed");
@@ -477,7 +475,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     if (this.projectionUnavailableReason != null) {
       return this.unavailable("projectionUnavailable");
     }
-    return this.operationUnavailable(expectedRevision);
+    return null;
   }
 
   private operationUnavailable(
