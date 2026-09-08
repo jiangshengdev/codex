@@ -655,7 +655,7 @@ msgstr "等待初始化"
 msgid "Pending message changed"
 msgstr "待处理消息已发生变化"
 
-#: src/features/composerTurnControl/ComposerPendingInputProvider.tsx:114
+#: src/features/composerTurnControl/ComposerPendingInputProvider.tsx:29
 msgid "Pending message editor"
 msgstr "待发送消息编辑区"
 

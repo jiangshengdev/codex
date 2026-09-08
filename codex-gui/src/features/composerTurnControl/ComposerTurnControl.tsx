@@ -25,7 +25,7 @@ import { ContextUsagePopover } from "./ContextUsagePopover";
 import {
   useComposerPendingInput,
   useComposerPendingInputBinding,
-} from "./ComposerPendingInputProvider";
+} from "./composerPendingInputHost";
 import { createComposerTurnApplication } from "./composerTurnApplication";
 import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
 import { ComposerPendingInputRegion } from "./ComposerPendingInputRegion";

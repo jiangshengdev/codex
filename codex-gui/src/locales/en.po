@@ -655,7 +655,7 @@ msgstr "Pending init"
 msgid "Pending message changed"
 msgstr "Pending message changed"
 
-#: src/features/composerTurnControl/ComposerPendingInputProvider.tsx:114
+#: src/features/composerTurnControl/ComposerPendingInputProvider.tsx:29
 msgid "Pending message editor"
 msgstr "Pending message editor"
 
