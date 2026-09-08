@@ -138,6 +138,71 @@ test("suspends restored queues before rebuilding the connection after a cached p
   expect(controller.dispose).toHaveBeenCalledOnce();
 });
 
+test("an uncached page transition suspends queues without rebuilding the connection", async () => {
+  seedBrowserAuthorizationSession({ token: "history-secret" });
+  const harness = createActiveThreadSessionHarness();
+  const controller = installActiveThreadSessionController(harness, () =>
+    Promise.resolve({ type: "empty" }),
+  );
+  const router = createAppRouter(createMemoryHistory({ initialEntries: ["/history"] }));
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  initializeHost(getHostOptions(startGuiHostConnectionMock), createHistoryCommands());
+  await expect.poll(() => vi.mocked(controller.activateRecoveryThread).mock.calls.length).toBe(1);
+  const connections = startGuiHostConnectionMock.mock.calls.length;
+
+  window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: false }));
+  expect(controller.suspendRestoredQueue).toHaveBeenCalledOnce();
+  window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: false }));
+  await screen.rerender(<RouterProvider router={router} />);
+  expect(controller.suspendRestoredQueue).toHaveBeenCalledOnce();
+  expect(startGuiHostConnectionMock.mock.calls).toHaveLength(connections);
+  expect(controller.dispose).not.toHaveBeenCalled();
+  expect(getCleanupConnectionCallCount()).toBe(0);
+
+  await screen.unmount();
+  window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true }));
+  window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+  expect(controller.suspendRestoredQueue).toHaveBeenCalledOnce();
+  expect(startGuiHostConnectionMock.mock.calls).toHaveLength(connections);
+  expect(controller.dispose).toHaveBeenCalledOnce();
+  expect(getCleanupConnectionCallCount()).toBe(1);
+});
+
+test("cached page recovery retains the initial task while viewing the navigated task", async () => {
+  seedBrowserAuthorizationSession({ token: "task-secret" });
+  const initialHarness = createActiveThreadSessionHarness();
+  const initialController = installActiveThreadSessionController(initialHarness, () =>
+    Promise.resolve({ type: "empty" }),
+  );
+  const router = createAppRouter(
+    createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
+  );
+  await renderWithProviders(<RouterProvider router={router} />);
+  initializeHost(getHostOptions(startGuiHostConnectionMock), createHistoryCommands());
+  await expect
+    .poll(() => vi.mocked(initialController.activateRecoveryThread).mock.calls)
+    .toEqual([[launchThreadId]]);
+
+  await router.navigate({ to: "/task/$threadId", params: { threadId: historyThreadId } });
+  await expect.poll(() => initialHarness.view.mock.calls.at(-1)).toEqual([historyThreadId]);
+  const restoredHarness = createActiveThreadSessionHarness();
+  const restoredController = installActiveThreadSessionController(restoredHarness, () =>
+    Promise.resolve({ type: "empty" }),
+  );
+  const connections = startGuiHostConnectionMock.mock.calls.length;
+  window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true }));
+  window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+  await expect.poll(() => startGuiHostConnectionMock.mock.calls.length).toBe(connections + 1);
+  initializeHost(getHostOptions(startGuiHostConnectionMock), createHistoryCommands());
+
+  await expect
+    .poll(() => vi.mocked(restoredController.activateRecoveryThread).mock.calls)
+    .toEqual([[launchThreadId]]);
+  await expect.poll(() => restoredHarness.view.mock.calls.at(-1)).toEqual([historyThreadId]);
+  expectCanonicalRoute(router.state.location.href, `/task/${historyThreadId}`, 1);
+  expect(initialController.dispose).toHaveBeenCalledOnce();
+});
+
 test("history subscribes to the collection while startup activation is pending", async () => {
   seedBrowserAuthorizationSession({ token: "history-secret" });
   const startup = deferred<ActiveThreadActivationOutcome>();
