@@ -68,7 +68,9 @@ function browserEnvironment(): GuiHostConnectionLifecycleEnvironment {
         window.cancelAnimationFrame(frameId);
       },
     },
-    queueMicrotask,
+    queueMicrotask: (callback) => {
+      window.queueMicrotask(callback);
+    },
   };
 }
 

@@ -405,7 +405,7 @@ test("App keeps a middle ordinary edit in place after deleting its predecessor",
     .not.toBeInTheDocument();
 });
 
-test("App defers ordinary management during recovery and sends the successor before the failed input", async () => {
+test("App saves ordinary edits during recovery and sends the edited successor before the failed input", async () => {
   type StartResponse = Awaited<ReturnType<GuiHostCommands["startTurn"]>>;
   const failedStart = createDeferred<StartResponse>();
   const successorTurn = inProgressTurn("turn-managed-ordinary-successor");
@@ -458,10 +458,8 @@ test("App defers ordinary management during recovery and sends the successor bef
   await expect.poll(() => queueCoordinator.getSnapshot().recoveryCount).toBe(1);
 
   await screen.getByRole("button", { name: "Save", exact: true }).click();
-  await expect
-    .element(listDialog.getByRole("alert"))
-    .toHaveTextContent("Refresh complete. Try the action again.");
   await expect.element(pendingEditor).not.toBeInTheDocument();
+  await expect.element(listDialog.getByRole("alert")).not.toBeInTheDocument();
   expect(startTurn).toHaveBeenCalledOnce();
   expect(queueCoordinator.getSnapshot()).toMatchObject({
     ordinaryQueuedCount: 2,
@@ -470,7 +468,7 @@ test("App defers ordinary management during recovery and sends the successor bef
   });
   const recoveryOrderBeforeMove = readPendingTextPreviews(queueCoordinator, "ordinary");
   expect(recoveryOrderBeforeMove).toEqual([
-    "Ordinary successor under edit",
+    "Edited ordinary successor stays first",
     "Second ordinary successor keeps recovery order",
   ]);
   const recoveryMoveTarget = readAllPendingItems(queueCoordinator, "ordinary").at(1);
@@ -498,7 +496,7 @@ test("App defers ordinary management during recovery and sends the successor bef
   expect(startTurnParamsAt(startTurn, 1)).toEqual({
     threadId: launchThreadId,
     clientUserMessageId: startTurnParamsAt(startTurn, 1).clientUserMessageId,
-    input: [textInput("Ordinary successor under edit")],
+    input: [textInput("Edited ordinary successor stays first")],
   });
   expect(queueCoordinator.getSnapshot().isRecovering).toBe(false);
 
