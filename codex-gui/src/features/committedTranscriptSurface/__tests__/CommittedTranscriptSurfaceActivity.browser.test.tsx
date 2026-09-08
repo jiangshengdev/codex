@@ -87,6 +87,97 @@ test.each([
   },
 );
 
+test.each([
+  {
+    scenario: "underscore-only leaf",
+    paths: ["/root/___"],
+    title: "Started ___",
+    underscoreLeafCount: 1,
+  },
+  {
+    scenario: "underscore-only parents",
+    paths: ["/root/_/validation", "/root/__/validation", "/root/___/validation"],
+    title: "Started _ / Validation __ / Validation ___ / Validation",
+    underscoreLeafCount: 0,
+  },
+  {
+    scenario: "omitted underscore-only leaf",
+    paths: ["/root/one", "/root/two", "/root/three", "/root/___"],
+    title: "Started One Two Three and 1 more sub-agent",
+    underscoreLeafCount: 0,
+  },
+])(
+  "preserves messages and disclosure for $scenario",
+  async ({ paths, title, underscoreLeafCount }) => {
+    const { store, ...screen } = await renderTranscriptWithProviders(
+      transcriptIdentity,
+      <CommittedTranscriptSurface identity={transcriptIdentity} />,
+    );
+    const turnId = "turn-underscore-names";
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn(turnId, [
+            userMessage("user-underscore-names", [textInput("Inspect underscore names")]),
+            ...paths.map((agentPath, index) =>
+              subAgentActivity(`activity-underscore-${String(index)}`, "started", agentPath, {
+                agentThreadId: `thread-underscore-${String(index)}`,
+              }),
+            ),
+          ]),
+        ]),
+      ),
+    );
+
+    const activity = screen.getByRole("article", { name: title, exact: true });
+    await expect
+      .element(screen.getByText("Inspect underscore names", { exact: true }))
+      .toBeVisible();
+    await expect.element(activity).toBeVisible();
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-underscore-final",
+          turnId,
+          agentMessage("agent-underscore-final", "Underscore names inspected", "final_answer"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    const userText = screen.getByText("Inspect underscore names", { exact: true });
+    const finalText = screen.getByText("Underscore names inspected", { exact: true });
+    await expect.element(userText).toBeVisible();
+    await expect.element(finalText).toBeVisible();
+    await expect.element(activity).not.toBeInTheDocument();
+
+    const trigger = screen.getByRole("button", {
+      name: `Intermediate updates · ${String(paths.length)} ${paths.length === 1 ? "item" : "items"}`,
+      exact: true,
+    });
+    await trigger.click();
+    await expect.element(activity).toBeVisible();
+    await expect.element(userText).toBeVisible();
+    await expect.element(finalText).toBeVisible();
+    expect(
+      userText.element().compareDocumentPosition(activity.element()) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(
+      activity.element().compareDocumentPosition(finalText.element()) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(activity.getByText("___", { exact: true }).elements()).toHaveLength(underscoreLeafCount);
+
+    await trigger.click();
+    await expect.element(activity).not.toBeInTheDocument();
+    await expect.element(userText).toBeVisible();
+    await expect.element(finalText).toBeVisible();
+  },
+);
+
 test.each([1, 2, 3, 4])("aggregates %s adjacent started activities in order", async (count) => {
   const { store, ...screen } = await renderTranscriptWithProviders(
     transcriptIdentity,
