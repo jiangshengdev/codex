@@ -248,7 +248,7 @@ test("App issues steer inputs in the authoritative suffix order selected through
   remainingSteer.resolve({ turnId: activeTurn.id });
 });
 
-test("App defers steer management during recovery and retries the failed identity first", async () => {
+test("App saves steer edits during recovery and retries the failed identity before the edited successor", async () => {
   type SteerResponse = Awaited<ReturnType<GuiHostCommands["steerTurn"]>>;
   const failedSteer = createDeferred<SteerResponse>();
   const retriedSteer = createDeferred<SteerResponse>();
@@ -287,10 +287,8 @@ test("App defers steer management during recovery and retries the failed identit
   );
   await expect.poll(() => queueCoordinator.getSnapshot().recoveryCount).toBe(1);
   await screen.getByRole("button", { name: "Save", exact: true }).click();
-  await expect
-    .element(listDialog.getByRole("alert"))
-    .toHaveTextContent("Refresh complete. Try the action again.");
   await expect.element(pendingEditor).not.toBeInTheDocument();
+  await expect.element(listDialog.getByRole("alert")).not.toBeInTheDocument();
   expect(steerTurn).toHaveBeenCalledOnce();
   expect(queueCoordinator.getSnapshot()).toMatchObject({
     guidingCount: 1,
@@ -298,7 +296,7 @@ test("App defers steer management during recovery and retries the failed identit
     isRecovering: false,
   });
   expect(readPendingTextPreviews(queueCoordinator, "steer")).toEqual([
-    "Steer successor under edit",
+    "Edited steer successor stays behind retry",
   ]);
   await screen.getByRole("button", { name: "Close", exact: true }).click();
   await screen.getByRole("button", { name: "Continue sending", exact: true }).click();
@@ -311,7 +309,7 @@ test("App defers steer management during recovery and retries the failed identit
     threadId: launchThreadId,
     expectedTurnId: activeTurn.id,
     clientUserMessageId: steerTurnParamsAt(steerTurn, 2).clientUserMessageId,
-    input: [textInput("Steer successor under edit")],
+    input: [textInput("Edited steer successor stays behind retry")],
   });
   successorSteer.resolve({ turnId: activeTurn.id });
 });
