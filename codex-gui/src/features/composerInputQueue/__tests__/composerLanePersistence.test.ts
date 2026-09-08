@@ -125,8 +125,33 @@ describe("lane persistence and transaction candidates", () => {
     );
     expect(restored.pendingPhase()).toBe("deliveryUnknown");
     expect(restored.unknownMessages().map(({ id }) => id)).toEqual(["a"]);
-    expect(restored.discardUnknown("a")).toBe(true);
+    expect(restored.discardUnknown("a")).toMatchObject({
+      type: "start",
+      message: composerQueueMessage("a"),
+      clientUserMessageId: claim.clientUserMessageId,
+    });
+    expect(restored.hasPending()).toBe(false);
+    expect(restored.unknownMessages()).toEqual([]);
     owner.adopt(candidate);
+    expect(owner.pendingPhase()).toBe("acceptedAwaitingRuntime");
+  });
+
+  it("only releases the matching unknown start claim", () => {
+    const owner = new ComposerStartQueueState();
+    expect(owner.discardUnknown("a")).toBeNull();
+    const claim = owner.issue(composerQueueMessage("a"));
+    expect(owner.discardUnknown("a")).toBeNull();
+    expect(owner.pendingPhase()).toBe("issuing");
+    owner.settle({ type: "deliveryUnknown", claim });
+    expect(owner.discardUnknown("other")).toBeNull();
+    expect(owner.pendingPhase()).toBe("deliveryUnknown");
+    expect(owner.discardUnknown("a")).toBe(claim);
+    expect(owner.exportState(({ id }) => id).pending).toBeNull();
+    expect(owner.discardUnknown("a")).toBeNull();
+
+    const accepted = owner.issue(composerQueueMessage("accepted"));
+    owner.settle({ type: "accepted", claim: accepted, turnId: "turn-a" });
+    expect(owner.discardUnknown("accepted")).toBeNull();
     expect(owner.pendingPhase()).toBe("acceptedAwaitingRuntime");
   });
 

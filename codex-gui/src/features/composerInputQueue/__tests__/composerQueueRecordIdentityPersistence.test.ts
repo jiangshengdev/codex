@@ -40,7 +40,7 @@ function rejectedMerge() {
   const effect = queue.drain().effects[0];
   if (effect?.type !== "performStart" || effect.claim.message.type !== "rejectedSteerMerge")
     throw new Error("Expected rejected merge");
-  return { queue, message: effect.claim.message };
+  return { queue, message: effect.claim.message, claim: effect.claim };
 }
 
 describe("whole queue persisted message ownership", () => {
@@ -134,6 +134,59 @@ describe("whole queue persisted message ownership", () => {
     expect(() =>
       owner().rehydrateState({ ...record, ordinary: [{ ...original, id: message.id }] }),
     ).toThrow("multiple owners");
+  });
+
+  it.each(["live unknown", "restored issuing"] as const)(
+    "releases the merge and all original identities after discarding %s",
+    (delivery) => {
+      const { queue, message, claim } = rejectedMerge();
+      queue.submit(composerQueueMessage("preserved-a"));
+      queue.submit(composerQueueMessage("preserved-b"));
+      if (delivery === "live unknown") {
+        queue.settleStart({ type: "deliveryUnknown", claim });
+      }
+      const target = delivery === "live unknown" ? queue : roundTrip(queue).restored;
+      const before = target.exportState(null);
+      expect(before.knownMessageIds).toEqual(
+        expect.arrayContaining([message.id, "rejected-a", "rejected-b"]),
+      );
+      expect(target.discardUnknown("rejected-a")).toBe(false);
+      expect(target.discardUnknown("missing")).toBe(false);
+      expect(target.exportState(null)).toEqual(before);
+      expect(target.discardUnknown(message.id)).toBe(true);
+      const after = target.exportState(null);
+      expect(after.start.pending).toBeNull();
+      expect(after.knownMessageIds).toEqual(["preserved-a", "preserved-b"]);
+      expect(after.steer.queued).toEqual([]);
+      expect(after.steer.pending).toEqual([]);
+      expect(after.steer.rejected).toEqual([]);
+      expect(after.ordinary).toEqual(before.ordinary);
+      expect(target.unknownMessages()).toEqual([]);
+      const { restored } = roundTrip(target);
+      restored.setAutomaticSendingPaused(false);
+      const next = restored.drain().effects[0];
+      expect(next).toMatchObject({
+        type: "performStart",
+        claim: { message: composerQueueMessage("preserved-a") },
+      });
+    },
+  );
+
+  it("does not consume a merge transfer in a discarded transaction candidate", () => {
+    const { queue, message, claim } = rejectedMerge();
+    queue.settleStart({ type: "deliveryUnknown", claim });
+    const before = queue.exportState(null);
+    const candidate = queue.prepare((pending) => pending.discardUnknown(message.id));
+    expect(candidate.result).toBe(true);
+    expect(candidate.queue.exportState(null).knownMessageIds).toEqual([]);
+    roundTrip(candidate.queue);
+    expect(queue.exportState(null)).toEqual(before);
+    roundTrip(queue);
+    const retry = queue.prepare((pending) => pending.discardUnknown(message.id));
+    expect(retry.result).toBe(true);
+    retry.commit();
+    expect(queue.exportState(null).knownMessageIds).toEqual([]);
+    roundTrip(queue);
   });
 
   it("accepts user-stopped ordinary recovery and its still-owned rejected transfer", () => {
