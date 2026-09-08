@@ -52,3 +52,26 @@ E1 与 E2 实际重叠执行，同一行为任务、不同写集，无共享 ind
 - Chromium 单独筛选曾使用未匹配的 project 名，命令启动失败且未收集测试，不计为验证；随后使用原 sequential 入口完成上述三引擎核验。
 - 新增待授权目标：`codex-gui/vitest.browser.sequential.config.ts`，拟仅给 Chromium Browser context 配置实际复制所需权限，不 mock 成功、不削弱复制后粘贴断言；仍需验证配置是否解决当前环境拒绝。
 - 已合并请求三处范围确认（上述配置、host 模块、AppActiveThreadSession 测试），尚未修改这些目标。相关实现提交与最终验证等待授权；Level 2 仍缺当前 URL 和安全任务范围。
+
+## 获授权后的收尾
+
+- 用户先要求分批保存已有成果：`dc2f7ade7` 为 live session 修复，`6fdeadab7` 为内容保留与交互，`94be9ee1d` 为阶段执行记录。上述提交不是最终验收结论。
+- 随后用户要求修复，并明确确认三处收尾范围及新提交。新增写集三处授权生效，原产品决策与禁止动作不变。
+- X2（编辑，主代理，中成本）在 `94be9ee1d` 干净基线上完成：抽出 `composerPendingInputHost.ts` 并切换导入；AppActiveThreadSession 测试明确丢弃；sequential Chromium context 仅授予 `clipboard-write`。原 Provider 不保留 hooks 兼容导出。
+- F3/G3（主代理，格式化/生成各自顺序节点）完成：两份 catalog 仅 Provider 消息位置从 114 变为 29；重复提取 SHA-256 相同，272 条消息、中文无缺失。
+- X2/F3/G3 的信封继承已确认计划的 cwd、原写集及本次三处新增范围，操作类型各自独立，无新安装、远程或桌面副作用。节点完成释放源码/生成器写锁，冻结组合输入供 U3/B4/Q3/R3。
+- B4 由新的 Browser 子代理执行原 parallel 完整目标及 sequential 两个目标，额外读取执行已有 composerClipboard 测试以核验权限配置影响。独占 browser tsbuildinfo 和 sequential 实际剪贴板写锁，禁止主动写源码或子委派。旧子代理已不可用，复用请求未启动工作，随后按相同最小能力新建节点。
+- R3 独立只读复核收尾 diff；与 B4、U3、Q3 lint/format 实际并行。U3 使用独立 unit tsbuildinfo；全项目 type-check 就绪但等待 B4 的 browser tsbuildinfo 写锁。L 仍未获当前 URL 和安全任务前提，未启动。
+- 动态节点的执行上下文均为当前 dev 工作树；主代理独占 index 与执行记录。验证失败仅影响对应证据及提交后继，需新范围则返回授权判断，不削弱检查。完成条件为目标实际收集且全通过、独立审查闭合、精确 diff 提交。所有子节点禁止继续委派，结果返回能力到期。
+- 提交拆为无行为变化的模块拆分及其 refs、测试交互与环境修正、最终执行记录三个边界；各自在组合验证通过后精确暂存、检查并创建新提交，不 amend。
+
+## 最终结果
+
+- U3：4 文件、63 项单测通过，无类型错误，1.49 秒。
+- B4：parallel 三引擎 45 文件实例、345 测试全通过，35.67 秒；sequential 三引擎 9 文件实例、33 测试全通过，10.91 秒。共 378 测试，无类型错误。Chromium 原生按钮复制及选区复制后粘贴内容验证均通过，既有 Composer 剪贴板行为也通过。
+- Q3：oxlint、eslint、oxfmt 非 fix 检查及全项目 `type-check` 均通过。未安装、跳过、降级或放宽检查。
+- G3：两轮 SHA-256：en 为 `99732aa8ce58d18a44161d84a3aab276812fcd04a1e644fbf41c1d1d7fd1815a`，zh-CN 为 `3ca816729aef0a148941754de5109a9a72bb845a8acc316b190e4643a5ba35f7`。完整 diff 仅两处引用行号更新。
+- R3：独立只读审查无新增缺陷；核对唯一 owner、模块等价迁移、保留既有断言、仅测试 Chromium 写权限及 catalog 映射。
+- 纯模块拆分提交 `6106af1c7`；测试修正提交 `a40aa2dfd`。两批精确 staged diff 均通过 `git diff --cached --check`；执行记录独立提交，未混入代码。
+- 实际并行：B4 与 R3、U3、Q3 lint/format 重叠；type-check 在 B4 释放 browser tsbuildinfo 后启动。关键路径为 X2 → F3/G3 → B4 → type-check → 分批代码提交 → 记录提交。未启动的 L 是因缺少当前完整 GUI URL 与安全任务前提，其他就绪节点无遗漏。
+- Level 1 自动回归通过；Level 2 真实 Codex 验收未执行；本次场景不依赖可见桌面，Level 3 不适用。三处收尾已实现并自动验证，不声称整个真实环境已完全验收。
