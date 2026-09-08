@@ -432,7 +432,11 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
 
   discardUnknown = (id: string, expectedRevision: number | null): boolean => {
     if (this.disposed || expectedRevision !== this.persistenceRevision) return false;
-    const result = this.persistTransaction(() => this.queue.discardUnknown(id));
+    const result = this.persistTransaction(() => {
+      if (!this.queue.discardUnknown(id)) return false;
+      this.consumeTransition(this.queue.drain());
+      return true;
+    });
     return result.type === "committed" && result.result;
   };
 

@@ -353,6 +353,41 @@ describe("LiveActiveThreadSession", () => {
     expect(startTurn).not.toHaveBeenCalled();
   });
 
+  it("forwards unknown removal with both revisions and publishes the committed composer snapshot", async () => {
+    const h = createHarness();
+    h.startTurn.mockRejectedValueOnce(commandError("deliveryUnknown", "lost response"));
+    h.session.submit(h.session.getSnapshot().revision, composerCapture("unknown message"));
+    await Promise.resolve();
+    const before = h.session.getSnapshot();
+    if (before.phase !== "active") throw new Error("expected an active session");
+    const persistence = before.composer.persistence;
+    const message = persistence.unknownMessages[0];
+    if (message == null) throw new Error("expected unknown message");
+    const listener = vi.fn<() => void>();
+    h.session.subscribe(listener);
+
+    expect(
+      h.session.discardUnknown(before.revision, message.id, (persistence.revision ?? 0) - 1),
+    ).toBe(false);
+    expect(h.session.getSnapshot()).toBe(before);
+    expect(listener).not.toHaveBeenCalled();
+    expect(h.session.discardUnknown(before.revision, message.id, persistence.revision)).toBe(true);
+
+    const after = h.session.getSnapshot();
+    if (after.phase !== "active") throw new Error("expected an active session");
+    expect(after.revision).toBeGreaterThan(before.revision);
+    expect(after.composer.persistence).toMatchObject({
+      error: null,
+      unknownMessages: [],
+      revision: null,
+    });
+    expect(listener).toHaveBeenCalledOnce();
+    expect(
+      h.session.discardUnknown(before.revision, message.id, persistence.revision),
+    ).toMatchObject({ type: "unavailable", reason: "staleRevision" });
+    expect(h.startTurn).toHaveBeenCalledOnce();
+  });
+
   it("aborts a synchronous release handoff without changing the public session", () => {
     const { session } = createHarness();
     const snapshot = session.getSnapshot();
