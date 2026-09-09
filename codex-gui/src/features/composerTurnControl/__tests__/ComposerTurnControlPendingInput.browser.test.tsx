@@ -1347,9 +1347,19 @@ test("recovery disables send, keeps the editor editable, and prevents duplicate 
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await expect.element(recoverButton).toHaveAccessibleDescription("2 messages have not been sent");
   await userEvent.click(recoverButton);
-  await expect.element(recoverButton).toBeDisabled();
+  const pendingButton = screen.getByRole("button", { name: "Resuming sending", exact: true });
+  await expect.element(pendingButton).toBeDisabled();
+  await expect.element(pendingButton).toHaveAccessibleDescription("2 messages have not been sent");
 
   expect(harness.recover).toHaveBeenCalledExactlyOnceWith();
+  harness.publish(initialSnapshot);
+  await expect.element(recoverButton).toBeEnabled();
+  await userEvent.click(recoverButton);
+  await expect.element(pendingButton).toBeDisabled();
+  expect(harness.recover).toHaveBeenCalledTimes(2);
+  harness.publish(queueSnapshot());
+  await expect.element(pendingButton).not.toBeInTheDocument();
+  await expect.element(recoverButton).not.toBeInTheDocument();
   await expect
     .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
     .toBe("Draft while recovering");

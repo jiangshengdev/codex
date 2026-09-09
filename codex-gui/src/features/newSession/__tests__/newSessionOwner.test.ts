@@ -151,6 +151,45 @@ describe("NewSessionOwner", () => {
     );
   });
 
+  it("retains creation diagnostics through retry and activation until the next definite result", async () => {
+    const h = setup();
+    const response = await h.startThread({ cwd: "/x" });
+    const creation = createDeferred<typeof response>();
+    const activation = createDeferred<Awaited<ReturnType<ActiveThreadSession["activate"]>>>();
+    h.startThread.mockClear().mockRejectedValueOnce(new Error("creation failed"));
+    await h.owner.submit(h.capture);
+    const failure = h.owner.getSnapshot()?.failure;
+    h.startThread.mockReturnValueOnce(creation.promise);
+    vi.mocked(h.session.activate).mockReturnValueOnce(activation.promise);
+
+    const retry = h.owner.submit();
+    expect(h.owner.getSnapshot()).toMatchObject({
+      phase: "creating",
+      isInputLocked: true,
+      failure,
+    });
+    expect(await h.owner.submit()).toEqual({ type: "retained" });
+    expect(h.startThread).toHaveBeenCalledTimes(2);
+    creation.resolve(response);
+    await Promise.resolve();
+    expect(h.owner.getSnapshot()).toMatchObject({ phase: "activating", failure });
+    const nextError = new Error("activation failed");
+    activation.reject(nextError);
+    await retry;
+    expect(h.owner.getSnapshot()).toMatchObject({
+      phase: "failed",
+      failure: { stage: "activate", error: nextError },
+    });
+
+    await h.owner.submit();
+    expect(h.startThread).toHaveBeenCalledTimes(2);
+    expect(h.owner.getSnapshot()).toBeNull();
+    expect(h.target.composerRole.submit).toHaveBeenCalledExactlyOnceWith(
+      h.target.revision,
+      h.capture,
+    );
+  });
+
   it("keeps a returned ID after connection replacement while creating", async () => {
     const h = setup();
     const response = await h.startThread({ cwd: "/x" });
