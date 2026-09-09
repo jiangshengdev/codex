@@ -27,6 +27,7 @@ import {
   agentMessageDelta,
   attachWithThreadId,
   attachWithThreadName,
+  attachWithSnapshotThread,
   attachWithTurns,
   baseTurn,
   deltaForThreadOwner,
@@ -346,7 +347,9 @@ test("restores all open tasks independently while keeping navigation made during
   await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
   await expect.poll(() => document.title).toBe("First retained task · Codex");
   await expect.element(screen.getByText("First retained content", { exact: true })).toBeVisible();
-  secondRecovery.resolve({ ...second, subscriptionId: "second-restored-subscription" });
+  secondRecovery.resolve(
+    attachWithSnapshotThread(second, second.snapshot.thread, "second-restored-subscription"),
+  );
   await secondRecovery.promise;
   await frame();
   expect(router.state.location.pathname).toBe(`/task/${launchThreadId}`);
@@ -367,10 +370,9 @@ test("restores all open tasks independently while keeping navigation made during
     .element(screen.getByRole("button", { name: "Restore task", exact: true }))
     .not.toBeInTheDocument();
   await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
-  vi.mocked(recoveredCommands.attachThreadProjection).mockResolvedValueOnce({
-    ...first,
-    subscriptionId: "first-restored-subscription",
-  });
+  vi.mocked(recoveredCommands.attachThreadProjection).mockResolvedValueOnce(
+    attachWithSnapshotThread(first, first.snapshot.thread, "first-restored-subscription"),
+  );
   await screen.getByRole("button", { name: "Restore task", exact: true }).click();
   await expect
     .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
