@@ -17,6 +17,9 @@ const member = (
   operationErrors: [],
   canRemove: true,
   removalBlockers: [],
+  retryAction: "status",
+  retryPending: false,
+  removalPending: false,
   ...overrides,
 });
 

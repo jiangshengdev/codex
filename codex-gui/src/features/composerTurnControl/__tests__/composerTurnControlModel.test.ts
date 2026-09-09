@@ -235,14 +235,22 @@ describe("composerTurnControlModel", () => {
         candidates: [skillCandidate(existingPath)],
         partialErrorCount: 1,
       },
-      { type: "initialLoading", candidates: [], partialErrorCount: 0 },
+      { type: "initialLoading", candidates: [], partialErrorCount: 0, previousFailure: null },
       {
         type: "refreshing",
+        previousFailure: null,
         candidates: [skillCandidate(existingPath)],
         partialErrorCount: 0,
       },
       { type: "stale", candidates: [skillCandidate(existingPath)], partialErrorCount: 0 },
       { type: "failed", candidates: [], partialErrorCount: 0 },
+      { type: "initialLoading", candidates: [], partialErrorCount: 0, previousFailure: "failed" },
+      {
+        type: "refreshing",
+        previousFailure: "stale",
+        candidates: [skillCandidate(existingPath)],
+        partialErrorCount: 1,
+      },
     ];
 
     expect(
@@ -256,6 +264,8 @@ describe("composerTurnControlModel", () => {
       { type: "refreshing", invalidPaths: [] },
       { type: "stale", invalidPaths: [] },
       { type: "failed", invalidPaths: [] },
+      { type: "initialLoading", invalidPaths: [] },
+      { type: "refreshing", invalidPaths: [] },
     ]);
 
     const recoveredReady: SkillCatalogState = {

@@ -122,7 +122,7 @@ test("an unknown creation keeps input and sends no turn until an explicit retry"
   expect(host.attachments(createdThreadId)).toHaveLength(0);
   expect(host.sends(createdThreadId)).toHaveLength(0);
   host.setStartMode("reply");
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/task/${retriedThreadId}$`));
   await expect.poll(() => host.sends(retriedThreadId).length).toBe(1);
   expect(host.starts()).toHaveLength(2);
@@ -143,8 +143,18 @@ test("an attachment failure retries the known identity without creating again", 
   await expect(composer(page)).toHaveText("Retry the existing new session");
   expect(host.starts()).toHaveLength(1);
   expect(host.sends(createdThreadId)).toHaveLength(0);
-  host.setAttachMode(createdThreadId, null);
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  host.setAttachMode(createdThreadId, "hold");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Sending", exact: true })).toBeDisabled();
+  await expect(
+    page.getByText("Your input is retained. Retry to continue.", { exact: true }),
+  ).toBeVisible();
+  await expect.poll(() => host.attachments(createdThreadId).length).toBe(2);
+  await page.keyboard.press("Enter");
+  await settledRender(page);
+  expect(host.attachments(createdThreadId)).toHaveLength(2);
+  expect(host.starts()).toHaveLength(1);
+  host.releaseAttachment(createdThreadId);
   await expect(page).toHaveURL(new RegExp(`/task/${createdThreadId}$`));
   await expect.poll(() => host.sends(createdThreadId).length).toBe(1);
   expect(host.starts()).toHaveLength(1);
@@ -186,7 +196,7 @@ test("a lost creation response preserves input across connection replacement and
   expect(host.starts()).toHaveLength(1);
   expect(host.sends(createdThreadId)).toHaveLength(0);
   expect(host.sends(retriedThreadId)).toHaveLength(0);
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/task/${retriedThreadId}$`));
   await expect.poll(() => host.sends(retriedThreadId).length).toBe(1);
   expect(host.starts()).toHaveLength(2);
@@ -253,7 +263,7 @@ for (const {
     await openNewSession(page);
     await expect(composer(page)).toHaveText(`Keep input during ${waitingFor}`);
     host.setAttachMode(createdThreadId, null);
-    await page.getByRole("button", { name: "Retry", exact: true }).click();
+    await page.getByRole("button", { name: "Send", exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/task/${createdThreadId}$`));
     await expect.poll(() => host.sends(createdThreadId).length).toBe(1);
     expect(host.starts()).toHaveLength(1);

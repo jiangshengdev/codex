@@ -296,6 +296,10 @@ export const createActiveThreadSessionHarness = (
               operationErrors: [],
               canRemove: value.phase === "active",
               removalBlockers: [],
+              retryAction:
+                value.phase === "loading" || value.phase === "failed" ? "load" : "status",
+              retryPending: value.phase === "loading",
+              removalPending: false,
             },
           ]
         : [],
