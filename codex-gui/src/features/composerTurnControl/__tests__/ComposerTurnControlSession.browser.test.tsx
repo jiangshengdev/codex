@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
+import { exportComposerDraft } from "@/features/composerEditor/composerDraft";
 import {
   attachReplacement,
   eventTokenUsageUpdated,
@@ -72,6 +73,37 @@ test("disables controls while the projection is unavailable", async () => {
   await expect.element(composerPanel).toHaveAttribute("aria-disabled", "false");
   await expect.element(composerPanel).toHaveAttribute("data-disabled", "false");
   await expect.element(screen.composer()).toHaveAttribute("contenteditable", "true");
+});
+
+test("keeps the editor and retains its stale draft when closing then unmounting", async () => {
+  const screen = await renderComposerTurnControl();
+  const role = screen.sessionHarness.composerRole;
+  vi.spyOn(role, "saveDraft").mockImplementation(() => ({
+    type: "unavailable",
+    scope: "activeThreadSession",
+    reason: "staleRevision",
+    revision: 100,
+  }));
+  const retain = vi.spyOn(role, "retainDraft");
+  const editor = screen.composer().element();
+  await screen.composer().fill("Latest unsaved input");
+  const snapshot = screen.sessionHarness.session.getSnapshot();
+  if (snapshot.phase !== "active") throw new Error("expected active snapshot");
+  screen.sessionHarness.publish(
+    screen.sessionHarness.activeSnapshot({
+      ...snapshot,
+      revision: snapshot.revision + 1,
+      connection: { phase: "unavailable", recovery: { pending: false, error: null } },
+    }),
+  );
+  await expectComposerDisabled(screen);
+  expect(screen.composer().element()).toBe(editor);
+  await expect.element(editor).toHaveTextContent("Latest unsaved input");
+  await screen.unmount();
+  expect(retain).toHaveBeenCalledOnce();
+  const retained = screen.controller.getDraft();
+  if (retained == null) throw new Error("latest draft must be retained in its owner");
+  expect(exportComposerDraft(retained).editorStateJson).toContain("Latest unsaved input");
 });
 
 test("presents thread status from the active session snapshot", async () => {
@@ -228,6 +260,7 @@ test("disposes active Composer applications once after a real StrictMode unmount
     composer: activeSessionSnapshot.composer,
     composerRole: activeSessionSnapshot.composerRole,
     phase: activeSessionSnapshot.phase,
+    connection: activeSessionSnapshot.connection,
     revision: activeSessionSnapshot.revision,
     skills: activeSessionSnapshot.skills,
   } as const;

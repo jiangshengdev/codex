@@ -111,6 +111,9 @@ const installActiveThreadSessionController = (
     handleSkillsChanged: vi.fn<ActiveThreadSessionController["handleSkillsChanged"]>(),
     handleThreadStatusChanged: vi.fn<ActiveThreadSessionController["handleThreadStatusChanged"]>(),
     connectionUnavailable: vi.fn<ActiveThreadSessionController["connectionUnavailable"]>(),
+    restoreConnection: vi
+      .fn<ActiveThreadSessionController["restoreConnection"]>()
+      .mockResolvedValue(undefined),
     suspendRestoredQueue: vi.fn<ActiveThreadSessionController["suspendRestoredQueue"]>(),
     dispose: vi.fn<ActiveThreadSessionController["dispose"]>(),
   };
@@ -125,7 +128,7 @@ test("suspends restored queues before rebuilding the connection after a cached p
     Promise.resolve({ type: "empty" }),
   );
   const router = createAppRouter(createMemoryHistory({ initialEntries: ["/history"] }));
-  await renderWithProviders(<RouterProvider router={router} />);
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
   initializeHost(getHostOptions(startGuiHostConnectionMock), createHistoryCommands());
   await expect.poll(() => vi.mocked(controller.activateRecoveryThread).mock.calls.length).toBe(1);
   const connections = startGuiHostConnectionMock.mock.calls.length;
@@ -135,6 +138,17 @@ test("suspends restored queues before rebuilding the connection after a cached p
   window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
   expect(controller.suspendRestoredQueue).toHaveBeenCalledTimes(2);
   await expect.poll(() => startGuiHostConnectionMock.mock.calls.length).toBe(connections + 1);
+  expect(controller.dispose).not.toHaveBeenCalled();
+  const restoredCommands = createHistoryCommands();
+  initializeHost(getHostOptions(startGuiHostConnectionMock), restoredCommands);
+  await expect.poll(() => vi.mocked(controller.restoreConnection).mock.calls.length).toBe(1);
+  const restoration = vi.mocked(controller.restoreConnection).mock.calls[0];
+  if (restoration == null) throw new Error("retained controller must restore its connection");
+  expect(restoration[0]).toBe(restoredCommands);
+  expect(restoration[1]()).toBeNull();
+  expect(controller.activateRecoveryThread).toHaveBeenCalledOnce();
+  expect(router.state.location.pathname).toBe("/history");
+  await screen.unmount();
   expect(controller.dispose).toHaveBeenCalledOnce();
 });
 
@@ -177,7 +191,7 @@ test("cached page recovery retains the initial task while viewing the navigated 
   const router = createAppRouter(
     createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
   );
-  await renderWithProviders(<RouterProvider router={router} />);
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
   initializeHost(getHostOptions(startGuiHostConnectionMock), createHistoryCommands());
   await expect
     .poll(() => vi.mocked(initialController.activateRecoveryThread).mock.calls)
@@ -193,14 +207,25 @@ test("cached page recovery retains the initial task while viewing the navigated 
   window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true }));
   window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
   await expect.poll(() => startGuiHostConnectionMock.mock.calls.length).toBe(connections + 1);
-  initializeHost(getHostOptions(startGuiHostConnectionMock), createHistoryCommands());
+  const restoredCommands = createHistoryCommands();
+  initializeHost(getHostOptions(startGuiHostConnectionMock), restoredCommands);
 
-  await expect
-    .poll(() => vi.mocked(restoredController.activateRecoveryThread).mock.calls)
-    .toEqual([[launchThreadId]]);
-  await expect.poll(() => restoredHarness.view.mock.calls.at(-1)).toEqual([historyThreadId]);
+  await expect.poll(() => vi.mocked(initialController.restoreConnection).mock.calls.length).toBe(1);
+  const restoration = vi.mocked(initialController.restoreConnection).mock.calls[0];
+  if (restoration == null) throw new Error("original controller must receive the new connection");
+  expect(restoration[0]).toBe(restoredCommands);
+  expect(restoration[1]()).toBe(historyThreadId);
+  expect(initialController.suspendRestoredQueue).toHaveBeenCalledTimes(2);
+  expect(initialController.activateRecoveryThread).toHaveBeenCalledOnce();
+  expect(initialHarness.view).toHaveBeenLastCalledWith(historyThreadId);
+  expect(restoredController.activateRecoveryThread).not.toHaveBeenCalled();
+  expect(restoredController.restoreConnection).not.toHaveBeenCalled();
+  expect(restoredHarness.view).not.toHaveBeenCalled();
   expectCanonicalRoute(router.state.location.href, `/task/${historyThreadId}`, 1);
+  expect(initialController.dispose).not.toHaveBeenCalled();
+  await screen.unmount();
   expect(initialController.dispose).toHaveBeenCalledOnce();
+  expect(restoredController.dispose).not.toHaveBeenCalled();
 });
 
 test("history subscribes to the collection while startup activation is pending", async () => {
@@ -687,7 +712,7 @@ test("history titles follow route identity through loading, error, retry, and un
   await diagnostics.getByRole("button", { name: "Close diagnostics" }).click();
   await expect.element(diagnostics).not.toBeInTheDocument();
   await expect.element(heading).toHaveTextContent("History detail");
-  await screen.getByRole("button", { name: "Retry", exact: true }).click();
+  await screen.getByRole("button", { name: "Load task history", exact: true }).click();
   await expect.element(heading).toHaveTextContent("Second preview");
   await expect.poll(() => document.title).toBe("Second preview · Codex");
   expect(readThread).toHaveBeenCalledTimes(3);

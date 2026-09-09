@@ -1,4 +1,8 @@
 import type { AppDispatch } from "@/app/store";
+import {
+  createActiveThreadConnection,
+  type ActiveThreadConnection,
+} from "./activeThreadConnection";
 import type { BrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { createListenerSet } from "@/subscriptions/listenerSet";
@@ -8,6 +12,7 @@ import {
   type ActiveThreadMemberLifecycle,
 } from "./activeThreadMemberLifecycle";
 import type {
+  ActiveThreadCollectionMember,
   ActiveThreadCollectionSnapshot,
   ActiveThreadRemovalOutcome,
   ActiveThreadCollectionError,
@@ -71,13 +76,17 @@ type Member = {
   lifecycle: ActiveThreadMemberLifecycle;
   operationErrors: readonly ActiveThreadMemberOperationError[];
   removal: Promise<ActiveThreadRemovalOutcome> | null;
+  retry: Readonly<{
+    action: ActiveThreadCollectionMember["retryAction"];
+    pending: Promise<ActiveThreadRetryOutcome>;
+  }> | null;
   unsubscribe: () => void;
 };
 
 class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   readonly session: ActiveThreadSession;
   private readonly authorizationSession: ActiveThreadAuthorizationSession;
-  private readonly commands: ActiveThreadSessionCommands;
+  private readonly connection: ActiveThreadConnection<ActiveThreadSessionCommands>;
   private readonly dispatch: AppDispatch;
   private readonly scheduler: ActiveThreadSessionScheduler;
   private readonly persistence: CreateLiveActiveThreadSessionInput["persistence"];
@@ -104,7 +113,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     persistence,
   }: CreateActiveThreadSessionInput) {
     this.authorizationSession = authorizationSession;
-    this.commands = commands;
+    this.connection = createActiveThreadConnection(commands);
     this.dispatch = dispatch;
     this.scheduler = scheduler;
     this.persistence = persistence;
@@ -116,12 +125,61 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       activate: this.activate,
       view: this.view,
       retry: this.retry,
+      recoverProjection: (threadId, expectedIdentity) => {
+        if (this.disposed || this.connection.capture() == null)
+          return Promise.resolve({ type: "unavailable" });
+        return (
+          this.members.get(threadId)?.lifecycle.recoverProjection(expectedIdentity) ??
+          Promise.resolve({ type: "unavailable" })
+        );
+      },
+      recoverConnection: (threadId, expectedIdentity) => {
+        if (this.disposed || this.connection.capture() == null)
+          return Promise.resolve({ type: "unavailable" });
+        return (
+          this.members.get(threadId)?.lifecycle.recoverConnection(expectedIdentity) ??
+          Promise.resolve({ type: "unavailable" })
+        );
+      },
       remove: this.remove,
       setOperationError: this.setOperationError,
     };
   }
 
   getSnapshot = (): ActiveThreadSessionSnapshot => this.snapshot;
+  restoreConnection: ActiveThreadSessionController["restoreConnection"] = async (
+    commands,
+    getPreferredThreadId,
+  ) => {
+    if (this.disposed) return;
+    this.connection.replace(commands);
+    const round = this.connection.capture();
+    const preferred = getPreferredThreadId();
+    const members = [...this.members.values()].sort(
+      (left, right) => Number(right.threadId === preferred) - Number(left.threadId === preferred),
+    );
+    await Promise.all(
+      members.map(async (member) => {
+        const current = () =>
+          !this.disposed &&
+          round?.isCurrent() === true &&
+          this.members.get(member.threadId) === member;
+        if (!current()) return;
+        let state = member.lifecycle.getState();
+        if (state.isPending) {
+          await member.lifecycle.initialize();
+          if (!current()) return;
+          state = member.lifecycle.getState();
+        }
+        const snapshot = state.snapshot;
+        if (snapshot?.phase === "active" || snapshot?.phase === "projectionUnavailable") {
+          await member.lifecycle.recoverConnection(snapshot.identity);
+        } else {
+          await member.lifecycle.initialize();
+        }
+      }),
+    );
+  };
   getCollectionSnapshot = (): ActiveThreadCollectionSnapshot => this.collectionSnapshot;
   subscribe = (listener: () => void): (() => void) => this.listeners.subscribe(listener);
 
@@ -203,6 +261,12 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     const intent = ++this.selectionIntent;
     if (!this.loadCollection()) return this.collectionFailure("collectionRead", null);
     let member = this.members.get(threadId);
+    if (this.connection.capture() == null) {
+      if (member?.lifecycle.getState().phase !== "ready") return this.connectionFailure(threadId);
+      this.viewedThreadId = threadId;
+      this.publish();
+      return { type: "ready", threadId, warnings: [] };
+    }
     if (member == null) {
       try {
         this.commitMembership([...this.members.keys(), threadId]);
@@ -224,7 +288,8 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
         : member.lifecycle.initialize();
     this.initializeWaitingMembers(threadId);
     const result = await foreground;
-    if (this.isDisposed()) return this.connectionFailure(threadId);
+    if (this.isDisposed() || this.connection.capture() == null)
+      return this.connectionFailure(threadId);
     if (intent !== this.selectionIntent)
       return {
         type: "unavailable",
@@ -248,11 +313,38 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     return { type: "ready", threadId, warnings };
   };
 
-  private retry = async (threadId: string): Promise<ActiveThreadRetryOutcome> => {
-    if (this.isDisposed()) return this.connectionFailure(threadId);
-    if (!this.loadCollection()) return this.collectionFailure("collectionRead", null);
+  private retry = (threadId: string): Promise<ActiveThreadRetryOutcome> => {
+    if (this.connection.capture() == null) return Promise.resolve(this.connectionFailure(threadId));
     const intent = this.selectionIntent;
     const wasViewed = this.viewedThreadId === threadId;
+    const member = this.members.get(threadId);
+    if (member?.retry != null) return member.retry.pending;
+    if (member == null) return this.retryMember(threadId, intent, wasViewed);
+    const state = member.lifecycle.getState();
+    const action = state.retryRemoval ? "remove" : state.phase === "ready" ? "status" : "load";
+    let run: () => void = () => undefined;
+    const result = new Promise<ActiveThreadRetryOutcome>((resolve, reject) => {
+      run = () => {
+        void this.retryMember(threadId, intent, wasViewed).then(resolve, reject);
+      };
+    });
+    const pending = result.finally(() => {
+      if (member.retry?.pending === pending) member.retry = null;
+      this.publish();
+    });
+    member.retry = { action, pending };
+    this.publish();
+    run();
+    return pending;
+  };
+
+  private retryMember = async (
+    threadId: string,
+    intent: number,
+    wasViewed: boolean,
+  ): Promise<ActiveThreadRetryOutcome> => {
+    if (this.isDisposed()) return this.connectionFailure(threadId);
+    if (!this.loadCollection()) return this.collectionFailure("collectionRead", null);
     this.initializeWaitingMembers(threadId);
     const member = this.members.get(threadId);
     if (member == null)
@@ -310,7 +402,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     for (const entry of operationErrors) this.setCollectionError(entry.operation, threadId, null);
     const lifecycle = createActiveThreadMemberLifecycle({
       threadId,
-      commands: this.commands,
+      connection: this.connection,
       dispatch: this.dispatch,
       scheduler: this.scheduler,
       persistence: this.persistence,
@@ -320,6 +412,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       lifecycle,
       operationErrors,
       removal: null,
+      retry: null,
       unsubscribe: lifecycle.subscribe(() => {
         this.publish();
       }),
@@ -421,11 +514,16 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     for (const member of this.members.values()) member.lifecycle.suspendRestored();
   };
   connectionUnavailable = (): void => {
-    this.dispose();
+    if (this.disposed || this.connection.capture() == null) return;
+    this.connection.revoke();
+    this.selectionIntent += 1;
+    for (const member of this.members.values()) member.lifecycle.connectionUnavailable();
+    this.publish();
   };
   dispose = (): void => {
     if (this.isDisposed()) return;
     this.disposed = true;
+    this.connection.revoke();
     let cleanupError: unknown = null;
     for (const member of this.members.values()) {
       try {
@@ -464,13 +562,19 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     this.collectionSnapshot = {
       viewedThreadId: this.viewedThreadId,
       members: [...this.members.values()].map((member) => {
-        const { phase, snapshot, error, removalBlockers } = member.lifecycle.getState();
+        const { phase, snapshot, error, removalBlockers, retryRemoval, isPending } =
+          member.lifecycle.getState();
         return {
           threadId: member.threadId,
           phase,
           snapshot,
           error,
           operationErrors: member.operationErrors,
+          retryAction:
+            member.retry?.action ??
+            (retryRemoval ? "remove" : phase === "ready" ? "status" : "load"),
+          retryPending: member.retry != null || isPending || member.removal != null,
+          removalPending: member.removal != null,
           canRemove: member.removal == null && removalBlockers.length === 0,
           removalBlockers,
         };

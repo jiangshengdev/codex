@@ -10,8 +10,7 @@ export function usePersistComposerDraft(
   const save = useCallback(
     (draft: ComposerDraft): void => {
       const result = role.saveDraft(revision, draft);
-      pending.current =
-        typeof result === "object" && result.reason === "staleRevision" ? { role, draft } : null;
+      pending.current = typeof result === "object" ? { role, draft } : null;
     },
     [role, revision],
   );
@@ -20,11 +19,19 @@ export function usePersistComposerDraft(
     const unsaved = pending.current;
     if (unsaved == null) return;
     if (unsaved.role !== role) {
-      pending.current = null;
+      if (unsaved.role.retainDraft(unsaved.draft)) pending.current = null;
       return;
     }
     save(unsaved.draft);
   }, [role, save]);
+
+  useEffect(
+    () => () => {
+      const unsaved = pending.current;
+      if (unsaved?.role === role && role.retainDraft(unsaved.draft)) pending.current = null;
+    },
+    [role],
+  );
 
   return save;
 }

@@ -245,11 +245,11 @@ test("a background resume failure stays in its task and viewing it does not retr
   await openMenu(page);
   await expect(activeRow(page, firstThreadId)).not.toContainText(failure);
   await expect(
-    activeRow(page, firstThreadId).getByRole("button", { name: "Retry", exact: true }),
+    activeRow(page, firstThreadId).getByRole("button", { name: "Load task", exact: true }),
   ).toHaveCount(0);
   await page.keyboard.press("Escape");
   host.setResumeError(firstThreadId, null);
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Load task", exact: true }).click();
   await ready(page);
   await expect(page.getByText(errorMessage)).toHaveCount(0);
   await expect(page.locator('[data-menu-error-indicator="true"]')).toHaveCount(0);
@@ -286,7 +286,7 @@ test("recovering one of two tasks with identical errors preserves the other's de
   }
   await page.keyboard.press("Escape");
   host.setResumeError(secondThreadId, null);
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Load task", exact: true }).click();
   await ready(page);
   await expect(page.getByText(errorMessage)).toHaveCount(0);
   await expect(page.locator('[data-menu-error-indicator="true"]')).toBeVisible();
@@ -308,7 +308,7 @@ test("recovering one of two tasks with identical errors preserves the other's de
   await expect(page.getByText(errorMessage)).toHaveCount(0);
   expect(host.resumes(firstThreadId)).toHaveLength(2);
   host.setResumeError(firstThreadId, null);
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Load task", exact: true }).click();
   await ready(page);
   await expect(page.locator('[data-menu-error-indicator="true"]')).toHaveCount(0);
   await expect(page.getByText(errorMessage)).toHaveCount(0);

@@ -35,6 +35,9 @@ test("keeps a waiting task unmarked, removal disabled, and its title route selec
         operationErrors: [],
         canRemove: false,
         removalBlockers: ["activeTurn"],
+        retryAction: "status",
+        retryPending: false,
+        removalPending: false,
       },
     ],
   });
@@ -83,6 +86,9 @@ test.each(["viewed", "background", "changed route", "failed"])(
           operationErrors: [],
           canRemove: true,
           removalBlockers: [],
+          retryAction: "status",
+          retryPending: false,
+          removalPending: false,
         },
       ],
     });
@@ -150,6 +156,9 @@ for (const phase of ["failed", "cleanupPending", "ready"] as const) {
           operationErrors: [],
           canRemove: false,
           removalBlockers: ["statusUnknown"],
+          retryAction: phase === "ready" ? "status" : "load",
+          retryPending: false,
+          removalPending: false,
         },
       ],
     });
@@ -189,6 +198,9 @@ test("Escape closes actions before the drawer and restores focus to each trigger
         operationErrors: [],
         canRemove: true,
         removalBlockers: [],
+        retryAction: "load",
+        retryPending: false,
+        removalPending: false,
       },
     ],
   });
@@ -231,6 +243,9 @@ test("a thrown remove error survives closing the drawer and clears after success
         operationErrors: [],
         canRemove: true,
         removalBlockers: [],
+        retryAction: "status",
+        retryPending: false,
+        removalPending: false,
       },
     ],
   });
@@ -283,6 +298,9 @@ test("navigation rejections persist in the task owner until that navigation succ
         operationErrors: [],
         canRemove: true,
         removalBlockers: [],
+        retryAction: "status",
+        retryPending: false,
+        removalPending: false,
       },
     ],
   });
@@ -336,6 +354,9 @@ test("a long title keeps both actions reachable inside a narrow menu and falls b
         operationErrors: [],
         canRemove: true,
         removalBlockers: [],
+        retryAction: "status",
+        retryPending: false,
+        removalPending: false,
       },
     ],
   });

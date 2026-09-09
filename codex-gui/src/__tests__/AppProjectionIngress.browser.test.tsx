@@ -242,12 +242,9 @@ test("App replays startup notifications against the accepted attach baseline", a
     .toBe(oldOnlyTurn.id);
 });
 
-test.each([
-  { outcome: "success", detachCalls: [[{ threadId: launchThreadId }]] },
-  { outcome: "failure", detachCalls: [] },
-])(
-  "App keeps the startup session disposed and preserves the host error after late attach $outcome",
-  async ({ outcome, detachCalls }) => {
+test.each(["success", "failure"])(
+  "App retains the failed startup session and preserves the host error after late attach %s",
+  async (outcome) => {
     const commands = createGuiHostCommands();
     const pendingAttach = queueDeferredAttachProjection(commands);
     const screen = await renderWithProviders(
@@ -267,7 +264,7 @@ test.each([
     expect(createComposerInputQueueCoordinator).not.toHaveBeenCalled();
     markCommandsUnavailable(options);
     emitRawHostStatus(options, { label: "error", message: "GUI host transport failed" });
-    await expect.poll(() => session.getSnapshot().phase).toBe("disposed");
+    await expect.poll(() => session.getSnapshot().phase).toBe("failed");
     await expect.element(activeThread).toHaveTextContent("none");
     await expect.element(continueButton).toBeDisabled();
 
@@ -277,16 +274,21 @@ test.each([
       pendingAttach.reject(new Error("late attach failure"));
     }
     await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-    await expect
-      .poll(() => vi.mocked(commands.detachThreadProjection).mock.calls)
-      .toEqual(detachCalls);
+    expect(commands.detachThreadProjection).not.toHaveBeenCalled();
 
     await expect.element(activeThread).toHaveTextContent("none");
     await expect.element(continueButton).toBeDisabled();
     expect(threadSwitchProbeSession).toBe(session);
-    expect(session.getSnapshot().phase).toBe("disposed");
-    expect(session.getCollectionSnapshot().members).toEqual([]);
+    expect(session.getSnapshot()).toMatchObject({ phase: "failed", threadId: launchThreadId });
+    expect(session.getCollectionSnapshot()).toMatchObject({
+      viewedThreadId: launchThreadId,
+      members: [{ threadId: launchThreadId, phase: "failed", snapshot: null }],
+    });
     expect(selectThreadRuntimeRecord(screen.store.getState(), launchThreadId)).toBeNull();
+    await expect.element(screen.getByText("Connection closed", { exact: true })).toBeVisible();
+    await expect
+      .element(screen.getByRole("button", { name: "Reconnect", exact: true }))
+      .toBeEnabled();
     await screen.getByRole("button", { name: "View diagnostic information" }).click();
     const diagnostics = screen.getByRole("dialog", { name: "Diagnostic information" });
     await expect

@@ -34,6 +34,8 @@ function setup() {
       .mockResolvedValue({ type: "ready", threadId: target.threadId, warnings: [] }),
     view: vi.fn<ActiveThreadSession["view"]>(),
     retry: vi.fn<ActiveThreadSession["retry"]>(),
+    recoverProjection: vi.fn<ActiveThreadSession["recoverProjection"]>(),
+    recoverConnection: vi.fn<ActiveThreadSession["recoverConnection"]>(),
     remove: vi.fn<ActiveThreadSession["remove"]>(),
     setOperationError: vi.fn<ActiveThreadSession["setOperationError"]>(),
   };
@@ -145,6 +147,45 @@ describe("NewSessionOwner", () => {
     expect(h.owner.getSnapshot()).toMatchObject({ phase: "failed", threadId: h.target.threadId });
     await h.owner.submit(composerDraftCapture("replacement must not overwrite captured input"));
     expect(h.startThread).toHaveBeenCalledTimes(1);
+    expect(h.target.composerRole.submit).toHaveBeenCalledExactlyOnceWith(
+      h.target.revision,
+      h.capture,
+    );
+  });
+
+  it("retains creation diagnostics through retry and activation until the next definite result", async () => {
+    const h = setup();
+    const response = await h.startThread({ cwd: "/x" });
+    const creation = createDeferred<typeof response>();
+    const activation = createDeferred<Awaited<ReturnType<ActiveThreadSession["activate"]>>>();
+    h.startThread.mockClear().mockRejectedValueOnce(new Error("creation failed"));
+    await h.owner.submit(h.capture);
+    const failure = h.owner.getSnapshot()?.failure;
+    h.startThread.mockReturnValueOnce(creation.promise);
+    vi.mocked(h.session.activate).mockReturnValueOnce(activation.promise);
+
+    const retry = h.owner.submit();
+    expect(h.owner.getSnapshot()).toMatchObject({
+      phase: "creating",
+      isInputLocked: true,
+      failure,
+    });
+    expect(await h.owner.submit()).toEqual({ type: "retained" });
+    expect(h.startThread).toHaveBeenCalledTimes(2);
+    creation.resolve(response);
+    await Promise.resolve();
+    expect(h.owner.getSnapshot()).toMatchObject({ phase: "activating", failure });
+    const nextError = new Error("activation failed");
+    activation.reject(nextError);
+    await retry;
+    expect(h.owner.getSnapshot()).toMatchObject({
+      phase: "failed",
+      failure: { stage: "activate", error: nextError },
+    });
+
+    await h.owner.submit();
+    expect(h.startThread).toHaveBeenCalledTimes(2);
+    expect(h.owner.getSnapshot()).toBeNull();
     expect(h.target.composerRole.submit).toHaveBeenCalledExactlyOnceWith(
       h.target.revision,
       h.capture,

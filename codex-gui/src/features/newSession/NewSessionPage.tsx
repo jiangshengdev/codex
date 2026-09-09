@@ -1,9 +1,10 @@
-import { Alert, Button, Spinner, Surface } from "@heroui/react";
+import { Alert, Button, Surface } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
+import { RetryActionButton } from "@/feedback/RetryActionButton";
 import {
   useAppCapabilities,
   useNewSessionCwd,
@@ -161,17 +162,21 @@ function NewSessionEditor({
           skillMenuParent={skillMenuParent}
         />
         <div className="flex justify-end">
-          <Button
+          <RetryActionButton
             variant="primary"
             isDisabled={pending || unknownHandoff}
             isPending={pending}
+            pendingChildren={
+              <Trans comment="Pending state of Send while creating a session and handing off its first message">
+                Sending
+              </Trans>
+            }
             onPress={() => {
               void submit(snapshot.isInputLocked ? undefined : controller.current?.capture());
             }}
           >
-            {pending ? <Spinner color="current" size="sm" /> : null}
-            {snapshot.isInputLocked && !pending ? <Trans>Retry</Trans> : <Trans>Send</Trans>}
-          </Button>
+            <Trans>Send</Trans>
+          </RetryActionButton>
         </div>
       </Surface>
     </>

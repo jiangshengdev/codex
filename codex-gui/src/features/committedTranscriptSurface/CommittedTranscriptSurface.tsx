@@ -14,6 +14,7 @@ export const CommittedTranscriptSurface = ({
     <TranscriptReadProvider target={target}>
       <CommittedTranscriptSurfaceRenderer
         key={identity.instanceId}
+        subscriptionInterruptionHandled
         turnFragmentRenderer={CommittedTranscriptTurnFragment}
       />
     </TranscriptReadProvider>
@@ -32,6 +33,7 @@ export const ReadOnlyCommittedTranscriptSurface = ({
     <TranscriptReadProvider target={target}>
       <CommittedTranscriptSurfaceRenderer
         key={surfaceKey}
+        subscriptionInterruptionHandled={false}
         turnFragmentRenderer={CommittedTranscriptTurnFragment}
       />
     </TranscriptReadProvider>

@@ -1,6 +1,7 @@
-import { Button, Chip, Separator, Surface } from "@heroui/react";
+import { Chip, Separator, Surface } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { Fragment, type ReactNode, type Ref } from "react";
+import { RetryActionButton } from "@/feedback/RetryActionButton";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
@@ -111,16 +112,21 @@ export function ComposerPendingInputRegion({
               other="# messages have not been sent"
             />
           </span>
-          <Button
+          <RetryActionButton
             aria-describedby={recoveryDescriptionId}
             isDisabled={!canRecover}
             isPending={snapshot.isRecovering}
+            pendingChildren={
+              <Trans comment="Pending state of Continue sending while recovering previously unsent messages">
+                Resuming sending
+              </Trans>
+            }
             onPress={onRecover}
             size="sm"
             variant="secondary"
           >
             <Trans>Continue sending</Trans>
-          </Button>
+          </RetryActionButton>
         </div>
       ),
     });

@@ -124,7 +124,7 @@ test("marks a skill invalid only when a complete ready catalog confirms its path
   await expect.element(send).toBeEnabled();
 
   const unconfirmedCatalogs: SkillCatalogState[] = [
-    { type: "refreshing", candidates: [], partialErrorCount: 0 },
+    { type: "refreshing", candidates: [], partialErrorCount: 0, previousFailure: null },
     { type: "stale", candidates: [], partialErrorCount: 0 },
     { type: "failed", candidates: [], partialErrorCount: 0 },
     { type: "ready", candidates: [], partialErrorCount: 1 },

@@ -5,29 +5,28 @@ import { createListenerSet } from "@/subscriptions/listenerSet";
 import type { Thread } from "@codex-protocol/v2";
 
 export type ThreadHistoryDetailState =
+  | Readonly<{ type: "waitingForConnection" }>
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "error"; error: unknown }>
+  | Readonly<{ type: "error" | "retrying"; error: unknown }>
   | Readonly<{ type: "ready"; thread: Thread; transcriptState: TranscriptState }>;
 
 export const initialThreadHistoryDetailState: ThreadHistoryDetailState = { type: "loading" };
 
 type ThreadHistoryDetailOwnerOptions = Readonly<{
   threadId: string;
-  readThread: GuiHostCommands["readThread"];
 }>;
 
 export class ThreadHistoryDetailOwner {
   private readonly threadId: string;
-  private readonly readThread: GuiHostCommands["readThread"];
+  private readThread: GuiHostCommands["readThread"] | null = null;
   private readonly listeners = createListenerSet();
-  private state: ThreadHistoryDetailState = initialThreadHistoryDetailState;
+  private state: ThreadHistoryDetailState = { type: "waitingForConnection" };
   private generation = 0;
   private started = false;
   private disposed = false;
 
-  constructor({ threadId, readThread }: ThreadHistoryDetailOwnerOptions) {
+  constructor({ threadId }: ThreadHistoryDetailOwnerOptions) {
     this.threadId = threadId;
-    this.readThread = readThread;
   }
 
   readonly getSnapshot = (): ThreadHistoryDetailState => this.state;
@@ -46,12 +45,31 @@ export class ThreadHistoryDetailOwner {
     }
 
     this.started = true;
-    this.requestThread();
+    if (this.readThread != null) {
+      this.requestThread();
+    }
     return true;
   }
 
+  setReadThread(readThread: GuiHostCommands["readThread"] | null): void {
+    if (this.disposed || this.readThread === readThread) {
+      return;
+    }
+
+    this.readThread = readThread;
+    this.generation += 1;
+    if (this.state.type === "loading" || this.state.type === "retrying") {
+      this.publish({
+        type: "error",
+        error: new Error("Task history read was interrupted because the connection changed."),
+      });
+    } else if (this.started && this.state.type === "waitingForConnection" && readThread != null) {
+      this.requestThread();
+    }
+  }
+
   readonly retry = (): boolean => {
-    if (this.disposed || this.state.type !== "error") {
+    if (this.disposed || this.readThread == null || this.state.type !== "error") {
       return false;
     }
 
@@ -70,9 +88,17 @@ export class ThreadHistoryDetailOwner {
   }
 
   private requestThread(): void {
+    const readThread = this.readThread;
+    if (readThread == null) {
+      return;
+    }
     const generation = ++this.generation;
-    this.publish(initialThreadHistoryDetailState);
-    void this.readThread({ threadId: this.threadId, includeTurns: true }).then(
+    this.publish(
+      this.state.type === "error"
+        ? { type: "retrying", error: this.state.error }
+        : initialThreadHistoryDetailState,
+    );
+    void readThread({ threadId: this.threadId, includeTurns: true }).then(
       (response) => {
         if (!this.canSettle(generation)) {
           return;

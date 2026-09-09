@@ -24,6 +24,258 @@ const historyThread = (
 
 const emptyHistoryThread = () => historyThread([]);
 
+test("waits for manual retry after a failed connection is restored", async () => {
+  const commandsA = createGuiHostCommands();
+  vi.mocked(commandsA.readThread).mockRejectedValue(new Error("old connection failed"));
+  const commandsB = createGuiHostCommands();
+  vi.mocked(commandsB.readThread).mockResolvedValue({ thread: emptyHistoryThread() });
+  const { capabilitiesStore, initialCapabilities, screen } = await renderDetail({
+    commands: commandsA,
+    strictMode: true,
+  });
+  await expect.element(screen.getByText("Unable to load task history")).toBeVisible();
+
+  capabilitiesStore.publish({
+    ...initialCapabilities,
+    commands: null,
+    status: { label: "closed" },
+  });
+  await expect
+    .element(screen.getByRole("button", { name: "Load task history" }))
+    .not.toBeInTheDocument();
+  capabilitiesStore.publish({ ...initialCapabilities, commands: commandsB });
+  const retry = screen.getByRole("button", { name: "Load task history" });
+  await expect.element(retry).toBeEnabled();
+  expect(commandsB.readThread).not.toHaveBeenCalled();
+  await retry.click();
+
+  await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
+  expect(commandsA.readThread).toHaveBeenCalledTimes(1);
+  expect(commandsB.readThread).toHaveBeenCalledExactlyOnceWith({
+    threadId: detailThreadId,
+    includeTurns: true,
+  });
+  expect(commandsB.resumeThread).not.toHaveBeenCalled();
+  expect(commandsB.attachThreadProjection).not.toHaveBeenCalled();
+});
+
+test("retries a failed read after direct capability replacement", async () => {
+  const commandsA = createGuiHostCommands();
+  vi.mocked(commandsA.readThread).mockRejectedValue(new Error("old connection failed"));
+  const commandsB = createGuiHostCommands();
+  vi.mocked(commandsB.readThread).mockResolvedValue({ thread: emptyHistoryThread() });
+  const { capabilitiesStore, initialCapabilities, screen } = await renderDetail({
+    commands: commandsA,
+  });
+  await expect.element(screen.getByText("Unable to load task history")).toBeVisible();
+  capabilitiesStore.publish({ ...initialCapabilities, commands: commandsB });
+  await screen.getByRole("button", { name: "Load task history" }).click();
+  await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
+  expect(commandsA.readThread).toHaveBeenCalledTimes(1);
+  expect(commandsB.readThread).toHaveBeenCalledExactlyOnceWith({
+    threadId: detailThreadId,
+    includeTurns: true,
+  });
+});
+
+test.each(["success", "failure"])(
+  "ignores an old %s immediately after publishing a replacement connection",
+  async (settlement) => {
+    const oldRead = deferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+    const commandsA = createGuiHostCommands();
+    vi.mocked(commandsA.readThread).mockReturnValueOnce(oldRead.promise);
+    const commandsB = createGuiHostCommands();
+    vi.mocked(commandsB.readThread).mockResolvedValue({
+      thread: historyThread([], "Current history"),
+    });
+    const { capabilitiesStore, initialCapabilities, screen } = await renderDetail({
+      commands: commandsA,
+      strictMode: true,
+    });
+    await expect.element(screen.getByRole("status")).toHaveTextContent("Loading task history…");
+    capabilitiesStore.publish({ ...initialCapabilities, commands: commandsB });
+    if (settlement === "success") {
+      oldRead.resolve({ thread: historyThread([], "Obsolete history") });
+    } else {
+      oldRead.reject(new Error("obsolete failure"));
+    }
+    await expect.element(screen.getByText("Unable to load task history")).toBeVisible();
+    await expect
+      .element(screen.getByRole("heading", { name: "Obsolete history" }))
+      .not.toBeInTheDocument();
+    expect(commandsB.readThread).not.toHaveBeenCalled();
+    await screen.getByRole("button", { name: "Load task history" }).click();
+    await expect.element(screen.getByRole("heading", { name: "Current history" })).toBeVisible();
+    expect(commandsB.readThread).toHaveBeenCalledTimes(1);
+  },
+);
+
+test.each([
+  { phase: "initial", settlement: "success" },
+  { phase: "initial", settlement: "failure" },
+  { phase: "retry", settlement: "success" },
+  { phase: "retry", settlement: "failure" },
+])(
+  "interrupts an in-flight $phase read and ignores its late $settlement",
+  async ({ phase, settlement }) => {
+    const oldRead = deferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+    const newRead = deferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+    const commandsA = createGuiHostCommands();
+    if (phase === "retry") {
+      vi.mocked(commandsA.readThread).mockRejectedValueOnce(new Error("first failure"));
+    }
+    vi.mocked(commandsA.readThread).mockReturnValueOnce(oldRead.promise);
+    const commandsB = createGuiHostCommands();
+    vi.mocked(commandsB.readThread).mockReturnValueOnce(newRead.promise);
+    const { capabilitiesStore, initialCapabilities, screen } = await renderDetail({
+      commands: commandsA,
+      strictMode: true,
+    });
+    if (phase === "retry") {
+      await screen.getByRole("button", { name: "Load task history" }).click();
+    }
+    await expect.element(screen.getByText("Loading task history…", { exact: true })).toBeVisible();
+
+    capabilitiesStore.publish({ ...initialCapabilities, commands: commandsB });
+    const retry = screen.getByRole("button", { name: "Load task history" });
+    await expect.element(retry).toBeEnabled();
+    expect(commandsB.readThread).not.toHaveBeenCalled();
+    await screen.getByRole("button", { name: "View diagnostic information" }).click();
+    const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
+    await expect
+      .element(
+        dialog.getByText("Task history read was interrupted because the connection changed."),
+      )
+      .toBeVisible();
+    await dialog.getByRole("button", { name: "Close diagnostics" }).click();
+    await retry.click();
+    await expect
+      .element(screen.getByRole("button", { name: "Loading task history…" }))
+      .toBeDisabled();
+
+    if (settlement === "success") {
+      oldRead.resolve({ thread: historyThread([], "Obsolete history") });
+    } else {
+      oldRead.reject(new Error("obsolete failure"));
+    }
+    newRead.resolve({ thread: historyThread([], "Current history") });
+    await expect.element(screen.getByRole("heading", { name: "Current history" })).toBeVisible();
+    await expect
+      .element(screen.getByRole("heading", { name: "Obsolete history" }))
+      .not.toBeInTheDocument();
+    await expect.element(screen.getByText("Unable to load task history")).not.toBeInTheDocument();
+    expect(commandsA.readThread).toHaveBeenCalledTimes(phase === "retry" ? 2 : 1);
+    expect(commandsB.readThread).toHaveBeenCalledExactlyOnceWith({
+      threadId: detailThreadId,
+      includeTurns: true,
+    });
+    expect(commandsB.resumeThread).not.toHaveBeenCalled();
+    expect(commandsB.attachThreadProjection).not.toHaveBeenCalled();
+    expect(commandsB.startTurn).not.toHaveBeenCalled();
+  },
+);
+
+test("starts the first read when a connection becomes available", async () => {
+  const { capabilitiesStore, initialCapabilities, screen } = await renderDetail({
+    commands: null,
+    status: { label: "closed" },
+    strictMode: true,
+  });
+  await expect
+    .element(screen.getByText("Task history is unavailable until the connection is restored."))
+    .toBeVisible();
+  const commands = createGuiHostCommands();
+  vi.mocked(commands.readThread).mockResolvedValue({ thread: emptyHistoryThread() });
+  capabilitiesStore.publish({ ...initialCapabilities, commands, status: { label: "initialized" } });
+  await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
+  expect(commands.readThread).toHaveBeenCalledExactlyOnceWith({
+    threadId: detailThreadId,
+    includeTurns: true,
+  });
+});
+
+test("retains ready content across reconnection and loads a different thread with the new connection", async () => {
+  const commandsA = createGuiHostCommands();
+  vi.mocked(commandsA.readThread).mockResolvedValue({
+    thread: historyThread([
+      baseTurn("retained-turn", [
+        userMessage("retained-message", [textInput("Retained history content")]),
+      ]),
+    ]),
+  });
+  const { capabilitiesStore, initialCapabilities, router, screen } = await renderDetail({
+    commands: commandsA,
+    strictMode: true,
+  });
+  await expect.element(screen.getByText("Retained history content")).toBeVisible();
+  capabilitiesStore.publish({
+    ...initialCapabilities,
+    activeThreadSession: null,
+    commands: null,
+    status: { label: "closed" },
+  });
+  await expect.element(screen.getByRole("button", { name: "Continue this task" })).toBeDisabled();
+  await expect.element(screen.getByText("Retained history content")).toBeVisible();
+
+  const commandsB = createGuiHostCommands();
+  const nextRead = deferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+  vi.mocked(commandsB.readThread).mockReturnValueOnce(nextRead.promise);
+  capabilitiesStore.publish({ ...initialCapabilities, commands: commandsB });
+  await expect.element(screen.getByRole("button", { name: "Continue this task" })).toBeEnabled();
+  expect(commandsB.readThread).not.toHaveBeenCalled();
+  await expect.element(screen.getByText("Retained history content")).toBeVisible();
+  const nextId = "00000000-0000-0000-0000-000000000099";
+  await router.navigate({ to: "/history/$threadId", params: { threadId: nextId } });
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Loading task history…");
+  await expect.element(screen.getByText("Retained history content")).not.toBeInTheDocument();
+  expect(commandsB.readThread).toHaveBeenCalledExactlyOnceWith({
+    threadId: nextId,
+    includeTurns: true,
+  });
+  nextRead.resolve({ thread: { ...emptyHistoryThread(), id: nextId, name: "Next history" } });
+  await expect.element(screen.getByRole("heading", { name: "Next history" })).toBeVisible();
+  expect(commandsA.readThread).toHaveBeenCalledTimes(1);
+});
+
+test("switches away from an interrupted thread offline without retaining its retry state", async () => {
+  const oldRead = deferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+  const commandsA = createGuiHostCommands();
+  vi.mocked(commandsA.readThread).mockReturnValueOnce(oldRead.promise);
+  const { capabilitiesStore, initialCapabilities, router, screen } = await renderDetail({
+    commands: commandsA,
+    strictMode: true,
+  });
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Loading task history…");
+  capabilitiesStore.publish({
+    ...initialCapabilities,
+    commands: null,
+    status: { label: "closed" },
+  });
+  await expect.element(screen.getByText("Unable to load task history")).toBeVisible();
+  const nextId = "00000000-0000-0000-0000-000000000099";
+  await router.navigate({ to: "/history/$threadId", params: { threadId: nextId } });
+  await expect
+    .element(screen.getByText("Task history is unavailable until the connection is restored."))
+    .toBeVisible();
+  await expect.element(screen.getByText("Unable to load task history")).not.toBeInTheDocument();
+  const commandsB = createGuiHostCommands();
+  vi.mocked(commandsB.readThread).mockResolvedValue({
+    thread: { ...emptyHistoryThread(), id: nextId, name: "Next history" },
+  });
+  capabilitiesStore.publish({
+    ...initialCapabilities,
+    commands: commandsB,
+    status: { label: "initialized" },
+  });
+  await expect.element(screen.getByRole("heading", { name: "Next history" })).toBeVisible();
+  oldRead.resolve({ thread: historyThread([], "Obsolete history") });
+  await expect.element(screen.getByRole("heading", { name: "Next history" })).toBeVisible();
+  expect(commandsB.readThread).toHaveBeenCalledExactlyOnceWith({
+    threadId: nextId,
+    includeTurns: true,
+  });
+});
+
 test.each([
   { name: null, preview: "  Preview title  ", title: "Preview title" },
   { name: " \t ", preview: " \n ", title: "Untitled task" },
@@ -41,10 +293,11 @@ test.each([
 
 test("loads with exact read parameters, preserves the complete error, and retries into empty history", async () => {
   const initialRead = deferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+  const retryRead = deferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
   const readThread = vi
     .fn<GuiHostCommands["readThread"]>()
     .mockReturnValueOnce(initialRead.promise)
-    .mockResolvedValueOnce({ thread: emptyHistoryThread() });
+    .mockReturnValueOnce(retryRead.promise);
   const commands = { ...createGuiHostCommands(), readThread };
   const { screen } = await renderDetail({ commands });
 
@@ -64,7 +317,7 @@ test("loads with exact read parameters, preserves the complete error, and retrie
   await expect.element(dialog.getByText(rawFailure.message, { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Close diagnostics" }).click();
   const originalViewport = { width: window.innerWidth, height: window.innerHeight };
-  const retry = alert.getByRole("button", { name: "Retry" });
+  const retry = alert.getByRole("button", { name: "Load task history" });
   const description = alert.getByRole("button", { name: "View diagnostic information" });
   try {
     for (const width of [1280, 375]) {
@@ -96,7 +349,18 @@ test("loads with exact read parameters, preserves the complete error, and retrie
   } finally {
     await page.viewport(originalViewport.width, originalViewport.height);
   }
-  await alert.getByRole("button", { name: "Retry" }).click();
+  await alert.getByRole("button", { name: "Load task history" }).click();
+  const pendingAction = alert.getByRole("button", { name: "Loading task history…" });
+  await expect.element(pendingAction).toHaveAttribute("data-pending", "true");
+  await expect.element(alert.getByText("Unable to load task history")).toBeVisible();
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  await expect.element(dialog.getByText(rawFailure.message, { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Close diagnostics" }).click();
+  const pendingButton = pendingAction.element();
+  if (!(pendingButton instanceof HTMLButtonElement)) throw new Error("Expected retry button");
+  pendingButton.click();
+  expect(readThread).toHaveBeenCalledTimes(2);
+  retryRead.resolve({ thread: emptyHistoryThread() });
 
   await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
   await expect.element(screen.getByRole("heading", { name: "Historical task" })).toBeVisible();
@@ -152,7 +416,7 @@ test("rejects a mismatched thread identity and retries the requested detail", as
     includeTurns: true,
   });
 
-  await alert.getByRole("button", { name: "Retry" }).click();
+  await alert.getByRole("button", { name: "Load task history" }).click();
 
   await expect.element(screen.getByText("Requested thread content")).toBeVisible();
   await expect
@@ -234,7 +498,9 @@ test("shows a connection dependency notice without an invalid Retry before comma
   await expect
     .element(screen.getByText("Task history is unavailable until the connection is restored."))
     .toBeVisible();
-  await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("button", { name: "Load task history" }))
+    .not.toBeInTheDocument();
   await expect.element(screen.getByText("Loading task history…")).not.toBeInTheDocument();
 });
 

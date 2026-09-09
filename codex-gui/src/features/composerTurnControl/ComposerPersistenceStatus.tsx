@@ -17,7 +17,8 @@ export function ComposerPersistenceStatus({
     revision,
     composer: { persistence },
   } = sessionSnapshot;
-  const enabled = sessionSnapshot.phase === "active";
+  const enabled =
+    sessionSnapshot.phase === "active" && sessionSnapshot.connection.phase === "available";
   return (
     <>
       {persistence.error != null ? (

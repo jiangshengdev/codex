@@ -193,7 +193,7 @@ test("navigation failure after queue acceptance leaves no resendable draft and e
       .element(page.getByRole("combobox", { name: "Message Codex" }))
       .not.toBeInTheDocument();
     await expect
-      .element(page.getByRole("button", { name: "Retry", exact: true }))
+      .element(page.getByRole("button", { name: "Send", exact: true }))
       .not.toBeInTheDocument();
   } finally {
     navigation.mockRestore();
@@ -266,9 +266,37 @@ test("unknown creation retains input and retries only after an explicit action",
   await expect
     .element(page.getByRole("combobox", { name: "Message Codex" }))
     .toHaveTextContent("retry explicitly");
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  const retry = createDeferred<Awaited<ReturnType<GuiHostCommands["startThread"]>>>();
+  vi.mocked(commands.startThread).mockReturnValueOnce(retry.promise);
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const sending = page.getByRole("button", { name: "Sending", exact: true });
+  await expect.element(sending).toBeDisabled();
+  await expect
+    .element(page.getByRole("alert"))
+    .toHaveTextContent(
+      "The creation result is unknown. Retrying may leave an extra empty session.",
+    );
+  await page.getByRole("button", { name: "View diagnostic information" }).click();
+  await expect
+    .element(page.getByRole("dialog", { name: "Diagnostic information" }))
+    .toHaveTextContent("response lost");
+  await userEvent.keyboard("{Escape}");
+  await expect
+    .element(page.getByRole("dialog", { name: "Diagnostic information" }))
+    .not.toBeInTheDocument();
+  retry.reject(new Error("creation rejected again"));
+  await expect.element(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "View diagnostic information" }).click();
+  await expect
+    .element(page.getByRole("dialog", { name: "Diagnostic information" }))
+    .toHaveTextContent("creation rejected again");
+  await userEvent.keyboard("{Escape}");
+  await expect
+    .element(page.getByRole("dialog", { name: "Diagnostic information" }))
+    .not.toBeInTheDocument();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect.poll(() => router.state.location.pathname).toBe(`/task/${createdThreadId}`);
-  expect(commands.startThread).toHaveBeenCalledTimes(2);
+  expect(commands.startThread).toHaveBeenCalledTimes(3);
   await expect.poll(() => commands.startTurn).toHaveBeenCalledTimes(1);
 });
 
@@ -282,11 +310,11 @@ test("leaving while creation waits does not activate its late ID; returning reus
   await router.navigate({ to: "/history" });
   response.resolve(creationResponse());
   await router.navigate({ to: "/new" });
-  await expect.element(page.getByRole("button", { name: "Retry", exact: true })).toBeEnabled();
+  await expect.element(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   expect(commands.attachThreadProjection).not.toHaveBeenCalled();
   expect(commands.startTurn).not.toHaveBeenCalled();
   queueAttachProjectionResponse(commands, created);
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect.poll(() => router.state.location.pathname).toBe(`/task/${createdThreadId}`);
   expect(commands.startThread).toHaveBeenCalledTimes(1);
   await expect.poll(() => commands.startTurn).toHaveBeenCalledTimes(1);

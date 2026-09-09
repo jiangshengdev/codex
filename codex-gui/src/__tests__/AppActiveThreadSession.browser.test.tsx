@@ -155,6 +155,7 @@ const createQueueCoordinatorMock = (
   const coordinator = {
     getDraft: vi.fn<ComposerInputQueueCoordinator["getDraft"]>().mockReturnValue(null),
     saveDraft: vi.fn<ComposerInputQueueCoordinator["saveDraft"]>().mockReturnValue(true),
+    retainDraft: vi.fn<ComposerInputQueueCoordinator["retainDraft"]>().mockReturnValue(true),
     retryPersistence: vi
       .fn<ComposerInputQueueCoordinator["retryPersistence"]>()
       .mockReturnValue(false),
@@ -163,6 +164,11 @@ const createQueueCoordinatorMock = (
     completeRestoreReconciliation:
       vi.fn<ComposerInputQueueCoordinator["completeRestoreReconciliation"]>(),
     reconcileRestoredTurns: vi.fn<ComposerInputQueueCoordinator["reconcileRestoredTurns"]>(),
+    setProjectionUnavailable: vi.fn<ComposerInputQueueCoordinator["setProjectionUnavailable"]>(),
+    setConnectionUnavailable: vi.fn<ComposerInputQueueCoordinator["setConnectionUnavailable"]>(),
+    reconcileProjection: vi
+      .fn<ComposerInputQueueCoordinator["reconcileProjection"]>()
+      .mockReturnValue({ type: "committed" }),
     discardUnknown: vi.fn<ComposerInputQueueCoordinator["discardUnknown"]>().mockReturnValue(false),
     ownerThreadId: threadId,
     submit: vi.fn<ComposerInputQueueCoordinator["submit"]>().mockReturnValue({ type: "accepted" }),
@@ -698,14 +704,35 @@ test("App owns one live queue under StrictMode and disposes it once", async () =
   initializeHost(options, commands);
 
   await expect.poll(() => createQueueCoordinator.mock.calls.length).toBe(1);
-  expect(createQueueCoordinator).toHaveBeenCalledWith({
+  const queueOptions = createQueueCoordinator.mock.calls[0]?.[0];
+  if (queueOptions == null) throw new Error("queue must receive its connection commands");
+  const { startTurn, steerTurn, interruptTurn, ...queueConfiguration } = queueOptions;
+  expect(queueConfiguration).toEqual({
     threadId: launchThreadId,
     activeTurnId: null,
     persistence: { authorizationContext: expect.any(String) as unknown },
-    startTurn: commands.startTurn,
-    steerTurn: commands.steerTurn,
-    interruptTurn: commands.interruptTurn,
   });
+  const startParams: Parameters<GuiHostCommands["startTurn"]>[0] = {
+    threadId: launchThreadId,
+    input: [{ type: "text", text: "Verify start forwarding", text_elements: [] }],
+  };
+  const steerParams: Parameters<GuiHostCommands["steerTurn"]>[0] = {
+    threadId: launchThreadId,
+    expectedTurnId: "turn-started-from-app",
+    input: [{ type: "text", text: "Verify steer forwarding", text_elements: [] }],
+  };
+  const interruptParams: Parameters<GuiHostCommands["interruptTurn"]>[0] = {
+    threadId: launchThreadId,
+    turnId: "turn-started-from-app",
+  };
+  await expect(startTurn(startParams)).resolves.toEqual({
+    turn: inProgressTurn("turn-started-from-app"),
+  });
+  expect(commands.startTurn).toHaveBeenCalledExactlyOnceWith(startParams);
+  await expect(steerTurn(steerParams)).resolves.toEqual({ turnId: "turn-steered-from-app" });
+  expect(commands.steerTurn).toHaveBeenCalledExactlyOnceWith(steerParams);
+  await expect(interruptTurn(interruptParams)).resolves.toEqual({});
+  expect(commands.interruptTurn).toHaveBeenCalledExactlyOnceWith(interruptParams);
   emitProjectionEvent(options, eventTurnStarted);
 
   expect(queue.observeAcceptedEvent).toHaveBeenCalledOnce();
@@ -717,7 +744,7 @@ test("App owns one live queue under StrictMode and disposes it once", async () =
   markCommandsUnavailable(options);
 
   expect(createQueueCoordinator).toHaveBeenCalledOnce();
-  expect(queue.dispose).toHaveBeenCalledOnce();
+  expect(queue.dispose).not.toHaveBeenCalled();
 
   await screen.unmount();
 
@@ -755,15 +782,18 @@ test("App refreshes only the current thread status and ignores its late result a
     includeTurns: false,
   });
 
+  const statusBeforeClose = status.element().textContent;
   markCommandsUnavailable(options);
-  await expect.element(status).toHaveTextContent("none");
+  await expect.element(status).toHaveTextContent(statusBeforeClose);
   pendingRead.resolve({
     thread: { ...attachResponse.snapshot.thread, status: { type: "systemError" } },
   });
   await pendingRead.promise;
   await Promise.resolve();
 
-  await expect.element(status).toHaveTextContent("none");
+  await expect.element(status).toHaveTextContent(JSON.stringify({ type: "idle" }));
+  expect(status.element().textContent).toBe(statusBeforeClose);
+  expect(commands.readThread).toHaveBeenCalledOnce();
 });
 
 test("App publishes compaction command and canonical lifecycle through its session snapshot", async () => {

@@ -6,6 +6,7 @@ import type {
 } from "@codex-protocol/v2";
 import {
   projectCompletedTranscriptItem,
+  projectSnapshotTranscriptItem,
   projectStartedTranscriptItem,
   projectTranscriptDelta,
   type TranscriptAgentMessageDelta,
@@ -730,7 +731,7 @@ export const buildTranscriptStateFromTurns = (turns: Thread["turns"]): Transcrip
   for (const turn of turns) {
     upsertTranscriptTurn(nextState, turn);
     for (const item of turn.items) {
-      const projection = projectCompletedTranscriptItem(item, turn.id);
+      const projection = projectSnapshotTranscriptItem(item, turn.id);
       switch (projection.kind) {
         case "contextBoundary":
           appendTranscriptContextBoundary(nextState, turn.id, projection.item.id);

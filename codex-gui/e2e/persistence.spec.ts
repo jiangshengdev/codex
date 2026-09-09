@@ -151,6 +151,11 @@ test("a sessionStorage write failure preserves input and blocks RPC until retry"
   await expect(composer(page)).toHaveText("Keep this unsaved input");
   await settledRender(page);
   expect(host.sends()).toHaveLength(0);
+  await page.getByRole("button", { name: "Retry saving", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Changes could not be saved");
+  await expect(page.getByRole("button", { name: "Retry saving", exact: true })).toBeEnabled();
+  await expect(composer(page)).toHaveText("Keep this unsaved input");
+  expect(host.sends()).toHaveLength(0);
   await page.evaluate(() => {
     const restore: unknown = Reflect.get(window, "restorePersistenceTestStorage");
     if (typeof restore !== "function") throw new Error("Missing test storage restoration");

@@ -1,4 +1,3 @@
-import { Button } from "@heroui/react";
 import { listboxItemVariants, listboxVariants, selectVariants } from "@heroui/styles";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
@@ -30,6 +29,7 @@ import { createPortal } from "react-dom";
 
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import { FailureLayout } from "@/feedback/FailureLayout";
+import { RetryActionButton } from "@/feedback/RetryActionButton";
 
 import { $createSkillNode } from "./SkillNode";
 import { querySkills, type SkillQueryResult } from "./skillQuery";
@@ -392,6 +392,8 @@ function SkillCatalogStatus({
   const canRetryCatalog =
     skillCatalog.type === "failed" ||
     skillCatalog.type === "stale" ||
+    ((skillCatalog.type === "initialLoading" || skillCatalog.type === "refreshing") &&
+      skillCatalog.previousFailure != null) ||
     skillCatalog.partialErrorCount > 0;
 
   return (
@@ -403,9 +405,23 @@ function SkillCatalogStatus({
       <FailureLayout
         actions={
           onRetry != null && canRetryCatalog ? (
-            <Button onPress={onRetry} size="sm" variant="secondary">
-              <Trans>Retry</Trans>
-            </Button>
+            <RetryActionButton
+              isPending={
+                skillCatalog.type === "initialLoading" || skillCatalog.type === "refreshing"
+              }
+              onPress={onRetry}
+              pendingChildren={
+                <Trans comment="Skill catalog reload button while the request is pending">
+                  Reloading skills…
+                </Trans>
+              }
+              size="sm"
+              variant="secondary"
+            >
+              <Trans comment="Button that retries loading the available skill catalog">
+                Reload skills
+              </Trans>
+            </RetryActionButton>
           ) : null
         }
       >
@@ -416,7 +432,12 @@ function SkillCatalogStatus({
 }
 
 function catalogStatus(skillCatalog: SkillCatalogState) {
-  switch (skillCatalog.type) {
+  const statusType =
+    skillCatalog.type === "initialLoading" || skillCatalog.type === "refreshing"
+      ? (skillCatalog.previousFailure ??
+        (skillCatalog.partialErrorCount > 0 ? "ready" : skillCatalog.type))
+      : skillCatalog.type;
+  switch (statusType) {
     case "initialLoading":
       return <Trans>Loading skills…</Trans>;
     case "refreshing":
