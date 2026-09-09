@@ -916,17 +916,6 @@ msgstr "Resuming {receiver}"
 msgid "Resuming sending"
 msgstr "Resuming sending"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:407
-#: src/features/currentTask/CurrentTaskPage.tsx:121
-#: src/features/currentTask/CurrentTaskPage.tsx:160
-#: src/features/currentTask/CurrentTaskPage.tsx:220
-#: src/features/currentTask/CurrentTaskPage.tsx:270
-#: src/features/newSession/NewSessionPage.tsx:173
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:88
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:283
-#~ msgid "Retry"
-#~ msgstr "Retry"
-
 #. Retries saving the composer draft and queue in this browser tab
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:36
 msgid "Retry saving"
@@ -1084,7 +1073,7 @@ msgstr "Task action failed"
 msgid "Task actions"
 msgstr "Task actions"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:50
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:29
 msgid "Task history is unavailable until the connection is restored."
 msgstr "Task history is unavailable until the connection is restored."
 
