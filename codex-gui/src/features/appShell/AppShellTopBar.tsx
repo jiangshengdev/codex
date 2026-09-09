@@ -38,6 +38,7 @@ export function AppShellTopBar() {
   );
   const hasError =
     status.label === "error" ||
+    status.label === "closed" ||
     collection.errors.length > 0 ||
     collection.members.some(activeThreadMemberHasError);
   const isCurrentTask = routeTarget.type === "currentTask";

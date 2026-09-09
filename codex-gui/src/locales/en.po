@@ -78,11 +78,11 @@ msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:89
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:90
 msgid "A message update is missing its associated turn, so it cannot be fully displayed."
 msgstr "A message update is missing its associated turn, so it cannot be fully displayed."
 
-#: src/features/appShell/AppShellTopBar.tsx:161
+#: src/features/appShell/AppShellTopBar.tsx:162
 #: src/features/newSession/NewSessionPage.tsx:40
 msgid "A working directory is required to start a session."
 msgstr "A working directory is required to start a session."
@@ -117,7 +117,7 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:237
+#: src/features/appShell/AppShellTopBar.tsx:238
 msgid "Browse task history"
 msgstr "Browse task history"
 
@@ -129,11 +129,11 @@ msgstr "Cancel"
 msgid "Changes copied"
 msgstr "Changes copied"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:43
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:44
 msgid "Changes could not be saved"
 msgstr "Changes could not be saved"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:63
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:64
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 
@@ -152,7 +152,7 @@ msgstr "Close diagnostics"
 msgid "Closed {receiver}"
 msgstr "Closed {receiver}"
 
-#: src/features/appShell/AppShell.tsx:28
+#: src/features/appShell/AppShell.tsx:29
 msgid "Codex GUI could not be started."
 msgstr "Codex GUI could not be started."
 
@@ -205,6 +205,11 @@ msgstr "Compression request result unknown"
 msgid "Connect to Codex to send this draft."
 msgstr "Connect to Codex to send this draft."
 
+#. GUI connection ended; retained conversations remain read-only
+#: src/features/appShell/ConnectionRecoveryNotice.tsx:10
+msgid "Connection closed"
+msgstr "Connection closed"
+
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:101
 msgid "Connection interrupted. Reconnect required."
 msgstr "Connection interrupted. Reconnect required."
@@ -212,6 +217,11 @@ msgstr "Connection interrupted. Reconnect required."
 #: src/NotFoundPage.tsx:20
 msgid "Contact support"
 msgstr "Contact support"
+
+#. Shown above retained tasks after the GUI host connection closes
+#: src/features/appShell/ConnectionRecoveryNotice.tsx:15
+msgid "Content may not be up to date. Your conversations and input are still here."
+msgstr "Content may not be up to date. Your conversations and input are still here."
 
 #: src/features/committedTranscriptSurface/TranscriptContextBoundary.tsx:20
 msgid "Context compressed"
@@ -250,7 +260,7 @@ msgstr "Context usage details, {usedTokensLabel} tokens used, context window cap
 
 #. Resumes sending this page's restored queue; does not open the queue
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:128
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:76
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:77
 msgid "Continue sending"
 msgstr "Continue sending"
 
@@ -271,8 +281,8 @@ msgstr "Copy changes"
 msgid "Copy failed. Select the text and copy it manually."
 msgstr "Copy failed. Select the text and copy it manually."
 
-#: src/features/appShell/AppShellTopBar.tsx:55
-#: src/features/appShell/AppShellTopBar.tsx:193
+#: src/features/appShell/AppShellTopBar.tsx:56
+#: src/features/appShell/AppShellTopBar.tsx:194
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "Current task"
@@ -404,7 +414,7 @@ msgstr "Finished waiting"
 msgid "Go back home"
 msgstr "Go back home"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:270
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:271
 msgid "Guide"
 msgstr "Guide"
 
@@ -424,8 +434,8 @@ msgstr "Guiding"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 
-#: src/features/appShell/AppShellTopBar.tsx:60
-#: src/features/appShell/AppShellTopBar.tsx:231
+#: src/features/appShell/AppShellTopBar.tsx:61
+#: src/features/appShell/AppShellTopBar.tsx:232
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "History"
@@ -434,7 +444,7 @@ msgstr "History"
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
-#: src/features/appShell/AppShellTopBar.tsx:57
+#: src/features/appShell/AppShellTopBar.tsx:58
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:36
 msgid "History detail"
@@ -482,7 +492,7 @@ msgstr "Interrupted."
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:41
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:90
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:109
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:110
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
@@ -501,9 +511,9 @@ msgstr "Load history"
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:260
-#: src/features/currentTask/CurrentTaskPage.tsx:335
-#: src/features/currentTask/CurrentTaskPage.tsx:404
+#: src/features/currentTask/CurrentTaskPage.tsx:262
+#: src/features/currentTask/CurrentTaskPage.tsx:338
+#: src/features/currentTask/CurrentTaskPage.tsx:408
 msgid "Load task"
 msgstr "Load task"
 
@@ -533,18 +543,18 @@ msgstr "Loading skills…"
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:253
-#: src/features/currentTask/CurrentTaskPage.tsx:321
-#: src/features/currentTask/CurrentTaskPage.tsx:384
-#: src/features/currentTask/CurrentTaskPage.tsx:530
+#: src/features/currentTask/CurrentTaskPage.tsx:255
+#: src/features/currentTask/CurrentTaskPage.tsx:324
+#: src/features/currentTask/CurrentTaskPage.tsx:388
+#: src/features/currentTask/CurrentTaskPage.tsx:534
 msgid "Loading task…"
 msgstr "Loading task…"
 
-#: src/features/appShell/AppShellTopBar.tsx:125
+#: src/features/appShell/AppShellTopBar.tsx:126
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:97
+#: src/features/appShell/AppShellTopBar.tsx:98
 msgid "Menu"
 msgstr "Menu"
 
@@ -552,27 +562,27 @@ msgstr "Menu"
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:202
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:212
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:203
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:213
 #: src/features/newSession/NewSessionPage.tsx:142
 #: src/features/newSession/NewSessionPage.tsx:160
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:188
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:189
 msgid "Message composer"
 msgstr "Message composer"
 
 #. Current task message updates are paused, not the task itself
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:54
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:55
 msgid "Message synchronization paused"
 msgstr "Message synchronization paused"
 
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:85
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:86
 msgid "Message updates arrived out of order, so the conversation may be incomplete."
 msgstr "Message updates arrived out of order, so the conversation may be incomplete."
 
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:82
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:83
 msgid "Message updates have piled up, so synchronization has paused."
 msgstr "Message updates have piled up, so synchronization has paused."
 
@@ -621,12 +631,12 @@ msgstr "Move up"
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:121
+#: src/features/appShell/AppShellTopBar.tsx:122
 msgid "Navigation"
 msgstr "Navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:59
-#: src/features/appShell/AppShellTopBar.tsx:152
+#: src/features/appShell/AppShellTopBar.tsx:60
+#: src/features/appShell/AppShellTopBar.tsx:153
 #: src/features/documentTitle/DocumentTitleOwner.tsx:52
 msgid "New session"
 msgstr "New session"
@@ -677,7 +687,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:199
+#: src/features/appShell/AppShellTopBar.tsx:200
 msgid "Open current task"
 msgstr "Open current task"
 
@@ -685,11 +695,11 @@ msgstr "Open current task"
 msgid "Open session"
 msgstr "Open session"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:218
+#: src/features/currentTask/CurrentTaskPage.tsx:219
 msgid "Open task"
 msgstr "Open task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:204
+#: src/features/currentTask/CurrentTaskPage.tsx:205
 msgid "Opening task…"
 msgstr "Opening task…"
 
@@ -772,6 +782,11 @@ msgstr "Queued {ordinaryQueuedCount}"
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "Queued message moved to position {movedPosition} of {movedCount}."
 
+#. Task removal is blocked while the shared GUI connection is unavailable
+#: src/features/appShell/activeThreadCollectionMessages.ts:18
+msgid "Reconnect before removing this task."
+msgstr "Reconnect before removing this task."
+
 #: src/features/appShell/activeThreadCollectionMessages.ts:16
 msgid "Recover this task's connection before removing it."
 msgstr "Recover this task's connection before removing it."
@@ -781,7 +796,7 @@ msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
 
 #. Reload the current task's runtime status
-#: src/features/currentTask/CurrentTaskPage.tsx:406
+#: src/features/currentTask/CurrentTaskPage.tsx:410
 msgid "Refresh status"
 msgstr "Refresh status"
 
@@ -789,7 +804,7 @@ msgstr "Refresh status"
 msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:386
+#: src/features/currentTask/CurrentTaskPage.tsx:390
 msgid "Refreshing status…"
 msgstr "Refreshing status…"
 
@@ -810,7 +825,7 @@ msgid "Remove from list"
 msgstr "Remove from list"
 
 #. Drops only this local unknown-send record, without retracting server work
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:107
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:108
 msgid "Remove local record"
 msgstr "Remove local record"
 
@@ -821,18 +836,18 @@ msgstr "Remove or replace invalid skills before saving."
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
-#: src/features/currentTask/CurrentTaskPage.tsx:214
-#: src/features/currentTask/CurrentTaskPage.tsx:331
-#: src/features/currentTask/CurrentTaskPage.tsx:400
+#: src/features/currentTask/CurrentTaskPage.tsx:215
+#: src/features/currentTask/CurrentTaskPage.tsx:334
+#: src/features/currentTask/CurrentTaskPage.tsx:404
 msgid "Remove task"
 msgstr "Remove task"
 
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
-#: src/features/currentTask/CurrentTaskPage.tsx:200
-#: src/features/currentTask/CurrentTaskPage.tsx:317
-#: src/features/currentTask/CurrentTaskPage.tsx:380
+#: src/features/currentTask/CurrentTaskPage.tsx:201
+#: src/features/currentTask/CurrentTaskPage.tsx:320
+#: src/features/currentTask/CurrentTaskPage.tsx:384
 msgid "Removing task…"
 msgstr "Removing task…"
 
@@ -852,16 +867,16 @@ msgid "Resolve the task list error above, then try again."
 msgstr "Resolve the task list error above, then try again."
 
 #. Button to restore this task's message synchronization; same label after failure
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:46
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:47
 msgid "Restore sync"
 msgstr "Restore sync"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:60
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:61
 msgid "Restored messages are paused"
 msgstr "Restored messages are paused"
 
 #. Pending button label while restoring this task's message synchronization
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:38
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:39
 msgid "Restoring sync…"
 msgstr "Restoring sync…"
 
@@ -892,11 +907,11 @@ msgstr "Resuming sending"
 #~ msgstr "Retry"
 
 #. Retries saving the composer draft and queue in this browser tab
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:35
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:36
 msgid "Retry saving"
 msgstr "Retry saving"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:38
+#: src/features/appShell/activeThreadCollectionMessages.ts:43
 msgid "Retry saving this task's state before removing it."
 msgstr "Retry saving this task's state before removing it."
 
@@ -910,11 +925,11 @@ msgstr "Return to current task"
 msgid "Return to edit"
 msgstr "Return to edit"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:20
+#: src/features/appShell/activeThreadCollectionMessages.ts:25
 msgid "Review and continue this task after reload before removing it."
 msgstr "Review and continue this task after reload before removing it."
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:29
+#: src/features/appShell/activeThreadCollectionMessages.ts:34
 msgid "Review unresolved messages in this task before removing it."
 msgstr "Review unresolved messages in this task before removing it."
 
@@ -932,7 +947,7 @@ msgstr "Save"
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:282
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:283
 #: src/features/newSession/NewSessionPage.tsx:178
 msgid "Send"
 msgstr "Send"
@@ -942,7 +957,7 @@ msgstr "Send"
 msgid "Sending"
 msgstr "Sending"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:88
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:89
 msgid "Sending result unknown"
 msgstr "Sending result unknown"
 
@@ -1001,7 +1016,7 @@ msgstr "Spawned {receiver} ({model} {reasoningEffort})"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "Spawned {receiver} ({reasoningEffort})"
 
-#: src/features/appShell/AppShellTopBar.tsx:159
+#: src/features/appShell/AppShellTopBar.tsx:160
 msgid "Start a conversation"
 msgstr "Start a conversation"
 
@@ -1010,11 +1025,11 @@ msgstr "Start a conversation"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:258
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:259
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:249
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:250
 msgid "Stop failed"
 msgstr "Stop failed"
 
@@ -1023,7 +1038,7 @@ msgstr "Stop failed"
 msgid "Structured input"
 msgstr "Structured input"
 
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:67
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:68
 msgid "Synchronization could not be restored. You can try again."
 msgstr "Synchronization could not be restored. You can try again."
 
@@ -1038,8 +1053,8 @@ msgstr "System"
 msgid "System error"
 msgstr "System error"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:225
-#: src/features/currentTask/CurrentTaskPage.tsx:435
+#: src/features/currentTask/CurrentTaskPage.tsx:226
+#: src/features/currentTask/CurrentTaskPage.tsx:439
 msgid "Task action failed"
 msgstr "Task action failed"
 
@@ -1062,7 +1077,7 @@ msgid "Task switched, but cannot be opened"
 msgstr "Task switched, but cannot be opened"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:105
+#: src/features/appShell/AppShellTopBar.tsx:106
 msgid "Tasks or the connection need attention."
 msgstr "Tasks or the connection need attention."
 
@@ -1075,7 +1090,7 @@ msgstr "The compression request result is unknown. Sending and compression remai
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "The connection was interrupted before the task switch completed. Reconnect and try again."
 
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:60
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:61
 msgid "The conversation shown here may be out of date. Restore sync to get the latest content."
 msgstr "The conversation shown here may be out of date. Restore sync to get the latest content."
 
@@ -1084,8 +1099,8 @@ msgstr "The conversation shown here may be out of date. Restore sync to get the 
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "The creation result is unknown. Retrying may leave an extra empty session."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:277
-#: src/features/currentTask/CurrentTaskPage.tsx:353
+#: src/features/currentTask/CurrentTaskPage.tsx:279
+#: src/features/currentTask/CurrentTaskPage.tsx:356
 msgid "The current task could not be loaded."
 msgstr "The current task could not be loaded."
 
@@ -1113,11 +1128,11 @@ msgstr "The previous task connection could not be fully cleaned up. Later state 
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:438
+#: src/features/currentTask/CurrentTaskPage.tsx:442
 msgid "The task action could not be completed."
 msgstr "The task action could not be completed."
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:18
+#: src/features/appShell/activeThreadCollectionMessages.ts:23
 msgid "The task changed. Review its current state and try again."
 msgstr "The task changed. Review its current state and try again."
 
@@ -1133,11 +1148,11 @@ msgstr "The task connection could not be prepared."
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:229
+#: src/features/currentTask/CurrentTaskPage.tsx:230
 msgid "The task could not be opened."
 msgstr "The task could not be opened."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:231
+#: src/features/currentTask/CurrentTaskPage.tsx:232
 msgid "The task could not be removed."
 msgstr "The task could not be removed."
 
@@ -1145,7 +1160,7 @@ msgstr "The task could not be removed."
 msgid "The task could not be resumed."
 msgstr "The task could not be resumed."
 
-#: src/features/appShell/AppShell.tsx:77
+#: src/features/appShell/AppShell.tsx:80
 msgid "The task list could not be updated."
 msgstr "The task list could not be updated."
 
@@ -1153,7 +1168,7 @@ msgstr "The task list could not be updated."
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:460
+#: src/features/currentTask/CurrentTaskPage.tsx:464
 msgid "The task recovery could not be completed."
 msgstr "The task recovery could not be completed."
 
@@ -1161,7 +1176,7 @@ msgstr "The task recovery could not be completed."
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:91
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:92
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 
@@ -1189,7 +1204,7 @@ msgstr "This pending message cannot be edited."
 msgid "This task has no messages."
 msgstr "This task has no messages."
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:40
+#: src/features/appShell/activeThreadCollectionMessages.ts:45
 msgid "This task is no longer connected."
 msgstr "This task is no longer connected."
 
@@ -1201,7 +1216,7 @@ msgstr "This task is still running."
 msgid "This task needs attention."
 msgstr "This task needs attention."
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:23
+#: src/features/appShell/activeThreadCollectionMessages.ts:28
 msgid "This task still has queued messages."
 msgstr "This task still has queued messages."
 
@@ -1237,12 +1252,12 @@ msgstr "Unable to load history"
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:274
-#: src/features/currentTask/CurrentTaskPage.tsx:350
+#: src/features/currentTask/CurrentTaskPage.tsx:276
+#: src/features/currentTask/CurrentTaskPage.tsx:353
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:457
+#: src/features/currentTask/CurrentTaskPage.tsx:461
 msgid "Unable to recover the current task"
 msgstr "Unable to recover the current task"
 
@@ -1250,7 +1265,7 @@ msgstr "Unable to recover the current task"
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "Unable to retry this task. Review its current state and try again."
 
-#: src/features/appShell/AppShell.tsx:25
+#: src/features/appShell/AppShell.tsx:26
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
@@ -1263,7 +1278,7 @@ msgstr "Unable to start the conversation"
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
-#: src/features/appShell/AppShell.tsx:74
+#: src/features/appShell/AppShell.tsx:77
 msgid "Unable to update the task list"
 msgstr "Unable to update the task list"
 
@@ -1305,15 +1320,15 @@ msgstr "View diagnostic information"
 msgid "Wait for context compaction to finish."
 msgstr "Wait for context compaction to finish."
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:26
+#: src/features/appShell/activeThreadCollectionMessages.ts:31
 msgid "Wait for pending message delivery to finish or review its outcome."
 msgstr "Wait for pending message delivery to finish or review its outcome."
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:34
+#: src/features/appShell/activeThreadCollectionMessages.ts:39
 msgid "Wait for the current task operation to finish."
 msgstr "Wait for the current task operation to finish."
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:36
+#: src/features/appShell/activeThreadCollectionMessages.ts:41
 msgid "Wait for the stop request to finish or review its outcome."
 msgstr "Wait for the stop request to finish or review its outcome."
 
@@ -1321,7 +1336,7 @@ msgstr "Wait for the stop request to finish or review its outcome."
 msgid "Wait for this task to finish loading before removing it."
 msgstr "Wait for this task to finish loading before removing it."
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:31
+#: src/features/appShell/activeThreadCollectionMessages.ts:36
 msgid "Wait for this task's recovery to finish."
 msgstr "Wait for this task's recovery to finish."
 
@@ -1388,6 +1403,6 @@ msgstr "Your changes have not been saved. Return to copy them, or discard them t
 msgid "Your input is retained. Retry to continue."
 msgstr "Your input is retained. Retry to continue."
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:46
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:47
 msgid "Your input is still here. Sending is blocked until saving succeeds."
 msgstr "Your input is still here. Sending is blocked until saving succeeds."

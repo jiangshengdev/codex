@@ -31,6 +31,7 @@ export type ActiveThreadComposerRole = Readonly<
     | "submitSteer"
     | "getDraft"
     | "saveDraft"
+    | "retainDraft"
     | "retryPersistence"
     | "resumeRestored"
     | "discardUnknown"
@@ -145,6 +146,7 @@ export type ActiveThreadRemovalBlocker =
   | "activeTurn"
   | "compaction"
   | "projectionUnavailable"
+  | "connectionUnavailable"
   | "changed"
   | "restoredPaused";
 

@@ -1,4 +1,8 @@
 import type { AppDispatch } from "@/app/store";
+import {
+  createActiveThreadConnection,
+  type ActiveThreadConnection,
+} from "./activeThreadConnection";
 import type { BrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { createListenerSet } from "@/subscriptions/listenerSet";
@@ -82,7 +86,7 @@ type Member = {
 class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   readonly session: ActiveThreadSession;
   private readonly authorizationSession: ActiveThreadAuthorizationSession;
-  private readonly commands: ActiveThreadSessionCommands;
+  private readonly connection: ActiveThreadConnection<ActiveThreadSessionCommands>;
   private readonly dispatch: AppDispatch;
   private readonly scheduler: ActiveThreadSessionScheduler;
   private readonly persistence: CreateLiveActiveThreadSessionInput["persistence"];
@@ -109,7 +113,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     persistence,
   }: CreateActiveThreadSessionInput) {
     this.authorizationSession = authorizationSession;
-    this.commands = commands;
+    this.connection = createActiveThreadConnection(commands);
     this.dispatch = dispatch;
     this.scheduler = scheduler;
     this.persistence = persistence;
@@ -122,7 +126,8 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       view: this.view,
       retry: this.retry,
       recoverProjection: (threadId, expectedIdentity) => {
-        if (this.disposed) return Promise.resolve({ type: "unavailable" });
+        if (this.disposed || this.connection.capture() == null)
+          return Promise.resolve({ type: "unavailable" });
         return (
           this.members.get(threadId)?.lifecycle.recoverProjection(expectedIdentity) ??
           Promise.resolve({ type: "unavailable" })
@@ -215,6 +220,12 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     const intent = ++this.selectionIntent;
     if (!this.loadCollection()) return this.collectionFailure("collectionRead", null);
     let member = this.members.get(threadId);
+    if (this.connection.capture() == null) {
+      if (member?.lifecycle.getState().phase !== "ready") return this.connectionFailure(threadId);
+      this.viewedThreadId = threadId;
+      this.publish();
+      return { type: "ready", threadId, warnings: [] };
+    }
     if (member == null) {
       try {
         this.commitMembership([...this.members.keys(), threadId]);
@@ -236,7 +247,8 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
         : member.lifecycle.initialize();
     this.initializeWaitingMembers(threadId);
     const result = await foreground;
-    if (this.isDisposed()) return this.connectionFailure(threadId);
+    if (this.isDisposed() || this.connection.capture() == null)
+      return this.connectionFailure(threadId);
     if (intent !== this.selectionIntent)
       return {
         type: "unavailable",
@@ -261,6 +273,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   };
 
   private retry = (threadId: string): Promise<ActiveThreadRetryOutcome> => {
+    if (this.connection.capture() == null) return Promise.resolve(this.connectionFailure(threadId));
     const intent = this.selectionIntent;
     const wasViewed = this.viewedThreadId === threadId;
     const member = this.members.get(threadId);
@@ -348,7 +361,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     for (const entry of operationErrors) this.setCollectionError(entry.operation, threadId, null);
     const lifecycle = createActiveThreadMemberLifecycle({
       threadId,
-      commands: this.commands,
+      connection: this.connection,
       dispatch: this.dispatch,
       scheduler: this.scheduler,
       persistence: this.persistence,
@@ -460,11 +473,16 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     for (const member of this.members.values()) member.lifecycle.suspendRestored();
   };
   connectionUnavailable = (): void => {
-    this.dispose();
+    if (this.disposed || this.connection.capture() == null) return;
+    this.connection.revoke();
+    this.selectionIntent += 1;
+    for (const member of this.members.values()) member.lifecycle.connectionUnavailable();
+    this.publish();
   };
   dispose = (): void => {
     if (this.isDisposed()) return;
     this.disposed = true;
+    this.connection.revoke();
     let cleanupError: unknown = null;
     for (const member of this.members.values()) {
       try {

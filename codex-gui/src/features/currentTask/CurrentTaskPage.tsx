@@ -195,6 +195,7 @@ export function CurrentTaskPage() {
               pendingOperations.includes(operation) ||
               (operation === "remove" && member.removalPending)
             }
+            isDisabled={status.label !== "initialized" && operation !== "navigation"}
             pendingChildren={
               operation === "remove" ? (
                 <Trans comment="Leaving GUI active task list; task history and drafts are kept">
@@ -249,6 +250,7 @@ export function CurrentTaskPage() {
     const retryAction =
       routeTarget.type === "currentTask" ? (
         <RetryActionButton
+          isDisabled={status.label !== "initialized"}
           isPending={pendingOperations.includes("retry") || member?.retryPending === true}
           pendingChildren={<Trans>Loading task…</Trans>}
           size="sm"
@@ -311,6 +313,7 @@ export function CurrentTaskPage() {
     }
     const retryAction = (
       <RetryActionButton
+        isDisabled={status.label !== "initialized"}
         isPending={pendingOperations.includes("retry") || member?.retryPending === true}
         pendingChildren={
           member?.retryAction === "remove" ? (
@@ -374,6 +377,7 @@ export function CurrentTaskPage() {
       member.removalBlockers.includes("statusUnknown") ||
       (member.retryPending && pendingOperations.includes("retry"))) ? (
       <RetryActionButton
+        isDisabled={snapshot.connection.phase !== "available"}
         isPending={pendingOperations.includes("retry") || member.retryPending}
         pendingChildren={
           member.retryAction === "remove" ? (

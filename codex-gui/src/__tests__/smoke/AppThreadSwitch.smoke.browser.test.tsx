@@ -112,6 +112,7 @@ const createQueueCoordinatorMock = (
   const coordinator = {
     getDraft: vi.fn<ComposerInputQueueCoordinator["getDraft"]>().mockReturnValue(null),
     saveDraft: vi.fn<ComposerInputQueueCoordinator["saveDraft"]>().mockReturnValue(true),
+    retainDraft: vi.fn<ComposerInputQueueCoordinator["retainDraft"]>().mockReturnValue(true),
     retryPersistence: vi
       .fn<ComposerInputQueueCoordinator["retryPersistence"]>()
       .mockReturnValue(false),
@@ -121,6 +122,7 @@ const createQueueCoordinatorMock = (
       vi.fn<ComposerInputQueueCoordinator["completeRestoreReconciliation"]>(),
     reconcileRestoredTurns: vi.fn<ComposerInputQueueCoordinator["reconcileRestoredTurns"]>(),
     setProjectionUnavailable: vi.fn<ComposerInputQueueCoordinator["setProjectionUnavailable"]>(),
+    setConnectionUnavailable: vi.fn<ComposerInputQueueCoordinator["setConnectionUnavailable"]>(),
     reconcileProjection: vi
       .fn<ComposerInputQueueCoordinator["reconcileProjection"]>()
       .mockReturnValue({ type: "committed" }),

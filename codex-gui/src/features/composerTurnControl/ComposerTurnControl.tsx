@@ -91,6 +91,7 @@ export function ComposerTurnControl({
     activeTurnId,
     composer: queueSnapshot,
     composerRole,
+    connection: sessionSnapshot.connection,
     phase: sessionSnapshot.phase,
     revision,
     skills: skillCatalog,

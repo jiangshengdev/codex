@@ -8,6 +8,7 @@ export type ActiveThreadStatus = Readonly<{
   getSnapshot(): ActiveThreadStatusSnapshot;
   subscribe(listener: () => void): () => void;
   invalidate(): boolean;
+  suspend(): void;
   rebase(status: Thread["status"]): void;
   settleInvalidations(): Promise<void>;
   dispose(): void;
@@ -36,6 +37,7 @@ class ActiveThreadStatusImpl implements ActiveThreadStatus {
     this.resolveDisposed = resolve;
   });
   private disposed = false;
+  private suspended = false;
 
   constructor({ threadId, initialStatus, readThread }: CreateActiveThreadStatusInput) {
     this.threadId = threadId;
@@ -51,7 +53,7 @@ class ActiveThreadStatusImpl implements ActiveThreadStatus {
   };
 
   invalidate = (): boolean => {
-    if (this.disposed) return false;
+    if (this.disposed || this.suspended) return false;
     const changed = !this.dirty;
     this.dirty = true;
     void this.ensureRefresh();
@@ -60,6 +62,7 @@ class ActiveThreadStatusImpl implements ActiveThreadStatus {
 
   rebase = (status: Thread["status"]): void => {
     if (this.disposed) return;
+    this.suspended = false;
     this.generation += 1;
     this.dirty = this.dirty || this.refreshPromise != null;
     this.refreshPromise = null;
@@ -80,6 +83,18 @@ class ActiveThreadStatusImpl implements ActiveThreadStatus {
     }
   };
 
+  suspend = (): void => {
+    if (this.disposed) return;
+    this.suspended = true;
+    this.generation += 1;
+    this.dirty = false;
+    this.refreshPromise = null;
+    this.resolveRebased();
+    this.rebasedPromise = new Promise<void>((resolve) => {
+      this.resolveRebased = resolve;
+    });
+  };
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
@@ -91,7 +106,7 @@ class ActiveThreadStatusImpl implements ActiveThreadStatus {
   }
 
   private ensureRefresh(): Promise<void> | null {
-    if (this.disposed || !this.dirty) return this.refreshPromise;
+    if (this.disposed || this.suspended || !this.dirty) return this.refreshPromise;
     if (this.refreshPromise != null) return this.refreshPromise;
 
     const generation = this.generation;

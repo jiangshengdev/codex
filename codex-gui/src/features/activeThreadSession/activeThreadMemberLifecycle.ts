@@ -1,4 +1,5 @@
 import type { AppDispatch } from "@/app/store";
+import type { ActiveThreadConnection } from "./activeThreadConnection";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { createListenerSet } from "@/subscriptions/listenerSet";
 import {
@@ -50,7 +51,7 @@ import type {
 
 type CreateActiveThreadMemberLifecycleInput = Readonly<{
   threadId: string;
-  commands: ActiveThreadSessionCommands;
+  connection: ActiveThreadConnection<ActiveThreadSessionCommands>;
   dispatch: AppDispatch;
   scheduler: ActiveThreadSessionScheduler;
   persistence: CreateLiveActiveThreadSessionInput["persistence"];
@@ -96,7 +97,7 @@ type Member = {
 
 class ActiveThreadMemberLifecycleImpl {
   private readonly member: Member;
-  private readonly commands: ActiveThreadSessionCommands;
+  private readonly connection: ActiveThreadConnection<ActiveThreadSessionCommands>;
   private readonly dispatch: AppDispatch;
   private readonly scheduler: ActiveThreadSessionScheduler;
   private readonly persistence: CreateLiveActiveThreadSessionInput["persistence"];
@@ -110,12 +111,12 @@ class ActiveThreadMemberLifecycleImpl {
 
   constructor({
     threadId,
-    commands,
+    connection,
     dispatch,
     scheduler,
     persistence,
   }: CreateActiveThreadMemberLifecycleInput) {
-    this.commands = commands;
+    this.connection = connection;
     this.dispatch = dispatch;
     this.scheduler = scheduler;
     this.persistence = persistence;
@@ -172,6 +173,7 @@ class ActiveThreadMemberLifecycleImpl {
     const live = this.member.live;
     if (
       this.disposed ||
+      this.connection.capture() == null ||
       live == null ||
       !this.isReadyMember(live) ||
       live.identity.instanceId !== expectedIdentity.instanceId ||
@@ -195,15 +197,22 @@ class ActiveThreadMemberLifecycleImpl {
     live: LiveActiveThreadSession,
   ): Promise<ProjectionRecoveryOutcome> {
     const attempt = this.recovery;
-    const current = () => !this.disposed && this.isReadyMember(live) && this.recovery === attempt;
+    const round = this.connection.capture();
+    const current = () =>
+      !this.disposed &&
+      round?.isCurrent() === true &&
+      this.isReadyMember(live) &&
+      this.recovery === attempt;
     try {
       if (!live.beginProjectionRecovery() || !current()) return { type: "unavailable" };
       this.cancelFrame(this.member);
       live.flushProjection();
       if (!current()) return { type: "unavailable" };
-      const response = await this.commands.attachThreadProjection({
-        threadId: this.member.threadId,
-      });
+      const response = await this.connection.run((commands) =>
+        commands.attachThreadProjection({
+          threadId: this.member.threadId,
+        }),
+      );
       if (!current()) return { type: "unavailable" };
       const projection = createActiveThreadProjection({
         threadId: this.member.threadId,
@@ -250,7 +259,8 @@ class ActiveThreadMemberLifecycleImpl {
   initialize = (): Promise<ActiveThreadActivationOutcome> => this.ensureInitialized(this.member);
   retry = async (): Promise<ActiveThreadActivationOutcome> => {
     const member = this.member;
-    if (this.disposed) return this.connectionFailure(member.threadId);
+    if (this.disposed || this.connection.capture() == null)
+      return this.connectionFailure(member.threadId);
     if (member.phase === "cleanupPending" && member.cleanupFromFailure) {
       member.pending ??= this.retryInitializationCleanup(member);
       return await member.pending;
@@ -259,7 +269,8 @@ class ActiveThreadMemberLifecycleImpl {
       const live = member.live;
       live.invalidateThreadStatus();
       await live.settleThreadStatusInvalidations();
-      if (this.isDisposed()) return this.connectionFailure(member.threadId);
+      if (this.isDisposed() || this.connection.capture() == null)
+        return this.connectionFailure(member.threadId);
       if (!this.isReadyMember(live))
         return this.failure("prepare", new Error("Session changed during status retry"));
       return { type: "ready", threadId: member.threadId, warnings: [] };
@@ -268,7 +279,9 @@ class ActiveThreadMemberLifecycleImpl {
   };
   private async retryInitializationCleanup(member: Member): Promise<ActiveThreadActivationOutcome> {
     try {
-      await this.commands.detachThreadProjection({ threadId: member.threadId });
+      await this.connection.run((commands) =>
+        commands.detachThreadProjection({ threadId: member.threadId }),
+      );
       member.attached = false;
       member.cleanupFromFailure = false;
       member.phase = "failed";
@@ -288,6 +301,8 @@ class ActiveThreadMemberLifecycleImpl {
     if (member.pending != null) return member.pending;
     if (member.phase === "ready")
       return Promise.resolve({ type: "ready", threadId: member.threadId, warnings: [] });
+    if (this.connection.capture() == null)
+      return Promise.resolve(this.connectionFailure(member.threadId));
     if (member.phase === "cleanupPending" || member.phase === "removalPending") {
       return Promise.resolve(this.failure("prepare", member.error));
     }
@@ -304,34 +319,49 @@ class ActiveThreadMemberLifecycleImpl {
   }
 
   private async initializeMember(member: Member): Promise<ActiveThreadActivationOutcome> {
+    const round = this.connection.capture();
+    if (round == null) return this.connectionFailure(member.threadId);
     let phase: "loaded" | "resume" | "attach" | "prepare" = "loaded";
     try {
       let cursor: string | null = null;
       let loaded = false;
       do {
-        const page = await this.commands.listLoadedThreads(cursor == null ? {} : { cursor });
-        if (this.isDisposed()) return this.connectionFailure(member.threadId);
+        const page = await round.commands.listLoadedThreads(cursor == null ? {} : { cursor });
+        if (this.isDisposed() || !round.isCurrent()) return this.connectionFailure(member.threadId);
         loaded = page.data.includes(member.threadId);
         cursor = page.nextCursor;
       } while (!loaded && cursor != null);
       if (!loaded) {
         phase = "resume";
-        const resumed = await this.commands.resumeThread({ threadId: member.threadId });
+        const resumed = await round.commands.resumeThread({ threadId: member.threadId });
         if (resumed.thread.id !== member.threadId)
           throw new Error("thread/resume returned a different thread identity");
-        if (this.isDisposed()) return this.connectionFailure(member.threadId);
+        if (this.isDisposed() || !round.isCurrent()) return this.connectionFailure(member.threadId);
       }
       phase = "attach";
-      const response = await this.commands.attachThreadProjection({ threadId: member.threadId });
+      const response = await round.commands.attachThreadProjection({ threadId: member.threadId });
+      if (this.isDisposed()) {
+        let cleanupError: unknown = null;
+        try {
+          await round.commands.detachThreadProjection({ threadId: member.threadId });
+        } catch (error: unknown) {
+          cleanupError = error;
+        }
+        return {
+          type: "unavailable",
+          failure: {
+            type: "connectionLost",
+            progress: "beforeCommit",
+            threadId: member.threadId,
+            cleanupError,
+          },
+        };
+      }
+      if (!round.isCurrent()) return this.connectionFailure(member.threadId);
       member.attached = true;
       member.subscriptionId = response.subscriptionId;
       if (response.snapshot.thread.id !== member.threadId)
         throw new Error("thread/projection/attach returned a different thread identity");
-      if (this.isDisposed()) {
-        await this.commands.detachThreadProjection({ threadId: member.threadId });
-        member.attached = false;
-        return this.connectionFailure(member.threadId);
-      }
       phase = "prepare";
       const projection = createActiveThreadProjection({
         threadId: member.threadId,
@@ -349,14 +379,15 @@ class ActiveThreadMemberLifecycleImpl {
       const identity = createActiveThreadSessionIdentity(member.threadId);
       member.slotIdentity = identity;
       this.dispatch(activeThreadReadModelSlotCreated(identity));
-      if (this.isDisposed()) throw new Error("Connection closed during session initialization");
+      if (this.isDisposed() || !round.isCurrent())
+        throw new Error("Connection closed during session initialization");
       try {
         member.live = createLiveActiveThreadSession({
           identity,
           sessionRevision: 1,
           attachResponse: response,
           projection,
-          commands: this.commands,
+          connection: this.connection,
           dispatch: this.dispatch,
           persistence: this.persistence,
         });
@@ -364,8 +395,10 @@ class ActiveThreadMemberLifecycleImpl {
         this.removeSlot(member);
         throw error;
       }
-      if (this.isDisposed()) throw new Error("Connection closed during session initialization");
+      if (this.isDisposed() || !round.isCurrent())
+        throw new Error("Connection closed during session initialization");
       member.roles = createSessionRoles(member.live);
+      member.cwd = response.snapshot.thread.cwd;
       member.unsubscribe = member.live.subscribe(() => {
         this.publish();
       });
@@ -380,7 +413,7 @@ class ActiveThreadMemberLifecycleImpl {
         member.live.invalidateThreadStatus();
       }
       await member.live.settleThreadStatusInvalidations();
-      if (this.isDisposed()) return this.connectionFailure(member.threadId);
+      if (this.isDisposed() || !round.isCurrent()) return this.connectionFailure(member.threadId);
       if (member.live.getSnapshot().phase === "projectionUnavailable") {
         throw new Error("Candidate projection became unavailable before publication");
       }
@@ -401,7 +434,7 @@ class ActiveThreadMemberLifecycleImpl {
       }
       if (member.attached) {
         try {
-          await this.commands.detachThreadProjection({ threadId: member.threadId });
+          await round.commands.detachThreadProjection({ threadId: member.threadId });
           member.attached = false;
         } catch (cleanupError: unknown) {
           member.phase = "cleanupPending";
@@ -421,6 +454,8 @@ class ActiveThreadMemberLifecycleImpl {
     const member = this.member;
     const threadId = member.threadId;
     if (this.isDisposed()) return { type: "unavailable", threadId };
+    if (this.connection.capture() == null)
+      return { type: "blocked", threadId, blockers: ["connectionUnavailable"] };
     const live = member.live;
     if (member.phase === "initializing")
       return { type: "blocked", threadId, blockers: ["initializing"] };
@@ -474,7 +509,7 @@ class ActiveThreadMemberLifecycleImpl {
     this.publish();
     if (member.attached) {
       try {
-        await this.commands.detachThreadProjection({ threadId });
+        await this.connection.run((commands) => commands.detachThreadProjection({ threadId }));
         member.attached = false;
       } catch (error: unknown) {
         member.error = error;
@@ -493,6 +528,7 @@ class ActiveThreadMemberLifecycleImpl {
     this.listeners.clear();
   };
   private removalBlockers(member: Member): ActiveThreadRemovalBlocker[] {
+    if (this.connection.capture() == null) return ["connectionUnavailable"];
     if (member.phase === "initializing") return ["initializing"];
     if (member.phase === "failed" || member.cleanupFromFailure) return ["statusUnknown"];
     const live = member.live;
@@ -526,7 +562,7 @@ class ActiveThreadMemberLifecycleImpl {
   };
 
   private routeNotification(input: ActiveThreadNotification): void {
-    if (this.isDisposed()) return;
+    if (this.isDisposed() || this.connection.capture() == null) return;
     const member = this.member;
     if (input.notification.threadId !== member.threadId) return;
     if (this.recovery != null) {
@@ -583,6 +619,23 @@ class ActiveThreadMemberLifecycleImpl {
   suspendRestored = (): void => {
     this.member.suspended = true;
     this.member.live?.suspendRestored();
+  };
+  connectionUnavailable = (): void => {
+    if (this.disposed) return;
+    this.connection.revoke();
+    this.cancelFrame(this.member);
+    this.member.live?.flushProjection();
+    this.member.live?.connectionUnavailable();
+    this.member.notifications = [];
+    this.member.attached = false;
+    this.recovery = null;
+    if (this.member.live == null) {
+      this.member.phase = "failed";
+      this.member.error = new Error("GUI host connection is not available");
+    } else if (this.member.roles != null) {
+      this.member.phase = "ready";
+    }
+    this.publish();
   };
   dispose = (): void => {
     if (this.disposed) return;
@@ -669,6 +722,7 @@ function createSessionRoles(liveSession: LiveActiveThreadSession): ActiveThreadS
       submitSteer: liveSession.submitSteer,
       getDraft: liveSession.getDraft,
       saveDraft: liveSession.saveDraft,
+      retainDraft: liveSession.retainDraft,
       retryPersistence: liveSession.retryPersistence,
       resumeRestored: liveSession.resumeRestored,
       discardUnknown: liveSession.discardUnknown,
@@ -731,6 +785,7 @@ export function createActiveThreadMemberLifecycle(input: CreateActiveThreadMembe
     invalidateSkills: member.invalidateSkills,
     invalidateThreadStatus: member.invalidateThreadStatus,
     suspendRestored: member.suspendRestored,
+    connectionUnavailable: member.connectionUnavailable,
     prepareRemoval: member.prepareRemoval,
     finalizeRemoval: member.finalizeRemoval,
     dispose: member.dispose,

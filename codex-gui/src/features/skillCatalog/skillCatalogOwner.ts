@@ -49,6 +49,7 @@ export class SkillCatalogOwner {
   private requestInFlight = false;
   private refreshQueued = false;
   private hasSuccessfulCatalog = false;
+  private suspended = false;
 
   constructor({ cwd, listSkills }: SkillCatalogOwnerOptions) {
     this.cwd = cwd;
@@ -76,7 +77,7 @@ export class SkillCatalogOwner {
   }
 
   readonly invalidate = (): boolean => {
-    if (!this.started || this.disposed) {
+    if (!this.started || this.disposed || this.suspended) {
       return false;
     }
 
@@ -93,7 +94,7 @@ export class SkillCatalogOwner {
   };
 
   readonly retry = (): boolean => {
-    if (this.disposed || this.requestInFlight) {
+    if (this.disposed || this.suspended || this.requestInFlight) {
       return false;
     }
 
@@ -118,6 +119,14 @@ export class SkillCatalogOwner {
     this.requestInFlight = false;
     this.refreshQueued = false;
     this.listeners.clear();
+  }
+
+  suspend(): void {
+    if (this.disposed) return;
+    this.suspended = true;
+    this.generation += 1;
+    this.requestInFlight = false;
+    this.refreshQueued = false;
   }
 
   private requestCatalog(kind: "initial" | "refresh"): void {

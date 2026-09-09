@@ -31,7 +31,7 @@ type ComposerTurnCommandRole = Pick<
 export type ComposerTurnSessionFacts = Readonly<
   Pick<
     ActiveComposerSessionSnapshot,
-    "activeTurnId" | "composer" | "phase" | "revision" | "skills"
+    "activeTurnId" | "composer" | "connection" | "phase" | "revision" | "skills"
   > & {
     composerRole: ComposerTurnCommandRole;
   }
@@ -120,7 +120,8 @@ class ComposerTurnApplicationImpl implements ComposerTurnApplication {
     editor: ComposerEditorSnapshot | null;
   }): ComposerTurnControlView {
     this.observeProjection(session);
-    const operationsEnabled = !this.disposed && session.phase === "active";
+    const operationsEnabled =
+      !this.disposed && session.phase === "active" && session.connection.phase === "available";
     const sendingEnabled = operationsEnabled && session.composer.persistence.error == null;
     const isSubmitting = this.activeSubmission != null;
     const invalidPaths = invalidSelectedSkillPaths(
@@ -259,6 +260,7 @@ class ComposerTurnApplicationImpl implements ComposerTurnApplication {
   private accepts(session: ComposerTurnSessionFacts): boolean {
     return (
       !this.disposed &&
+      session.connection.phase === "available" &&
       this.projectedSession?.composerRole === session.composerRole &&
       this.projectedSession.revision === session.revision
     );

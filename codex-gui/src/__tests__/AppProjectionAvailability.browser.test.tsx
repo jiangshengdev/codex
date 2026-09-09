@@ -184,19 +184,58 @@ test("App disables composer after projection backpressure pauses synchronization
   await expectAppComposerDisabled(screen);
 });
 
-test("App disables composer when host commands become unavailable", async () => {
-  const commandHandle = createGuiHostCommands();
-  const { options, screen } = await renderReadyApp(commandHandle);
+test("App retains transcript and draft read-only after a normal host close", async () => {
+  const screen = await renderWithProviders(<App />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  const commandHandle = initializeAppWithProjection(options, attachWithCommittedMessages());
   const composer = screen.getByRole("region", { name: "Message composer" });
   const input = getAppComposer(screen);
-  const qrButton = screen.getByRole("button", { name: "Scan with phone" });
 
   await expect.element(input).toHaveAttribute("contenteditable", "true");
+  await input.fill("Keep this draft after closing");
+  const editor = input.element();
   options.onCommandsUnavailable?.();
+  options.onStatus?.({ label: "closed" });
 
-  await expect.element(composer).not.toBeInTheDocument();
-  await expect.element(input).not.toBeInTheDocument();
-  await expect.element(qrButton).not.toBeInTheDocument();
+  await expect.element(screen.getByText("Connection closed", { exact: true })).toBeVisible();
+  await expect
+    .element(
+      screen.getByText(
+        "Content may not be up to date. Your conversations and input are still here.",
+        { exact: true },
+      ),
+    )
+    .toBeVisible();
+  await expect.element(screen.getByText("Committed App response", { exact: true })).toBeVisible();
+  await expect.element(composer).toBeVisible();
+  await expectAppComposerDisabled(screen);
+  await expect.element(input).toHaveTextContent("Keep this draft after closing");
+  expect(input.element()).toBe(editor);
+  expect(startGuiHostConnectionMock).toHaveBeenCalledTimes(1);
+  expect(commandHandle.startTurn).not.toHaveBeenCalled();
+});
+
+test("App retains projection failure diagnostics when the host connection closes", async () => {
+  const { options, screen } = await renderReadyApp();
+  emitProjectionClosed(options, closedBackpressure);
+  await expect
+    .element(screen.getByText("Message synchronization paused", { exact: true }))
+    .toBeVisible();
+  options.onCommandsUnavailable?.();
+  options.onStatus?.({ label: "closed" });
+
+  await expect.element(screen.getByText("Connection closed", { exact: true })).toBeVisible();
+  await expect
+    .element(screen.getByText("Message synchronization paused", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Restore sync", exact: true }))
+    .toBeDisabled();
+  await screen.getByRole("button", { name: "View diagnostic information", exact: true }).click();
+  await expect
+    .element(screen.getByRole("dialog", { name: "Diagnostic information", exact: true }))
+    .toHaveTextContent("backpressure");
+  expect(startGuiHostConnectionMock).toHaveBeenCalledTimes(1);
 });
 
 test("App records a synchronization pause when a projection event breaks the baseline", async () => {

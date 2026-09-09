@@ -12,6 +12,7 @@ import {
   eventAgentMessageDelta,
 } from "@/features/projection/__tests__/projectionFixtures";
 import { createActiveThreadMemberLifecycle } from "../activeThreadMemberLifecycle";
+import { createActiveThreadConnection } from "../activeThreadConnection";
 import {
   attachWithSnapshotThread,
   eventWithEnvelope,
@@ -29,9 +30,10 @@ function createHarness(
   vi.mocked(commands.listSkills).mockImplementation(() => new Promise(() => undefined));
   const frames = new Map<number, () => void>();
   let nextFrame = 0;
+  const connection = createActiveThreadConnection(commands);
   const member = createActiveThreadMemberLifecycle({
     threadId,
-    commands,
+    connection,
     persistence,
     dispatch: ((action: UnknownAction) => {
       const result = store.dispatch(action);
@@ -49,7 +51,7 @@ function createHarness(
       },
     },
   });
-  return { member, commands, store, frames };
+  return { member, commands, connection, store, frames };
 }
 
 describe("active thread member lifecycle", () => {
@@ -376,6 +378,7 @@ describe("active thread member lifecycle", () => {
     const pending = h.member.initialize();
     await Promise.resolve();
     h.member.dispose();
+    h.connection.revoke();
     expect(h.commands.detachThreadProjection).not.toHaveBeenCalled();
     attach.resolve(attachBaseline);
     await expect(pending).resolves.toMatchObject({
@@ -383,6 +386,28 @@ describe("active thread member lifecycle", () => {
       failure: { type: "connectionLost" },
     });
     expect(h.commands.detachThreadProjection).toHaveBeenCalledTimes(1);
+    expect(h.store.getState().threadRuntime.byThreadId[threadId]).toBeUndefined();
+  });
+
+  it("reports old-round compensation failure without detaching through a replacement connection", async () => {
+    const h = createHarness();
+    const attach = createDeferred<typeof attachBaseline>();
+    const cleanupError = new Error("old connection cleanup failed");
+    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(attach.promise);
+    vi.mocked(h.commands.detachThreadProjection).mockRejectedValueOnce(cleanupError);
+    const pending = h.member.initialize();
+    await Promise.resolve();
+    h.member.dispose();
+    h.connection.revoke();
+    const replacement = createGuiHostCommands({ loadedThreadIds: [threadId] });
+    h.connection.replace(replacement);
+    attach.resolve(attachBaseline);
+    await expect(pending).resolves.toMatchObject({
+      type: "unavailable",
+      failure: { type: "connectionLost", cleanupError },
+    });
+    expect(h.commands.detachThreadProjection).toHaveBeenCalledTimes(1);
+    expect(replacement.detachThreadProjection).not.toHaveBeenCalled();
     expect(h.store.getState().threadRuntime.byThreadId[threadId]).toBeUndefined();
   });
 

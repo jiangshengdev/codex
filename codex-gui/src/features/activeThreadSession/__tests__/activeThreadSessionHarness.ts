@@ -99,6 +99,7 @@ const createComposerRole = (
 ): ActiveThreadComposerRole => ({
   getDraft: vi.fn<ActiveThreadComposerRole["getDraft"]>().mockReturnValue(null),
   saveDraft: vi.fn<ActiveThreadComposerRole["saveDraft"]>().mockReturnValue(true),
+  retainDraft: vi.fn<ActiveThreadComposerRole["retainDraft"]>().mockReturnValue(true),
   retryPersistence: vi.fn<ActiveThreadComposerRole["retryPersistence"]>().mockReturnValue(false),
   resumeRestored: vi.fn<ActiveThreadComposerRole["resumeRestored"]>().mockReturnValue(false),
   discardUnknown: vi.fn<ActiveThreadComposerRole["discardUnknown"]>().mockReturnValue(false),
@@ -168,6 +169,7 @@ export const activeThreadSessionSnapshot = (
     threadStatus: { type: "idle" } satisfies Thread["status"],
     compaction: { phase: "idle", canRequest: true, startFailure: null },
     composer: emptyComposerSnapshot,
+    connection: { phase: "available" },
     skills: emptySkillsState,
     composerRole: createComposerRole(),
     compactionRole: createCompactionRole(() => revision),
@@ -192,6 +194,7 @@ export const projectionUnavailableActiveThreadSessionSnapshot = (
     threadStatus: { type: "idle" } satisfies Thread["status"],
     compaction: { phase: "idle", canRequest: false, startFailure: null },
     composer: emptyComposerSnapshot,
+    connection: { phase: "available" },
     skills: emptySkillsState,
     composerRole: createComposerRole(),
     compactionRole: createCompactionRole(() => revision),

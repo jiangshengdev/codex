@@ -33,6 +33,7 @@ export function ProjectionRecoveryNotice({
       <FailureLayout
         actions={
           <RetryActionButton
+            isDisabled={snapshot.connection.phase !== "available"}
             isPending={recovery.pending}
             pendingChildren={
               <Trans comment="Pending button label while restoring this task's message synchronization">

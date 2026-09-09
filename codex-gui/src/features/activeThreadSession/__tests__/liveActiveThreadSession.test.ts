@@ -27,13 +27,15 @@ import {
   turnWithStatus,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createActiveThreadProjection } from "../activeThreadProjection";
+import { createActiveThreadConnection } from "../activeThreadConnection";
 import { createLiveActiveThreadSession } from "../liveActiveThreadSession";
 import { createActiveThreadSessionIdentity } from "../activeThreadSessionIdentity";
 import { activeThreadReadModelSlotCreated } from "../activeThreadSessionReadModel";
 
 const createHarness = (persistence = createPersistenceTestContext()) => {
   const store = makeStore();
-  const listSkills = vi.fn<GuiHostCommands["listSkills"]>(() => new Promise(() => undefined));
+  const skills = createDeferred<Awaited<ReturnType<GuiHostCommands["listSkills"]>>>();
+  const listSkills = vi.fn<GuiHostCommands["listSkills"]>(() => skills.promise);
   const compactThread = vi.fn<GuiHostCommands["compactThread"]>().mockResolvedValue({});
   const readThread = vi
     .fn<GuiHostCommands["readThread"]>()
@@ -58,11 +60,11 @@ const createHarness = (persistence = createPersistenceTestContext()) => {
     sessionRevision: 1,
     attachResponse: attachBaseline,
     projection,
-    commands,
+    connection: createActiveThreadConnection(commands),
     dispatch: store.dispatch,
     persistence,
   });
-  return { commands, compactThread, listSkills, readThread, session, startTurn, store };
+  return { commands, compactThread, listSkills, skills, readThread, session, startTurn, store };
 };
 
 const compactTurnId = "compact-turn";
@@ -99,6 +101,75 @@ const commandError = (delivery: "definitelyNotAccepted" | "deliveryUnknown", mes
   new GuiHostCommandError({ source: "rpc", delivery, error: new Error(message) });
 
 describe("LiveActiveThreadSession", () => {
+  it("retains the latest draft in memory while disconnected without retrying persistence or sending", () => {
+    const persistence = createPersistenceTestContext();
+    const h = createHarness(persistence);
+    if (persistence.storage == null) throw new Error("expected storage");
+    const write = vi.spyOn(persistence.storage, "setItem").mockImplementation(() => {
+      throw new Error("storage full");
+    });
+    expect(
+      h.session.saveDraft(h.session.getSnapshot().revision, composerCapture("older").draft),
+    ).toBe(false);
+    h.session.connectionUnavailable();
+    const writes = write.mock.calls.length;
+    const draft = composerCapture("latest accepted input").draft;
+    expect(h.session.retainDraft(draft)).toBe(true);
+    expect(h.session.getDraft()).toBe(draft);
+    expect(write).toHaveBeenCalledTimes(writes);
+    expect(h.session.getSnapshot()).toMatchObject({
+      composer: { persistence: { error: "Browser persistence failed: write" } },
+    });
+    expect(h.startTurn).not.toHaveBeenCalled();
+  });
+
+  it("ignores late status, skill and compaction results after close", async () => {
+    const h = createHarness();
+    const read = createDeferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+    const compact = createDeferred<Awaited<ReturnType<GuiHostCommands["compactThread"]>>>();
+    h.readThread.mockReturnValueOnce(read.promise);
+    h.compactThread.mockReturnValueOnce(compact.promise);
+    h.session.invalidateThreadStatus();
+    h.session.requestCompaction(h.session.getSnapshot().revision);
+    h.session.connectionUnavailable();
+    const retained = h.session.getSnapshot();
+    expect(retained).toMatchObject({ compaction: { phase: "deliveryUnknown" } });
+    read.resolve({
+      thread: { ...attachBaseline.snapshot.thread, status: { type: "systemError" } },
+    });
+    h.skills.resolve({ data: [] });
+    compact.reject(commandError("definitelyNotAccepted", "late failure"));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(h.session.getSnapshot()).toBe(retained);
+    expect(h.session.invalidateThreadStatus()).toBe(false);
+  });
+
+  it("retains the live snapshot and settles an in-flight send as unknown after connection close", async () => {
+    const h = createHarness();
+    const pending = createDeferred<Awaited<ReturnType<GuiHostCommands["startTurn"]>>>();
+    h.startTurn.mockReturnValueOnce(pending.promise);
+    h.session.submit(h.session.getSnapshot().revision, composerCapture("keep my send"));
+    h.session.connectionUnavailable();
+    expect(h.session.getSnapshot()).toMatchObject({
+      phase: "active",
+      connection: { phase: "unavailable" },
+    });
+    expect(
+      h.session.submit(h.session.getSnapshot().revision, composerCapture("blocked")),
+    ).toMatchObject({
+      type: "unavailable",
+      reason: "connectionUnavailable",
+    });
+    pending.reject(commandError("deliveryUnknown", "closed"));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(h.session.getSnapshot()).toMatchObject({
+      composer: { persistence: { unknownMessages: [{ text: "keep my send" }] } },
+    });
+    expect(h.startTurn).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps external owners and the old transcript unchanged when recovery cannot be saved", () => {
     const persistence = createPersistenceTestContext();
     const h = createHarness(persistence);

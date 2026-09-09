@@ -8,6 +8,7 @@ import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { errorText } from "@/text/errorText";
 import { useActiveThreadCollectionSnapshot, useAppCapabilities } from "./AppCapabilities";
 import { AppShellTopBar } from "./AppShellTopBar";
+import { ConnectionRecoveryNotice } from "./ConnectionRecoveryNotice";
 
 export type AppShellProps = { children: ReactNode };
 
@@ -49,7 +50,8 @@ function AppShellTopNotices({ children }: { children: ReactNode }) {
 export function AppShell({ children }: AppShellProps) {
   const { routeTarget, status } = useAppCapabilities();
   const collection = useActiveThreadCollectionSnapshot();
-  const hasTopNotice = status.label === "error" || collection.errors.length > 0;
+  const hasTopNotice =
+    status.label === "error" || status.label === "closed" || collection.errors.length > 0;
 
   return (
     <div
@@ -62,6 +64,7 @@ export function AppShell({ children }: AppShellProps) {
       {hasTopNotice ? (
         <AppShellTopNotices>
           <GuiHostErrorAlert status={status} />
+          {status.label === "closed" ? <ConnectionRecoveryNotice /> : null}
           {collection.errors.map(({ operation, threadId, error }) => {
             const diagnostic = collectionErrorText(error);
 

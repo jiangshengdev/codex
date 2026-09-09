@@ -1239,15 +1239,15 @@ describe("ActiveThreadSession", () => {
       type: "unavailable",
       failure: { type: "connectionLost", progress: "beforeCommit" },
     });
-    const disposed = h.session.getSnapshot();
-    expect(disposed.phase).toBe("disposed");
+    const retained = h.session.getSnapshot();
+    expect(retained).toMatchObject({ phase: "active", connection: { phase: "unavailable" } });
 
     read.resolve({
       thread: { ...replacementAttach.snapshot.thread, status: { type: "systemError" } },
     });
     await read.promise;
     await Promise.resolve();
-    expect(h.session.getSnapshot()).toBe(disposed);
+    expect(h.session.getSnapshot()).toBe(retained);
   });
 
   it("retains the old owner when another member initialization fails", async () => {
@@ -1300,7 +1300,7 @@ describe("ActiveThreadSession", () => {
         threadId: replacementThreadId,
       },
     });
-    expect(h.session.getSnapshot().phase).toBe("disposed");
+    expect(h.session.getSnapshot().phase).toBe("failed");
   });
 
   it("keeps the old session when candidate replay becomes unavailable", async () => {
@@ -1349,7 +1349,7 @@ describe("ActiveThreadSession", () => {
     expect(h.commands.detachThreadProjection).not.toHaveBeenCalled();
   });
 
-  it("cleans up all live owners on connection loss", async () => {
+  it("retains all live owners and supports read-only navigation on connection loss", async () => {
     const h = createHarness();
     await activateInitial(h);
     queueReplacementActivation(h.commands);
@@ -1361,9 +1361,22 @@ describe("ActiveThreadSession", () => {
     h.controller.connectionUnavailable();
     detach.resolve({ status: "detached" });
 
-    expect(h.store.getState().threadRuntime.byThreadId).toEqual({});
-    expect(h.session.getCollectionSnapshot().members).toEqual([]);
-    expect(h.session.getSnapshot().phase).toBe("disposed");
+    expect(Object.keys(h.store.getState().threadRuntime.byThreadId)).toHaveLength(2);
+    expect(h.session.getCollectionSnapshot().members).toHaveLength(2);
+    expect(h.session.getSnapshot()).toMatchObject({
+      phase: "active",
+      connection: { phase: "unavailable" },
+    });
+    const requests = vi.mocked(h.commands.attachThreadProjection).mock.calls.length;
+    await expect(h.session.view(attachBaseline.snapshot.thread.id)).resolves.toMatchObject({
+      type: "ready",
+    });
+    expect(h.session.getSnapshot()).toMatchObject({ threadId: attachBaseline.snapshot.thread.id });
+    await expect(h.session.activate("unopened-thread")).resolves.toMatchObject({
+      type: "unavailable",
+      failure: { type: "connectionLost" },
+    });
+    expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(requests);
   });
 
   it("allows viewing another member while pending delivery blocks removal", async () => {
@@ -1526,7 +1539,7 @@ describe("ActiveThreadSession", () => {
         threadId: replacementThreadId,
       },
     });
-    expect(h.session.getSnapshot().phase).toBe("disposed");
+    expect(h.session.getSnapshot().phase).toBe("failed");
   });
 
   it("keeps empty on pre-publication attach failure and permanently rejects after terminal", async () => {

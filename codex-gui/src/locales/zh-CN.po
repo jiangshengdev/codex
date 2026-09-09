@@ -78,11 +78,11 @@ msgstr "已用 {usedTokensLabel} tokens，共 {contextWindowLabel}"
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:89
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:90
 msgid "A message update is missing its associated turn, so it cannot be fully displayed."
 msgstr "收到的消息更新缺少所属轮次，暂时无法完整展示。"
 
-#: src/features/appShell/AppShellTopBar.tsx:161
+#: src/features/appShell/AppShellTopBar.tsx:162
 #: src/features/newSession/NewSessionPage.tsx:40
 msgid "A working directory is required to start a session."
 msgstr "需要工作目录才能新建会话。"
@@ -117,7 +117,7 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:237
+#: src/features/appShell/AppShellTopBar.tsx:238
 msgid "Browse task history"
 msgstr "浏览历史任务"
 
@@ -129,11 +129,11 @@ msgstr "取消"
 msgid "Changes copied"
 msgstr "已复制修改内容"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:43
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:44
 msgid "Changes could not be saved"
 msgstr "无法保存更改"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:63
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:64
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "继续前，请检查队列、其他打开的页面和会话历史。发送结果未知的消息仍会阻塞后续发送。"
 
@@ -152,7 +152,7 @@ msgstr "关闭诊断信息"
 msgid "Closed {receiver}"
 msgstr "已关闭 {receiver}"
 
-#: src/features/appShell/AppShell.tsx:28
+#: src/features/appShell/AppShell.tsx:29
 msgid "Codex GUI could not be started."
 msgstr "Codex GUI 未能启动。"
 
@@ -205,6 +205,11 @@ msgstr "压缩请求结果不明"
 msgid "Connect to Codex to send this draft."
 msgstr "连接到 Codex 后即可发送此草稿。"
 
+#. GUI connection ended; retained conversations remain read-only
+#: src/features/appShell/ConnectionRecoveryNotice.tsx:10
+msgid "Connection closed"
+msgstr "连接已关闭"
+
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:101
 msgid "Connection interrupted. Reconnect required."
 msgstr "连接已中断，需要重新连接。"
@@ -212,6 +217,11 @@ msgstr "连接已中断，需要重新连接。"
 #: src/NotFoundPage.tsx:20
 msgid "Contact support"
 msgstr "联系支持"
+
+#. Shown above retained tasks after the GUI host connection closes
+#: src/features/appShell/ConnectionRecoveryNotice.tsx:15
+msgid "Content may not be up to date. Your conversations and input are still here."
+msgstr "内容可能不是最新的。对话和输入内容仍保留在此处。"
 
 #: src/features/committedTranscriptSurface/TranscriptContextBoundary.tsx:20
 msgid "Context compressed"
@@ -250,7 +260,7 @@ msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗�
 
 #. Resumes sending this page's restored queue; does not open the queue
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:128
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:76
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:77
 msgid "Continue sending"
 msgstr "继续发送"
 
@@ -271,8 +281,8 @@ msgstr "复制修改内容"
 msgid "Copy failed. Select the text and copy it manually."
 msgstr "复制失败。请选中文字并手动复制。"
 
-#: src/features/appShell/AppShellTopBar.tsx:55
-#: src/features/appShell/AppShellTopBar.tsx:193
+#: src/features/appShell/AppShellTopBar.tsx:56
+#: src/features/appShell/AppShellTopBar.tsx:194
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "当前任务"
@@ -404,7 +414,7 @@ msgstr "等待结束"
 msgid "Go back home"
 msgstr "返回首页"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:270
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:271
 msgid "Guide"
 msgstr "引导"
 
@@ -424,8 +434,8 @@ msgstr "引导中"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
-#: src/features/appShell/AppShellTopBar.tsx:60
-#: src/features/appShell/AppShellTopBar.tsx:231
+#: src/features/appShell/AppShellTopBar.tsx:61
+#: src/features/appShell/AppShellTopBar.tsx:232
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "历史记录"
@@ -434,7 +444,7 @@ msgstr "历史记录"
 msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
-#: src/features/appShell/AppShellTopBar.tsx:57
+#: src/features/appShell/AppShellTopBar.tsx:58
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:36
 msgid "History detail"
@@ -482,7 +492,7 @@ msgstr "已中断。"
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:41
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:90
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:109
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:110
 msgid "Invalid skill"
 msgstr "无效技能"
 
@@ -501,9 +511,9 @@ msgstr "加载历史记录"
 msgid "Load more"
 msgstr "加载更多"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:260
-#: src/features/currentTask/CurrentTaskPage.tsx:335
-#: src/features/currentTask/CurrentTaskPage.tsx:404
+#: src/features/currentTask/CurrentTaskPage.tsx:262
+#: src/features/currentTask/CurrentTaskPage.tsx:338
+#: src/features/currentTask/CurrentTaskPage.tsx:408
 msgid "Load task"
 msgstr "加载任务"
 
@@ -533,18 +543,18 @@ msgstr "正在加载技能…"
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:253
-#: src/features/currentTask/CurrentTaskPage.tsx:321
-#: src/features/currentTask/CurrentTaskPage.tsx:384
-#: src/features/currentTask/CurrentTaskPage.tsx:530
+#: src/features/currentTask/CurrentTaskPage.tsx:255
+#: src/features/currentTask/CurrentTaskPage.tsx:324
+#: src/features/currentTask/CurrentTaskPage.tsx:388
+#: src/features/currentTask/CurrentTaskPage.tsx:534
 msgid "Loading task…"
 msgstr "正在加载任务…"
 
-#: src/features/appShell/AppShellTopBar.tsx:125
+#: src/features/appShell/AppShellTopBar.tsx:126
 msgid "Main navigation"
 msgstr "主导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:97
+#: src/features/appShell/AppShellTopBar.tsx:98
 msgid "Menu"
 msgstr "菜单"
 
@@ -552,27 +562,27 @@ msgstr "菜单"
 msgid "Message cannot be empty"
 msgstr "消息不能为空"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:202
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:212
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:203
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:213
 #: src/features/newSession/NewSessionPage.tsx:142
 #: src/features/newSession/NewSessionPage.tsx:160
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:188
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:189
 msgid "Message composer"
 msgstr "消息输入区"
 
 #. Current task message updates are paused, not the task itself
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:54
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:55
 msgid "Message synchronization paused"
 msgstr "消息同步已暂停"
 
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:85
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:86
 msgid "Message updates arrived out of order, so the conversation may be incomplete."
 msgstr "消息更新顺序不一致，对话内容可能不完整。"
 
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:82
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:83
 msgid "Message updates have piled up, so synchronization has paused."
 msgstr "消息更新积压，同步已暂停。"
 
@@ -621,12 +631,12 @@ msgstr "上移"
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:121
+#: src/features/appShell/AppShellTopBar.tsx:122
 msgid "Navigation"
 msgstr "导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:59
-#: src/features/appShell/AppShellTopBar.tsx:152
+#: src/features/appShell/AppShellTopBar.tsx:60
+#: src/features/appShell/AppShellTopBar.tsx:153
 #: src/features/documentTitle/DocumentTitleOwner.tsx:52
 msgid "New session"
 msgstr "新建会话"
@@ -677,7 +687,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:199
+#: src/features/appShell/AppShellTopBar.tsx:200
 msgid "Open current task"
 msgstr "打开当前任务"
 
@@ -685,11 +695,11 @@ msgstr "打开当前任务"
 msgid "Open session"
 msgstr "打开会话"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:218
+#: src/features/currentTask/CurrentTaskPage.tsx:219
 msgid "Open task"
 msgstr "打开任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:204
+#: src/features/currentTask/CurrentTaskPage.tsx:205
 msgid "Opening task…"
 msgstr "正在打开任务…"
 
@@ -772,6 +782,11 @@ msgstr "排队 {ordinaryQueuedCount}"
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "已将已排队消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
+#. Task removal is blocked while the shared GUI connection is unavailable
+#: src/features/appShell/activeThreadCollectionMessages.ts:18
+msgid "Reconnect before removing this task."
+msgstr "请先重新连接，再将此任务移出列表。"
+
 #: src/features/appShell/activeThreadCollectionMessages.ts:16
 msgid "Recover this task's connection before removing it."
 msgstr "请先恢复此任务的连接，再将其移出列表。"
@@ -781,7 +796,7 @@ msgid "Refresh complete. Try the action again."
 msgstr "已刷新，请重试此操作。"
 
 #. Reload the current task's runtime status
-#: src/features/currentTask/CurrentTaskPage.tsx:406
+#: src/features/currentTask/CurrentTaskPage.tsx:410
 msgid "Refresh status"
 msgstr "刷新状态"
 
@@ -789,7 +804,7 @@ msgstr "刷新状态"
 msgid "Refreshing skills…"
 msgstr "正在刷新技能…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:386
+#: src/features/currentTask/CurrentTaskPage.tsx:390
 msgid "Refreshing status…"
 msgstr "正在刷新状态…"
 
@@ -810,7 +825,7 @@ msgid "Remove from list"
 msgstr "移出列表"
 
 #. Drops only this local unknown-send record, without retracting server work
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:107
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:108
 msgid "Remove local record"
 msgstr "移除本地记录"
 
@@ -821,18 +836,18 @@ msgstr "保存前请移除或替换无效技能。"
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
-#: src/features/currentTask/CurrentTaskPage.tsx:214
-#: src/features/currentTask/CurrentTaskPage.tsx:331
-#: src/features/currentTask/CurrentTaskPage.tsx:400
+#: src/features/currentTask/CurrentTaskPage.tsx:215
+#: src/features/currentTask/CurrentTaskPage.tsx:334
+#: src/features/currentTask/CurrentTaskPage.tsx:404
 msgid "Remove task"
 msgstr "移出任务列表"
 
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
-#: src/features/currentTask/CurrentTaskPage.tsx:200
-#: src/features/currentTask/CurrentTaskPage.tsx:317
-#: src/features/currentTask/CurrentTaskPage.tsx:380
+#: src/features/currentTask/CurrentTaskPage.tsx:201
+#: src/features/currentTask/CurrentTaskPage.tsx:320
+#: src/features/currentTask/CurrentTaskPage.tsx:384
 msgid "Removing task…"
 msgstr "正在移出任务列表…"
 
@@ -852,16 +867,16 @@ msgid "Resolve the task list error above, then try again."
 msgstr "请先处理上方的任务列表错误，然后重试。"
 
 #. Button to restore this task's message synchronization; same label after failure
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:46
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:47
 msgid "Restore sync"
 msgstr "恢复同步"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:60
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:61
 msgid "Restored messages are paused"
 msgstr "恢复的消息已暂停发送"
 
 #. Pending button label while restoring this task's message synchronization
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:38
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:39
 msgid "Restoring sync…"
 msgstr "正在恢复…"
 
@@ -892,11 +907,11 @@ msgstr "正在继续发送"
 #~ msgstr "重试"
 
 #. Retries saving the composer draft and queue in this browser tab
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:35
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:36
 msgid "Retry saving"
 msgstr "重试保存"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:38
+#: src/features/appShell/activeThreadCollectionMessages.ts:43
 msgid "Retry saving this task's state before removing it."
 msgstr "请先重试保存此任务的状态，再将其移出列表。"
 
@@ -910,11 +925,11 @@ msgstr "返回当前任务"
 msgid "Return to edit"
 msgstr "返回编辑"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:20
+#: src/features/appShell/activeThreadCollectionMessages.ts:25
 msgid "Review and continue this task after reload before removing it."
 msgstr "刷新后，请先检查并继续此任务，再将其移出列表。"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:29
+#: src/features/appShell/activeThreadCollectionMessages.ts:34
 msgid "Review unresolved messages in this task before removing it."
 msgstr "请先检查此任务中尚未处理完的消息，再将其移出列表。"
 
@@ -932,7 +947,7 @@ msgstr "保存"
 msgid "Scan with phone"
 msgstr "使用手机扫描"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:282
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:283
 #: src/features/newSession/NewSessionPage.tsx:178
 msgid "Send"
 msgstr "发送"
@@ -942,7 +957,7 @@ msgstr "发送"
 msgid "Sending"
 msgstr "正在发送"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:88
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:89
 msgid "Sending result unknown"
 msgstr "发送结果未知"
 
@@ -1001,7 +1016,7 @@ msgstr "已启动 {receiver}（{model} {reasoningEffort}）"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "已启动 {receiver}（{reasoningEffort}）"
 
-#: src/features/appShell/AppShellTopBar.tsx:159
+#: src/features/appShell/AppShellTopBar.tsx:160
 msgid "Start a conversation"
 msgstr "开始新对话"
 
@@ -1010,11 +1025,11 @@ msgstr "开始新对话"
 msgid "Started <0/> <1/>"
 msgstr "已启动 <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:258
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:259
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:249
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:250
 msgid "Stop failed"
 msgstr "停止失败"
 
@@ -1023,7 +1038,7 @@ msgstr "停止失败"
 msgid "Structured input"
 msgstr "结构化输入"
 
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:67
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:68
 msgid "Synchronization could not be restored. You can try again."
 msgstr "同步恢复失败，可以再次尝试。"
 
@@ -1038,8 +1053,8 @@ msgstr "系统"
 msgid "System error"
 msgstr "系统错误"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:225
-#: src/features/currentTask/CurrentTaskPage.tsx:435
+#: src/features/currentTask/CurrentTaskPage.tsx:226
+#: src/features/currentTask/CurrentTaskPage.tsx:439
 msgid "Task action failed"
 msgstr "任务操作失败"
 
@@ -1062,7 +1077,7 @@ msgid "Task switched, but cannot be opened"
 msgstr "任务已切换，但当前无法打开"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:105
+#: src/features/appShell/AppShellTopBar.tsx:106
 msgid "Tasks or the connection need attention."
 msgstr "任务或连接存在待处理的异常。"
 
@@ -1075,7 +1090,7 @@ msgstr "压缩请求结果不明。确认结果前，仍无法发送消息或再
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "连接在任务切换完成前中断。重新连接后请重试。"
 
-#: src/features/currentTask/ProjectionRecoveryNotice.tsx:60
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:61
 msgid "The conversation shown here may be out of date. Restore sync to get the latest content."
 msgstr "当前显示的对话可能不是最新内容。恢复同步可获取最新内容。"
 
@@ -1084,8 +1099,8 @@ msgstr "当前显示的对话可能不是最新内容。恢复同步可获取最
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "创建结果未知。重试可能留下额外的空会话。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:277
-#: src/features/currentTask/CurrentTaskPage.tsx:353
+#: src/features/currentTask/CurrentTaskPage.tsx:279
+#: src/features/currentTask/CurrentTaskPage.tsx:356
 msgid "The current task could not be loaded."
 msgstr "当前任务未能加载。"
 
@@ -1113,11 +1128,11 @@ msgstr "上一个任务连接未能完全清理，后续状态可能受到影响
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:438
+#: src/features/currentTask/CurrentTaskPage.tsx:442
 msgid "The task action could not be completed."
 msgstr "任务操作未能完成。"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:18
+#: src/features/appShell/activeThreadCollectionMessages.ts:23
 msgid "The task changed. Review its current state and try again."
 msgstr "任务状态已变化。请检查当前状态后重试。"
 
@@ -1133,11 +1148,11 @@ msgstr "无法准备任务连接。"
 msgid "The task could not be activated."
 msgstr "无法激活任务。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:229
+#: src/features/currentTask/CurrentTaskPage.tsx:230
 msgid "The task could not be opened."
 msgstr "任务未能打开。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:231
+#: src/features/currentTask/CurrentTaskPage.tsx:232
 msgid "The task could not be removed."
 msgstr "任务未能移出列表。"
 
@@ -1145,7 +1160,7 @@ msgstr "任务未能移出列表。"
 msgid "The task could not be resumed."
 msgstr "无法恢复任务。"
 
-#: src/features/appShell/AppShell.tsx:77
+#: src/features/appShell/AppShell.tsx:80
 msgid "The task list could not be updated."
 msgstr "任务列表未能更新。"
 
@@ -1153,7 +1168,7 @@ msgstr "任务列表未能更新。"
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "任务已打开，但部分状态同步未完成。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:460
+#: src/features/currentTask/CurrentTaskPage.tsx:464
 msgid "The task recovery could not be completed."
 msgstr "任务恢复未能完成。"
 
@@ -1161,7 +1176,7 @@ msgstr "任务恢复未能完成。"
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "任务切换已提交，但连接已中断。重新连接后请确认当前任务。"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:91
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:92
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "这些消息不会自动重发。移除本地记录不会取消或撤回服务端的消息。"
 
@@ -1189,7 +1204,7 @@ msgstr "无法编辑这条待处理消息。"
 msgid "This task has no messages."
 msgstr "此任务没有消息。"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:40
+#: src/features/appShell/activeThreadCollectionMessages.ts:45
 msgid "This task is no longer connected."
 msgstr "此任务已断开连接。"
 
@@ -1201,7 +1216,7 @@ msgstr "此任务仍在运行。"
 msgid "This task needs attention."
 msgstr "此任务存在待处理的异常。"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:23
+#: src/features/appShell/activeThreadCollectionMessages.ts:28
 msgid "This task still has queued messages."
 msgstr "此任务仍有排队消息。"
 
@@ -1237,12 +1252,12 @@ msgstr "无法加载历史记录"
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:274
-#: src/features/currentTask/CurrentTaskPage.tsx:350
+#: src/features/currentTask/CurrentTaskPage.tsx:276
+#: src/features/currentTask/CurrentTaskPage.tsx:353
 msgid "Unable to load the current task"
 msgstr "无法加载当前任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:457
+#: src/features/currentTask/CurrentTaskPage.tsx:461
 msgid "Unable to recover the current task"
 msgstr "无法恢复当前任务"
 
@@ -1250,7 +1265,7 @@ msgstr "无法恢复当前任务"
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "无法重试此任务。请检查当前状态后再试。"
 
-#: src/features/appShell/AppShell.tsx:25
+#: src/features/appShell/AppShell.tsx:26
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
@@ -1263,7 +1278,7 @@ msgstr "无法开始对话"
 msgid "Unable to switch tasks yet"
 msgstr "暂时无法切换任务"
 
-#: src/features/appShell/AppShell.tsx:74
+#: src/features/appShell/AppShell.tsx:77
 msgid "Unable to update the task list"
 msgstr "无法更新任务列表"
 
@@ -1305,15 +1320,15 @@ msgstr "查看诊断信息"
 msgid "Wait for context compaction to finish."
 msgstr "请等待上下文压缩完成。"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:26
+#: src/features/appShell/activeThreadCollectionMessages.ts:31
 msgid "Wait for pending message delivery to finish or review its outcome."
 msgstr "请等待消息发送完成，或检查发送结果。"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:34
+#: src/features/appShell/activeThreadCollectionMessages.ts:39
 msgid "Wait for the current task operation to finish."
 msgstr "请等待当前任务操作完成。"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:36
+#: src/features/appShell/activeThreadCollectionMessages.ts:41
 msgid "Wait for the stop request to finish or review its outcome."
 msgstr "请等待停止请求完成，或检查请求结果。"
 
@@ -1321,7 +1336,7 @@ msgstr "请等待停止请求完成，或检查请求结果。"
 msgid "Wait for this task to finish loading before removing it."
 msgstr "请等待此任务加载完成，再将其移出列表。"
 
-#: src/features/appShell/activeThreadCollectionMessages.ts:31
+#: src/features/appShell/activeThreadCollectionMessages.ts:36
 msgid "Wait for this task's recovery to finish."
 msgstr "请等待此任务恢复完成。"
 
@@ -1388,6 +1403,6 @@ msgstr "修改尚未保存。可以返回复制内容，或丢弃修改后继续
 msgid "Your input is retained. Retry to continue."
 msgstr "输入内容已保留。重试以继续。"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:46
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:47
 msgid "Your input is still here. Sending is blocked until saving succeeds."
 msgstr "输入内容仍保留在此处。保存成功前无法发送。"

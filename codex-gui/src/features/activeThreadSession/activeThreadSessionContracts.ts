@@ -23,7 +23,7 @@ import type { ActiveThreadSessionIdentity } from "./activeThreadSessionIdentity"
 export type ActiveThreadSessionOperationUnavailable = Readonly<{
   type: "unavailable";
   scope: "activeThreadSession";
-  reason: "staleRevision" | "projectionUnavailable" | "disposed";
+  reason: "staleRevision" | "projectionUnavailable" | "connectionUnavailable" | "disposed";
   revision: number;
 }>;
 
@@ -51,6 +51,13 @@ export type ActiveThreadRequestCompactionResult =
   | Readonly<{ type: "rejected"; reason: "activeTurn" | "operationInProgress" }>
   | Exclude<ComposerInputQueueCoordinatorReserveReleaseResult, { type: "reserved" }>;
 
+export type ActiveThreadConnectionState =
+  | Readonly<{ phase: "available" }>
+  | Readonly<{
+      phase: "unavailable";
+      recovery: Readonly<{ pending: boolean; error: unknown }>;
+    }>;
+
 type ActiveSnapshotContents = Readonly<{
   identity: ActiveThreadSessionIdentity;
   revision: number;
@@ -61,6 +68,7 @@ type ActiveSnapshotContents = Readonly<{
   compaction: ActiveThreadCompactionView;
   composer: ComposerInputQueueCoordinatorSnapshot;
   skills: SkillCatalogState;
+  connection: ActiveThreadConnectionState;
 }>;
 
 export type LiveActiveThreadSessionSnapshot =
@@ -104,6 +112,7 @@ export type LiveActiveThreadSession = Readonly<{
   identity: ActiveThreadSessionIdentity;
   getSnapshot(): LiveActiveThreadSessionSnapshot;
   subscribe(listener: () => void): () => void;
+  connectionUnavailable(): void;
   beginProjectionRecovery(): boolean;
   failProjectionRecovery(error: unknown): void;
   commitProjectionRecovery(
@@ -112,6 +121,8 @@ export type LiveActiveThreadSession = Readonly<{
     drainCandidate: () => boolean,
   ): ProjectionRecoveryOutcome;
   getDraft(): ReturnType<ComposerInputQueueCoordinator["getDraft"]>;
+  /** True means accepted into the retained owner, not persisted. Never sends input. */
+  retainDraft(draft: Parameters<ComposerInputQueueCoordinator["saveDraft"]>[0]): boolean;
   saveDraft(
     expectedRevision: number,
     draft: Parameters<ComposerInputQueueCoordinator["saveDraft"]>[0],

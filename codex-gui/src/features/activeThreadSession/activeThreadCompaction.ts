@@ -1,5 +1,5 @@
 import type { ComposerInputQueueCoordinatorReleaseReservation } from "@/features/composerInputQueue/composerInputQueueCoordinator";
-import type { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
+import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import type { Turn } from "@codex-protocol/v2";
 import type { ActiveThreadProjectionAcceptedEvent } from "./activeThreadProjectionFacts";
 
@@ -57,6 +57,7 @@ export type ActiveThreadCompaction = Readonly<{
   ): ActiveThreadCompactionMutation;
   observeAcceptedEvent(fact: ActiveThreadProjectionAcceptedEvent): ActiveThreadCompactionMutation;
   reconcileSnapshot(turns: readonly Turn[]): void;
+  connectionUnavailable(): void;
   dispose(): ActiveThreadCompactionMutation;
 }>;
 
@@ -73,6 +74,19 @@ class ActiveThreadCompactionImpl implements ActiveThreadCompaction {
   private disposed = false;
 
   getState = (): ActiveThreadCompactionState => this.state;
+
+  connectionUnavailable = (): void => {
+    const claim = this.requestClaim;
+    if (claim?.settlement !== "pending") return;
+    this.settleRequest(claim.claim, {
+      type: "rejected",
+      error: new GuiHostCommandError({
+        source: "unavailable",
+        delivery: "deliveryUnknown",
+        error: new Error("Connection closed before compaction was confirmed"),
+      }),
+    });
+  };
 
   claimRequest = (
     reservation: ComposerInputQueueCoordinatorReleaseReservation,

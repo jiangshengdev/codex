@@ -65,6 +65,11 @@ test.each([
 
 test.each([
   member({ phase: "failed", snapshot: null }),
+  member({
+    snapshot: activeThreadSessionSnapshot({
+      connection: { phase: "unavailable", recovery: { pending: false, error: null } },
+    }),
+  }),
   member({ phase: "cleanupPending", snapshot: null, error: new Error("cleanup failed") }),
   member({ operationErrors: [{ operation: "navigation", error: new Error("navigation failed") }] }),
   member({ operationErrors: [{ operation: "remove", error: new Error("remove failed") }] }),

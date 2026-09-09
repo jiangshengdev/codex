@@ -687,7 +687,7 @@ test("history titles follow route identity through loading, error, retry, and un
   await diagnostics.getByRole("button", { name: "Close diagnostics" }).click();
   await expect.element(diagnostics).not.toBeInTheDocument();
   await expect.element(heading).toHaveTextContent("History detail");
-  await screen.getByRole("button", { name: "Retry", exact: true }).click();
+  await screen.getByRole("button", { name: "Load task history", exact: true }).click();
   await expect.element(heading).toHaveTextContent("Second preview");
   await expect.poll(() => document.title).toBe("Second preview · Codex");
   expect(readThread).toHaveBeenCalledTimes(3);

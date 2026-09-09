@@ -140,12 +140,14 @@ export type ComposerProjectionReconciliationResult =
 export type ComposerInputQueueCoordinator = Readonly<{
   getDraft(): ComposerDraft | null;
   saveDraft(draft: ComposerDraft): boolean;
+  retainDraft(draft: ComposerDraft): boolean;
   retryPersistence(): boolean;
   resumeRestored(expectedRevision: number | null): boolean;
   suspendRestored(): void;
   completeRestoreReconciliation(): void;
   reconcileRestoredTurns(turns: readonly Turn[]): void;
   setProjectionUnavailable(unavailable: boolean): void;
+  setConnectionUnavailable(unavailable: boolean): void;
   reconcileProjection(
     turns: readonly Turn[] | null,
     facts: readonly ActiveThreadProjectionAcceptedEvent[],
@@ -227,6 +229,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   private persistenceError: string | null = null;
   private restoredPaused = false;
   private projectionUnavailable = false;
+  private connectionUnavailable = false;
   private reconciliationComplete = false;
   private reconciliationRequested = false;
   private pendingDraft: ComposerDraft | null = null;
@@ -360,6 +363,12 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
 
   getDraft = (): ComposerDraft | null => this.pendingDraft ?? this.state.draft;
 
+  retainDraft = (draft: ComposerDraft): boolean => {
+    if (this.disposed) return false;
+    this.pendingDraft = draft;
+    return true;
+  };
+
   saveDraft = (draft: ComposerDraft): boolean => {
     if (this.disposed) return false;
     this.pendingDraft = draft;
@@ -424,11 +433,28 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.publishSnapshot();
   };
 
+  setConnectionUnavailable = (unavailable: boolean): void => {
+    if (this.disposed || this.connectionUnavailable === unavailable) return;
+    this.connectionUnavailable = unavailable;
+    this.queue.setAutomaticSendingPaused(this.automaticSendingPaused());
+    if (!unavailable) {
+      this.receiveFact(() => {
+        this.consumeTransition(this.queue.drain());
+      });
+      this.liveManagement.flushDeferredDrains();
+    }
+    this.publishSnapshot();
+  };
+
   reconcileProjection = (
     turns: readonly Turn[] | null,
     facts: readonly ActiveThreadProjectionAcceptedEvent[],
   ): ComposerProjectionReconciliationResult => {
-    if (this.disposed || !this.projectionUnavailable || this.transactionEffects != null) {
+    if (
+      this.disposed ||
+      (!this.projectionUnavailable && !this.connectionUnavailable) ||
+      this.transactionEffects != null
+    ) {
       return { type: "blocked", error: "Projection reconciliation is unavailable" };
     }
     const pending = [...this.pendingFacts];
@@ -471,6 +497,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   resumeRestored = (expectedRevision: number | null): boolean => {
     if (
       this.disposed ||
+      this.connectionUnavailable ||
       this.state.sendingBarrier != null ||
       !this.reconciliationComplete ||
       expectedRevision !== this.persistenceRevision ||
@@ -478,7 +505,9 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     )
       return false;
     const result = this.persistTransaction(() => {
-      this.queue.setAutomaticSendingPaused(this.projectionUnavailable || this.recoveryPending());
+      this.queue.setAutomaticSendingPaused(
+        this.connectionUnavailable || this.projectionUnavailable || this.recoveryPending(),
+      );
       this.consumeTransition(this.queue.drain());
     });
     if (result.type !== "committed") return false;
@@ -659,6 +688,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   recover(): boolean {
     if (
       this.disposed ||
+      this.connectionUnavailable ||
       this.projectionUnavailable ||
       this.releaseReservation != null ||
       this.recovery == null ||
@@ -679,6 +709,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     const batch = this.recovery;
     const unavailable =
       this.disposed ||
+      this.connectionUnavailable ||
       this.projectionUnavailable ||
       this.releaseReservation != null ||
       batch == null ||
@@ -1130,6 +1161,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
 
   private automaticSendingPaused(): boolean {
     return (
+      this.connectionUnavailable ||
       this.projectionUnavailable ||
       this.state.sendingBarrier != null ||
       this.restoredPaused ||
