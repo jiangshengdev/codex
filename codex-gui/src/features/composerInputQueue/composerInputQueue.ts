@@ -459,6 +459,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   }
 
   public reconcileSnapshot(turns: readonly Turn[]): ComposerInputQueueTransition {
+    this.activeTurnId = turns.find((turn) => turn.status === "inProgress")?.id ?? null;
     const start = this.startState.reconcileSnapshot(turns);
     if (start.type === "resolved") this.releaseStartClaim(start.claim);
     let editInvalidation: ComposerPendingInputEditInvalidation | undefined;
@@ -1092,6 +1093,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   private drainNextStart(): ComposerInputQueueEffect | null {
     if (
       this.automaticSendingPaused ||
+      this.preparedInterruptedTurnId != null ||
       this.steerState.state().pendingSteers.some(({ phase }) => phase !== "acceptedAwaitingCommit")
     )
       return null;
@@ -1128,7 +1130,11 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   }
 
   private drainSteer(): ComposerInputQueueEffect | null {
-    if (this.automaticSendingPaused || this.startState.pendingPhase() === "deliveryUnknown")
+    if (
+      this.automaticSendingPaused ||
+      this.preparedInterruptedTurnId != null ||
+      this.startState.pendingPhase() === "deliveryUnknown"
+    )
       return null;
     if (this.activeTurnId == null) {
       return null;
@@ -1279,6 +1285,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     const ownedMessage = acceptance.message;
     if (
       !this.automaticSendingPaused &&
+      this.preparedInterruptedTurnId == null &&
       !this.steerState
         .state()
         .pendingSteers.some(({ phase }) => phase !== "acceptedAwaitingCommit") &&

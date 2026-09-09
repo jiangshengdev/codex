@@ -97,7 +97,9 @@ test("fails closed with the complete context error when the settled session is e
     )
     .toBeVisible();
   await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
-  await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("button", { name: "Load history" }))
+    .not.toBeInTheDocument();
   expect(listThreads).not.toHaveBeenCalled();
 });
 
@@ -141,7 +143,9 @@ test("shows the non-retryable dependency error when commands are unavailable", a
   const alert = screen.getByRole("alert");
   await expect.element(alert.getByText("Unable to load history", { exact: true })).toBeVisible();
   await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
-  await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("button", { name: "Load history" }))
+    .not.toBeInTheDocument();
   expect(listThreads).not.toHaveBeenCalled();
 });
 
@@ -568,11 +572,12 @@ test("keeps load-more and append errors reachable after the history cards", asyn
 
 test("shows the complete initial error and retries into the empty state", async () => {
   const initialPage = deferred<ThreadListResponse>();
+  const retryPage = deferred<ThreadListResponse>();
   const rawFailure = new Error("complete backend failure: request id 42");
   const listThreads = vi
     .fn<GuiHostCommands["listThreads"]>()
     .mockReturnValueOnce(initialPage.promise)
-    .mockResolvedValueOnce(response([], null));
+    .mockReturnValueOnce(retryPage.promise);
   const { screen } = await renderHistory(listThreads);
 
   await expect.element(screen.getByRole("status")).toHaveTextContent("Loading history…");
@@ -586,7 +591,7 @@ test("shows the complete initial error and retries into the empty state", async 
   await expect.element(dialog.getByText(rawFailure.message, { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Close diagnostics" }).click();
   const originalViewport = { width: window.innerWidth, height: window.innerHeight };
-  const retry = alert.getByRole("button", { name: "Retry" });
+  const retry = alert.getByRole("button", { name: "Load history" });
   const description = alert.getByRole("button", { name: "View diagnostic information" });
   try {
     for (const width of [1280, 375]) {
@@ -614,7 +619,16 @@ test("shows the complete initial error and retries into the empty state", async 
   } finally {
     await page.viewport(originalViewport.width, originalViewport.height);
   }
-  await alert.getByRole("button", { name: "Retry" }).click();
+  await alert.getByRole("button", { name: "Load history" }).click();
+  await expect
+    .element(alert.getByRole("button", { name: "Loading history…" }))
+    .toHaveAttribute("data-pending", "true");
+  await expect.element(alert.getByText("Unable to load history")).toBeVisible();
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  await expect.element(dialog.getByText(rawFailure.message, { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Close diagnostics" }).click();
+  expect(listThreads).toHaveBeenCalledTimes(2);
+  retryPage.resolve(response([], null));
 
   await expect
     .element(screen.getByText("No history for the current working directory."))
@@ -625,17 +639,21 @@ test("shows the complete initial error and retries into the empty state", async 
 test("keeps loaded cards while load-more is pending and retries an append failure", async () => {
   const append = deferred<ThreadListResponse>();
   const retryAppend = deferred<ThreadListResponse>();
+  const finalAppend = deferred<ThreadListResponse>();
   const rawFailure = new Error("complete append failure");
   const listThreads = vi
     .fn<GuiHostCommands["listThreads"]>()
     .mockResolvedValueOnce(response([thread("first", { name: "First task" })], "cursor-1"))
     .mockReturnValueOnce(append.promise)
-    .mockReturnValueOnce(retryAppend.promise);
+    .mockReturnValueOnce(retryAppend.promise)
+    .mockReturnValueOnce(finalAppend.promise);
   const { screen } = await renderHistory(listThreads);
   const loadMore = screen.getByRole("button", { name: "Load more" });
 
   await loadMore.click();
-  await expect.element(loadMore).toBeDisabled();
+  await expect
+    .element(screen.getByRole("button", { name: "Loading more…" }))
+    .toHaveAttribute("data-pending", "true");
   await expect.element(screen.getByRole("article", { name: "First task" })).toBeVisible();
   expect(listThreads).toHaveBeenCalledTimes(2);
 
@@ -648,12 +666,37 @@ test("keeps loaded cards while load-more is pending and retries an append failur
     .toBeVisible();
   await page.getByRole("button", { name: "Close diagnostics" }).click();
   await expect.element(screen.getByRole("article", { name: "First task" })).toBeVisible();
-  await alert.getByRole("button", { name: "Retry" }).click();
+  await alert.getByRole("button", { name: "Load more" }).click();
+  const pendingAction = alert.getByRole("button", { name: "Loading more…" });
+  await expect.element(pendingAction).toHaveAttribute("data-pending", "true");
+  await expect.element(alert.getByText("Unable to load history")).toBeVisible();
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  await expect
+    .element(page.getByRole("dialog").getByText(rawFailure.message, { exact: true }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "Close diagnostics" }).click();
+  const pendingButton = pendingAction.element();
+  if (!(pendingButton instanceof HTMLButtonElement)) throw new Error("Expected retry button");
+  pendingButton.click();
+  expect(listThreads).toHaveBeenCalledTimes(3);
 
-  retryAppend.resolve(response([thread("second", { name: "Second task" })], null));
+  retryAppend.reject(new Error("second append failure"));
+  await expect.element(alert.getByRole("button", { name: "Load more" })).toBeEnabled();
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  await expect
+    .element(page.getByRole("dialog").getByText("second append failure", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(page.getByRole("dialog").getByText(rawFailure.message, { exact: true }))
+    .not.toBeInTheDocument();
+  await page.getByRole("button", { name: "Close diagnostics" }).click();
+  await alert.getByRole("button", { name: "Load more" }).click();
+  await expect.element(pendingAction).toHaveAttribute("data-pending", "true");
+  finalAppend.resolve(response([thread("second", { name: "Second task" })], null));
   await expect.element(screen.getByRole("article", { name: "Second task" })).toBeVisible();
   await expect.element(screen.getByRole("article", { name: "First task" })).toBeVisible();
-  expect(listThreads).toHaveBeenCalledTimes(3);
+  await expect.element(alert).not.toBeInTheDocument();
+  expect(listThreads).toHaveBeenCalledTimes(4);
 });
 
 test("removes cards from the previous cwd before the replacement cwd request settles", async () => {

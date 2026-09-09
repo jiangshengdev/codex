@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createComposerInputQueue, type ComposerInputQueue } from "../composerInputQueue";
 import { composerDraftCapture, composerQueueMessage } from "./composerInputQueueTestFixtures";
-import { baseTurn, userMessage } from "@/features/projection/__tests__/projectionTestBuilders";
+import {
+  baseTurn,
+  inProgressTurn,
+  userMessage,
+} from "@/features/projection/__tests__/projectionTestBuilders";
 
 function firstOrdinary(queue: ComposerInputQueue) {
   const page = queue.readPendingInputPage({
@@ -22,6 +26,23 @@ function restored(queue: ComposerInputQueue): ComposerInputQueue {
 }
 
 describe("composer queue persistence transactions", () => {
+  it("replaces the current turn from a candidate snapshot only when its transaction commits", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-a", activeTurnId: "old-turn" });
+    queue.submit(composerQueueMessage("queued"));
+    queue.setAutomaticSendingPaused(true);
+    const rejected = queue.prepare((candidate) => candidate.reconcileSnapshot([]));
+    expect(rejected.result.effects).toEqual([]);
+    expect(rejected.queue.currentTurnId()).toBeNull();
+    expect(queue.currentTurnId()).toBe("old-turn");
+    const accepted = queue.prepare((candidate) =>
+      candidate.reconcileSnapshot([inProgressTurn("new-turn")]),
+    );
+    expect(accepted.result.effects).toEqual([]);
+    accepted.commit();
+    expect(queue.currentTurnId()).toBe("new-turn");
+    expect(queue.view().ordinaryQueuedCount).toBe(1);
+  });
+
   it("keeps the live queue unchanged until the prepared candidate is committed", () => {
     const queue = createComposerInputQueue({ threadId: "thread-a", activeTurnId: "turn-a" });
     const prepared = queue.prepare((candidate) => candidate.submit(composerQueueMessage("a")));

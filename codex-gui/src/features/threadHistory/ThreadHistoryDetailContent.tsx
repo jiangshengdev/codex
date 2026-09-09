@@ -1,7 +1,8 @@
-import { Alert, Button, Typography } from "@heroui/react";
+import { Alert, Typography } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
+import { RetryActionButton } from "@/feedback/RetryActionButton";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import { ReadOnlyCommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
@@ -45,9 +46,13 @@ export function ThreadHistoryDetailContent({
           <Trans>Loading task history…</Trans>
         </Typography>
       ) : null}
-      {state.type === "error" ? (
+      {state.type === "error" || state.type === "retrying" ? (
         <div className="pt-3">
-          <HistoryDetailError error={state.error} retry={retry} />
+          <HistoryDetailError
+            error={state.error}
+            retry={retry}
+            isPending={state.type === "retrying"}
+          />
         </div>
       ) : null}
       {state.type === "ready" && state.thread.turns.length === 0 ? (
@@ -77,16 +82,24 @@ export function ThreadHistoryDetailContent({
 function HistoryDetailError({
   error,
   retry,
-}: Readonly<{ error: unknown; retry: (() => unknown) | null }>) {
+  isPending,
+}: Readonly<{ error: unknown; retry: (() => unknown) | null; isPending: boolean }>) {
   return (
     <Alert role="alert" status="danger">
       <Alert.Indicator />
       <FailureLayout
         actions={
           retry == null ? null : (
-            <Button onPress={retry} variant="tertiary">
-              <Trans>Retry</Trans>
-            </Button>
+            <RetryActionButton
+              onPress={retry}
+              variant="tertiary"
+              isPending={isPending}
+              pendingChildren={<Trans>Loading task history…</Trans>}
+            >
+              <Trans comment="Button to read the selected task's historical messages">
+                Load task history
+              </Trans>
+            </RetryActionButton>
           )
         }
       >

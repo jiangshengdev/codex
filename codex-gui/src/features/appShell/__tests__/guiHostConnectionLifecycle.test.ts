@@ -13,6 +13,7 @@ import {
   startGuiHostConnectionLifecycle,
   type GuiHostConnectionLifecycleEnvironment,
   type GuiHostConnectionLifecycleInput,
+  type GuiHostConnectionLifecycle,
 } from "../guiHostConnectionLifecycle";
 
 function setup() {
@@ -44,12 +45,14 @@ function setup() {
   );
   const controllers: ActiveThreadSessionController[] = [];
   const connections: StartGuiHostConnectionOptions[] = [];
+  const cleanupHost = vi.fn<() => void>();
   const dependencies = {
     consumeAuthorization: vi.fn<typeof consumeBrowserAuthorizationSession>(() => authorization),
     startConnection: vi.fn<typeof startGuiHostConnection>((options) => {
       events.push("connect");
       connections.push(options);
       return () => {
+        cleanupHost();
         events.push("host-cleanup");
         options.onCommandsUnavailable?.();
       };
@@ -64,6 +67,10 @@ function setup() {
             return Promise.resolve({ type: "empty" });
           },
         ),
+        restoreConnection: vi.fn<ActiveThreadSessionController["restoreConnection"]>(() => {
+          events.push("restore-connection");
+          return Promise.resolve();
+        }),
         handleProjectionEvent: vi.fn<ActiveThreadSessionController["handleProjectionEvent"]>(),
         handleProjectionDelta: vi.fn<ActiveThreadSessionController["handleProjectionDelta"]>(),
         handleProjectionClosed: vi.fn<ActiveThreadSessionController["handleProjectionClosed"]>(),
@@ -89,7 +96,7 @@ function setup() {
   bind.mockImplementation((connection) => events.push(connection ? "bind" : "unbind"));
   const input: GuiHostConnectionLifecycleInput = {
     dispatch: makeStore().dispatch,
-    startupTarget: { type: "currentTask", threadId: launchThreadId },
+    getRouteTarget: () => ({ type: "currentTask", threadId: launchThreadId }),
     newSessionOwner: owner,
     setStatus: vi.fn<GuiHostConnectionLifecycleInput["setStatus"]>((status) => {
       events.push(status.label);
@@ -103,6 +110,7 @@ function setup() {
         events.push(session ? "session" : "clear-session");
       },
     ),
+    setConnectionRecovery: vi.fn<GuiHostConnectionLifecycleInput["setConnectionRecovery"]>(),
   };
   const show = (persisted: boolean) => {
     // A handler replaces its subscription; dispatch only to listeners present at entry.
@@ -124,6 +132,7 @@ function setup() {
     if (!controller) throw new Error("No session created");
     return { connection, controller, commands };
   };
+  let lifecycle: GuiHostConnectionLifecycle;
   return {
     events,
     tasks,
@@ -135,11 +144,18 @@ function setup() {
     bind,
     connections,
     controllers,
+    cleanupHost,
     show,
     hide,
     flush,
     ready,
-    start: () => startGuiHostConnectionLifecycle(input, environment, dependencies),
+    start: () => {
+      lifecycle = startGuiHostConnectionLifecycle(input, environment, dependencies);
+      return lifecycle.dispose;
+    },
+    reconnect: () => {
+      lifecycle.reconnect();
+    },
   };
 }
 
@@ -181,15 +197,20 @@ describe("page connection lifecycle", () => {
     expect(h.events).toEqual([
       "suspend",
       "unbind",
-      "unsubscribe",
-      "dispose",
+      "unavailable",
       "clear-commands",
-      "clear-session",
       "host-cleanup",
       "connect",
     ]);
     const current = h.ready();
     expect(h.dependencies.consumeAuthorization).toHaveBeenCalledTimes(2);
+    expect(h.dependencies.createSession).toHaveBeenCalledOnce();
+    expect(current.controller).toBe(old.controller);
+    expect(current.controller.dispose).not.toHaveBeenCalled();
+    expect(current.controller.restoreConnection).toHaveBeenCalledWith(
+      current.commands,
+      expect.any(Function),
+    );
     expect(h.subscriptions.size).toBe(1);
     h.events.length = 0;
     old.connection.onCommandsReady?.(createGuiHostCommands());
@@ -208,7 +229,7 @@ describe("page connection lifecycle", () => {
     expect(h.events).toEqual([]);
   });
 
-  it("keeps the disposed session reference on unavailable without reconnecting", () => {
+  it("retains the session reference on unavailable without reconnecting", () => {
     const h = setup();
     const release = h.start();
     const { connection, controller } = h.ready();
@@ -229,7 +250,7 @@ describe("page connection lifecycle", () => {
     const release = h.start();
     expect(h.input.setStatus).not.toHaveBeenCalled();
     expect(h.dependencies.startConnection).not.toHaveBeenCalled();
-    expect(h.subscriptions.size).toBe(0);
+    expect(h.subscriptions.size).toBe(1);
     if (unmount) release();
     h.flush();
     expect(vi.mocked(h.input.setStatus).mock.calls).toEqual(
@@ -295,14 +316,86 @@ describe("page connection lifecycle", () => {
     const h = setup();
     h.start();
     const { controller } = h.ready();
-    vi.mocked(controller.dispose).mockImplementation(() => {
+    h.cleanupHost.mockImplementation(() => {
       throw new Error("cleanup");
     });
-    expect(() => {
-      h.show(true);
-    }).toThrow("cleanup");
+    h.show(true);
+    expect(h.input.setConnectionRecovery).toHaveBeenLastCalledWith(
+      expect.objectContaining({ pending: false, error: new Error("cleanup") }),
+    );
     expect(h.connections).toHaveLength(1);
-    expect(h.subscriptions.size).toBe(0);
+    expect(h.subscriptions.size).toBe(1);
     expect(h.events).not.toContain("host-cleanup");
+    expect(controller.dispose).not.toHaveBeenCalled();
+  });
+
+  it("retains the last failure while reconnecting and rejects repeated clicks", () => {
+    const h = setup();
+    const release = h.start();
+    const first = h.ready();
+    first.connection.onCommandsUnavailable?.();
+    first.connection.onStatus?.({ label: "error", message: "connection failed" });
+    h.reconnect();
+    expect(h.input.setConnectionRecovery).toHaveBeenLastCalledWith(
+      expect.objectContaining({ pending: true, error: new Error("connection failed") }),
+    );
+    h.reconnect();
+    expect(h.connections).toHaveLength(2);
+    const second = h.connections[1];
+    if (second == null) throw new Error("Second connection must exist");
+    second.onStatus?.({ label: "error", message: "retry failed" });
+    second.onCommandsUnavailable?.();
+    h.reconnect();
+    expect(h.input.setConnectionRecovery).toHaveBeenLastCalledWith(
+      expect.objectContaining({ pending: true, error: new Error("retry failed") }),
+    );
+    h.ready();
+    expect(h.input.setConnectionRecovery).toHaveBeenLastCalledWith(null);
+    expect(first.controller.dispose).not.toHaveBeenCalled();
+    release();
+  });
+
+  it("reads the current route throughout restoration instead of restoring the startup route", () => {
+    const h = setup();
+    const release = h.start();
+    const first = h.ready();
+    first.connection.onCommandsUnavailable?.();
+    h.reconnect();
+    h.input.getRouteTarget = () => ({ type: "currentTask", threadId: "second-thread" });
+    h.ready();
+    const restoration = vi.mocked(first.controller.restoreConnection).mock.calls[0];
+    if (restoration == null) throw new Error("Connection restoration must be requested");
+    const getPreferredThreadId = restoration[1];
+    expect(getPreferredThreadId()).toBe("second-thread");
+    h.input.getRouteTarget = () => ({ type: "currentTask", threadId: "third-thread" });
+    expect(getPreferredThreadId()).toBe("third-thread");
+    release();
+  });
+
+  it("retries failed connection cleanup before starting another connection", () => {
+    const h = setup();
+    const release = h.start();
+    h.ready().connection.onCommandsUnavailable?.();
+    h.cleanupHost.mockImplementationOnce(() => {
+      throw new Error("cleanup failed");
+    });
+    h.reconnect();
+    expect(h.connections).toHaveLength(1);
+    h.reconnect();
+    expect(h.cleanupHost).toHaveBeenCalledTimes(2);
+    expect(h.connections).toHaveLength(2);
+    release();
+  });
+
+  it("does not reactivate commands delivered after the current connection closed", () => {
+    const h = setup();
+    const release = h.start();
+    const { connection, controller } = h.ready();
+    connection.onCommandsUnavailable?.();
+    connection.onStatus?.({ label: "closed" });
+    connection.onCommandsReady?.(createGuiHostCommands());
+    expect(controller.restoreConnection).not.toHaveBeenCalled();
+    expect(h.input.setCommands).toHaveBeenLastCalledWith(null);
+    release();
   });
 });

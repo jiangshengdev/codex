@@ -1,7 +1,7 @@
-import { Alert, Button, Spinner, Surface } from "@heroui/react";
+import { Alert, Spinner, Surface } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   HISTORY_DETAIL_ROUTE_PATH,
   CURRENT_TASK_ROUTE_PATH,
@@ -21,6 +21,9 @@ import type { ActiveThreadMemberOperationError } from "@/features/activeThreadSe
 import { errorText } from "@/text/errorText";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
+import { RetryActionButton } from "@/feedback/RetryActionButton";
+import { ProjectionRecoveryNotice } from "./ProjectionRecoveryNotice";
+import { ConnectionTaskRecoveryNotice } from "./ConnectionTaskRecoveryNotice";
 
 function isMacAppleWebKitRuntime(): boolean {
   return (
@@ -34,8 +37,60 @@ export function CurrentTaskPage() {
   const { t } = useLingui();
   const navigate = useNavigate();
   const router = useRouter();
-  const [retryError, setRetryError] = useState<string | null>(null);
-  const { activeThreadSession, authorizationToken, routeTarget, status } = useAppCapabilities();
+  const { activeThreadSession, authorizationToken, routeTarget, status, connectionRecovery } =
+    useAppCapabilities();
+  const routeThreadId = routeTarget.type === "currentTask" ? routeTarget.threadId : null;
+  const requestScope = useMemo(
+    () => ({
+      activeThreadSession,
+      authorizationToken,
+      routeThreadId,
+    }),
+    [activeThreadSession, authorizationToken, routeThreadId],
+  );
+  const currentScopeRef = useRef<typeof requestScope | null>(null);
+  useLayoutEffect(() => {
+    currentScopeRef.current = requestScope;
+    return () => {
+      currentScopeRef.current = null;
+    };
+  }, [requestScope]);
+  const isCurrentScope = (): boolean => currentScopeRef.current === requestScope;
+  const [localResult, setLocalResult] = useState<{
+    scope: typeof requestScope;
+    error: string | null;
+  } | null>(null);
+  const [pendingState, setPendingState] = useState<{
+    scope: typeof requestScope;
+    operations: readonly string[];
+  } | null>(null);
+  const pendingStateRef = useRef<typeof pendingState>(null);
+  const pendingOperations = pendingState?.scope === requestScope ? pendingState.operations : [];
+  const retryError = localResult?.scope === requestScope ? localResult.error : null;
+  const setRetryError = (error: string | null) => {
+    if (isCurrentScope()) setLocalResult({ scope: requestScope, error });
+  };
+  const beginRequest = (operation: string): boolean => {
+    if (!isCurrentScope()) return false;
+    const current = pendingStateRef.current;
+    const operations = current?.scope === requestScope ? current.operations : [];
+    if (operations.includes(operation)) return false;
+    const next = { scope: requestScope, operations: [...operations, operation] };
+    pendingStateRef.current = next;
+    setPendingState(next);
+    return true;
+  };
+  const finishRequest = (operation: string) => {
+    if (!isCurrentScope()) return;
+    const current = pendingStateRef.current;
+    if (current?.scope !== requestScope) return;
+    const next = {
+      scope: requestScope,
+      operations: current.operations.filter((entry) => entry !== operation),
+    };
+    pendingStateRef.current = next;
+    setPendingState(next);
+  };
   const snapshot = useActiveThreadSessionSnapshot();
   const collection = useActiveThreadCollectionSnapshot();
   const sessionPhase = snapshot.phase;
@@ -49,12 +104,12 @@ export function CurrentTaskPage() {
       : undefined;
   const guardCompositionEndEnter = isMacAppleWebKitRuntime();
   const retry = async (threadId: string, activate: boolean): Promise<void> => {
-    if (activeThreadSession == null) return;
-    setRetryError(null);
+    if (activeThreadSession == null || !beginRequest("retry")) return;
     try {
       const outcome = await (activate
         ? activeThreadSession.activate(threadId)
         : activeThreadSession.retry(threadId));
+      if (!isCurrentScope()) return;
       if (outcome.type === "removed") {
         const target = selectGuiRouteTarget(router.state.matches);
         if (
@@ -68,42 +123,68 @@ export function CurrentTaskPage() {
               params: { threadId: outcome.threadId },
               replace: true,
             });
-            activeThreadSession.setOperationError(outcome.threadId, "navigation", null);
+            if (isCurrentScope())
+              activeThreadSession.setOperationError(outcome.threadId, "navigation", null);
           } catch (error: unknown) {
-            activeThreadSession.setOperationError(outcome.threadId, "navigation", error);
+            if (isCurrentScope())
+              activeThreadSession.setOperationError(outcome.threadId, "navigation", error);
           }
         }
+        setRetryError(null);
       } else if (outcome.type === "unavailable") {
-        setRetryError(t`Unable to retry this task. Review its current state and try again.`);
+        const failedMember = activeThreadSession
+          .getCollectionSnapshot()
+          .members.find((entry) => entry.threadId === threadId);
+        setRetryError(
+          failedMember?.error != null
+            ? null
+            : t`Unable to retry this task. Review its current state and try again.`,
+        );
+      } else if (
+        outcome.type === "ready" &&
+        !activeThreadSession
+          .getCollectionSnapshot()
+          .members.find((entry) => entry.threadId === threadId)
+          ?.removalBlockers.includes("statusUnknown")
+      ) {
+        setRetryError(null);
       }
     } catch (error: unknown) {
       setRetryError(errorText(error));
+    } finally {
+      finishRequest("retry");
     }
   };
   const retryOperation = async (
     threadId: string,
     operation: ActiveThreadMemberOperationError["operation"],
   ): Promise<void> => {
-    if (activeThreadSession == null) return;
+    if (activeThreadSession == null || !beginRequest(operation)) return;
     try {
       if (operation === "navigation") {
         await navigate({ to: CURRENT_TASK_ROUTE_PATH, params: { threadId } });
+        if (!isCurrentScope()) return;
       } else {
         const outcome = await activeThreadSession.remove(threadId);
+        if (!isCurrentScope()) return;
         if (outcome.type !== "removed") return;
         const target = selectGuiRouteTarget(router.state.matches);
         if (outcome.wasViewed && target?.type === "currentTask" && target.threadId === threadId) {
           try {
             await navigate({ to: HISTORY_DETAIL_ROUTE_PATH, params: { threadId }, replace: true });
-            activeThreadSession.setOperationError(threadId, "navigation", null);
+            if (isCurrentScope())
+              activeThreadSession.setOperationError(threadId, "navigation", null);
           } catch (error: unknown) {
-            activeThreadSession.setOperationError(threadId, "navigation", error);
+            if (isCurrentScope())
+              activeThreadSession.setOperationError(threadId, "navigation", error);
           }
         }
       }
-      activeThreadSession.setOperationError(threadId, operation, null);
+      if (isCurrentScope()) activeThreadSession.setOperationError(threadId, operation, null);
     } catch (error: unknown) {
-      activeThreadSession.setOperationError(threadId, operation, error);
+      if (isCurrentScope()) activeThreadSession.setOperationError(threadId, operation, error);
+    } finally {
+      finishRequest(operation);
     }
   };
   const operationNotices = member?.operationErrors.map(({ operation, error }) => (
@@ -111,15 +192,35 @@ export function CurrentTaskPage() {
       <Alert.Indicator />
       <FailureLayout
         actions={
-          <Button
+          <RetryActionButton
+            isPending={
+              pendingOperations.includes(operation) ||
+              (operation === "remove" && member.removalPending)
+            }
+            isDisabled={status.label !== "initialized" && operation !== "navigation"}
+            pendingChildren={
+              operation === "remove" ? (
+                <Trans comment="Leaving GUI active task list; task history and drafts are kept">
+                  Removing task…
+                </Trans>
+              ) : (
+                <Trans>Opening task…</Trans>
+              )
+            }
             size="sm"
             variant={operation === "remove" ? "danger" : "primary"}
             onPress={() => {
               void retryOperation(member.threadId, operation);
             }}
           >
-            <Trans>Retry</Trans>
-          </Button>
+            {operation === "remove" ? (
+              <Trans comment="Remove from GUI active task list; keep task history and drafts">
+                Remove task
+              </Trans>
+            ) : (
+              <Trans>Open task</Trans>
+            )}
+          </RetryActionButton>
         }
       >
         <Alert.Content>
@@ -150,15 +251,18 @@ export function CurrentTaskPage() {
   ) {
     const retryAction =
       routeTarget.type === "currentTask" ? (
-        <Button
+        <RetryActionButton
+          isDisabled={status.label !== "initialized"}
+          isPending={pendingOperations.includes("retry") || member?.retryPending === true}
+          pendingChildren={<Trans>Loading task…</Trans>}
           size="sm"
           variant="primary"
           onPress={() => {
             void retry(routeTarget.threadId, true);
           }}
         >
-          <Trans>Retry</Trans>
-        </Button>
+          <Trans>Load task</Trans>
+        </RetryActionButton>
       ) : null;
     return (
       <main
@@ -202,7 +306,7 @@ export function CurrentTaskPage() {
     );
   }
   if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") {
-    if (snapshot.phase === "loading") {
+    if (snapshot.phase === "loading" && snapshot.error == null && retryError == null) {
       return (
         <main className="app-shell-content-boundary py-3" data-gui-host-status={status.label}>
           <CurrentTaskLoading />
@@ -210,15 +314,32 @@ export function CurrentTaskPage() {
       );
     }
     const retryAction = (
-      <Button
+      <RetryActionButton
+        isDisabled={status.label !== "initialized"}
+        isPending={pendingOperations.includes("retry") || member?.retryPending === true}
+        pendingChildren={
+          member?.retryAction === "remove" ? (
+            <Trans comment="Leaving GUI active task list; task history and drafts are kept">
+              Removing task…
+            </Trans>
+          ) : (
+            <Trans>Loading task…</Trans>
+          )
+        }
         size="sm"
-        variant="primary"
+        variant={member?.retryAction === "remove" ? "danger" : "primary"}
         onPress={() => {
           void retry(snapshot.threadId, false);
         }}
       >
-        <Trans>Retry</Trans>
-      </Button>
+        {member?.retryAction === "remove" ? (
+          <Trans comment="Remove from GUI active task list; keep task history and drafts">
+            Remove task
+          </Trans>
+        ) : (
+          <Trans>Load task</Trans>
+        )}
+      </RetryActionButton>
     );
     return (
       <main
@@ -255,8 +376,22 @@ export function CurrentTaskPage() {
     member != null &&
     (member.phase === "cleanupPending" ||
       member.phase === "removalPending" ||
-      member.removalBlockers.includes("statusUnknown")) ? (
-      <Button
+      member.removalBlockers.includes("statusUnknown") ||
+      (member.retryPending && pendingOperations.includes("retry"))) ? (
+      <RetryActionButton
+        isDisabled={snapshot.connection.phase !== "available"}
+        isPending={pendingOperations.includes("retry") || member.retryPending}
+        pendingChildren={
+          member.retryAction === "remove" ? (
+            <Trans comment="Leaving GUI active task list; task history and drafts are kept">
+              Removing task…
+            </Trans>
+          ) : member.retryAction === "load" ? (
+            <Trans>Loading task…</Trans>
+          ) : (
+            <Trans>Refreshing status…</Trans>
+          )
+        }
         size="sm"
         variant={
           member.phase === "cleanupPending" || member.phase === "removalPending"
@@ -267,8 +402,16 @@ export function CurrentTaskPage() {
           void retry(member.threadId, false);
         }}
       >
-        <Trans>Retry</Trans>
-      </Button>
+        {member.retryAction === "remove" ? (
+          <Trans comment="Remove from GUI active task list; keep task history and drafts">
+            Remove task
+          </Trans>
+        ) : member.retryAction === "load" ? (
+          <Trans>Load task</Trans>
+        ) : (
+          <Trans comment="Reload the current task's runtime status">Refresh status</Trans>
+        )}
+      </RetryActionButton>
     ) : null;
 
   return (
@@ -281,6 +424,23 @@ export function CurrentTaskPage() {
       status={status}
       notices={
         <>
+          {snapshot.connection.phase === "unavailable" ? (
+            <ConnectionTaskRecoveryNotice
+              connection={snapshot.connection}
+              canRecover={status.label === "initialized" && connectionRecovery == null}
+              onRecover={() => {
+                void activeThreadSession.recoverConnection(snapshot.threadId, snapshot.identity);
+              }}
+            />
+          ) : null}
+          {snapshot.phase === "projectionUnavailable" ? (
+            <ProjectionRecoveryNotice
+              snapshot={snapshot}
+              onRecover={() => {
+                void activeThreadSession.recoverProjection(snapshot.threadId, snapshot.identity);
+              }}
+            />
+          ) : null}
           {member?.error != null ? (
             <Alert role="alert" status="danger">
               <Alert.Indicator />

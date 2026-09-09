@@ -14,6 +14,11 @@ export function activeThreadRemovalBlockerMessage(blocker: ActiveThreadRemovalBl
       return msg`Wait for context compaction to finish.`;
     case "projectionUnavailable":
       return msg`Recover this task's connection before removing it.`;
+    case "connectionUnavailable":
+      return msg({
+        comment: "Task removal is blocked while the shared GUI connection is unavailable",
+        message: "Reconnect before removing this task.",
+      });
     case "changed":
       return msg`The task changed. Review its current state and try again.`;
     case "restoredPaused":

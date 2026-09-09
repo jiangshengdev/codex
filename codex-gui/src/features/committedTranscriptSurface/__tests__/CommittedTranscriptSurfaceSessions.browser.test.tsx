@@ -95,6 +95,57 @@ test("keeps fixed history unchanged when the same thread has a live session upda
   await expect.element(screen.getByText("Current live response")).toBeVisible();
 });
 
+test("preserves fixed-history interruption details while the live page owns its synchronization notice", async () => {
+  const store = makeTranscriptStore(first);
+  const saved = buildTranscriptStateFromTurns(
+    baseline(first, "Saved interrupted response").snapshot.thread.turns,
+  );
+  const transcriptState = {
+    ...saved,
+    globalStatus: [
+      {
+        id: "saved-interruption",
+        status: "subscriptionInterrupted" as const,
+        reason: "backpressure" as const,
+        subscriptionId: "saved-subscription",
+      },
+    ],
+  };
+  const screen = await renderWithProviders(
+    <ReadOnlyCommittedTranscriptSurface
+      surfaceKey={first.threadId}
+      transcriptState={transcriptState}
+    />,
+    { store },
+  );
+  const notice = screen.getByText("Connection interrupted. Reconnect required.", { exact: true });
+  await expect.element(notice).toBeVisible();
+  await expect
+    .element(screen.getByText("Saved interrupted response", { exact: true }))
+    .toBeVisible();
+  publish(store, first, 1, "Live interrupted response");
+  store.dispatch(
+    activeThreadReadModelTransitionApplied({
+      identity: first,
+      sessionRevision: 2,
+      facts: [
+        {
+          type: "projectionUnavailable",
+          reason: "backpressure",
+          threadId: first.threadId,
+          subscriptionId: "live-subscription",
+        },
+      ],
+    }),
+  );
+  await expect.element(notice).toBeVisible();
+  await screen.rerender(<CommittedTranscriptSurface identity={first} />);
+  await expect
+    .element(screen.getByText("Live interrupted response", { exact: true }))
+    .toBeVisible();
+  await expect.element(notice).not.toBeInTheDocument();
+});
+
 test("does not expose a replacement owner's transcript to an old mounted identity or accept its late transitions", async () => {
   const store = makeTranscriptStore(first);
   publish(store, first, 1, "Original owner response");

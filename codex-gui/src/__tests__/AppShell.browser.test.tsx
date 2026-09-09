@@ -487,7 +487,7 @@ test("App exposes the current cwd enabled skill catalog and refreshes it after i
   expect(commands.listSkills).toHaveBeenCalledTimes(2);
 });
 
-test("App isolates a replacement owner from the previous catalog settlement and drops unavailable targets", async () => {
+test("App isolates a replacement owner from the previous catalog settlement and retains unavailable targets", async () => {
   const commands = createGuiHostCommands();
   const currentCwd = attachResponse.snapshot.thread.cwd;
   const candidateCwd = "/workspace/candidate";
@@ -525,8 +525,9 @@ test("App isolates a replacement owner from the previous catalog settlement and 
   await expect.element(catalog).toHaveTextContent(/^candidate$/);
 
   markCommandsUnavailable(options);
-  await expect.element(activeThread).toHaveTextContent("none");
-  await expect.element(catalogStatus).toHaveTextContent("none");
+  await expect.element(activeThread).toHaveTextContent(candidateThreadId);
+  await expect.element(catalogStatus).toHaveTextContent("ready");
+  await expect.element(catalog).toHaveTextContent(/^candidate$/);
   emitSkillsChanged(options);
   expect(commands.listSkills).toHaveBeenCalledTimes(3);
 });

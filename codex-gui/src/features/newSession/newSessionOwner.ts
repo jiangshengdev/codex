@@ -107,7 +107,6 @@ export class NewSessionOwner {
       ...draft,
       draft: input.draft,
       isInputLocked: true,
-      failure: null,
       phase: draft.threadId === null ? "creating" : "activating",
     });
     try {
@@ -120,7 +119,6 @@ export class NewSessionOwner {
           ...draft,
           draft: input.draft,
           isInputLocked: true,
-          failure: null,
           threadId,
           phase: "activating",
         });

@@ -1,10 +1,7 @@
 import { Trans } from "@lingui/react/macro";
 import { useParams } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useLayoutEffect, useMemo } from "react";
 import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
-import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
-import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
-import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { ThreadHistoryDetailContent } from "./ThreadHistoryDetailContent";
 import {
   initialThreadHistoryDetailState,
@@ -12,39 +9,21 @@ import {
 } from "./threadHistoryDetailOwner";
 import { useStrictModeSafeOwner } from "./useStrictModeSafeOwner";
 
-type RetainedThreadHistoryDetailCapability = Readonly<{
-  readThread: GuiHostCommands["readThread"];
-}>;
-
 export function ThreadHistoryDetailPage() {
   const { threadId } = useParams({ from: "/app/history/$threadId" });
   const { activeThreadSession, authorizationToken, commands, routeTarget, status } =
     useAppCapabilities();
   const activateThread = activeThreadSession?.activate ?? null;
-  const [retainedCapability, setRetainedCapability] =
-    useState<RetainedThreadHistoryDetailCapability | null>(() =>
-      commands == null ? null : { readThread: commands.readThread },
-    );
-
-  useEffect(() => {
-    if (commands == null) {
-      return;
-    }
-
-    let isCurrent = true;
-    queueMicrotask(() => {
-      if (isCurrent) {
-        setRetainedCapability((retained) => retained ?? { readThread: commands.readThread });
-      }
-    });
-    return () => {
-      isCurrent = false;
-    };
-  }, [commands]);
+  const readThread = commands?.readThread ?? null;
+  const owner = useMemo(() => new ThreadHistoryDetailOwner({ threadId }), [threadId]);
+  useLayoutEffect(() => {
+    owner.setReadThread(readThread);
+  }, [owner, readThread]);
+  const state = useStrictModeSafeOwner(owner);
 
   return (
     <main className="task-reading-boundary grid min-h-0 flex-1 content-start gap-4">
-      {retainedCapability == null ? (
+      {state.type === "waitingForConnection" ? (
         status.label === "error" || status.label === "closed" ? (
           <p className="pt-3 text-sm text-muted">
             <Trans>Task history is unavailable until the connection is restored.</Trans>
@@ -60,47 +39,15 @@ export function ThreadHistoryDetailPage() {
           />
         )
       ) : (
-        <ThreadHistoryDetailOwnerBound
+        <ThreadHistoryDetailContent
           authorizationToken={authorizationToken}
           activateThread={activateThread}
-          readThread={retainedCapability.readThread}
+          retry={readThread == null ? null : owner.retry}
           routeTarget={routeTarget}
+          state={state}
           threadId={threadId}
         />
       )}
     </main>
-  );
-}
-
-type ThreadHistoryDetailOwnerBoundProps = Readonly<{
-  activateThread: ActiveThreadSession["activate"] | null;
-  authorizationToken: string | null;
-  readThread: GuiHostCommands["readThread"];
-  routeTarget: GuiRouteTarget;
-  threadId: string;
-}>;
-
-function ThreadHistoryDetailOwnerBound({
-  activateThread,
-  authorizationToken,
-  readThread,
-  routeTarget,
-  threadId,
-}: ThreadHistoryDetailOwnerBoundProps) {
-  const owner = useMemo(
-    () => new ThreadHistoryDetailOwner({ threadId, readThread }),
-    [readThread, threadId],
-  );
-  const state = useStrictModeSafeOwner(owner);
-
-  return (
-    <ThreadHistoryDetailContent
-      activateThread={activateThread}
-      authorizationToken={authorizationToken}
-      retry={owner.retry}
-      routeTarget={routeTarget}
-      state={state}
-      threadId={threadId}
-    />
   );
 }

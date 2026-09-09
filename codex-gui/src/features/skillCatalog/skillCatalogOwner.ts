@@ -11,12 +11,18 @@ type SkillCatalogContents = Readonly<{
   partialErrorCount: number;
 }>;
 
-export type SkillCatalogState =
-  | (Readonly<{ type: "initialLoading" }> & SkillCatalogContents)
+type SettledSkillCatalogState =
   | (Readonly<{ type: "ready" }> & SkillCatalogContents)
-  | (Readonly<{ type: "refreshing" }> & SkillCatalogContents)
   | (Readonly<{ type: "stale" }> & SkillCatalogContents)
   | (Readonly<{ type: "failed" }> & SkillCatalogContents);
+
+export type SkillCatalogState =
+  | SettledSkillCatalogState
+  | (Readonly<{
+      type: "initialLoading" | "refreshing";
+      previousFailure: Exclude<SettledSkillCatalogState["type"], "ready"> | null;
+    }> &
+      SkillCatalogContents);
 
 const emptyContents = (): SkillCatalogContents => ({
   candidates: [],
@@ -32,13 +38,18 @@ export class SkillCatalogOwner {
   private readonly cwd: string;
   private readonly listSkills: GuiHostCommands["listSkills"];
   private readonly listeners = createListenerSet();
-  private state: SkillCatalogState = { type: "initialLoading", ...emptyContents() };
+  private state: SkillCatalogState = {
+    type: "initialLoading",
+    previousFailure: null,
+    ...emptyContents(),
+  };
   private generation = 0;
   private started = false;
   private disposed = false;
   private requestInFlight = false;
   private refreshQueued = false;
   private hasSuccessfulCatalog = false;
+  private suspended = false;
 
   constructor({ cwd, listSkills }: SkillCatalogOwnerOptions) {
     this.cwd = cwd;
@@ -66,7 +77,7 @@ export class SkillCatalogOwner {
   }
 
   readonly invalidate = (): boolean => {
-    if (!this.started || this.disposed) {
+    if (!this.started || this.disposed || this.suspended) {
       return false;
     }
 
@@ -83,7 +94,7 @@ export class SkillCatalogOwner {
   };
 
   readonly retry = (): boolean => {
-    if (this.disposed || this.requestInFlight) {
+    if (this.disposed || this.suspended || this.requestInFlight) {
       return false;
     }
 
@@ -110,14 +121,31 @@ export class SkillCatalogOwner {
     this.listeners.clear();
   }
 
+  suspend(): void {
+    if (this.disposed) return;
+    this.suspended = true;
+    this.generation += 1;
+    this.requestInFlight = false;
+    this.refreshQueued = false;
+  }
+
+  resume(): void {
+    if (this.disposed || !this.suspended) return;
+    this.suspended = false;
+    this.requestCatalog(this.hasSuccessfulCatalog ? "refresh" : "initial");
+  }
+
   private requestCatalog(kind: "initial" | "refresh"): void {
     const generation = ++this.generation;
     this.requestInFlight = true;
+    const previousFailure =
+      this.state.type === "failed" || this.state.type === "stale" ? this.state.type : null;
     if (kind === "initial") {
-      this.publish({ type: "initialLoading", ...emptyContents() });
+      this.publish({ type: "initialLoading", previousFailure, ...emptyContents() });
     } else {
       this.publish({
         type: "refreshing",
+        previousFailure,
         candidates: this.state.candidates,
         partialErrorCount: this.state.partialErrorCount,
       });

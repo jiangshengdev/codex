@@ -48,6 +48,8 @@ export type ActiveThreadSessionHarness = Readonly<{
   activate: Mock<ActiveThreadSession["activate"]>;
   view: Mock<ActiveThreadSession["view"]>;
   retry: Mock<ActiveThreadSession["retry"]>;
+  recoverProjection: Mock<ActiveThreadSession["recoverProjection"]>;
+  recoverConnection: Mock<ActiveThreadSession["recoverConnection"]>;
   remove: Mock<ActiveThreadSession["remove"]>;
   setOperationError: Mock<ActiveThreadSession["setOperationError"]>;
   subscribe: Mock<ActiveThreadSession["subscribe"]>;
@@ -98,6 +100,7 @@ const createComposerRole = (
 ): ActiveThreadComposerRole => ({
   getDraft: vi.fn<ActiveThreadComposerRole["getDraft"]>().mockReturnValue(null),
   saveDraft: vi.fn<ActiveThreadComposerRole["saveDraft"]>().mockReturnValue(true),
+  retainDraft: vi.fn<ActiveThreadComposerRole["retainDraft"]>().mockReturnValue(true),
   retryPersistence: vi.fn<ActiveThreadComposerRole["retryPersistence"]>().mockReturnValue(false),
   resumeRestored: vi.fn<ActiveThreadComposerRole["resumeRestored"]>().mockReturnValue(false),
   discardUnknown: vi.fn<ActiveThreadComposerRole["discardUnknown"]>().mockReturnValue(false),
@@ -167,6 +170,7 @@ export const activeThreadSessionSnapshot = (
     threadStatus: { type: "idle" } satisfies Thread["status"],
     compaction: { phase: "idle", canRequest: true, startFailure: null },
     composer: emptyComposerSnapshot,
+    connection: { phase: "available" },
     skills: emptySkillsState,
     composerRole: createComposerRole(),
     compactionRole: createCompactionRole(() => revision),
@@ -182,7 +186,7 @@ export const projectionUnavailableActiveThreadSessionSnapshot = (
   const revision = options.revision ?? 1;
   return {
     reason: "backpressure",
-    recovery: "connectionRestartRequired",
+    recovery: { pending: false, error: null },
     revision,
     identity: createActiveThreadSessionIdentity(options.threadId ?? "thread-1"),
     threadId: "thread-1",
@@ -191,6 +195,7 @@ export const projectionUnavailableActiveThreadSessionSnapshot = (
     threadStatus: { type: "idle" } satisfies Thread["status"],
     compaction: { phase: "idle", canRequest: false, startFailure: null },
     composer: emptyComposerSnapshot,
+    connection: { phase: "available" },
     skills: emptySkillsState,
     composerRole: createComposerRole(),
     compactionRole: createCompactionRole(() => revision),
@@ -296,6 +301,10 @@ export const createActiveThreadSessionHarness = (
               operationErrors: [],
               canRemove: value.phase === "active",
               removalBlockers: [],
+              retryAction:
+                value.phase === "loading" || value.phase === "failed" ? "load" : "status",
+              retryPending: value.phase === "loading",
+              removalPending: false,
             },
           ]
         : [],
@@ -303,6 +312,12 @@ export const createActiveThreadSessionHarness = (
   });
   let collection = options.initialCollection ?? collectionFor(snapshot);
   const retry = vi.fn<ActiveThreadSession["retry"]>(activate);
+  const recoverProjection = vi.fn<ActiveThreadSession["recoverProjection"]>(() =>
+    Promise.resolve({ type: "unavailable" }),
+  );
+  const recoverConnection = vi.fn<ActiveThreadSession["recoverConnection"]>(() =>
+    Promise.resolve({ type: "unavailable" }),
+  );
   const view = vi.fn<ActiveThreadSession["view"]>((threadId) =>
     Promise.resolve(
       typeof activateOutcome === "function" ? activateOutcome(threadId) : activateOutcome,
@@ -324,6 +339,8 @@ export const createActiveThreadSessionHarness = (
     activate,
     view,
     retry,
+    recoverProjection,
+    recoverConnection,
     remove,
     setOperationError: (threadId, operation, error) => {
       setOperationError(threadId, operation, error);
@@ -368,6 +385,8 @@ export const createActiveThreadSessionHarness = (
     activate,
     view,
     retry,
+    recoverProjection,
+    recoverConnection,
     remove,
     setOperationError,
     subscribe,

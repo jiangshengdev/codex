@@ -1,5 +1,10 @@
 import type { ComposerInputQueueCoordinatorReleaseBlocker } from "@/features/composerInputQueue/composerInputQueueCoordinator";
-import type { LiveActiveThreadSession } from "./activeThreadSessionContracts";
+import type {
+  LiveActiveThreadSession,
+  ProjectionRecoveryOutcome,
+} from "./activeThreadSessionContracts";
+import type { ActiveThreadSessionIdentity } from "./activeThreadSessionIdentity";
+import type { GuiHostCommands } from "@/features/guiHost/guiHostCommandGateway";
 import type {
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
@@ -27,6 +32,7 @@ export type ActiveThreadComposerRole = Readonly<
     | "submitSteer"
     | "getDraft"
     | "saveDraft"
+    | "retainDraft"
     | "retryPersistence"
     | "resumeRestored"
     | "discardUnknown"
@@ -109,6 +115,14 @@ export type ActiveThreadSession = Readonly<{
   activate(threadId: string): Promise<ActiveThreadActivationOutcome>;
   view(threadId: string): Promise<ActiveThreadActivationOutcome>;
   retry(threadId: string): Promise<ActiveThreadRetryOutcome>;
+  recoverProjection(
+    threadId: string,
+    expectedIdentity: ActiveThreadSessionIdentity,
+  ): Promise<ProjectionRecoveryOutcome>;
+  recoverConnection(
+    threadId: string,
+    expectedIdentity: ActiveThreadSessionIdentity,
+  ): Promise<ProjectionRecoveryOutcome>;
   remove(threadId: string): Promise<ActiveThreadRemovalOutcome>;
   setOperationError(
     threadId: string,
@@ -120,6 +134,10 @@ export type ActiveThreadSession = Readonly<{
 export type ActiveThreadSessionController = Readonly<{
   session: ActiveThreadSession;
   activateRecoveryThread(preferredThreadId?: string | null): Promise<ActiveThreadActivationOutcome>;
+  restoreConnection(
+    commands: GuiHostCommands,
+    getPreferredThreadId: () => string | null,
+  ): Promise<void>;
   handleProjectionEvent(notification: ThreadProjectionEventNotification): void;
   handleProjectionDelta(notification: ThreadProjectionDeltaNotification): void;
   handleProjectionClosed(notification: ThreadProjectionClosedNotification): void;
@@ -137,6 +155,7 @@ export type ActiveThreadRemovalBlocker =
   | "activeTurn"
   | "compaction"
   | "projectionUnavailable"
+  | "connectionUnavailable"
   | "changed"
   | "restoredPaused";
 
@@ -146,6 +165,9 @@ export type ActiveThreadCollectionMember = Readonly<{
   snapshot: ActiveThreadSessionSnapshot | null;
   error: unknown;
   operationErrors: readonly ActiveThreadMemberOperationError[];
+  retryAction: "load" | "remove" | "status";
+  retryPending: boolean;
+  removalPending: boolean;
   canRemove: boolean;
   removalBlockers: readonly ActiveThreadRemovalBlocker[];
 }>;

@@ -8,18 +8,22 @@ import type { ProjectionManualReconnectReason } from "@/features/projectionIngre
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import type {
   Thread,
+  ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
-import type { ActiveThreadProjectionInputOutcome } from "./activeThreadProjection";
+import type {
+  ActiveThreadProjection,
+  ActiveThreadProjectionInputOutcome,
+} from "./activeThreadProjection";
 import type { ActiveThreadCompactionState } from "./activeThreadCompaction";
 import type { ActiveThreadSessionIdentity } from "./activeThreadSessionIdentity";
 
 export type ActiveThreadSessionOperationUnavailable = Readonly<{
   type: "unavailable";
   scope: "activeThreadSession";
-  reason: "staleRevision" | "projectionUnavailable" | "disposed";
+  reason: "staleRevision" | "projectionUnavailable" | "connectionUnavailable" | "disposed";
   revision: number;
 }>;
 
@@ -36,13 +40,23 @@ export type ActiveThreadCompactionView =
   | Readonly<{
       phase: Exclude<ActiveThreadCompactionState["phase"], "idle">;
       canRequest: false;
-      startFailure: null;
+      startFailure: Extract<
+        ActiveThreadCompactionState,
+        { phase: "requestPending" }
+      >["startFailure"];
     }>;
 
 export type ActiveThreadRequestCompactionResult =
   | Readonly<{ type: "accepted" }>
   | Readonly<{ type: "rejected"; reason: "activeTurn" | "operationInProgress" }>
   | Exclude<ComposerInputQueueCoordinatorReserveReleaseResult, { type: "reserved" }>;
+
+export type ActiveThreadConnectionState =
+  | Readonly<{ phase: "available" }>
+  | Readonly<{
+      phase: "unavailable";
+      recovery: Readonly<{ pending: boolean; error: unknown }>;
+    }>;
 
 type ActiveSnapshotContents = Readonly<{
   identity: ActiveThreadSessionIdentity;
@@ -54,6 +68,7 @@ type ActiveSnapshotContents = Readonly<{
   compaction: ActiveThreadCompactionView;
   composer: ComposerInputQueueCoordinatorSnapshot;
   skills: SkillCatalogState;
+  connection: ActiveThreadConnectionState;
 }>;
 
 export type LiveActiveThreadSessionSnapshot =
@@ -61,7 +76,7 @@ export type LiveActiveThreadSessionSnapshot =
   | (Readonly<{
       phase: "projectionUnavailable";
       reason: ProjectionManualReconnectReason;
-      recovery: "connectionRestartRequired";
+      recovery: Readonly<{ pending: boolean; error: unknown }>;
     }> &
       ActiveSnapshotContents)
   | Readonly<{ phase: "disposed"; revision: number }>;
@@ -97,7 +112,19 @@ export type LiveActiveThreadSession = Readonly<{
   identity: ActiveThreadSessionIdentity;
   getSnapshot(): LiveActiveThreadSessionSnapshot;
   subscribe(listener: () => void): () => void;
+  connectionUnavailable(): void;
+  beginConnectionRecovery(): boolean;
+  failConnectionRecovery(error: unknown): void;
+  beginProjectionRecovery(): boolean;
+  failProjectionRecovery(error: unknown): void;
+  commitProjectionRecovery(
+    attachResponse: ThreadProjectionAttachResponse,
+    projection: ActiveThreadProjection,
+    drainCandidate: () => boolean,
+  ): ProjectionRecoveryOutcome;
   getDraft(): ReturnType<ComposerInputQueueCoordinator["getDraft"]>;
+  /** True means accepted into the retained owner, not persisted. Never sends input. */
+  retainDraft(draft: Parameters<ComposerInputQueueCoordinator["saveDraft"]>[0]): boolean;
   saveDraft(
     expectedRevision: number,
     draft: Parameters<ComposerInputQueueCoordinator["saveDraft"]>[0],
@@ -173,3 +200,9 @@ export type LiveActiveThreadSession = Readonly<{
   flushProjection(): void;
   dispose(): void;
 }>;
+
+export type ProjectionRecoveryOutcome =
+  | Readonly<{ type: "recovered" }>
+  | Readonly<{ type: "failed"; error: unknown }>
+  | Readonly<{ type: "blocked"; error: unknown }>
+  | Readonly<{ type: "unavailable" }>;

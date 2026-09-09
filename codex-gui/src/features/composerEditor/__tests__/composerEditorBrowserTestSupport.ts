@@ -57,11 +57,11 @@ export function catalog(
   const contents = { candidates, partialErrorCount };
   switch (type) {
     case "initialLoading":
-      return { type: "initialLoading", ...contents };
+      return { type: "initialLoading", previousFailure: null, ...contents };
     case "ready":
       return { type: "ready", ...contents };
     case "refreshing":
-      return { type: "refreshing", ...contents };
+      return { type: "refreshing", previousFailure: null, ...contents };
     case "stale":
       return { type: "stale", ...contents };
     case "failed":

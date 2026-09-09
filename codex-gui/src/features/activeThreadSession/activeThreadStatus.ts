@@ -8,6 +8,8 @@ export type ActiveThreadStatus = Readonly<{
   getSnapshot(): ActiveThreadStatusSnapshot;
   subscribe(listener: () => void): () => void;
   invalidate(): boolean;
+  suspend(): void;
+  rebase(status: Thread["status"]): void;
   settleInvalidations(): Promise<void>;
   dispose(): void;
 }>;
@@ -26,11 +28,16 @@ class ActiveThreadStatusImpl implements ActiveThreadStatus {
   private generation = 0;
   private dirty = false;
   private refreshPromise: Promise<void> | null = null;
+  private resolveRebased: () => void = () => undefined;
+  private rebasedPromise = new Promise<void>((resolve) => {
+    this.resolveRebased = resolve;
+  });
   private resolveDisposed: () => void = () => undefined;
   private readonly disposedPromise = new Promise<void>((resolve) => {
     this.resolveDisposed = resolve;
   });
   private disposed = false;
+  private suspended = false;
 
   constructor({ threadId, initialStatus, readThread }: CreateActiveThreadStatusInput) {
     this.threadId = threadId;
@@ -46,19 +53,46 @@ class ActiveThreadStatusImpl implements ActiveThreadStatus {
   };
 
   invalidate = (): boolean => {
-    if (this.disposed) return false;
+    if (this.disposed || this.suspended) return false;
     const changed = !this.dirty;
     this.dirty = true;
     void this.ensureRefresh();
     return changed;
   };
 
+  rebase = (status: Thread["status"]): void => {
+    if (this.disposed) return;
+    this.suspended = false;
+    this.generation += 1;
+    this.dirty = this.dirty || this.refreshPromise != null;
+    this.refreshPromise = null;
+    const resolveRebased = this.resolveRebased;
+    this.rebasedPromise = new Promise<void>((resolve) => {
+      this.resolveRebased = resolve;
+    });
+    resolveRebased();
+    this.publish(status);
+    void this.ensureRefresh();
+  };
+
   settleInvalidations = async (): Promise<void> => {
     while (!this.disposed) {
       const refresh = this.ensureRefresh();
       if (refresh == null) return;
-      await Promise.race([refresh, this.disposedPromise]);
+      await Promise.race([refresh, this.disposedPromise, this.rebasedPromise]);
     }
+  };
+
+  suspend = (): void => {
+    if (this.disposed) return;
+    this.suspended = true;
+    this.generation += 1;
+    this.dirty = false;
+    this.refreshPromise = null;
+    this.resolveRebased();
+    this.rebasedPromise = new Promise<void>((resolve) => {
+      this.resolveRebased = resolve;
+    });
   };
 
   dispose(): void {
@@ -72,7 +106,7 @@ class ActiveThreadStatusImpl implements ActiveThreadStatus {
   }
 
   private ensureRefresh(): Promise<void> | null {
-    if (this.disposed || !this.dirty) return this.refreshPromise;
+    if (this.disposed || this.suspended || !this.dirty) return this.refreshPromise;
     if (this.refreshPromise != null) return this.refreshPromise;
 
     const generation = this.generation;

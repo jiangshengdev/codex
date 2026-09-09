@@ -1,5 +1,6 @@
 import type { ComposerInputQueueCoordinatorReleaseReservation } from "@/features/composerInputQueue/composerInputQueueCoordinator";
-import type { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
+import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
+import type { Turn } from "@codex-protocol/v2";
 import type { ActiveThreadProjectionAcceptedEvent } from "./activeThreadProjectionFacts";
 
 const compactionClaimCapability: unique symbol = Symbol("ActiveThreadCompactionClaim");
@@ -8,11 +9,13 @@ export type ActiveThreadCompactionState =
   | Readonly<{ phase: "idle"; startFailure: string | null }>
   | Readonly<{
       phase: "requestPending";
+      startFailure: string | null;
       claimId: string;
       candidateTurnId: string | null;
     }>
   | Readonly<{
       phase: "deliveryUnknown";
+      startFailure: string | null;
       claimId: string;
       candidateTurnId: string | null;
     }>
@@ -53,6 +56,8 @@ export type ActiveThreadCompaction = Readonly<{
     settlement: ActiveThreadCompactionSettlement,
   ): ActiveThreadCompactionMutation;
   observeAcceptedEvent(fact: ActiveThreadProjectionAcceptedEvent): ActiveThreadCompactionMutation;
+  reconcileSnapshot(turns: readonly Turn[]): void;
+  connectionUnavailable(): void;
   dispose(): ActiveThreadCompactionMutation;
 }>;
 
@@ -69,6 +74,19 @@ class ActiveThreadCompactionImpl implements ActiveThreadCompaction {
   private disposed = false;
 
   getState = (): ActiveThreadCompactionState => this.state;
+
+  connectionUnavailable = (): void => {
+    const claim = this.requestClaim;
+    if (claim?.settlement !== "pending") return;
+    this.settleRequest(claim.claim, {
+      type: "rejected",
+      error: new GuiHostCommandError({
+        source: "unavailable",
+        delivery: "deliveryUnknown",
+        error: new Error("Connection closed before compaction was confirmed"),
+      }),
+    });
+  };
 
   claimRequest = (
     reservation: ComposerInputQueueCoordinatorReleaseReservation,
@@ -90,6 +108,7 @@ class ActiveThreadCompactionImpl implements ActiveThreadCompaction {
     this.requestClaim = { claim, reservation, settlement: "pending" };
     this.state = {
       phase: "requestPending",
+      startFailure: this.state.startFailure,
       claimId: claim.id,
       candidateTurnId: null,
     };
@@ -116,6 +135,7 @@ class ActiveThreadCompactionImpl implements ActiveThreadCompaction {
       this.requestClaim.settlement = "deliveryUnknown";
       this.state = {
         phase: "deliveryUnknown",
+        startFailure: this.state.phase === "requestPending" ? this.state.startFailure : null,
         claimId: claim.id,
         candidateTurnId: this.candidateTurnId(),
       };
@@ -161,6 +181,28 @@ class ActiveThreadCompactionImpl implements ActiveThreadCompaction {
     const changed = this.state.phase !== "idle" || this.state.startFailure !== null;
     this.state = { phase: "idle", startFailure: null };
     return changed ? { type: "changed", state: this.state } : { type: "unchanged" };
+  };
+
+  reconcileSnapshot = (turns: readonly Turn[]): void => {
+    if (this.disposed) return;
+    const turnId = this.state.phase === "running" ? this.state.turnId : this.candidateTurnId();
+    // An uncorrelated request must keep its claim, even if the snapshot appears idle.
+    if (this.state.phase !== "idle" && turnId == null) return;
+    const turn =
+      turnId == null
+        ? turns.find(
+            (candidate) =>
+              candidate.status === "inProgress" &&
+              candidate.items.some((item) => item.type === "contextCompaction"),
+          )
+        : turns.find((candidate) => candidate.id === turnId);
+    if (turn == null) return;
+    if (turn.status !== "inProgress") {
+      this.observeTurnCompleted(turn.id);
+      return;
+    }
+    const item = turn.items.find((candidate) => candidate.type === "contextCompaction");
+    if (item != null) this.observeCompactionStarted(turn.id, item.id);
   };
 
   private observeTurnStarted(turnId: string): ActiveThreadCompactionMutation {

@@ -5,34 +5,44 @@ import {
   type GuiHostConnectionLifecycleInput,
 } from "./guiHostConnectionLifecycle";
 
-export type GuiHostConnectionBridgeProps = Omit<GuiHostConnectionLifecycleInput, "dispatch">;
+export type GuiHostConnectionBridgeProps = Omit<
+  GuiHostConnectionLifecycleInput,
+  "dispatch" | "getRouteTarget"
+> & { routeTarget: ReturnType<GuiHostConnectionLifecycleInput["getRouteTarget"]> };
 
 export function GuiHostConnectionBridge({
   setStatus,
   setCommands,
-  startupTarget,
+  routeTarget,
   setAuthorizationToken,
   setActiveThreadSession,
   newSessionOwner,
+  setConnectionRecovery,
 }: GuiHostConnectionBridgeProps) {
   const dispatch = useAppDispatch();
-  const frozenStartupTarget = useRef(startupTarget);
+  const currentTarget = useRef(routeTarget);
   useEffect(() => {
-    return startGuiHostConnectionLifecycle({
+    currentTarget.current = routeTarget;
+  }, [routeTarget]);
+  useEffect(() => {
+    const lifecycle = startGuiHostConnectionLifecycle({
       dispatch,
-      startupTarget: frozenStartupTarget.current,
+      getRouteTarget: () => currentTarget.current,
       newSessionOwner,
       setStatus,
       setCommands,
       setAuthorizationToken,
       setActiveThreadSession,
+      setConnectionRecovery,
     });
+    return lifecycle.dispose;
   }, [
     dispatch,
     newSessionOwner,
     setActiveThreadSession,
     setAuthorizationToken,
     setCommands,
+    setConnectionRecovery,
     setStatus,
   ]);
 

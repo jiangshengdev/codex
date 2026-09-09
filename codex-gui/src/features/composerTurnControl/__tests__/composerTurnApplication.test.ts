@@ -55,6 +55,7 @@ const createRole = (patch: Partial<ComposerRole> = {}): ComposerRole => ({
 
 const sessionFacts = (patch: Partial<ComposerTurnSessionFacts> = {}): ComposerTurnSessionFacts => ({
   phase: "active",
+  connection: { phase: "available" },
   revision: 7,
   activeTurnId: null,
   composer: queueSnapshot(),
@@ -80,6 +81,30 @@ const editorController = (capture: ComposerDraftCapture): SubmitController => ({
 });
 
 describe("ComposerTurnApplication", () => {
+  it("keeps input and rejects commands while the shared connection is unavailable", () => {
+    const application = createComposerTurnApplication();
+    const role = createRole();
+    const session = sessionFacts({
+      composerRole: role,
+      connection: { phase: "unavailable", recovery: { pending: false, error: null } },
+      composer: queueSnapshot({ canStop: true, recoveryCount: 1 }),
+    });
+    const controller = editorController(draftCapture("Keep this input"));
+    const view = application.project({ session, editor: null });
+    expect(view.operationsEnabled).toBe(false);
+    expect(view.sendEnabled).toBe(false);
+    expect(view.recoverEnabled).toBe(false);
+    expect(view.stop.enabled).toBe(false);
+    expect(application.submit({ session, controller, intent: "ordinary" })).toEqual({
+      type: "ignored",
+    });
+    expect(application.stop({ session })).toEqual({ type: "ignored" });
+    expect(application.recover({ session })).toEqual({ type: "ignored" });
+    expect(role.submit).not.toHaveBeenCalled();
+    expect(role.interruptActiveTurn).not.toHaveBeenCalled();
+    expect(role.recover).not.toHaveBeenCalled();
+    expect(controller.clearIfCurrent).not.toHaveBeenCalled();
+  });
   it("projects Send, Guide, Recover, and Stop from current authoritative facts", () => {
     const application = createComposerTurnApplication();
     const role = createRole();

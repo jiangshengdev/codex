@@ -1,10 +1,11 @@
-import { Alert, Button, Card, Chip, Skeleton } from "@heroui/react";
+import { Alert, Card, Chip, Skeleton } from "@heroui/react";
 import { cardVariants } from "@heroui/styles";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
+import { RetryActionButton } from "@/feedback/RetryActionButton";
 import {
   useActiveThreadSessionPhase,
   useAppCapabilities,
@@ -111,8 +112,14 @@ function HistoryListContent({ state, loadMore, retry }: HistoryListContentProps)
     return <HistoryListLoading />;
   }
 
-  if (state.type === "initialError") {
-    return <HistoryError error={state.error} retry={retry} />;
+  if (state.type === "initialError" || state.type === "initialRetrying") {
+    return (
+      <HistoryError
+        error={state.error}
+        retry={retry}
+        isPending={state.type === "initialRetrying"}
+      />
+    );
   }
 
   if (state.threads.length === 0) {
@@ -148,20 +155,28 @@ function HistoryListContent({ state, loadMore, retry }: HistoryListContentProps)
           </div>
         </section>
       ))}
-      {state.type === "appendError" ? (
+      {state.type === "appendError" || state.type === "appendRetrying" ? (
         <div className="col-span-full">
-          <HistoryError error={state.error} retry={retry} />
+          <HistoryError
+            error={state.error}
+            retry={retry}
+            isPending={state.type === "appendRetrying"}
+            append
+          />
         </div>
       ) : null}
       {state.type === "appendLoading" || (state.type === "ready" && state.nextCursor != null) ? (
-        <Button
+        <RetryActionButton
           className="col-span-full justify-self-center"
           isPending={state.type === "appendLoading"}
+          pendingChildren={
+            <Trans comment="Progress while requesting another history page">Loading more…</Trans>
+          }
           onPress={loadMore}
           variant="secondary"
         >
           <Trans>Load more</Trans>
-        </Button>
+        </RetryActionButton>
       ) : null}
     </div>
   );
@@ -269,8 +284,8 @@ const renderHistoryMessage = (message: ReactNode) => (
 );
 
 type HistoryErrorProps =
-  | { error: unknown; retry?: () => boolean | undefined }
-  | { error?: never; retry?: never };
+  | { error: unknown; retry?: () => boolean | undefined; isPending?: boolean; append?: boolean }
+  | { error?: never; retry?: never; isPending?: never; append?: never };
 
 function HistoryError(props: HistoryErrorProps) {
   return (
@@ -279,9 +294,28 @@ function HistoryError(props: HistoryErrorProps) {
       <FailureLayout
         actions={
           props.retry == null ? null : (
-            <Button onPress={props.retry} variant="tertiary">
-              <Trans>Retry</Trans>
-            </Button>
+            <RetryActionButton
+              onPress={props.retry}
+              variant="tertiary"
+              isPending={props.isPending === true}
+              pendingChildren={
+                props.append ? (
+                  <Trans comment="Progress while requesting another history page">
+                    Loading more…
+                  </Trans>
+                ) : (
+                  <Trans>Loading history…</Trans>
+                )
+              }
+            >
+              {props.append ? (
+                <Trans comment="Button to request another page of historical tasks">
+                  Load more
+                </Trans>
+              ) : (
+                <Trans comment="Button to load the historical task list">Load history</Trans>
+              )}
+            </RetryActionButton>
           )
         }
       >

@@ -7,6 +7,7 @@ export function activeThreadMemberHasError(member: ActiveThreadCollectionMember)
   if (snapshot?.phase === "failed" || snapshot?.phase === "projectionUnavailable") return true;
   if (snapshot?.phase !== "active") return false;
   return (
+    snapshot.connection.phase === "unavailable" ||
     snapshot.composer.persistence.error != null ||
     snapshot.composer.recoveryCount > 0 ||
     snapshot.composer.rejectedSteers.length > 0 ||

@@ -45,6 +45,29 @@ function setup() {
 }
 
 describe("interrupt snapshot persistence", () => {
+  it("retains an issuing local stop through projection recovery and its late acceptance", async () => {
+    const fixture = setup();
+    fixture.original.setProjectionUnavailable(true);
+    const terminal = turnWithStatus(baseTurn("turn-active"), "interrupted");
+    expect(fixture.original.reconcileProjection([terminal], [])).toEqual({ type: "committed" });
+    expect(fixture.original.getSnapshot()).toMatchObject({
+      interrupt: { phase: "issuing" },
+      recoveryCount: 0,
+    });
+    fixture.original.setProjectionUnavailable(false);
+    expect(fixture.startTurn).not.toHaveBeenCalled();
+    fixture.resolveInterrupt({});
+    await nextMicrotask();
+    expect(fixture.original.getSnapshot()).toMatchObject({
+      interrupt: null,
+      recovery: { reason: "userStopped", count: 1 },
+    });
+    expect(fixture.startTurn).not.toHaveBeenCalled();
+    expect(fixture.original.recover()).toBe(true);
+    expect(fixture.startTurn).toHaveBeenCalledTimes(1);
+    expect(fixture.interruptTurn).toHaveBeenCalledTimes(1);
+  });
+
   it.each(["issuing", "accepted", "terminalPrepared"] as const)(
     "retains local-stop recovery after refresh in the %s window",
     async (phase) => {

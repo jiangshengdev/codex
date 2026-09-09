@@ -91,6 +91,7 @@ export function ComposerTurnControl({
     activeTurnId,
     composer: queueSnapshot,
     composerRole,
+    connection: sessionSnapshot.connection,
     phase: sessionSnapshot.phase,
     revision,
     skills: skillCatalog,
@@ -198,7 +199,7 @@ export function ComposerTurnControl({
       >
         <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
         <ComposerEditor
-          key={sessionSnapshot.subscriptionId}
+          key={sessionSnapshot.identity.instanceId}
           ariaLabel={t`Message Codex`}
           disabled={!controlView.operationsEnabled}
           guardCompositionEndEnter={guardCompositionEndEnter}

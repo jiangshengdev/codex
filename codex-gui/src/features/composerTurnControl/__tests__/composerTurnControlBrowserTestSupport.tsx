@@ -95,6 +95,7 @@ const composerRoleFor = (
   getRevision: () => number,
 ): Partial<ActiveThreadComposerRole> => ({
   getDraft: controller.getDraft,
+  retainDraft: controller.retainDraft,
   saveDraft: (revision, draft) =>
     revision === getRevision() ? controller.saveDraft(draft) : staleSessionOperation(getRevision()),
   retryPersistence: (revision) =>

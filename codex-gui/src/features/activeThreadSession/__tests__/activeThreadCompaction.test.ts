@@ -73,6 +73,29 @@ const claimRequest = (
 };
 
 describe("ActiveThreadCompaction", () => {
+  it("reconciles a known request from the recovered snapshot and waits for its terminal turn", () => {
+    const operation = createActiveThreadCompaction();
+    const held = reservation();
+    const claim = claimRequest(operation, held.reservation);
+    operation.observeAcceptedEvent(startedTurn("turn-1"));
+
+    operation.reconcileSnapshot([inProgressTurn("turn-1", [contextCompaction("compact-1")])]);
+    expect(operation.getState()).toEqual({
+      phase: "running",
+      turnId: "turn-1",
+      itemId: "compact-1",
+    });
+    expect(operation.settleRequest(claim, { type: "accepted" })).toEqual({ type: "unchanged" });
+    operation.observeAcceptedEvent({
+      ...completedCompaction("turn-1", "compact-1"),
+      replay: "snapshotDuplicate",
+    });
+    expect(operation.getState().phase).toBe("running");
+    operation.observeAcceptedEvent(completedTurn("turn-1"));
+    expect(operation.getState()).toEqual({ phase: "idle", startFailure: null });
+    expect(held.release).toHaveBeenCalledTimes(1);
+  });
+
   it("claims one request, holds its reservation, and rejects a duplicate", () => {
     const operation = createActiveThreadCompaction();
     const first = reservation();
@@ -85,6 +108,7 @@ describe("ActiveThreadCompaction", () => {
       claim: claimed.claim,
       state: {
         phase: "requestPending",
+        startFailure: null,
         claimId: claimed.claim.id,
         candidateTurnId: null,
       },
@@ -98,6 +122,72 @@ describe("ActiveThreadCompaction", () => {
     });
     expect(second.release).toHaveBeenCalledTimes(1);
     expect(first.release).not.toHaveBeenCalled();
+  });
+
+  it.each(["requestPending", "deliveryUnknown"] as const)(
+    "preserves an uncorrelated %s claim through idle and unrelated snapshots",
+    (phase) => {
+      const operation = createActiveThreadCompaction();
+      const held = reservation();
+      const claim = claimRequest(operation, held.reservation);
+      if (phase === "deliveryUnknown") {
+        operation.settleRequest(claim, {
+          type: "rejected",
+          error: commandError("deliveryUnknown", "connection lost"),
+        });
+      }
+      const pending = operation.getState();
+      operation.reconcileSnapshot([]);
+      operation.reconcileSnapshot([baseTurn("unrelated")]);
+      operation.reconcileSnapshot([
+        inProgressTurn("unrelated-active", [contextCompaction("unrelated-item")]),
+      ]);
+      expect(operation.getState()).toBe(pending);
+      expect(held.release).not.toHaveBeenCalled();
+      expect(operation.claimRequest(reservation().reservation)).toMatchObject({
+        type: "blocked",
+        reason: "operationInProgress",
+      });
+    },
+  );
+
+  it.each(["requestPending", "deliveryUnknown", "running"] as const)(
+    "clears a %s operation only when its known turn is terminal in the snapshot",
+    (phase) => {
+      const operation = createActiveThreadCompaction();
+      const held = reservation();
+      const claim = claimRequest(operation, held.reservation);
+      operation.observeAcceptedEvent(startedTurn("turn-1"));
+      if (phase === "deliveryUnknown") {
+        operation.settleRequest(claim, {
+          type: "rejected",
+          error: commandError("deliveryUnknown", "connection lost"),
+        });
+      } else if (phase === "running") {
+        operation.observeAcceptedEvent(startedCompaction("turn-1", "compact-1"));
+      }
+      operation.reconcileSnapshot([baseTurn("unrelated")]);
+      expect(operation.getState().phase).toBe(phase);
+      operation.reconcileSnapshot([baseTurn("turn-1")]);
+      expect(operation.getState()).toEqual({ phase: "idle", startFailure: null });
+      expect(operation.settleRequest(claim, { type: "accepted" })).toEqual({ type: "unchanged" });
+      expect(held.release).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("discovers active automatic compaction without reviving historical completed items", () => {
+    const operation = createActiveThreadCompaction();
+    operation.reconcileSnapshot([baseTurn("old", [contextCompaction("old-item")])]);
+    expect(operation.getState()).toEqual({ phase: "idle", startFailure: null });
+    operation.reconcileSnapshot([inProgressTurn("active", [contextCompaction("active-item")])]);
+    expect(operation.getState()).toEqual({
+      phase: "running",
+      turnId: "active",
+      itemId: "active-item",
+    });
+    operation.dispose();
+    operation.reconcileSnapshot([inProgressTurn("another", [contextCompaction("another-item")])]);
+    expect(operation.getState()).toEqual({ phase: "idle", startFailure: null });
   });
 
   it("keeps an accepted response pending until the matching canonical lifecycle completes", () => {
@@ -116,6 +206,7 @@ describe("ActiveThreadCompaction", () => {
     ).toEqual({ type: "unchanged" });
     expect(operation.getState()).toEqual({
       phase: "requestPending",
+      startFailure: null,
       claimId: claim.id,
       candidateTurnId: null,
     });
@@ -123,6 +214,7 @@ describe("ActiveThreadCompaction", () => {
       type: "changed",
       state: {
         phase: "requestPending",
+        startFailure: null,
         claimId: claim.id,
         candidateTurnId: "turn-1",
       },
@@ -217,10 +309,17 @@ describe("ActiveThreadCompaction", () => {
     });
     expect(first.release).toHaveBeenCalledTimes(1);
 
+    operation.reconcileSnapshot([baseTurn("old", [contextCompaction("old-item")])]);
+    expect(operation.getState()).toEqual({
+      phase: "idle",
+      startFailure: "compaction was rejected",
+    });
+
     const second = reservation();
     const secondClaim = claimRequest(operation, second.reservation);
     expect(operation.getState()).toEqual({
       phase: "requestPending",
+      startFailure: "compaction was rejected",
       claimId: secondClaim.id,
       candidateTurnId: null,
     });
@@ -231,6 +330,25 @@ describe("ActiveThreadCompaction", () => {
       }),
     ).toEqual({ type: "unchanged" });
     expect(second.release).not.toHaveBeenCalled();
+    operation.settleRequest(secondClaim, {
+      type: "rejected",
+      error: commandError("definitelyNotAccepted", "retry was rejected"),
+    });
+    expect(operation.getState()).toEqual({ phase: "idle", startFailure: "retry was rejected" });
+
+    const third = reservation();
+    const thirdClaim = claimRequest(operation, third.reservation);
+    operation.settleRequest(thirdClaim, { type: "accepted" });
+    expect(operation.getState()).toMatchObject({
+      phase: "requestPending",
+      startFailure: "retry was rejected",
+    });
+    operation.observeAcceptedEvent(startedCompaction("turn-retry", "compact-retry"));
+    expect(operation.getState()).toEqual({
+      phase: "running",
+      turnId: "turn-retry",
+      itemId: "compact-retry",
+    });
   });
 
   it("keeps delivery-unknown requests claimed and does not make them retryable", () => {
@@ -247,6 +365,7 @@ describe("ActiveThreadCompaction", () => {
       type: "changed",
       state: {
         phase: "deliveryUnknown",
+        startFailure: null,
         claimId: claim.id,
         candidateTurnId: null,
       },
@@ -265,6 +384,7 @@ describe("ActiveThreadCompaction", () => {
       type: "changed",
       state: {
         phase: "deliveryUnknown",
+        startFailure: null,
         claimId: claim.id,
         candidateTurnId: "turn-unknown",
       },

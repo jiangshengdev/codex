@@ -853,7 +853,7 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
   expect(commandHandle.startTurn).not.toHaveBeenCalled();
 });
 
-test("tears down an active edit without settling its reservation when projection is unavailable", async () => {
+test("retains unsaved edits through a projection pause and a new subscription without reviving the reservation", async () => {
   const commandHandle = createGuiHostCommands();
   const skillCatalog = createComposerSkillCatalogHarness();
   const view = await renderComposerTurnControl({
@@ -872,6 +872,9 @@ test("tears down an active edit without settling its reservation when projection
   await expect
     .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
     .toBeVisible();
+  await screen
+    .getByRole("combobox", { name: "Edit pending message", exact: true })
+    .fill("Unsaved changes survive synchronization recovery");
   const reservation = reservations.at(0);
   if (reservation == null) throw new Error("owner-bound edit must begin");
   const save = vi.spyOn(reservation, "save");
@@ -889,12 +892,29 @@ test("tears down an active edit without settling its reservation when projection
 
   await expect
     .element(screen.getByRole("textbox", { name: "Unsaved pending message", exact: true }))
-    .toHaveValue("Owner-bound queued message");
+    .toHaveValue("Unsaved changes survive synchronization recovery");
   expect(save).not.toHaveBeenCalled();
   expect(cancel).toHaveBeenCalledOnce();
   await expect
     .element(screen.getByRole("button", { name: "Save", exact: true }))
     .not.toBeInTheDocument();
+  screen.sessionHarness.publish(
+    screen.sessionHarness.activeSnapshot({
+      ...activeSnapshot,
+      revision: screen.sessionHarness.session.getSnapshot().revision + 1,
+      subscriptionId: "recovered-pending-input-subscription",
+    }),
+  );
+  await expect
+    .element(screen.getByRole("textbox", { name: "Unsaved pending message", exact: true }))
+    .toHaveValue("Unsaved changes survive synchronization recovery");
+  await expect
+    .element(screen.getByRole("button", { name: "Save", exact: true }))
+    .not.toBeInTheDocument();
+  expect(save).not.toHaveBeenCalled();
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(commandHandle.startTurn).not.toHaveBeenCalled();
+  expect(commandHandle.steerTurn).not.toHaveBeenCalled();
 });
 
 test("restores delete focus only to a neighbor in the same lane", async () => {
@@ -1347,9 +1367,19 @@ test("recovery disables send, keeps the editor editable, and prevents duplicate 
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await expect.element(recoverButton).toHaveAccessibleDescription("2 messages have not been sent");
   await userEvent.click(recoverButton);
-  await expect.element(recoverButton).toBeDisabled();
+  const pendingButton = screen.getByRole("button", { name: "Resuming sending", exact: true });
+  await expect.element(pendingButton).toBeDisabled();
+  await expect.element(pendingButton).toHaveAccessibleDescription("2 messages have not been sent");
 
   expect(harness.recover).toHaveBeenCalledExactlyOnceWith();
+  harness.publish(initialSnapshot);
+  await expect.element(recoverButton).toBeEnabled();
+  await userEvent.click(recoverButton);
+  await expect.element(pendingButton).toBeDisabled();
+  expect(harness.recover).toHaveBeenCalledTimes(2);
+  harness.publish(queueSnapshot());
+  await expect.element(pendingButton).not.toBeInTheDocument();
+  await expect.element(recoverButton).not.toBeInTheDocument();
   await expect
     .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
     .toBe("Draft while recovering");

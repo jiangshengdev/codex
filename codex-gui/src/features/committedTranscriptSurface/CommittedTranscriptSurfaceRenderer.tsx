@@ -19,15 +19,23 @@ export type CommittedTranscriptTurnFragmentRendererProps = Readonly<{
 }>;
 
 type CommittedTranscriptSurfaceRendererProps = Readonly<{
+  subscriptionInterruptionHandled: boolean;
   turnFragmentRenderer: ComponentType<CommittedTranscriptTurnFragmentRendererProps>;
 }>;
 
 export const CommittedTranscriptSurfaceRenderer = ({
+  subscriptionInterruptionHandled,
   turnFragmentRenderer: TurnFragmentRenderer,
 }: CommittedTranscriptSurfaceRendererProps) => {
   const { t } = useLingui();
   const pageIds = useTranscriptSelector(selectTranscriptContextPageIdsFromTranscriptState);
   const globalStatus = useTranscriptSelector(selectTranscriptGlobalStatusFromTranscriptState);
+  const globalStatusVisibility = {
+    subscriptionInterrupted: !subscriptionInterruptionHandled,
+  } satisfies Record<(typeof globalStatus)[number]["status"], boolean>;
+  const visibleGlobalStatus = globalStatus.filter(
+    (status) => globalStatusVisibility[status.status],
+  );
   const lastFragmentIdsByTurnId = useTranscriptSelector(
     selectLastTranscriptFragmentIdsByTurnIdFromTranscriptState,
   );
@@ -78,9 +86,9 @@ export const CommittedTranscriptSurfaceRenderer = ({
       })}
       className="committed-transcript-surface mx-auto grid min-w-0 w-full max-w-3xl gap-4 pt-3"
     >
-      {globalStatus.length > 0 ? (
+      {visibleGlobalStatus.length > 0 ? (
         <div className="committed-transcript-status-list grid min-w-0 gap-2">
-          {globalStatus.map((status) => (
+          {visibleGlobalStatus.map((status) => (
             <Alert
               className="committed-transcript-status"
               key={status.id}

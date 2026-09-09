@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { exportComposerDraft } from "@/features/composerEditor/composerDraft";
+import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import {
   createCoordinator,
   deferredStart,
@@ -10,7 +11,11 @@ import {
   type SteerTurn,
 } from "./composerInputQueueCoordinatorTestFixtures";
 import { composerDraftCapture } from "./composerInputQueueTestFixtures";
-import { baseTurn, turnCompleted } from "@/features/projection/__tests__/projectionTestBuilders";
+import {
+  baseTurn,
+  inProgressTurn,
+  turnCompleted,
+} from "@/features/projection/__tests__/projectionTestBuilders";
 import { eventTurnCompleted } from "@/features/projection/__tests__/projectionFixtures";
 
 function persistenceFixture() {
@@ -49,6 +54,227 @@ function owner(fixture: ReturnType<typeof persistenceFixture>, activeTurnId: str
 }
 
 describe("coordinator persistence boundaries", () => {
+  it("keeps suspended pending messages paused until the existing continue-sending confirmation", () => {
+    const fixture = persistenceFixture();
+    const { coordinator, startTurn } = owner(fixture, "running-turn");
+    coordinator.submit(composerDraftCapture("wait for confirmation"));
+    coordinator.suspendRestored();
+    coordinator.setConnectionUnavailable(true);
+    expect(coordinator.reconcileProjection([baseTurn("running-turn")], [])).toEqual({
+      type: "committed",
+    });
+    coordinator.setConnectionUnavailable(false);
+    const snapshot = coordinator.getSnapshot();
+    expect(snapshot.persistence.restoredPaused).toBe(true);
+    expect(startTurn).not.toHaveBeenCalled();
+    expect(coordinator.resumeRestored(snapshot.persistence.revision)).toBe(true);
+    expect(startTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not complete suspended restoration when saving the snapshot fails", () => {
+    const fixture = persistenceFixture();
+    const { coordinator, startTurn } = owner(fixture, null);
+    coordinator.suspendRestored();
+    coordinator.setConnectionUnavailable(true);
+    fixture.failWrites(true);
+    expect(coordinator.reconcileProjection([], [])).toEqual({
+      type: "blocked",
+      error: "Browser persistence failed: write",
+    });
+    coordinator.setConnectionUnavailable(false);
+    fixture.failWrites(false);
+    expect(coordinator.retryPersistence()).toBe(true);
+    expect(coordinator.submit(composerDraftCapture("still blocked"))).toEqual({ type: "accepted" });
+    expect(startTurn).not.toHaveBeenCalled();
+    expect(coordinator.resumeRestored(coordinator.getSnapshot().persistence.revision)).toBe(false);
+    coordinator.setConnectionUnavailable(true);
+    expect(coordinator.reconcileProjection([], [])).toEqual({ type: "committed" });
+    coordinator.setConnectionUnavailable(false);
+    expect(startTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows a new send after an empty suspended owner is reconciled on the restored connection", () => {
+    const fixture = persistenceFixture();
+    const { coordinator, startTurn } = owner(fixture, null);
+    coordinator.suspendRestored();
+    coordinator.setConnectionUnavailable(true);
+    expect(coordinator.reconcileProjection([], [])).toEqual({ type: "committed" });
+    expect(startTurn).not.toHaveBeenCalled();
+    coordinator.setConnectionUnavailable(false);
+    expect(coordinator.getSnapshot().persistence.restoredPaused).toBe(false);
+    expect(coordinator.submit(composerDraftCapture("send after restoration"))).toEqual({
+      type: "accepted",
+    });
+    expect(startTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("rebases an active queue while keeping sends frozen until projection publication", () => {
+    const fixture = persistenceFixture();
+    const { coordinator, startTurn } = owner(fixture, "running-turn");
+    coordinator.submit(composerDraftCapture("queued after active turn"));
+    coordinator.setProjectionUnavailable(true);
+    expect(coordinator.reconcileProjection([baseTurn("running-turn")], [])).toEqual({
+      type: "committed",
+    });
+    expect(startTurn).not.toHaveBeenCalled();
+    expect(coordinator.getSnapshot().ordinaryQueuedCount).toBe(1);
+    coordinator.setProjectionUnavailable(false);
+    expect(startTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("requires appended projection facts to commit and retries a failed append without rebasing", () => {
+    const fixture = persistenceFixture();
+    const { coordinator, startTurn } = owner(fixture, "running-turn");
+    coordinator.submit(composerDraftCapture("waiting for completion"));
+    coordinator.setProjectionUnavailable(true);
+    expect(coordinator.reconcileProjection([inProgressTurn("running-turn")], [])).toEqual({
+      type: "committed",
+    });
+    expect(coordinator.reconcileProjection(null, [])).toEqual({ type: "committed" });
+    expect(coordinator.getSnapshot().canStop).toBe(true);
+    const terminal = live(
+      turnCompleted(eventTurnCompleted, "appended-terminal", baseTurn("running-turn")),
+    );
+    fixture.failWrites(true);
+    expect(coordinator.reconcileProjection(null, [terminal])).toEqual({
+      type: "blocked",
+      error: "Browser persistence failed: write",
+    });
+    expect(coordinator.getSnapshot().canStop).toBe(true);
+    expect(coordinator.getSnapshot().ordinaryQueuedCount).toBe(1);
+    expect(startTurn).not.toHaveBeenCalled();
+    fixture.failWrites(false);
+    expect(coordinator.reconcileProjection(null, [terminal])).toEqual({ type: "committed" });
+    expect(coordinator.getSnapshot().canStop).toBe(false);
+    expect(startTurn).not.toHaveBeenCalled();
+    coordinator.setProjectionUnavailable(false);
+    expect(startTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("rolls back a failed projection candidate and preserves pending delivery facts and draft", async () => {
+    const fixture = persistenceFixture();
+    const response = deferredStart();
+    const startTurn = vi.fn<StartTurn>(() => response.promise);
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: null,
+      persistence: fixture.context,
+      startTurn,
+      steerTurn: vi.fn<SteerTurn>(),
+    });
+    coordinator.submit(composerDraftCapture("already sent"));
+    coordinator.submit(composerDraftCapture("still queued"));
+    coordinator.setProjectionUnavailable(true);
+    fixture.failWrites(true);
+    response.resolve({ turn: inProgressTurn("confirmed-turn") });
+    await Promise.resolve();
+    const draft = composerDraftCapture("unsaved draft").draft;
+    expect(coordinator.saveDraft(draft)).toBe(false);
+    const saved = [...fixture.records];
+    expect(coordinator.reconcileProjection([baseTurn("confirmed-turn")], [])).toEqual({
+      type: "blocked",
+      error: "Browser persistence failed: write",
+    });
+    expect([...fixture.records]).toEqual(saved);
+    expect(coordinator.getSnapshot().ordinaryQueuedCount).toBe(1);
+    expect(coordinator.getDraft()).toBe(draft);
+    fixture.failWrites(false);
+    const terminal = live(
+      turnCompleted(eventTurnCompleted, "candidate-terminal", baseTurn("new-turn")),
+    );
+    expect(
+      coordinator.reconcileProjection(
+        [baseTurn("confirmed-turn"), inProgressTurn("new-turn")],
+        [terminal],
+      ),
+    ).toEqual({ type: "committed" });
+    expect(coordinator.getSnapshot().persistence.error).toBeNull();
+    expect(coordinator.getDraft()).toBe(draft);
+    expect(startTurn).toHaveBeenCalledTimes(1);
+    coordinator.setProjectionUnavailable(false);
+    expect(startTurn).toHaveBeenCalledTimes(2);
+    expect(startTurn.mock.calls[1]?.[0].input).toEqual(composerDraftCapture("still queued").input);
+  });
+
+  it("does not release restored or unknown-delivery barriers when projection recovers", () => {
+    const fixture = persistenceFixture();
+    const initial = owner(fixture, null);
+    initial.coordinator.submit(composerDraftCapture("possibly delivered"));
+    initial.coordinator.submit(composerDraftCapture("later input"));
+    initial.coordinator.dispose();
+    const restored = owner(fixture, null);
+    restored.coordinator.setProjectionUnavailable(true);
+    expect(restored.coordinator.reconcileProjection([], [])).toEqual({ type: "committed" });
+    restored.coordinator.setProjectionUnavailable(false);
+    expect(restored.coordinator.getSnapshot().persistence).toMatchObject({ restoredPaused: true });
+    expect(restored.coordinator.getSnapshot().persistence.unknownMessages).toHaveLength(1);
+    expect(restored.startTurn).not.toHaveBeenCalled();
+    expect(
+      restored.coordinator.resumeRestored(restored.coordinator.getSnapshot().persistence.revision),
+    ).toBe(true);
+    expect(restored.startTurn).not.toHaveBeenCalled();
+  });
+
+  it("keeps a late steer response valid without sending its successor during projection pause", async () => {
+    const fixture = persistenceFixture();
+    const steerTurn = vi.fn<SteerTurn>().mockResolvedValue({ turnId: "running-turn" });
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "running-turn",
+      persistence: fixture.context,
+      startTurn: vi.fn<StartTurn>(),
+      steerTurn,
+    });
+    coordinator.submitSteer(composerDraftCapture("first guide"));
+    coordinator.submitSteer(composerDraftCapture("next guide"));
+    coordinator.setProjectionUnavailable(true);
+    await Promise.resolve();
+    expect(steerTurn).toHaveBeenCalledTimes(1);
+    expect(coordinator.reconcileProjection([inProgressTurn("running-turn")], [])).toEqual({
+      type: "committed",
+    });
+    expect(steerTurn).toHaveBeenCalledTimes(1);
+    coordinator.setProjectionUnavailable(false);
+    expect(steerTurn).toHaveBeenCalledTimes(2);
+    expect(steerTurn.mock.calls[1]?.[0].input).toEqual(composerDraftCapture("next guide").input);
+  });
+
+  it("preserves recovery and deferred starts while projection is unavailable", async () => {
+    const fixture = persistenceFixture();
+    const first = deferredStart();
+    const startTurn = vi
+      .fn<StartTurn>()
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementation(() => new Promise(() => undefined));
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: null,
+      persistence: fixture.context,
+      startTurn,
+      steerTurn: vi.fn<SteerTurn>(),
+    });
+    coordinator.submit(composerDraftCapture("definitely rejected"));
+    coordinator.submit(composerDraftCapture("deferred successor"));
+    first.reject(
+      new GuiHostCommandError({
+        source: "rpc",
+        delivery: "definitelyNotAccepted",
+        error: new Error("rejected"),
+      }),
+    );
+    await Promise.resolve();
+    expect(coordinator.getSnapshot().recoveryCount).toBe(1);
+    coordinator.setProjectionUnavailable(true);
+    expect(coordinator.recover()).toBe(false);
+    expect(coordinator.getSnapshot().recoveryCount).toBe(1);
+    expect(startTurn).toHaveBeenCalledTimes(1);
+    expect(coordinator.reconcileProjection([], [])).toEqual({ type: "committed" });
+    coordinator.setProjectionUnavailable(false);
+    expect(startTurn).toHaveBeenCalledTimes(1);
+    expect(coordinator.recover()).toBe(true);
+    expect(startTurn).toHaveBeenCalledTimes(2);
+  });
+
   it.each([false, true])(
     "restores an empty queue without manual continuation (draft: %s)",
     (hasDraft) => {

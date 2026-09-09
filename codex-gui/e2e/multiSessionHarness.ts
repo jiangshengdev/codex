@@ -1,6 +1,7 @@
 import { expect, type Page, type WebSocketRoute } from "@playwright/test";
 import {
   attachBaseline,
+  closedBackpressure,
   eventItemCompleted,
   eventItemStarted,
   eventTurnCompleted,
@@ -12,6 +13,7 @@ import {
   attachWithThreadId,
   attachWithTurns,
   baseTurn,
+  closedWithEnvelope,
   eventForThreadOwner,
   eventWithEnvelope,
   inProgressTurn,
@@ -71,6 +73,8 @@ export async function createMultiSessionHarness(
     }),
   );
   let connection: WebSocketRoute | undefined;
+  let holdInitialize = false;
+  let pendingInitialize: ((error?: string) => void) | undefined;
   let commitSequence = 0;
   const subscriptions = new Map<string, string>();
   const heads = new Map<string, string | null>();
@@ -79,7 +83,7 @@ export async function createMultiSessionHarness(
   let pendingStart: (() => void) | undefined;
   let createdCount = 0;
   const attachModes = new Map<string, "hold" | "error">();
-  const pendingAttachments = new Map<string, () => void>();
+  const pendingAttachments = new Map<string, (error?: string) => void>();
 
   const thread = (id: string): Thread => {
     const value = threads.get(id);
@@ -126,14 +130,29 @@ export async function createMultiSessionHarness(
         case "gui/authenticate":
           reply({ authenticated: true });
           return;
-        case "initialize":
-          reply({
-            userAgent: "codex-gui-multi-session-e2e",
-            codexHome: "/tmp/codex-home",
-            platformFamily: "unix",
-            platformOs: "macos",
-          } satisfies InitializeResponse);
+        case "initialize": {
+          const complete = (error?: string) => {
+            if (error != null) {
+              socket.send(
+                JSON.stringify({
+                  jsonrpc: "2.0",
+                  id: request.id,
+                  error: { code: -32000, message: error },
+                }),
+              );
+              return;
+            }
+            reply({
+              userAgent: "codex-gui-multi-session-e2e",
+              codexHome: "/tmp/codex-home",
+              platformFamily: "unix",
+              platformOs: "macos",
+            } satisfies InitializeResponse);
+          };
+          if (holdInitialize) pendingInitialize = complete;
+          else complete();
           return;
+        }
         case "initialized":
           return;
         case "thread/loaded/list":
@@ -231,7 +250,17 @@ export async function createMultiSessionHarness(
           subscriptions.set(value.id, subscriptionId);
           heads.set(value.id, null);
           const attach = attachWithTurns(attachWithThreadId(attachBaseline, value.id), value.turns);
-          const complete = () => {
+          const complete = (error?: string) => {
+            if (error != null) {
+              socket.send(
+                JSON.stringify({
+                  jsonrpc: "2.0",
+                  id: request.id,
+                  error: { code: -32000, message: error },
+                }),
+              );
+              return;
+            }
             reply(attachWithSnapshotThread(attach, value, subscriptionId));
           };
           if (attachModes.get(value.id) === "hold") pendingAttachments.set(value.id, complete);
@@ -276,6 +305,19 @@ export async function createMultiSessionHarness(
   });
   return {
     requests,
+    async closeNormally() {
+      if (connection == null) throw new Error("No connected test socket");
+      await connection.close({ code: 1000, reason: "Normal test closure" });
+    },
+    setInitializeHold(hold: boolean) {
+      holdInitialize = hold;
+    },
+    releaseInitialize(error?: string) {
+      if (pendingInitialize == null) throw new Error("No held initialization");
+      pendingInitialize(error);
+      pendingInitialize = undefined;
+    },
+    initializations: () => requests.filter((request) => request.method === "initialize"),
     setThreadCwd(id: string, cwd: string) {
       thread(id).cwd = cwd;
     },
@@ -291,11 +333,27 @@ export async function createMultiSessionHarness(
       if (mode == null) attachModes.delete(id);
       else attachModes.set(id, mode);
     },
-    releaseAttachment(id: string) {
+    releaseAttachment(id: string, error?: string) {
       const complete = pendingAttachments.get(id);
       if (complete == null) throw new Error(`No held attachment for ${id}`);
-      complete();
+      complete(error);
       pendingAttachments.delete(id);
+    },
+    subscription(id: string) {
+      const subscriptionId = subscriptions.get(id);
+      if (subscriptionId == null) throw new Error(`Thread ${id} is not attached`);
+      return subscriptionId;
+    },
+    closeProjection(id: string, subscriptionId = subscriptions.get(id)) {
+      if (connection == null || subscriptionId == null)
+        throw new Error(`Thread ${id} is not attached`);
+      connection.send(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          method: "thread/projection/closed",
+          params: closedWithEnvelope(closedBackpressure, { threadId: id, subscriptionId }),
+        }),
+      );
     },
     starts: () => requests.filter((request) => request.method === "thread/start"),
     setResumeError(id: string, error: string | null) {

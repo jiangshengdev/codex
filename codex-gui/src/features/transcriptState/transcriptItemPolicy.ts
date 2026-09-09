@@ -149,7 +149,7 @@ const collabAgentEntryFacts = (item: TranscriptCollabAgentItem, turnId: string) 
 const projectStartedCollabAgentItem = (
   item: TranscriptCollabAgentItem,
   turnId: string,
-): StartedTranscriptItemProjection => {
+): Extract<StartedTranscriptItemProjection, { kind: "ignore" | "present" }> => {
   if (item.status !== "inProgress") {
     return { kind: "ignore" };
   }
@@ -387,6 +387,14 @@ export const projectCompletedTranscriptItem = (
   const exhaustiveItem: never = item;
   return exhaustiveItem;
 };
+
+export const projectSnapshotTranscriptItem = (
+  item: ThreadItem,
+  turnId: string,
+): CompletedTranscriptItemProjection =>
+  item.type === "collabAgentToolCall" && item.status === "inProgress"
+    ? projectStartedCollabAgentItem(item, turnId)
+    : projectCompletedTranscriptItem(item, turnId);
 
 export const projectTranscriptDelta = (delta: ThreadProjectionDelta): TranscriptDeltaProjection => {
   switch (delta.type) {
