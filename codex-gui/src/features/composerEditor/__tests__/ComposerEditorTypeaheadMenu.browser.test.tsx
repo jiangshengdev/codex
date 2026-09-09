@@ -589,6 +589,7 @@ test.each([
     const screen = await renderWithProviders(renderForCatalog(failedCatalog));
     await screen.getByRole("combobox", { name: "Message" }).fill("$");
     const retry = screen.getByRole("button", { name: "Reload skills", exact: true });
+    await expect.element(retry).toBeVisible();
     const originalButton = retry.element();
     await retry.click();
     await screen.rerender(
