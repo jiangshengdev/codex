@@ -4,11 +4,13 @@ import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import {
   attachResponse,
   createGuiHostCommands,
+  createDeferred,
   emitProjectionDelta,
   emitProjectionEvent,
   getHostOptions,
   initializeHost,
   launchThreadId,
+  markCommandsUnavailable,
   queueAttachProjectionResponse,
   resetAppBrowserTestSupport,
   seedBrowserAuthorizationSession,
@@ -274,4 +276,118 @@ test("interleaved background projection updates preserve the viewed title, trans
     await screen.unmount();
     window.scrollTo({ top: 0 });
   }
+});
+
+test("restores all open tasks independently while keeping navigation made during recovery", async () => {
+  const secondThreadId = "00000000-0000-0000-0000-000000000002";
+  const first = attachWithThreadName(
+    attachWithTurns(attachResponse, [
+      baseTurn("first-retained", [
+        agentMessage("first-retained-message", "First retained content"),
+      ]),
+    ]),
+    "First retained task",
+  );
+  const second = attachWithThreadName(
+    attachWithThreadId(
+      attachWithTurns(attachReplacement, [
+        baseTurn("second-retained", [
+          agentMessage("second-retained-message", "Second retained content"),
+        ]),
+      ]),
+      secondThreadId,
+    ),
+    "Second retained task",
+  );
+  const router = createAppRouter(
+    createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
+  );
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const commands = createGuiHostCommands({
+    loadedThreadIds: [launchThreadId, secondThreadId],
+    storedThreadIds: [launchThreadId, secondThreadId],
+  });
+  queueAttachProjectionResponse(commands, first);
+  const originalOptions = getHostOptions(hostMock.startGuiHostConnection);
+  initializeHost(originalOptions, commands);
+  await expect.poll(() => document.title).toBe("First retained task · Codex");
+  queueAttachProjectionResponse(commands, second);
+  await router.navigate({ to: "/task/$threadId", params: { threadId: secondThreadId } });
+  await expect.poll(() => document.title).toBe("Second retained task · Codex");
+  const firstIdentity =
+    screen.store.getState().transcriptState.byThreadId[launchThreadId]?.identity;
+  const secondIdentity =
+    screen.store.getState().transcriptState.byThreadId[secondThreadId]?.identity;
+  if (firstIdentity == null || secondIdentity == null)
+    throw new Error("both task owners must be present");
+  markCommandsUnavailable(originalOptions);
+  originalOptions.onStatus?.({ label: "closed" });
+  await screen.getByRole("button", { name: "Reconnect", exact: true }).click();
+  const recoveredCommands = createGuiHostCommands({
+    loadedThreadIds: [launchThreadId, secondThreadId],
+  });
+  const firstRecovery = createDeferred<typeof first>();
+  const secondRecovery = createDeferred<typeof second>();
+  vi.mocked(recoveredCommands.attachThreadProjection).mockImplementation(({ threadId }) => {
+    if (threadId === launchThreadId) return firstRecovery.promise;
+    if (threadId === secondThreadId) return secondRecovery.promise;
+    throw new Error("unexpected recovery task");
+  });
+  initializeHost(getHostOptions(hostMock.startGuiHostConnection), recoveredCommands);
+  await expect
+    .poll(() => vi.mocked(recoveredCommands.attachThreadProjection).mock.calls.length)
+    .toBe(2);
+  expect(
+    vi
+      .mocked(recoveredCommands.attachThreadProjection)
+      .mock.calls.map(([input]) => input.threadId)
+      .sort(),
+  ).toEqual([launchThreadId, secondThreadId].sort());
+  await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
+  await expect.poll(() => document.title).toBe("First retained task · Codex");
+  await expect.element(screen.getByText("First retained content", { exact: true })).toBeVisible();
+  secondRecovery.resolve({ ...second, subscriptionId: "second-restored-subscription" });
+  await secondRecovery.promise;
+  await frame();
+  expect(router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+  expect(document.title).toBe("First retained task · Codex");
+  firstRecovery.reject(new Error("first task attach failed"));
+  await expect
+    .element(screen.getByText("This task could not be restored. You can try again."))
+    .toBeVisible();
+  await expect.element(screen.getByText("First retained content", { exact: true })).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+  await router.navigate({ to: "/task/$threadId", params: { threadId: secondThreadId } });
+  await expect.poll(() => document.title).toBe("Second retained task · Codex");
+  await expect
+    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+    .toHaveAttribute("contenteditable", "true");
+  await expect.element(screen.getByText("Second retained content", { exact: true })).toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Restore task", exact: true }))
+    .not.toBeInTheDocument();
+  await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
+  vi.mocked(recoveredCommands.attachThreadProjection).mockResolvedValueOnce({
+    ...first,
+    subscriptionId: "first-restored-subscription",
+  });
+  await screen.getByRole("button", { name: "Restore task", exact: true }).click();
+  await expect
+    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+    .toHaveAttribute("contenteditable", "true");
+  expect(router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+  expect(hostMock.startGuiHostConnection).toHaveBeenCalledTimes(2);
+  expect(recoveredCommands.attachThreadProjection).toHaveBeenCalledTimes(3);
+  expect(recoveredCommands.attachThreadProjection).toHaveBeenLastCalledWith({
+    threadId: launchThreadId,
+  });
+  expect(recoveredCommands.resumeThread).not.toHaveBeenCalled();
+  expect(recoveredCommands.startTurn).not.toHaveBeenCalled();
+  expect(screen.store.getState().transcriptState.byThreadId[launchThreadId]?.identity).toBe(
+    firstIdentity,
+  );
+  expect(screen.store.getState().transcriptState.byThreadId[secondThreadId]?.identity).toBe(
+    secondIdentity,
+  );
+  await screen.unmount();
 });

@@ -114,6 +114,82 @@ const activateInitial = async (harness: ReturnType<typeof createHarness>) => {
   });
 };
 
+it("restores every member independently while preserving navigation made during recovery", async () => {
+  const h = createHarness();
+  await activateInitial(h);
+  queueReplacementActivation(h.commands);
+  await h.session.activate(replacementThreadId);
+  h.controller.connectionUnavailable();
+  const replacement = createGuiHostCommands({
+    loadedThreadIds: [attachBaseline.snapshot.thread.id, replacementThreadId],
+  });
+  const first = createDeferred<typeof attachBaseline>();
+  const second = createDeferred<typeof replacementAttach>();
+  vi.mocked(replacement.attachThreadProjection).mockImplementation(({ threadId }) =>
+    threadId === replacementThreadId ? second.promise : first.promise,
+  );
+  const recovery = h.controller.restoreConnection(replacement, () => replacementThreadId);
+  await Promise.resolve();
+  expect(replacement.attachThreadProjection).toHaveBeenCalledTimes(2);
+  await h.session.view(attachBaseline.snapshot.thread.id);
+  const error = new Error("background member failed");
+  second.reject(error);
+  first.resolve(attachBaseline);
+  await expect(recovery).resolves.toBeUndefined();
+  expect(h.session.getSnapshot()).toMatchObject({
+    threadId: attachBaseline.snapshot.thread.id,
+    connection: { phase: "available" },
+  });
+  expect(
+    h.session
+      .getCollectionSnapshot()
+      .members.find((member) => member.threadId === replacementThreadId)?.snapshot,
+  ).toMatchObject({
+    connection: { phase: "unavailable", recovery: { pending: false, error } },
+  });
+});
+
+it("restores a member without a live owner and does not resurrect a member removed during recovery", async () => {
+  const h = createHarness();
+  await activateInitial(h);
+  vi.mocked(h.commands.attachThreadProjection).mockRejectedValueOnce(
+    new Error("initial attach failed"),
+  );
+  await expect(h.session.activate(replacementThreadId)).resolves.toMatchObject({
+    type: "unavailable",
+  });
+  h.controller.connectionUnavailable();
+  const replacement = createGuiHostCommands({
+    loadedThreadIds: [attachBaseline.snapshot.thread.id, replacementThreadId],
+  });
+  const second = createDeferred<typeof replacementAttach>();
+  vi.mocked(replacement.attachThreadProjection).mockImplementation(({ threadId }) =>
+    threadId === replacementThreadId ? second.promise : Promise.resolve(attachBaseline),
+  );
+  const recovery = h.controller.restoreConnection(replacement, () => null);
+  await vi.waitFor(() => {
+    expect(
+      h.session
+        .getCollectionSnapshot()
+        .members.find((member) => member.threadId === attachBaseline.snapshot.thread.id)?.snapshot,
+    ).toMatchObject({ connection: { phase: "available" } });
+  });
+  await expect(h.session.remove(attachBaseline.snapshot.thread.id)).resolves.toMatchObject({
+    type: "removed",
+  });
+  second.resolve(replacementAttach);
+  await recovery;
+  const collection = h.session.getCollectionSnapshot();
+  expect(collection.members.map((member) => member.threadId)).toEqual([replacementThreadId]);
+  expect(collection.members[0]?.snapshot).toMatchObject({
+    phase: "active",
+    connection: { phase: "available" },
+  });
+  expect(
+    h.store.getState().threadRuntime.byThreadId[attachBaseline.snapshot.thread.id],
+  ).toBeUndefined();
+});
+
 it("restores the retained current member and keeps a task failure separate from the shared connection", async () => {
   const h = createHarness();
   await activateInitial(h);

@@ -16,6 +16,7 @@ import {
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
+import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
 import {
   useActiveThreadSession,
   useActiveThreadSessionSnapshot,
@@ -83,6 +84,14 @@ function ThreadSwitchCapabilityProbe() {
   );
 }
 
+function CurrentTaskWithSessionProbe() {
+  const session = useActiveThreadSession();
+  useEffect(() => {
+    threadSwitchProbeSession = session;
+  }, [session]);
+  return <CurrentTaskPage />;
+}
+
 const requireThreadSwitchProbeSession = (): ActiveThreadSession => {
   if (threadSwitchProbeSession == null) {
     throw new Error("thread switch probe must expose an active session");
@@ -146,6 +155,94 @@ const expectAppComposerDisabled = async (
     await expect.element(control).toBeDisabled();
   }
 };
+
+async function recoverStaleOrdinaryDraft(failStorage: boolean) {
+  const screen = await renderWithProviders(
+    <App currentTaskComponent={CurrentTaskWithSessionProbe} />,
+  );
+  const options = getHostOptions(startGuiHostConnectionMock);
+  const baseline = attachWithCommittedMessages();
+  const commands = initializeAppWithProjection(options, baseline);
+  const { snapshot } = await waitForThreadSwitchProbeSession();
+  const role = snapshot.composerRole;
+  const save = vi.spyOn(role, "saveDraft").mockImplementation(() => ({
+    type: "unavailable",
+    scope: "activeThreadSession",
+    reason: "staleRevision",
+    revision: snapshot.revision + 1,
+  }));
+  const retain = vi.spyOn(role, "retainDraft");
+  const setSessionItem = window.sessionStorage.setItem.bind(window.sessionStorage);
+  const setLocalItem = window.localStorage.setItem.bind(window.localStorage);
+  const storageWrite = vi
+    .spyOn(Storage.prototype, "setItem")
+    .mockImplementation(function (this: Storage, key, value) {
+      if (
+        failStorage &&
+        key === `codex-gui.browserPersistence.${encodeURIComponent(launchThreadId)}`
+      ) {
+        throw new Error("Ordinary draft storage unavailable");
+      }
+      const setItem = this === window.sessionStorage ? setSessionItem : setLocalItem;
+      setItem(key, value);
+    });
+  try {
+    await getAppComposer(screen).fill("Latest ordinary draft without a successful save");
+    options.onCommandsUnavailable?.();
+    options.onStatus?.({ label: "closed" });
+    await expectAppComposerDisabled(screen);
+    await screen.getByRole("button", { name: "Menu", exact: true }).click();
+    await screen.getByRole("button", { name: "History", exact: true }).click();
+    await expect.element(getAppComposer(screen)).not.toBeInTheDocument();
+    expect(retain).toHaveBeenCalledOnce();
+    save.mockRestore();
+    await screen.getByRole("button", { name: "Reconnect", exact: true }).click();
+    const replacement = createGuiHostCommands();
+    queueAttachProjectionResponse(replacement, baseline);
+    initializeHost(getHostOptions(startGuiHostConnectionMock, "latest"), replacement);
+    await expect
+      .element(screen.getByRole("button", { name: "Reconnecting…", exact: true }))
+      .not.toBeInTheDocument();
+    await screen.getByRole("button", { name: "Menu", exact: true }).click();
+    await screen.getByRole("button", { name: "Projection fixture", exact: true }).click();
+    await expect
+      .element(getAppComposer(screen))
+      .toHaveAttribute("contenteditable", failStorage ? "false" : "true");
+    expect(commands.startTurn).not.toHaveBeenCalled();
+    expect(replacement.startTurn).not.toHaveBeenCalled();
+    return screen;
+  } finally {
+    save.mockRestore();
+    retain.mockRestore();
+    storageWrite.mockRestore();
+  }
+}
+
+test("a stale ordinary draft survives close, navigation away, recovery and returning", async () => {
+  const screen = await recoverStaleOrdinaryDraft(false);
+  await expect
+    .element(getAppComposer(screen))
+    .toHaveTextContent("Latest ordinary draft without a successful save");
+});
+
+test("a stale ordinary draft retains its saving failure diagnostics after close, navigation and recovery", async () => {
+  const screen = await recoverStaleOrdinaryDraft(true);
+  await expect
+    .element(getAppComposer(screen))
+    .toHaveTextContent("Latest ordinary draft without a successful save");
+  await expect
+    .element(screen.getByText("Changes could not be saved", { exact: true }))
+    .toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+  await screen
+    .getByRole("alert")
+    .filter({ hasText: "Task updates are paused" })
+    .getByRole("button", { name: "View diagnostic information", exact: true })
+    .click();
+  await expect
+    .element(screen.getByRole("dialog", { name: "Diagnostic information", exact: true }))
+    .toHaveTextContent("Browser persistence failed: write");
+});
 
 test("App stops forwarding runtime events after backpressure pauses synchronization", async () => {
   const { store } = await renderWithProviders(

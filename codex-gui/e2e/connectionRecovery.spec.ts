@@ -1,6 +1,52 @@
 import { expect, test } from "@playwright/test";
-import { createMultiSessionHarness, firstThreadId } from "./multiSessionHarness";
+import {
+  continueSecondTask,
+  createMultiSessionHarness,
+  firstThreadId,
+  secondThreadId,
+  selectTask,
+} from "./multiSessionHarness";
 import { composer, settledRender, submit } from "./persistenceHarness";
+
+test("one reconnect restores all tasks independently while preserving navigation during recovery", async ({
+  page,
+}) => {
+  const host = await createMultiSessionHarness(page);
+  await host.open();
+  host.finish(firstThreadId, "First preserved answer");
+  await composer(page).fill("First preserved draft");
+  await continueSecondTask(page);
+  host.finish(secondThreadId, "Second preserved answer");
+  await composer(page).fill("Second preserved draft");
+  await host.closeNormally();
+  await expect(page.getByText("Connection closed", { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/task/${secondThreadId}$`));
+  host.setAttachMode(firstThreadId, "hold");
+  host.setAttachMode(secondThreadId, "hold");
+  await page.getByRole("button", { name: "Reconnect", exact: true }).click();
+  await expect.poll(() => host.attachments(firstThreadId).length).toBe(2);
+  await expect.poll(() => host.attachments(secondThreadId).length).toBe(2);
+  await expect(page).toHaveURL(new RegExp(`/task/${secondThreadId}$`));
+  await selectTask(page, firstThreadId);
+  await expect(composer(page)).toHaveText("First preserved draft");
+  host.releaseAttachment(secondThreadId, "Second retained task unavailable");
+  host.releaseAttachment(firstThreadId);
+  await expect(composer(page)).toHaveAttribute("contenteditable", "true");
+  await expect(page).toHaveURL(new RegExp(`/task/${firstThreadId}$`));
+  await expect(page.getByText("First preserved answer", { exact: true })).toBeVisible();
+  await selectTask(page, secondThreadId);
+  await expect(composer(page)).toHaveText("Second preserved draft");
+  await expect(composer(page)).toHaveAttribute("contenteditable", "false");
+  await expect(page.getByText("Second preserved answer", { exact: true })).toBeVisible();
+  host.setAttachMode(secondThreadId, null);
+  await page.getByRole("button", { name: "Restore task", exact: true }).click();
+  await expect(composer(page)).toHaveAttribute("contenteditable", "true");
+  expect(host.initializations()).toHaveLength(2);
+  expect(host.attachments(firstThreadId)).toHaveLength(2);
+  expect(host.attachments(secondThreadId)).toHaveLength(3);
+  expect(host.sends(firstThreadId)).toHaveLength(0);
+  expect(host.sends(secondThreadId)).toHaveLength(0);
+});
 
 test("normal close preserves input through keyboard reconnect, shared failure and task retry", async ({
   page,

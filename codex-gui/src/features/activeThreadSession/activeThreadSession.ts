@@ -153,17 +153,32 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   ) => {
     if (this.disposed) return;
     this.connection.replace(commands);
-    const threadId =
-      getPreferredThreadId() ?? this.viewedThreadId ?? this.members.keys().next().value;
-    if (threadId == null) return;
-    const member = this.members.get(threadId);
-    if (member == null) return;
-    const snapshot = member.lifecycle.getState().snapshot;
-    if (snapshot?.phase === "active" || snapshot?.phase === "projectionUnavailable") {
-      await member.lifecycle.recoverConnection(snapshot.identity);
-    } else {
-      await member.lifecycle.initialize();
-    }
+    const round = this.connection.capture();
+    const preferred = getPreferredThreadId();
+    const members = [...this.members.values()].sort(
+      (left, right) => Number(right.threadId === preferred) - Number(left.threadId === preferred),
+    );
+    await Promise.all(
+      members.map(async (member) => {
+        const current = () =>
+          !this.disposed &&
+          round?.isCurrent() === true &&
+          this.members.get(member.threadId) === member;
+        if (!current()) return;
+        let state = member.lifecycle.getState();
+        if (state.isPending) {
+          await member.lifecycle.initialize();
+          if (!current()) return;
+          state = member.lifecycle.getState();
+        }
+        const snapshot = state.snapshot;
+        if (snapshot?.phase === "active" || snapshot?.phase === "projectionUnavailable") {
+          await member.lifecycle.recoverConnection(snapshot.identity);
+        } else {
+          await member.lifecycle.initialize();
+        }
+      }),
+    );
   };
   getCollectionSnapshot = (): ActiveThreadCollectionSnapshot => this.collectionSnapshot;
   subscribe = (listener: () => void): (() => void) => this.listeners.subscribe(listener);
