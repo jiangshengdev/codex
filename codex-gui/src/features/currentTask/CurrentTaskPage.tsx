@@ -22,6 +22,7 @@ import { errorText } from "@/text/errorText";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
+import { ProjectionRecoveryNotice } from "./ProjectionRecoveryNotice";
 
 function isMacAppleWebKitRuntime(): boolean {
   return (
@@ -417,6 +418,14 @@ export function CurrentTaskPage() {
       status={status}
       notices={
         <>
+          {snapshot.phase === "projectionUnavailable" ? (
+            <ProjectionRecoveryNotice
+              snapshot={snapshot}
+              onRecover={() => {
+                void activeThreadSession.recoverProjection(snapshot.threadId, snapshot.identity);
+              }}
+            />
+          ) : null}
           {member?.error != null ? (
             <Alert role="alert" status="danger">
               <Alert.Indicator />

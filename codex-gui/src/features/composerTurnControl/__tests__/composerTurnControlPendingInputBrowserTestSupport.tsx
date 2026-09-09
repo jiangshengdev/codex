@@ -273,6 +273,10 @@ export const createQueueControllerHarness = (
     completeRestoreReconciliation:
       vi.fn<ComposerInputQueueCoordinator["completeRestoreReconciliation"]>(),
     reconcileRestoredTurns: vi.fn<ComposerInputQueueCoordinator["reconcileRestoredTurns"]>(),
+    setProjectionUnavailable: vi.fn<ComposerInputQueueCoordinator["setProjectionUnavailable"]>(),
+    reconcileProjection: vi
+      .fn<ComposerInputQueueCoordinator["reconcileProjection"]>()
+      .mockReturnValue({ type: "committed" }),
     ownerThreadId: threadId,
     submit,
     submitSteer,

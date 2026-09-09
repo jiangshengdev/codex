@@ -43,6 +43,39 @@ const progressCircleFor = (button: Element): HTMLElement => {
 };
 
 describe("ContextUsagePopover", () => {
+  it("explains an unknown compression result without presenting it as running or retryable", async () => {
+    const onRequestCompaction = vi.fn<() => void>();
+    const screen = await renderPopover(
+      knownUsage,
+      {
+        phase: "deliveryUnknown",
+        canRequest: false,
+        startFailure: null,
+      },
+      onRequestCompaction,
+    );
+    const trigger = screen.getByRole("button", {
+      name: "Compression request result unknown",
+      exact: true,
+    });
+    await expect.element(trigger).toBeEnabled();
+    await trigger.click();
+    const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
+    await expect
+      .element(
+        dialog.getByText(
+          "The compression request result is unknown. Sending and compression remain unavailable until its result is confirmed.",
+          { exact: true },
+        ),
+      )
+      .toBeVisible();
+    await expect
+      .element(dialog.getByRole("button", { name: "Compress context", exact: true }))
+      .toBeDisabled();
+    await expect.element(dialog.getByText("Compressing", { exact: true })).not.toBeInTheDocument();
+    expect(onRequestCompaction).not.toHaveBeenCalled();
+  });
+
   it.each([414, 240])(
     "keeps changing context details within a %ipx viewport without resize errors",
     async (width) => {
@@ -294,9 +327,19 @@ describe("ContextUsagePopover", () => {
       await screen.rerender(
         content({ phase, canRequest: false, startFailure: "first private failure" }),
       );
-      const pending = dialog.getByRole("button", { name: "Compressing", exact: true });
+      const pending = dialog.getByRole("button", {
+        name: phase === "requestPending" ? "Compressing" : "Compress context",
+        exact: true,
+      });
       await expect.element(pending).toBeDisabled();
       expect(pending.element()).toBe(originalButton);
+      await expect
+        .element(dialog.getByRole("status"))
+        .toHaveTextContent(
+          phase === "requestPending"
+            ? "Waiting for the compression request result."
+            : "The compression request result is unknown.",
+        );
       await expect.element(dialog.getByRole("alert")).toBeVisible();
       expect(dialog.element().textContent).not.toContain("first private failure");
     }

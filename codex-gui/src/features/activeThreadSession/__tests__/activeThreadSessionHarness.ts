@@ -48,6 +48,7 @@ export type ActiveThreadSessionHarness = Readonly<{
   activate: Mock<ActiveThreadSession["activate"]>;
   view: Mock<ActiveThreadSession["view"]>;
   retry: Mock<ActiveThreadSession["retry"]>;
+  recoverProjection: Mock<ActiveThreadSession["recoverProjection"]>;
   remove: Mock<ActiveThreadSession["remove"]>;
   setOperationError: Mock<ActiveThreadSession["setOperationError"]>;
   subscribe: Mock<ActiveThreadSession["subscribe"]>;
@@ -182,7 +183,7 @@ export const projectionUnavailableActiveThreadSessionSnapshot = (
   const revision = options.revision ?? 1;
   return {
     reason: "backpressure",
-    recovery: "connectionRestartRequired",
+    recovery: { pending: false, error: null },
     revision,
     identity: createActiveThreadSessionIdentity(options.threadId ?? "thread-1"),
     threadId: "thread-1",
@@ -307,6 +308,9 @@ export const createActiveThreadSessionHarness = (
   });
   let collection = options.initialCollection ?? collectionFor(snapshot);
   const retry = vi.fn<ActiveThreadSession["retry"]>(activate);
+  const recoverProjection = vi.fn<ActiveThreadSession["recoverProjection"]>(() =>
+    Promise.resolve({ type: "unavailable" }),
+  );
   const view = vi.fn<ActiveThreadSession["view"]>((threadId) =>
     Promise.resolve(
       typeof activateOutcome === "function" ? activateOutcome(threadId) : activateOutcome,
@@ -328,6 +332,7 @@ export const createActiveThreadSessionHarness = (
     activate,
     view,
     retry,
+    recoverProjection,
     remove,
     setOperationError: (threadId, operation, error) => {
       setOperationError(threadId, operation, error);
@@ -372,6 +377,7 @@ export const createActiveThreadSessionHarness = (
     activate,
     view,
     retry,
+    recoverProjection,
     remove,
     setOperationError,
     subscribe,

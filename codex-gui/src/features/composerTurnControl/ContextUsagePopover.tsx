@@ -31,13 +31,19 @@ export function ContextUsagePopover({
           comment: "Accessible name for context controls with current token usage",
           message: `Context usage details, ${percentageLabel} used, ${usedTokensLabel} of ${contextWindowLabel} tokens`,
         });
-  const isCompressing = compaction.phase !== "idle";
-  const triggerLabel = isCompressing
-    ? t({
-        comment: "Accessible name for context controls while compression is active",
-        message: "Context compression in progress",
-      })
-    : accessibleLabel;
+  const isCompressing = compaction.phase === "requestPending" || compaction.phase === "running";
+  const triggerLabel =
+    compaction.phase === "deliveryUnknown"
+      ? t({
+          comment: "Accessible name for context controls after an uncertain compression request",
+          message: "Compression request result unknown",
+        })
+      : isCompressing
+        ? t({
+            comment: "Accessible name for context controls while compression is active",
+            message: "Context compression in progress",
+          })
+        : accessibleLabel;
 
   return (
     <Popover>
@@ -105,6 +111,21 @@ export function ContextUsagePopover({
                 Compress context
               </Trans>
             </RetryActionButton>
+            {compaction.phase === "requestPending" ? (
+              <p className="text-sm text-muted" role="status">
+                <Trans comment="Explains why sending stays blocked after requesting context compression">
+                  Waiting for the compression request result. Sending remains unavailable until its
+                  result is confirmed.
+                </Trans>
+              </p>
+            ) : compaction.phase === "deliveryUnknown" ? (
+              <p className="text-sm text-muted" role="status">
+                <Trans comment="Explains the independent sending barrier after an uncertain compression request">
+                  The compression request result is unknown. Sending and compression remain
+                  unavailable until its result is confirmed.
+                </Trans>
+              </p>
+            ) : null}
             {compaction.startFailure != null ? (
               <p className="text-sm text-danger" role="alert">
                 <Trans>Context compression could not be started.</Trans>

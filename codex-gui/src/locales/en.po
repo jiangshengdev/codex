@@ -61,7 +61,7 @@ msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {I
 msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 msgstr "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:81
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:87
 msgid "{percentageLabel} used"
 msgstr "{percentageLabel} used"
 
@@ -70,13 +70,17 @@ msgstr "{percentageLabel} used"
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:84
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:90
 msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:76
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:82
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
+
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:89
+msgid "A message update is missing its associated turn, so it cannot be fully displayed."
+msgstr "A message update is missing its associated turn, so it cannot be fully displayed."
 
 #: src/features/appShell/AppShellTopBar.tsx:161
 #: src/features/newSession/NewSessionPage.tsx:40
@@ -161,7 +165,7 @@ msgid "Collapse pending message: {previewText}"
 msgstr "Collapse pending message: {previewText}"
 
 #. Accessible name for the region containing committed transcript turns
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:75
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:83
 msgid "Committed transcript"
 msgstr "Committed transcript"
 
@@ -183,20 +187,25 @@ msgid "Completed <0/> <1/>"
 msgstr "Completed <0/> <1/>"
 
 #. Button that starts compression for the current conversation context
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:104
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:110
 msgid "Compress context"
 msgstr "Compress context"
 
 #. Status shown while the current conversation context is compressed
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:96
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:102
 msgid "Compressing"
 msgstr "Compressing"
+
+#. Accessible name for context controls after an uncertain compression request
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:37
+msgid "Compression request result unknown"
+msgstr "Compression request result unknown"
 
 #: src/features/newSession/NewSessionPage.tsx:51
 msgid "Connect to Codex to send this draft."
 msgstr "Connect to Codex to send this draft."
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:93
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:101
 msgid "Connection interrupted. Reconnect required."
 msgstr "Connection interrupted. Reconnect required."
 
@@ -208,12 +217,12 @@ msgstr "Contact support"
 msgid "Context compressed"
 msgstr "Context compressed"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:110
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:131
 msgid "Context compression could not be started."
 msgstr "Context compression could not be started."
 
 #. Accessible name for context controls while compression is active
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:36
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:42
 msgid "Context compression in progress"
 msgstr "Context compression in progress"
 
@@ -224,8 +233,8 @@ msgstr "Context page {item}"
 
 #. Accessible label for the context usage progress indicator
 #. Heading for context usage and compression controls
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:50
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:69
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:56
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:75
 msgid "Context usage"
 msgstr "Context usage"
 
@@ -492,9 +501,9 @@ msgstr "Load history"
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:259
-#: src/features/currentTask/CurrentTaskPage.tsx:334
-#: src/features/currentTask/CurrentTaskPage.tsx:403
+#: src/features/currentTask/CurrentTaskPage.tsx:260
+#: src/features/currentTask/CurrentTaskPage.tsx:335
+#: src/features/currentTask/CurrentTaskPage.tsx:404
 msgid "Load task"
 msgstr "Load task"
 
@@ -524,10 +533,10 @@ msgstr "Loading skills…"
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:252
-#: src/features/currentTask/CurrentTaskPage.tsx:320
-#: src/features/currentTask/CurrentTaskPage.tsx:383
-#: src/features/currentTask/CurrentTaskPage.tsx:521
+#: src/features/currentTask/CurrentTaskPage.tsx:253
+#: src/features/currentTask/CurrentTaskPage.tsx:321
+#: src/features/currentTask/CurrentTaskPage.tsx:384
+#: src/features/currentTask/CurrentTaskPage.tsx:530
 msgid "Loading task…"
 msgstr "Loading task…"
 
@@ -553,6 +562,19 @@ msgstr "Message Codex"
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:188
 msgid "Message composer"
 msgstr "Message composer"
+
+#. Current task message updates are paused, not the task itself
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:54
+msgid "Message synchronization paused"
+msgstr "Message synchronization paused"
+
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:85
+msgid "Message updates arrived out of order, so the conversation may be incomplete."
+msgstr "Message updates arrived out of order, so the conversation may be incomplete."
+
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:82
+msgid "Message updates have piled up, so synchronization has paused."
+msgstr "Message updates have piled up, so synchronization has paused."
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:325
 msgid "More move options for pending message: {previewText}"
@@ -623,7 +645,7 @@ msgstr "Next context page"
 msgid "No agents completed yet"
 msgstr "No agents completed yet"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:105
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:113
 msgid "No committed messages yet."
 msgstr "No committed messages yet."
 
@@ -663,11 +685,11 @@ msgstr "Open current task"
 msgid "Open session"
 msgstr "Open session"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:217
+#: src/features/currentTask/CurrentTaskPage.tsx:218
 msgid "Open task"
 msgstr "Open task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:203
+#: src/features/currentTask/CurrentTaskPage.tsx:204
 msgid "Opening task…"
 msgstr "Opening task…"
 
@@ -759,7 +781,7 @@ msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
 
 #. Reload the current task's runtime status
-#: src/features/currentTask/CurrentTaskPage.tsx:405
+#: src/features/currentTask/CurrentTaskPage.tsx:406
 msgid "Refresh status"
 msgstr "Refresh status"
 
@@ -767,7 +789,7 @@ msgstr "Refresh status"
 msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:385
+#: src/features/currentTask/CurrentTaskPage.tsx:386
 msgid "Refreshing status…"
 msgstr "Refreshing status…"
 
@@ -799,18 +821,18 @@ msgstr "Remove or replace invalid skills before saving."
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
-#: src/features/currentTask/CurrentTaskPage.tsx:213
-#: src/features/currentTask/CurrentTaskPage.tsx:330
-#: src/features/currentTask/CurrentTaskPage.tsx:399
+#: src/features/currentTask/CurrentTaskPage.tsx:214
+#: src/features/currentTask/CurrentTaskPage.tsx:331
+#: src/features/currentTask/CurrentTaskPage.tsx:400
 msgid "Remove task"
 msgstr "Remove task"
 
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
-#: src/features/currentTask/CurrentTaskPage.tsx:199
-#: src/features/currentTask/CurrentTaskPage.tsx:316
-#: src/features/currentTask/CurrentTaskPage.tsx:379
+#: src/features/currentTask/CurrentTaskPage.tsx:200
+#: src/features/currentTask/CurrentTaskPage.tsx:317
+#: src/features/currentTask/CurrentTaskPage.tsx:380
 msgid "Removing task…"
 msgstr "Removing task…"
 
@@ -829,9 +851,19 @@ msgstr "Request failed"
 msgid "Resolve the task list error above, then try again."
 msgstr "Resolve the task list error above, then try again."
 
+#. Button to restore this task's message synchronization; same label after failure
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:46
+msgid "Restore sync"
+msgstr "Restore sync"
+
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:60
 msgid "Restored messages are paused"
 msgstr "Restored messages are paused"
+
+#. Pending button label while restoring this task's message synchronization
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:38
+msgid "Restoring sync…"
+msgstr "Restoring sync…"
 
 #. Collaboration activity showing the raw receiver value of the resumed agent
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:231
@@ -991,6 +1023,10 @@ msgstr "Stop failed"
 msgid "Structured input"
 msgstr "Structured input"
 
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:67
+msgid "Synchronization could not be restored. You can try again."
+msgstr "Synchronization could not be restored. You can try again."
+
 #. Source label for a skill provided by the Codex system
 #. Source label for a skill provided by the Codex system
 #: src/features/composerEditor/SelectedSkillToken.tsx:175
@@ -1002,8 +1038,8 @@ msgstr "System"
 msgid "System error"
 msgstr "System error"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:224
-#: src/features/currentTask/CurrentTaskPage.tsx:426
+#: src/features/currentTask/CurrentTaskPage.tsx:225
+#: src/features/currentTask/CurrentTaskPage.tsx:435
 msgid "Task action failed"
 msgstr "Task action failed"
 
@@ -1030,17 +1066,26 @@ msgstr "Task switched, but cannot be opened"
 msgid "Tasks or the connection need attention."
 msgstr "Tasks or the connection need attention."
 
+#. Explains the independent sending barrier after an uncertain compression request
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:123
+msgid "The compression request result is unknown. Sending and compression remain unavailable until its result is confirmed."
+msgstr "The compression request result is unknown. Sending and compression remain unavailable until its result is confirmed."
+
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:200
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "The connection was interrupted before the task switch completed. Reconnect and try again."
+
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:60
+msgid "The conversation shown here may be out of date. Restore sync to get the latest content."
+msgstr "The conversation shown here may be out of date. Restore sync to get the latest content."
 
 #. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
 #: src/features/newSession/NewSessionPage.tsx:109
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "The creation result is unknown. Retrying may leave an extra empty session."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:276
-#: src/features/currentTask/CurrentTaskPage.tsx:352
+#: src/features/currentTask/CurrentTaskPage.tsx:277
+#: src/features/currentTask/CurrentTaskPage.tsx:353
 msgid "The current task could not be loaded."
 msgstr "The current task could not be loaded."
 
@@ -1068,7 +1113,7 @@ msgstr "The previous task connection could not be fully cleaned up. Later state 
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:429
+#: src/features/currentTask/CurrentTaskPage.tsx:438
 msgid "The task action could not be completed."
 msgstr "The task action could not be completed."
 
@@ -1088,11 +1133,11 @@ msgstr "The task connection could not be prepared."
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:228
+#: src/features/currentTask/CurrentTaskPage.tsx:229
 msgid "The task could not be opened."
 msgstr "The task could not be opened."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:230
+#: src/features/currentTask/CurrentTaskPage.tsx:231
 msgid "The task could not be removed."
 msgstr "The task could not be removed."
 
@@ -1108,7 +1153,7 @@ msgstr "The task list could not be updated."
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:451
+#: src/features/currentTask/CurrentTaskPage.tsx:460
 msgid "The task recovery could not be completed."
 msgstr "The task recovery could not be completed."
 
@@ -1192,16 +1237,16 @@ msgstr "Unable to load history"
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:273
-#: src/features/currentTask/CurrentTaskPage.tsx:349
+#: src/features/currentTask/CurrentTaskPage.tsx:274
+#: src/features/currentTask/CurrentTaskPage.tsx:350
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:448
+#: src/features/currentTask/CurrentTaskPage.tsx:457
 msgid "Unable to recover the current task"
 msgstr "Unable to recover the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:138
+#: src/features/currentTask/CurrentTaskPage.tsx:139
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "Unable to retry this task. Review its current state and try again."
 
@@ -1311,6 +1356,11 @@ msgstr "Waiting for approval"
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:55
 msgid "Waiting for input"
 msgstr "Waiting for input"
+
+#. Explains why sending stays blocked after requesting context compression
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:116
+msgid "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
+msgstr "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
 
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:82
 msgid "Will send first"

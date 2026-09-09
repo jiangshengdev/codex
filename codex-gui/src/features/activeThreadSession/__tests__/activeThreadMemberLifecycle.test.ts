@@ -12,10 +12,18 @@ import {
   eventAgentMessageDelta,
 } from "@/features/projection/__tests__/projectionFixtures";
 import { createActiveThreadMemberLifecycle } from "../activeThreadMemberLifecycle";
+import {
+  attachWithSnapshotThread,
+  eventWithEnvelope,
+  closedWithEnvelope,
+} from "@/features/projection/__tests__/projectionTestBuilders";
 
 const threadId = attachBaseline.snapshot.thread.id;
 
-function createHarness(afterDispatch: () => void = () => undefined) {
+function createHarness(
+  afterDispatch: () => void = () => undefined,
+  persistence = createPersistenceTestContext(),
+) {
   const store = makeStore();
   const commands = createGuiHostCommands({ loadedThreadIds: [threadId] });
   vi.mocked(commands.listSkills).mockImplementation(() => new Promise(() => undefined));
@@ -24,7 +32,7 @@ function createHarness(afterDispatch: () => void = () => undefined) {
   const member = createActiveThreadMemberLifecycle({
     threadId,
     commands,
-    persistence: createPersistenceTestContext(),
+    persistence,
     dispatch: ((action: UnknownAction) => {
       const result = store.dispatch(action);
       afterDispatch();
@@ -45,6 +53,194 @@ function createHarness(afterDispatch: () => void = () => undefined) {
 }
 
 describe("active thread member lifecycle", () => {
+  it("keeps the old baseline when the candidate closes during its persistence transaction", async () => {
+    const persistence = createPersistenceTestContext();
+    const h = createHarness(() => undefined, persistence);
+    await h.member.initialize();
+    const initial = h.member.getState().snapshot;
+    if (initial?.phase !== "active" || persistence.storage == null)
+      throw new Error("expected active member and storage");
+    h.member.handleProjectionClosed(closedBackpressure);
+    const response = attachWithSnapshotThread(
+      attachBaseline,
+      attachBaseline.snapshot.thread,
+      "closed-while-saving",
+    );
+    vi.mocked(h.commands.attachThreadProjection).mockResolvedValueOnce(response);
+    const write = persistence.storage.setItem;
+    vi.spyOn(persistence.storage, "setItem").mockImplementation((key, value) => {
+      write(key, value);
+      h.member.handleProjectionClosed(
+        closedWithEnvelope(closedBackpressure, { subscriptionId: response.subscriptionId }),
+      );
+    });
+    await expect(h.member.recoverProjection(initial.identity)).resolves.toMatchObject({
+      type: "failed",
+    });
+    expect(h.store.getState().transcriptState.byThreadId[threadId]?.transcript.subscriptionId).toBe(
+      initial.subscriptionId,
+    );
+    h.member.dispose();
+  });
+
+  it("does not recover or advance the active turn when a reentrant candidate event cannot be saved", async () => {
+    const persistence = createPersistenceTestContext();
+    let inject = false;
+    const response = attachWithSnapshotThread(
+      attachBaseline,
+      attachBaseline.snapshot.thread,
+      "reentrant-candidate",
+    );
+    const h = createHarness(() => {
+      if (
+        !inject ||
+        h.store.getState().transcriptState.byThreadId[threadId]?.transcript.subscriptionId !==
+          response.subscriptionId
+      )
+        return;
+      inject = false;
+      if (persistence.storage == null) throw new Error("expected storage");
+      vi.spyOn(persistence.storage, "setItem").mockImplementation(() => {
+        throw new Error("full");
+      });
+      h.member.handleProjectionEvent(
+        eventWithEnvelope(eventTurnStarted, { subscriptionId: response.subscriptionId }),
+      );
+    }, persistence);
+    await h.member.initialize();
+    const initial = h.member.getState().snapshot;
+    if (initial?.phase !== "active") throw new Error("expected active member");
+    h.member.handleProjectionClosed(closedBackpressure);
+    vi.mocked(h.commands.attachThreadProjection).mockResolvedValueOnce(response);
+    inject = true;
+    await expect(h.member.recoverProjection(initial.identity)).resolves.toMatchObject({
+      type: "blocked",
+    });
+    expect(h.member.getState().snapshot).toMatchObject({
+      phase: "projectionUnavailable",
+      activeTurnId: null,
+      recovery: { pending: false },
+    });
+    expect(h.commands.startTurn).not.toHaveBeenCalled();
+    h.member.dispose();
+  });
+
+  it("rejects a candidate closed before its attach response and allows another recovery", async () => {
+    const h = createHarness();
+    await h.member.initialize();
+    const initial = h.member.getState().snapshot;
+    if (initial?.phase !== "active") throw new Error("expected active member");
+    h.member.handleProjectionClosed(closedBackpressure);
+    const attach = createDeferred<typeof attachBaseline>();
+    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(attach.promise);
+    const pending = h.member.recoverProjection(initial.identity);
+    const response = attachWithSnapshotThread(
+      attachBaseline,
+      attachBaseline.snapshot.thread,
+      "closed-candidate",
+    );
+    h.member.handleProjectionClosed(
+      closedWithEnvelope(closedBackpressure, { subscriptionId: response.subscriptionId }),
+    );
+    attach.resolve(response);
+    await expect(pending).resolves.toMatchObject({ type: "failed" });
+    expect(h.member.getState().snapshot).toMatchObject({
+      phase: "projectionUnavailable",
+      subscriptionId: initial.subscriptionId,
+      recovery: { pending: false },
+    });
+    await expect(h.member.recoverProjection(initial.identity)).resolves.toEqual({
+      type: "recovered",
+    });
+    h.member.dispose();
+  });
+
+  it("does not publish or detach when a recovery response arrives after disposal", async () => {
+    const h = createHarness();
+    await h.member.initialize();
+    const initial = h.member.getState().snapshot;
+    if (initial?.phase !== "active") throw new Error("expected active member");
+    h.member.handleProjectionClosed(closedBackpressure);
+    const attach = createDeferred<typeof attachBaseline>();
+    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(attach.promise);
+    const pending = h.member.recoverProjection(initial.identity);
+    h.member.dispose();
+    attach.resolve(
+      attachWithSnapshotThread(attachBaseline, attachBaseline.snapshot.thread, "late-recovery"),
+    );
+    await expect(pending).resolves.toEqual({ type: "unavailable" });
+    expect(h.commands.detachThreadProjection).not.toHaveBeenCalled();
+    expect(h.store.getState().threadRuntime.byThreadId[threadId]).toBeUndefined();
+  });
+
+  it("deduplicates recovery from synchronous pending listeners", async () => {
+    const h = createHarness();
+    await h.member.initialize();
+    const initial = h.member.getState().snapshot;
+    if (initial?.phase !== "active") throw new Error("expected active member");
+    h.member.handleProjectionClosed(closedBackpressure);
+    const nested: Promise<unknown>[] = [];
+    const unsubscribe = h.member.subscribe(() => {
+      const state = h.member.getState().snapshot;
+      if (state?.phase === "projectionUnavailable" && state.recovery.pending)
+        nested.push(h.member.recoverProjection(initial.identity));
+    });
+    const pending = h.member.recoverProjection(initial.identity);
+    await expect(pending).resolves.toEqual({ type: "recovered" });
+    expect(nested[0]).toBe(pending);
+    expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(2);
+    unsubscribe();
+    h.member.dispose();
+  });
+
+  it("recovers the same live member after a failed attach and buffers the new subscription", async () => {
+    const h = createHarness();
+    await h.member.initialize();
+    const initial = h.member.getState().snapshot;
+    if (initial?.phase !== "active") throw new Error("expected active member");
+    h.member.handleProjectionClosed(closedBackpressure);
+    const failure = new Error("attach failed");
+    vi.mocked(h.commands.attachThreadProjection).mockRejectedValueOnce(failure);
+    await expect(h.member.recoverProjection(initial.identity)).resolves.toEqual({
+      type: "failed",
+      error: failure,
+    });
+    expect(h.member.getState().snapshot).toMatchObject({
+      phase: "projectionUnavailable",
+      recovery: { pending: false, error: failure },
+    });
+    const attach = createDeferred<typeof attachBaseline>();
+    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(attach.promise);
+    const pending = h.member.recoverProjection(initial.identity);
+    expect(h.member.recoverProjection(initial.identity)).toBe(pending);
+    expect(h.member.getState().snapshot).toMatchObject({
+      recovery: { pending: true, error: failure },
+    });
+    const response = attachWithSnapshotThread(
+      attachBaseline,
+      attachBaseline.snapshot.thread,
+      "recovered-subscription",
+    );
+    h.member.handleProjectionEvent(
+      eventWithEnvelope(eventTurnStarted, { subscriptionId: response.subscriptionId }),
+    );
+    attach.resolve(response);
+    await expect(pending).resolves.toEqual({ type: "recovered" });
+    const recovered = h.member.getState().snapshot;
+    expect(recovered).toMatchObject({
+      phase: "active",
+      identity: initial.identity,
+      activeTurnId: "turn-in-progress",
+      subscriptionId: response.subscriptionId,
+    });
+    if (recovered?.phase !== "active") throw new Error("expected recovered member");
+    expect(recovered.composerRole).toBe(initial.composerRole);
+    h.member.handleProjectionClosed(closedBackpressure);
+    expect(h.member.getState().snapshot?.phase).toBe("active");
+    expect(h.commands.detachThreadProjection).not.toHaveBeenCalled();
+    h.member.dispose();
+  });
+
   it("drains a notification received synchronously while the live session is constructed", async () => {
     let notified = false;
     const h = createHarness(() => {

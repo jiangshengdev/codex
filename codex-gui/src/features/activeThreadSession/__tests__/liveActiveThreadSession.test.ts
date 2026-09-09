@@ -16,6 +16,7 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   baseTurn,
+  attachWithSnapshotThread,
   contextCompaction,
   contextCompactionCompleted,
   eventWithEnvelope,
@@ -30,7 +31,7 @@ import { createLiveActiveThreadSession } from "../liveActiveThreadSession";
 import { createActiveThreadSessionIdentity } from "../activeThreadSessionIdentity";
 import { activeThreadReadModelSlotCreated } from "../activeThreadSessionReadModel";
 
-const createHarness = () => {
+const createHarness = (persistence = createPersistenceTestContext()) => {
   const store = makeStore();
   const listSkills = vi.fn<GuiHostCommands["listSkills"]>(() => new Promise(() => undefined));
   const compactThread = vi.fn<GuiHostCommands["compactThread"]>().mockResolvedValue({});
@@ -59,7 +60,7 @@ const createHarness = () => {
     projection,
     commands,
     dispatch: store.dispatch,
-    persistence: createPersistenceTestContext(),
+    persistence,
   });
   return { commands, compactThread, listSkills, readThread, session, startTurn, store };
 };
@@ -98,6 +99,68 @@ const commandError = (delivery: "definitelyNotAccepted" | "deliveryUnknown", mes
   new GuiHostCommandError({ source: "rpc", delivery, error: new Error(message) });
 
 describe("LiveActiveThreadSession", () => {
+  it("keeps external owners and the old transcript unchanged when recovery cannot be saved", () => {
+    const persistence = createPersistenceTestContext();
+    const h = createHarness(persistence);
+    h.session.handleProjectionEvent(eventTurnStarted);
+    h.session.handleProjectionClosed(closedBackpressure);
+    const old = h.session.getSnapshot();
+    const previousTranscript =
+      h.store.getState().transcriptState.byThreadId[h.session.identity.threadId]?.transcript;
+    const storage = persistence.storage;
+    if (storage == null) throw new Error("expected storage");
+    const write = vi.spyOn(storage, "setItem").mockImplementation(() => {
+      throw new Error("full");
+    });
+    const response = attachWithSnapshotThread(
+      attachBaseline,
+      attachBaseline.snapshot.thread,
+      "saved-recovery",
+    );
+    h.session.beginProjectionRecovery();
+    expect(
+      h.session.commitProjectionRecovery(
+        response,
+        createActiveThreadProjection({
+          threadId: h.session.identity.threadId,
+          attachResponse: response,
+        }),
+        () => true,
+      ),
+    ).toMatchObject({ type: "blocked" });
+    expect(h.session.getSnapshot()).toMatchObject({
+      phase: "projectionUnavailable",
+      activeTurnId: "turn-in-progress",
+      subscriptionId: attachBaseline.subscriptionId,
+      recovery: { pending: false },
+    });
+    const currentTranscript =
+      h.store.getState().transcriptState.byThreadId[h.session.identity.threadId]?.transcript;
+    expect(currentTranscript).toEqual({
+      ...previousTranscript,
+      sessionRevision: h.session.getSnapshot().revision,
+    });
+    const failed = h.session.getSnapshot();
+    if (old.phase !== "projectionUnavailable" || failed.phase !== "projectionUnavailable")
+      throw new Error("expected paused snapshots");
+    expect(failed.threadStatus).toEqual(old.threadStatus);
+    expect(failed.compaction).toEqual(old.compaction);
+    write.mockRestore();
+    h.session.beginProjectionRecovery();
+    expect(
+      h.session.commitProjectionRecovery(
+        response,
+        createActiveThreadProjection({
+          threadId: h.session.identity.threadId,
+          attachResponse: response,
+        }),
+        () => true,
+      ),
+    ).toEqual({ type: "recovered" });
+    expect(h.session.getSnapshot()).toMatchObject({ phase: "active", activeTurnId: null });
+    h.session.dispose();
+  });
+
   it("owns the attach status baseline and publishes authoritative refresh changes", async () => {
     const h = createHarness();
     const initial = h.session.getSnapshot();

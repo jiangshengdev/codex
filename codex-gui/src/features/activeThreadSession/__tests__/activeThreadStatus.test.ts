@@ -12,6 +12,65 @@ const responseWithStatus = (status: ThreadStatus, threadId = thread.id) => ({
 });
 
 describe("ActiveThreadStatus", () => {
+  it("lets existing status waiters follow the rebased request without waiting for the obsolete read", async () => {
+    const commands = createGuiHostCommands();
+    const obsolete = createDeferred<Awaited<ReturnType<typeof commands.readThread>>>();
+    vi.mocked(commands.readThread)
+      .mockReturnValueOnce(obsolete.promise)
+      .mockResolvedValueOnce(responseWithStatus({ type: "idle" }));
+    const owner = createActiveThreadStatus({
+      threadId: thread.id,
+      initialStatus: { type: "active", activeFlags: [] },
+      readThread: commands.readThread,
+    });
+    owner.invalidate();
+    let settled = false;
+    const waiting = owner.settleInvalidations().then(() => {
+      settled = true;
+    });
+    owner.rebase({ type: "idle" });
+    await owner.settleInvalidations();
+    await Promise.resolve();
+    expect(settled).toBe(true);
+    await waiting;
+  });
+
+  it("rebases pending reads and preserves later invalidations without accepting stale status", async () => {
+    const commands = createGuiHostCommands();
+    const first = createDeferred<Awaited<ReturnType<typeof commands.readThread>>>();
+    const second = createDeferred<Awaited<ReturnType<typeof commands.readThread>>>();
+    const third = createDeferred<Awaited<ReturnType<typeof commands.readThread>>>();
+    vi.mocked(commands.readThread)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+      .mockReturnValueOnce(third.promise);
+    const owner = createActiveThreadStatus({
+      threadId: thread.id,
+      initialStatus: { type: "idle" },
+      readThread: commands.readThread,
+    });
+    owner.invalidate();
+    owner.invalidate();
+    owner.rebase({ type: "active", activeFlags: [] });
+    expect(owner.getSnapshot()).toEqual({ type: "active", activeFlags: [] });
+    expect(commands.readThread).toHaveBeenCalledTimes(2);
+
+    owner.invalidate();
+    first.resolve(responseWithStatus({ type: "systemError" }));
+    await first.promise;
+    await Promise.resolve();
+    expect(owner.getSnapshot()).toEqual({ type: "active", activeFlags: [] });
+    expect(commands.readThread).toHaveBeenCalledTimes(2);
+
+    second.resolve(responseWithStatus({ type: "idle" }));
+    await second.promise;
+    await Promise.resolve();
+    expect(commands.readThread).toHaveBeenCalledTimes(3);
+    third.resolve(responseWithStatus({ type: "active", activeFlags: ["waitingOnApproval"] }));
+    await owner.settleInvalidations();
+    expect(owner.getSnapshot()).toEqual({ type: "active", activeFlags: ["waitingOnApproval"] });
+  });
+
   it("starts from the attach baseline and structurally deduplicates status reads", async () => {
     const commands = createGuiHostCommands();
     const owner = createActiveThreadStatus({

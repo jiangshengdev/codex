@@ -121,6 +121,13 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       activate: this.activate,
       view: this.view,
       retry: this.retry,
+      recoverProjection: (threadId, expectedIdentity) => {
+        if (this.disposed) return Promise.resolve({ type: "unavailable" });
+        return (
+          this.members.get(threadId)?.lifecycle.recoverProjection(expectedIdentity) ??
+          Promise.resolve({ type: "unavailable" })
+        );
+      },
       remove: this.remove,
       setOperationError: this.setOperationError,
     };

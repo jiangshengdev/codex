@@ -8,11 +8,15 @@ import type { ProjectionManualReconnectReason } from "@/features/projectionIngre
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import type {
   Thread,
+  ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
-import type { ActiveThreadProjectionInputOutcome } from "./activeThreadProjection";
+import type {
+  ActiveThreadProjection,
+  ActiveThreadProjectionInputOutcome,
+} from "./activeThreadProjection";
 import type { ActiveThreadCompactionState } from "./activeThreadCompaction";
 import type { ActiveThreadSessionIdentity } from "./activeThreadSessionIdentity";
 
@@ -64,7 +68,7 @@ export type LiveActiveThreadSessionSnapshot =
   | (Readonly<{
       phase: "projectionUnavailable";
       reason: ProjectionManualReconnectReason;
-      recovery: "connectionRestartRequired";
+      recovery: Readonly<{ pending: boolean; error: unknown }>;
     }> &
       ActiveSnapshotContents)
   | Readonly<{ phase: "disposed"; revision: number }>;
@@ -100,6 +104,13 @@ export type LiveActiveThreadSession = Readonly<{
   identity: ActiveThreadSessionIdentity;
   getSnapshot(): LiveActiveThreadSessionSnapshot;
   subscribe(listener: () => void): () => void;
+  beginProjectionRecovery(): boolean;
+  failProjectionRecovery(error: unknown): void;
+  commitProjectionRecovery(
+    attachResponse: ThreadProjectionAttachResponse,
+    projection: ActiveThreadProjection,
+    drainCandidate: () => boolean,
+  ): ProjectionRecoveryOutcome;
   getDraft(): ReturnType<ComposerInputQueueCoordinator["getDraft"]>;
   saveDraft(
     expectedRevision: number,
@@ -176,3 +187,9 @@ export type LiveActiveThreadSession = Readonly<{
   flushProjection(): void;
   dispose(): void;
 }>;
+
+export type ProjectionRecoveryOutcome =
+  | Readonly<{ type: "recovered" }>
+  | Readonly<{ type: "failed"; error: unknown }>
+  | Readonly<{ type: "blocked"; error: unknown }>
+  | Readonly<{ type: "unavailable" }>;

@@ -133,6 +133,10 @@ export type ComposerInputQueueCoordinatorReserveReleaseResult =
       blockers: readonly ComposerInputQueueCoordinatorReleaseBlocker[];
     }>;
 
+export type ComposerProjectionReconciliationResult =
+  | Readonly<{ type: "committed" }>
+  | Readonly<{ type: "blocked"; error: string }>;
+
 export type ComposerInputQueueCoordinator = Readonly<{
   getDraft(): ComposerDraft | null;
   saveDraft(draft: ComposerDraft): boolean;
@@ -141,6 +145,11 @@ export type ComposerInputQueueCoordinator = Readonly<{
   suspendRestored(): void;
   completeRestoreReconciliation(): void;
   reconcileRestoredTurns(turns: readonly Turn[]): void;
+  setProjectionUnavailable(unavailable: boolean): void;
+  reconcileProjection(
+    turns: readonly Turn[] | null,
+    facts: readonly ActiveThreadProjectionAcceptedEvent[],
+  ): ComposerProjectionReconciliationResult;
   discardUnknown(id: string, expectedRevision: number | null): boolean;
   ownerThreadId: string;
   submit(capture: ComposerDraftCapture): ComposerInputQueueSubmitResult;
@@ -217,6 +226,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   private persistenceRevision: number | null = null;
   private persistenceError: string | null = null;
   private restoredPaused = false;
+  private projectionUnavailable = false;
   private reconciliationComplete = false;
   private reconciliationRequested = false;
   private pendingDraft: ComposerDraft | null = null;
@@ -401,6 +411,63 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     });
   };
 
+  setProjectionUnavailable = (unavailable: boolean): void => {
+    if (this.disposed || this.projectionUnavailable === unavailable) return;
+    this.projectionUnavailable = unavailable;
+    this.queue.setAutomaticSendingPaused(this.automaticSendingPaused());
+    if (!unavailable) {
+      this.receiveFact(() => {
+        this.consumeTransition(this.queue.drain());
+      });
+      this.liveManagement.flushDeferredDrains();
+    }
+    this.publishSnapshot();
+  };
+
+  reconcileProjection = (
+    turns: readonly Turn[] | null,
+    facts: readonly ActiveThreadProjectionAcceptedEvent[],
+  ): ComposerProjectionReconciliationResult => {
+    if (this.disposed || !this.projectionUnavailable || this.transactionEffects != null) {
+      return { type: "blocked", error: "Projection reconciliation is unavailable" };
+    }
+    const pending = [...this.pendingFacts];
+    const draft = this.pendingDraft;
+    const result = this.persistTransaction(
+      () => {
+        for (const fact of pending) fact();
+        if (draft != null) this.state.draft = draft;
+        if (turns != null) {
+          this.consumeTransition(this.queue.reconcileSnapshot(turns));
+          const interrupt = this.interruptState.reconcileSnapshot(turns, this.generation);
+          if (interrupt != null && "terminal" in interrupt && interrupt.terminal != null) {
+            const turn = turns.find(({ id }) => id === interrupt.terminal?.fact.params.turnId);
+            if (turn == null) throw new Error("Reconciled interrupt is missing its snapshot turn");
+            this.queue.prepareInterruptedSnapshot(turn);
+            this.applyInterruptedDisposition(turn.id, interrupt.terminal.disposition);
+          } else if (interrupt?.type === "terminalDeferred") {
+            const turn = turns.find(({ id }) => id === this.interruptState.state()?.params.turnId);
+            if (turn == null) throw new Error("Deferred interrupt is missing its snapshot turn");
+            this.queue.prepareInterruptedSnapshot(turn);
+          }
+        }
+        for (const fact of facts) {
+          if (fact.notification.threadId === this.threadId) this.applyAcceptedEventImpl(fact);
+        }
+      },
+      true,
+      () => {
+        if (this.pendingDraft === draft) this.pendingDraft = null;
+        this.pendingFacts.splice(0, pending.length);
+      },
+    );
+    if (result.type !== "committed") {
+      return { type: "blocked", error: this.persistenceError ?? "Unable to save this session" };
+    }
+    this.publishSnapshot();
+    return { type: "committed" };
+  };
+
   resumeRestored = (expectedRevision: number | null): boolean => {
     if (
       this.disposed ||
@@ -411,7 +478,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     )
       return false;
     const result = this.persistTransaction(() => {
-      this.queue.setAutomaticSendingPaused(this.recoveryPending());
+      this.queue.setAutomaticSendingPaused(this.projectionUnavailable || this.recoveryPending());
       this.consumeTransition(this.queue.drain());
     });
     if (result.type !== "committed") return false;
@@ -453,6 +520,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   private persistTransaction<T>(
     operation: () => T,
     retry = false,
+    onCommitted?: () => void,
   ): Readonly<{ type: "committed"; result: T }> | Readonly<{ type: "persistenceFailed" }> {
     if (this.transactionEffects != null) return { type: "committed", result: operation() };
     if (this.disposed || (!retry && this.persistenceError != null))
@@ -496,6 +564,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       return { type: "persistenceFailed" };
     }
     this.transactionEffects = null;
+    onCommitted?.();
     for (const effect of effects) {
       if (this.currentOwnerIsGone()) break;
       effect();
@@ -590,6 +659,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   recover(): boolean {
     if (
       this.disposed ||
+      this.projectionUnavailable ||
       this.releaseReservation != null ||
       this.recovery == null ||
       this.isRecovering ||
@@ -609,6 +679,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     const batch = this.recovery;
     const unavailable =
       this.disposed ||
+      this.projectionUnavailable ||
       this.releaseReservation != null ||
       batch == null ||
       this.liveManagement.mutationPending() ||
@@ -1058,7 +1129,12 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   }
 
   private automaticSendingPaused(): boolean {
-    return this.state.sendingBarrier != null || this.restoredPaused || this.recoveryPending();
+    return (
+      this.projectionUnavailable ||
+      this.state.sendingBarrier != null ||
+      this.restoredPaused ||
+      this.recoveryPending()
+    );
   }
 
   private ownerGoneResult(): ComposerPendingInputOwnerGoneResult {

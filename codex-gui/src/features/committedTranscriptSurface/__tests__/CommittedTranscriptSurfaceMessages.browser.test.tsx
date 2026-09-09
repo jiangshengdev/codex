@@ -568,7 +568,7 @@ test("keeps middle message order stable while live messages settle out of order"
   await expectMessageOrder(["Committed A", "Committed B"]);
 });
 
-test("renders manual reconnect interruption status", async () => {
+test("leaves live synchronization interruption presentation to the current task page", async () => {
   const { store, ...screen } = await renderTranscriptWithProviders(
     transcriptIdentity,
     <CommittedTranscriptSurface identity={transcriptIdentity} />,
@@ -586,5 +586,5 @@ test("renders manual reconnect interruption status", async () => {
 
   await expect
     .element(screen.getByText("Connection interrupted. Reconnect required."))
-    .toBeVisible();
+    .not.toBeInTheDocument();
 });

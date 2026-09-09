@@ -61,8 +61,8 @@ export type CreateLiveActiveThreadSessionInput = Readonly<{
 class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   readonly identity: ActiveThreadSessionIdentity;
   private readonly threadId: string;
-  private readonly subscriptionId: string;
-  private readonly projection: ActiveThreadProjection;
+  private subscriptionId: string;
+  private projection: ActiveThreadProjection;
   private readonly queue: ComposerInputQueueCoordinator;
   private readonly compaction: ActiveThreadCompaction;
   private readonly compactThread: LiveActiveThreadSessionCommands["compactThread"];
@@ -76,6 +76,14 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private snapshot: LiveActiveThreadSessionSnapshot;
   private revision: number;
   private generation = 0;
+  private editGeneration = 0;
+  private projectionRecovery: Extract<
+    LiveActiveThreadSessionSnapshot,
+    { phase: "projectionUnavailable" }
+  >["recovery"] = {
+    pending: false,
+    error: null,
+  };
   private activeTurnId: Turn["id"] | null;
   private projectionUnavailableReason:
     | Extract<LiveActiveThreadSessionSnapshot, { phase: "projectionUnavailable" }>["reason"]
@@ -133,8 +141,8 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       this.skillCatalog.start();
       this.queue.reconcileRestoredTurns(thread.turns);
       const initialBatch = this.projection.flush();
-      this.applyQueueFacts(initialBatch.acceptedQueueFacts);
       this.applyProjectionPhase(initialBatch);
+      this.applyQueueFacts(initialBatch.acceptedQueueFacts);
       this.queue.completeRestoreReconciliation();
       this.transactionDepth = 0;
       this.childChanged = false;
@@ -161,6 +169,127 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   }
 
   getSnapshot = (): LiveActiveThreadSessionSnapshot => this.snapshot;
+
+  beginProjectionRecovery = (): boolean => {
+    if (
+      this.disposed ||
+      this.projectionUnavailableReason == null ||
+      this.projectionRecovery.pending
+    )
+      return false;
+    this.projectionRecovery = { ...this.projectionRecovery, pending: true };
+    this.publishTransition([]);
+    return !this.disposed;
+  };
+
+  failProjectionRecovery = (error: unknown): void => {
+    if (this.disposed) return;
+    this.projectionRecovery = { pending: false, error };
+    this.publishTransition([]);
+  };
+
+  commitProjectionRecovery: LiveActiveThreadSession["commitProjectionRecovery"] = (
+    response,
+    projection,
+    drainCandidate,
+  ) => {
+    if (this.disposed || !this.projectionRecovery.pending || !drainCandidate())
+      return { type: "unavailable" };
+    if (
+      response.snapshot.thread.id !== this.threadId ||
+      projection.threadId !== this.threadId ||
+      projection.subscriptionId !== response.subscriptionId
+    ) {
+      throw new Error("Recovered projection identity mismatch");
+    }
+    const originalReason = this.projectionUnavailableReason;
+    const fail = (
+      result: Extract<
+        ReturnType<LiveActiveThreadSession["commitProjectionRecovery"]>,
+        { type: "failed" | "blocked" }
+      >,
+    ) => {
+      this.projectionUnavailableReason = originalReason;
+      this.failProjectionRecovery(result.error);
+      return result;
+    };
+    const saveBatch = (batch: ActiveThreadProjectionStagedBatch, turns: readonly Turn[] | null) => {
+      if (batch.readModelFacts.some((fact) => fact.type === "projectionUnavailable")) {
+        return {
+          type: "failed",
+          error: new Error("The new subscription stopped during synchronization recovery"),
+        } as const;
+      }
+      return this.queue.reconcileProjection(turns, batch.acceptedQueueFacts);
+    };
+    const facts: ActiveThreadProjectionStagedBatch["readModelFacts"][number][] = [];
+    const queueFacts: ActiveThreadProjectionAcceptedEvent[] = [];
+    this.transactionDepth += 1;
+    try {
+      let turns: readonly Turn[] | null = response.snapshot.thread.turns;
+      while (!this.isDisposed()) {
+        if (!drainCandidate()) return { type: "unavailable" };
+        const batch = projection.flush();
+        if (
+          turns == null &&
+          batch.readModelFacts.length === 0 &&
+          batch.acceptedQueueFacts.length === 0
+        )
+          break;
+        const result = saveBatch(batch, turns);
+        if (this.isDisposed()) return { type: "unavailable" };
+        if (result.type !== "committed") return fail(result);
+        facts.push(...batch.readModelFacts);
+        queueFacts.push(...batch.acceptedQueueFacts);
+        turns = null;
+      }
+      if (this.isDisposed()) return { type: "unavailable" };
+      this.activeTurnId = activeTurnIdFromTurns(response.snapshot.thread.turns);
+      this.compaction.reconcileSnapshot(response.snapshot.thread.turns);
+      this.threadStatus.rebase(response.snapshot.thread.status);
+      this.applyOwnerFacts(queueFacts);
+      this.projection = projection;
+      this.subscriptionId = response.subscriptionId;
+    } finally {
+      if (!this.isDisposed()) this.transactionDepth -= 1;
+      this.childChanged = false;
+    }
+    if (this.isDisposed()) return { type: "unavailable" };
+    this.publishTransition(facts);
+    // Publications can synchronously deliver new notifications. Keep sending frozen
+    // until each notification buffered during the handoff has been accepted.
+    const drainPublished = (): ReturnType<LiveActiveThreadSession["commitProjectionRecovery"]> => {
+      while (!this.isDisposed() && drainCandidate()) {
+        const next = projection.flush();
+        if (next.readModelFacts.length === 0 && next.acceptedQueueFacts.length === 0)
+          return { type: "recovered" };
+        this.transactionDepth += 1;
+        try {
+          const result = saveBatch(next, null);
+          if (this.isDisposed()) return { type: "unavailable" };
+          if (result.type !== "committed") return fail(result);
+          this.applyOwnerFacts(next.acceptedQueueFacts);
+        } finally {
+          if (!this.isDisposed()) this.transactionDepth -= 1;
+          this.childChanged = false;
+        }
+        this.publishTransition(next.readModelFacts);
+      }
+      return { type: "unavailable" };
+    };
+    const drained = drainPublished();
+    if (drained.type !== "recovered") return drained;
+    this.projectionUnavailableReason = null;
+    this.publishTransition([]);
+    const published = drainPublished();
+    if (published.type !== "recovered") return published;
+    this.projectionRecovery = { pending: false, error: null };
+    this.runChildTransaction(() => {
+      this.queue.setProjectionUnavailable(false);
+    });
+    if (this.isDisposed()) return { type: "unavailable" };
+    return { type: "recovered" };
+  };
 
   getDraft: LiveActiveThreadSession["getDraft"] = () => this.queue.getDraft();
 
@@ -261,7 +390,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       this.queue.beginPendingInputEdit(request, restore),
     );
     if (isSessionUnavailable(result) || result.type !== "begun") return result;
-    const capabilityGeneration = this.generation;
+    const capabilityGeneration = this.editGeneration;
     const childReservation = result.reservation;
     let cleanupCompleted = false;
     const unavailableAfterCleanup = (
@@ -469,12 +598,10 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     expectedGeneration: number,
   ): ActiveThreadSessionOperationUnavailable | null {
     if (this.disposed) return this.unavailable("disposed");
-    if (expectedGeneration !== this.generation) {
-      return this.unavailable("staleRevision");
-    }
     if (this.projectionUnavailableReason != null) {
       return this.unavailable("projectionUnavailable");
     }
+    if (expectedGeneration !== this.editGeneration) return this.unavailable("staleRevision");
     return null;
   }
 
@@ -483,7 +610,8 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   ): ActiveThreadSessionOperationUnavailable | null {
     if (this.disposed) return this.unavailable("disposed");
     if (expectedRevision !== this.revision) return this.unavailable("staleRevision");
-    if (this.projectionUnavailableReason != null) return this.unavailable("projectionUnavailable");
+    if (this.projectionUnavailableReason != null || this.projectionRecovery.pending)
+      return this.unavailable("projectionUnavailable");
     return null;
   }
 
@@ -532,8 +660,8 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     if (batch.readModelFacts.length === 0 && batch.acceptedQueueFacts.length === 0) return;
     this.transactionDepth += 1;
     try {
-      this.applyQueueFacts(batch.acceptedQueueFacts);
       this.applyProjectionPhase(batch);
+      this.applyQueueFacts(batch.acceptedQueueFacts);
     } finally {
       this.transactionDepth -= 1;
     }
@@ -544,6 +672,12 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private applyQueueFacts(facts: readonly ActiveThreadProjectionAcceptedEvent[]): void {
     for (const fact of facts) {
       this.queue.observeAcceptedEvent(fact);
+    }
+    this.applyOwnerFacts(facts);
+  }
+
+  private applyOwnerFacts(facts: readonly ActiveThreadProjectionAcceptedEvent[]): void {
+    for (const fact of facts) {
       if (fact.replay === "live") {
         switch (fact.notification.event.type) {
           case "turnStarted":
@@ -567,8 +701,12 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private applyProjectionPhase(batch: ActiveThreadProjectionStagedBatch): void {
     for (const fact of batch.readModelFacts) {
       if (fact.type === "projectionUnavailable") {
+        if (this.projectionUnavailableReason == null) {
+          this.editGeneration += 1;
+          this.projectionRecovery = { pending: false, error: null };
+        }
         this.projectionUnavailableReason = fact.reason;
-        this.compaction.dispose();
+        this.queue.setProjectionUnavailable(true);
       }
     }
   }
@@ -585,6 +723,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
         facts,
       }),
     );
+    if (this.isDisposed()) return;
     this.revision = revision;
     this.snapshot = this.buildSnapshot();
     this.notifyListeners();
@@ -608,13 +747,18 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       : {
           phase: "projectionUnavailable",
           reason: this.projectionUnavailableReason,
-          recovery: "connectionRestartRequired",
+          recovery: this.projectionRecovery,
           ...contents,
         };
   }
 
   private notifyListeners(): void {
     this.listeners.notify();
+  }
+
+  private isDisposed(): boolean {
+    // Child publications and dispatch subscribers may synchronously dispose this owner.
+    return this.disposed;
   }
 
   private settleCompactionRequest(

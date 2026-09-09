@@ -1,5 +1,9 @@
 import type { ComposerInputQueueCoordinatorReleaseBlocker } from "@/features/composerInputQueue/composerInputQueueCoordinator";
-import type { LiveActiveThreadSession } from "./activeThreadSessionContracts";
+import type {
+  LiveActiveThreadSession,
+  ProjectionRecoveryOutcome,
+} from "./activeThreadSessionContracts";
+import type { ActiveThreadSessionIdentity } from "./activeThreadSessionIdentity";
 import type {
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
@@ -109,6 +113,10 @@ export type ActiveThreadSession = Readonly<{
   activate(threadId: string): Promise<ActiveThreadActivationOutcome>;
   view(threadId: string): Promise<ActiveThreadActivationOutcome>;
   retry(threadId: string): Promise<ActiveThreadRetryOutcome>;
+  recoverProjection(
+    threadId: string,
+    expectedIdentity: ActiveThreadSessionIdentity,
+  ): Promise<ProjectionRecoveryOutcome>;
   remove(threadId: string): Promise<ActiveThreadRemovalOutcome>;
   setOperationError(
     threadId: string,

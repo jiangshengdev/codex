@@ -120,6 +120,10 @@ const createQueueCoordinatorMock = (
     completeRestoreReconciliation:
       vi.fn<ComposerInputQueueCoordinator["completeRestoreReconciliation"]>(),
     reconcileRestoredTurns: vi.fn<ComposerInputQueueCoordinator["reconcileRestoredTurns"]>(),
+    setProjectionUnavailable: vi.fn<ComposerInputQueueCoordinator["setProjectionUnavailable"]>(),
+    reconcileProjection: vi
+      .fn<ComposerInputQueueCoordinator["reconcileProjection"]>()
+      .mockReturnValue({ type: "committed" }),
     discardUnknown: vi.fn<ComposerInputQueueCoordinator["discardUnknown"]>().mockReturnValue(false),
     ownerThreadId: threadId,
     submit: vi.fn<ComposerInputQueueCoordinator["submit"]>().mockReturnValue({ type: "accepted" }),

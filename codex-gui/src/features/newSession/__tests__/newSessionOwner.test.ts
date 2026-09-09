@@ -34,6 +34,7 @@ function setup() {
       .mockResolvedValue({ type: "ready", threadId: target.threadId, warnings: [] }),
     view: vi.fn<ActiveThreadSession["view"]>(),
     retry: vi.fn<ActiveThreadSession["retry"]>(),
+    recoverProjection: vi.fn<ActiveThreadSession["recoverProjection"]>(),
     remove: vi.fn<ActiveThreadSession["remove"]>(),
     setOperationError: vi.fn<ActiveThreadSession["setOperationError"]>(),
   };

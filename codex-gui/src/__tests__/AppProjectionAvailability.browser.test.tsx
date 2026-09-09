@@ -2,6 +2,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { useEffect } from "react";
 import {
   attachResponse,
+  attachWithCommittedMessages,
   createGuiHostCommands,
   emitProjectionClosed,
   emitProjectionEvent,
@@ -9,6 +10,8 @@ import {
   initializeHost,
   launchThreadId,
   queueAttachProjectionResponse,
+  queueAttachProjectionError,
+  queueDeferredAttachProjection,
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
@@ -28,6 +31,10 @@ import {
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
+import {
+  attachWithSnapshotThread,
+  eventWithEnvelope,
+} from "@/features/projection/__tests__/projectionTestBuilders";
 import { renderWithProviders } from "@/utils/test-utils";
 
 const guiHostClientMock = vi.hoisted(() => ({
@@ -140,7 +147,7 @@ const expectAppComposerDisabled = async (
   }
 };
 
-test("App stops forwarding runtime events after backpressure requires manual reconnect", async () => {
+test("App stops forwarding runtime events after backpressure pauses synchronization", async () => {
   const { store } = await renderWithProviders(
     <App currentTaskComponent={ThreadSwitchCapabilityProbe} />,
   );
@@ -162,13 +169,13 @@ test("App stops forwarding runtime events after backpressure requires manual rec
   expect(unavailableSnapshot).toMatchObject({
     phase: "projectionUnavailable",
     reason: "backpressure",
-    recovery: "connectionRestartRequired",
+    recovery: { pending: false, error: null },
     threadId: launchThreadId,
   });
   expect(selectThreadRuntimeRecord(store.getState(), launchThreadId)).toBe(runtimeAfterClose);
 });
 
-test("App disables composer after projection backpressure requires reconnect", async () => {
+test("App disables composer after projection backpressure pauses synchronization", async () => {
   const commandHandle = createGuiHostCommands();
   const { options, screen } = await renderReadyApp(commandHandle);
   const projectionClosed = closedBackpressure;
@@ -192,7 +199,7 @@ test("App disables composer when host commands become unavailable", async () => 
   await expect.element(qrButton).not.toBeInTheDocument();
 });
 
-test("App records manual reconnect when a projection event breaks the baseline", async () => {
+test("App records a synchronization pause when a projection event breaks the baseline", async () => {
   await renderWithProviders(<App currentTaskComponent={ThreadSwitchCapabilityProbe} />);
   const projectionEvent = eventItemStarted;
 
@@ -206,7 +213,116 @@ test("App records manual reconnect when a projection event breaks the baseline",
     .toMatchObject({
       phase: "projectionUnavailable",
       reason: "commitChainMismatch",
-      recovery: "connectionRestartRequired",
+      recovery: { pending: false, error: null },
       threadId: launchThreadId,
     });
+});
+
+test("CurrentTaskPage retains its draft, transcript and diagnostics through failed and successful sync restoration", async () => {
+  const screen = await renderWithProviders(<App />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  const baseline = attachWithCommittedMessages();
+  const commands = initializeAppWithProjection(options, baseline);
+  const input = getAppComposer(screen);
+  await expect.element(input).toHaveAttribute("contenteditable", "true");
+  await expect.element(screen.getByText("Committed App response", { exact: true })).toBeVisible();
+  await input.fill("Keep this unsent draft");
+  const editor = input.element();
+  emitProjectionClosed(options, closedBackpressure);
+  await expect
+    .element(screen.getByText("Message synchronization paused", { exact: true }))
+    .toBeVisible();
+  const restore = screen.getByRole("button", { name: "Restore sync", exact: true });
+  const restoreButton = restore.element();
+  if (!(restoreButton instanceof HTMLButtonElement))
+    throw new Error("Recovery action must be a button");
+  queueAttachProjectionError(commands, new Error("First recovery unavailable"));
+  await restore.click();
+  await expect
+    .element(
+      screen.getByText("Synchronization could not be restored. You can try again.", {
+        exact: true,
+      }),
+    )
+    .toBeVisible();
+  await expect.element(screen.getByText("Committed App response", { exact: true })).toBeVisible();
+  const pending = queueDeferredAttachProjection(commands);
+  await restore.click();
+  await expect
+    .element(screen.getByRole("button", { name: "Restoring sync…", exact: true }))
+    .toBeDisabled();
+  expect(screen.getByRole("button", { name: "Restoring sync…", exact: true }).element()).toBe(
+    restoreButton,
+  );
+  restoreButton.click();
+  expect(commands.attachThreadProjection).toHaveBeenCalledTimes(3);
+  await expect
+    .element(
+      screen.getByText("Synchronization could not be restored. You can try again.", {
+        exact: true,
+      }),
+    )
+    .toBeVisible();
+  await screen.getByRole("button", { name: "View diagnostic information", exact: true }).click();
+  const diagnostics = screen.getByRole("dialog", { name: "Diagnostic information", exact: true });
+  await expect.element(diagnostics).toHaveTextContent("First recovery unavailable");
+  pending.reject(new Error("Second recovery unavailable"));
+  await expect.element(diagnostics).toHaveTextContent("Second recovery unavailable");
+  await diagnostics.getByRole("button", { name: "Close diagnostics", exact: true }).click();
+  await expect.element(restore).toBeEnabled();
+  const success = queueDeferredAttachProjection(commands);
+  await restore.click();
+  await expect.element(input).toHaveTextContent("Keep this unsent draft");
+  await expect.element(screen.getByText("Committed App response", { exact: true })).toBeVisible();
+  success.resolve(
+    attachWithSnapshotThread(baseline, baseline.snapshot.thread, "recovered-subscription"),
+  );
+  await expect
+    .element(screen.getByText("Message synchronization paused", { exact: true }))
+    .not.toBeInTheDocument();
+  await expect.element(input).toHaveAttribute("contenteditable", "true");
+  await expect.element(input).toHaveTextContent("Keep this unsent draft");
+  expect(input.element()).toBe(editor);
+  emitProjectionClosed(options, closedBackpressure);
+  await expect.element(input).toHaveAttribute("contenteditable", "true");
+  expect(commands.detachThreadProjection).not.toHaveBeenCalled();
+  expect(commands.startTurn).not.toHaveBeenCalled();
+});
+
+test("CurrentTaskPage explains a broken commit chain without duplicating the transcript notice", async () => {
+  const { options, screen } = await renderReadyApp();
+  emitProjectionEvent(options, eventItemStarted);
+  await expect
+    .element(
+      screen.getByText(
+        "Message updates arrived out of order, so the conversation may be incomplete.",
+        { exact: true },
+      ),
+    )
+    .toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Restore sync", exact: true }))
+    .toBeEnabled();
+  await expect
+    .element(screen.getByText("Connection interrupted. Reconnect required.", { exact: true }))
+    .not.toBeInTheDocument();
+});
+
+test("CurrentTaskPage explains a missing turn from a legal projection event", async () => {
+  const { options, screen } = await renderReadyApp();
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(eventItemStarted, { parentCommitId: attachResponse.snapshot.headCommitId }),
+  );
+  await expect
+    .element(
+      screen.getByText(
+        "A message update is missing its associated turn, so it cannot be fully displayed.",
+        { exact: true },
+      ),
+    )
+    .toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Restore sync", exact: true }))
+    .toBeEnabled();
 });
