@@ -26,6 +26,10 @@ const historyThread = (
 
 const emptyHistoryThread = () => historyThread([]);
 
+type NavigationResult = Awaited<
+  ReturnType<Awaited<ReturnType<typeof renderDetail>>["router"]["navigate"]>
+>;
+
 const waitForActionLayout = async (surface: Element) => {
   await expect
     .poll(async () => {
@@ -218,6 +222,59 @@ test("builds QR access for the visible detail instead of a different active thre
     .not.toBeInTheDocument();
 });
 
+test("keeps the previous continuation failure and diagnostic until retry settles", async () => {
+  const retry = deferred<Awaited<ReturnType<ActiveThreadSession["activate"]>>>();
+  const success = deferred<Awaited<ReturnType<ActiveThreadSession["activate"]>>>();
+  const activate = vi
+    .fn<ActiveThreadSession["activate"]>()
+    .mockRejectedValueOnce(new Error("first continuation failure"))
+    .mockReturnValueOnce(retry.promise)
+    .mockReturnValueOnce(success.promise);
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen } = await renderDetail({ activate, commands });
+  const action = screen.getByRole("button", { name: "Continue this task", exact: true });
+  await action.click();
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to continue this task")).toBeVisible();
+  const previousPanel = alert.element();
+  await action.click();
+  const pendingAction = screen.getByRole("button", { name: "Continuing this task…" });
+  await expect.element(pendingAction).toHaveAttribute("data-pending", "true");
+  expect(alert.element()).toBe(previousPanel);
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect
+    .element(dialog.getByText("Diagnostic: first continuation failure", { exact: true }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "Close diagnostics" }).click();
+  const pendingButton = pendingAction.element();
+  if (!(pendingButton instanceof HTMLButtonElement))
+    throw new Error("Expected continuation button");
+  pendingButton.click();
+  expect(activate).toHaveBeenCalledTimes(2);
+  retry.reject(new Error("second continuation failure"));
+  await expect.element(action).not.toHaveAttribute("data-pending");
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  await expect
+    .element(dialog.getByText("Diagnostic: second continuation failure", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(dialog.getByText("Diagnostic: first continuation failure", { exact: true }))
+    .not.toBeInTheDocument();
+  await page.getByRole("button", { name: "Close diagnostics" }).click();
+  await action.click();
+  await expect.element(pendingAction).toHaveAttribute("data-pending", "true");
+  success.resolve({ type: "ready", threadId: detailThreadId, warnings: [] });
+  await expect.poll(() => router.state.location.pathname).toBe(`/task/${detailThreadId}`);
+  await expect.element(alert).not.toBeInTheDocument();
+  expect(activate).toHaveBeenCalledTimes(3);
+});
+
 test("keeps one continuation in flight while the primary action is pending", async () => {
   const switching = deferred<Awaited<ReturnType<ActiveThreadSession["activate"]>>>();
   const activate = vi.fn<ActiveThreadSession["activate"]>().mockReturnValue(switching.promise);
@@ -231,8 +288,9 @@ test("keeps one continuation in flight while the primary action is pending", asy
   const action = screen.getByRole("button", { name: "Continue this task" });
 
   await action.click();
-  await expect.element(action).toHaveAttribute("data-pending", "true");
-  const pendingActionElement = action.element();
+  const pendingAction = screen.getByRole("button", { name: "Continuing this task…" });
+  await expect.element(pendingAction).toHaveAttribute("data-pending", "true");
+  const pendingActionElement = pendingAction.element();
   if (!(pendingActionElement instanceof HTMLButtonElement)) {
     throw new Error("Expected the pending continuation action to be a button");
   }
@@ -257,6 +315,85 @@ test("keeps one continuation in flight while the primary action is pending", asy
     .element(alert.getByText("The task could not be resumed.", { exact: true }))
     .toBeVisible();
   expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+});
+
+test("retains navigation failure and retries only navigation after activation succeeds", async () => {
+  const navigation = deferred<NavigationResult>();
+  const activate = vi
+    .fn<ActiveThreadSession["activate"]>()
+    .mockResolvedValue({ type: "ready", threadId: detailThreadId, warnings: [] });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen } = await renderDetail({ activate, commands });
+  const navigate = vi.spyOn(router, "navigate").mockReturnValueOnce(navigation.promise);
+  const action = screen.getByRole("button", { name: "Continue this task", exact: true });
+  try {
+    await action.click();
+    const pending = screen.getByRole("button", { name: "Continuing this task…" });
+    await expect.element(pending).toHaveAttribute("data-pending", "true");
+    const button = pending.element();
+    if (!(button instanceof HTMLButtonElement)) throw new Error("Expected continuation button");
+    button.click();
+    expect(activate).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledOnce();
+    navigation.reject(new Error("navigation failed after activation"));
+    await expect.element(action).not.toHaveAttribute("data-pending");
+    const alert = screen.getByRole("alert");
+    await alert.getByRole("button", { name: "View diagnostic information" }).click();
+    await expect
+      .element(
+        page
+          .getByRole("dialog")
+          .getByText("Diagnostic: navigation failed after activation", { exact: true }),
+      )
+      .toBeVisible();
+    await page.getByRole("button", { name: "Close diagnostics" }).click();
+    await action.click();
+    await expect.poll(() => router.state.location.pathname).toBe(`/task/${detailThreadId}`);
+    expect(activate).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledTimes(2);
+  } finally {
+    navigate.mockRestore();
+  }
+});
+
+test("ignores a navigation rejection after the continuation capability is replaced", async () => {
+  const navigation = deferred<NavigationResult>();
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen, capabilitiesStore, initialCapabilities } = await renderDetail({
+    commands,
+  });
+  const navigate = vi.spyOn(router, "navigate").mockReturnValueOnce(navigation.promise);
+  try {
+    await screen.getByRole("button", { name: "Continue this task" }).click();
+    await expect
+      .element(screen.getByRole("button", { name: "Continuing this task…" }))
+      .toHaveAttribute("data-pending", "true");
+    const replacement = createActiveThreadSessionHarness({ activate: { type: "empty" } });
+    capabilitiesStore.publish({ ...initialCapabilities, activeThreadSession: replacement.session });
+    const action = screen.getByRole("button", { name: "Continue this task" });
+    await expect.element(action).toBeEnabled();
+    navigation.reject(new Error("obsolete navigation failure"));
+    await action.click();
+    await expect
+      .element(screen.getByText("The task could not be activated.", { exact: true }))
+      .toBeVisible();
+    await expect
+      .element(screen.getByRole("button", { name: "View diagnostic information" }))
+      .not.toBeInTheDocument();
+    expect(replacement.activate).toHaveBeenCalledOnce();
+  } finally {
+    navigate.mockRestore();
+  }
 });
 
 test("keeps the read-only detail visible when activation returns empty", async () => {

@@ -1,4 +1,4 @@
-import { Button, Surface, toast } from "@heroui/react";
+import { Surface, toast } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -13,17 +13,26 @@ import {
 } from "@/features/browserLaunch/guiRouteTarget";
 import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import { ContinueTaskFailureAlert } from "./ContinueTaskFailureAlert";
+import { RetryActionButton } from "@/feedback/RetryActionButton";
 
-type ContinueTaskState =
-  | Readonly<{ type: "idle" }>
-  | Readonly<{ type: "pending"; capabilityToken: symbol }>
+type ContinueTaskFailure =
   | Readonly<{ type: "empty"; capabilityToken: symbol }>
   | Readonly<{
       type: "unavailable";
       capabilityToken: symbol;
       failure: ActiveThreadActivationFailure;
     }>
-  | Readonly<{ type: "unexpectedFailure"; capabilityToken: symbol; error: unknown }>;
+  | Readonly<{
+      type: "unexpectedFailure";
+      capabilityToken: symbol;
+      error: unknown;
+      readyThreadId?: string;
+    }>;
+
+type ContinueTaskState =
+  | Readonly<{ type: "idle" }>
+  | Readonly<{ type: "pending"; capabilityToken: symbol; failure: ContinueTaskFailure | null }>
+  | ContinueTaskFailure;
 
 type ContinueTaskRequest = Readonly<{
   capabilityToken: symbol;
@@ -127,8 +136,8 @@ export function ContinueTaskAction({
     };
   }, []);
 
-  const navigateToReadyTask = (activeThreadId: string): void => {
-    void navigate({
+  const navigateToReadyTask = (activeThreadId: string): Promise<void> => {
+    return navigate({
       to: CURRENT_TASK_ROUTE_PATH,
       params: { threadId: activeThreadId },
       replace: true,
@@ -150,66 +159,85 @@ export function ContinueTaskAction({
       return;
     }
 
-    setState({ type: "idle" });
+    const previousFailure =
+      visibleState.type === "idle" || visibleState.type === "pending" ? null : visibleState;
     const request: ContinueTaskRequest = { capabilityToken };
     inFlightRef.current = request;
+    let readyThreadId =
+      previousFailure?.type === "unexpectedFailure" ? previousFailure.readyThreadId : undefined;
 
     try {
-      const switching = capability.activateThread(threadId);
-      let settled = false;
-      void switching.then(
-        () => {
-          settled = true;
-        },
-        () => {
-          settled = true;
-        },
-      );
-      queueMicrotask(() => {
-        if (
-          !settled &&
-          mountedRef.current &&
-          currentCapabilityTokenRef.current === capabilityToken &&
-          inFlightRef.current === request
-        ) {
-          setState({ type: "pending", capabilityToken });
-        }
-      });
-
-      const outcome = await switching;
-      if (
-        !mountedRef.current ||
-        currentCapabilityTokenRef.current !== capabilityToken ||
-        inFlightRef.current !== request
-      ) {
-        return;
-      }
-      inFlightRef.current = null;
-      switch (outcome.type) {
-        case "ready":
-          for (const warning of outcome.warnings) {
-            showActivationWarning(warning, warningMessages);
+      if (readyThreadId == null) {
+        const switching = capability.activateThread(threadId);
+        let settled = false;
+        void switching.then(
+          () => {
+            settled = true;
+          },
+          () => {
+            settled = true;
+          },
+        );
+        queueMicrotask(() => {
+          if (
+            !settled &&
+            mountedRef.current &&
+            currentCapabilityTokenRef.current === capabilityToken &&
+            inFlightRef.current === request
+          ) {
+            setState({ type: "pending", capabilityToken, failure: previousFailure });
           }
-          navigateToReadyTask(outcome.threadId);
-          return;
-        case "unavailable":
-          setState({ type: "unavailable", capabilityToken, failure: outcome.failure });
-          return;
-        case "empty":
-          setState({ type: "empty", capabilityToken });
-          return;
-      }
+        });
 
-      outcome satisfies never;
+        const outcome = await switching;
+        if (
+          !mountedRef.current ||
+          currentCapabilityTokenRef.current !== capabilityToken ||
+          inFlightRef.current !== request
+        ) {
+          return;
+        }
+        switch (outcome.type) {
+          case "ready":
+            readyThreadId = outcome.threadId;
+            for (const warning of outcome.warnings) {
+              showActivationWarning(warning, warningMessages);
+            }
+            break;
+          case "unavailable":
+            setState({ type: "unavailable", capabilityToken, failure: outcome.failure });
+            return;
+          case "empty":
+            setState({ type: "empty", capabilityToken });
+            return;
+          default:
+            return outcome satisfies never;
+        }
+      }
+      setState({ type: "pending", capabilityToken, failure: previousFailure });
+      await navigateToReadyTask(readyThreadId);
+      if (
+        mountedRef.current &&
+        currentCapabilityTokenRef.current === capabilityToken &&
+        inFlightRef.current === request
+      ) {
+        setState({ type: "idle" });
+      }
     } catch (error: unknown) {
       if (
         mountedRef.current &&
         currentCapabilityTokenRef.current === capabilityToken &&
         inFlightRef.current === request
       ) {
-        inFlightRef.current = null;
-        setState({ type: "unexpectedFailure", capabilityToken, error });
+        setState({
+          type: "unexpectedFailure",
+          capabilityToken,
+          error,
+          ...(readyThreadId == null ? {} : { readyThreadId }),
+        });
       }
+    } finally {
+      if (inFlightRef.current === request) inFlightRef.current = null;
     }
   };
 
@@ -232,26 +260,32 @@ export function ContinueTaskAction({
           <ContinueTaskFailureAlert
             descriptionId={failureDescriptionId}
             navigateToCurrentTask={navigateToCurrentTask}
-            state={visibleState}
+            state={
+              visibleState.type === "pending"
+                ? (visibleState.failure ?? visibleState)
+                : visibleState
+            }
           />
           <div className="flex items-center gap-2">
             <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
-            <Button
+            <RetryActionButton
               aria-describedby={
-                visibleState.type === "idle" || visibleState.type === "pending"
+                visibleState.type === "idle" ||
+                (visibleState.type === "pending" && visibleState.failure == null)
                   ? undefined
                   : failureDescriptionId
               }
               className="flex-1"
               isDisabled={capability.activateThread == null}
               isPending={visibleState.type === "pending"}
+              pendingChildren={<Trans>Continuing this task…</Trans>}
               onPress={() => {
                 void handleContinue();
               }}
               variant="primary"
             >
               <Trans>Continue this task</Trans>
-            </Button>
+            </RetryActionButton>
           </div>
         </Surface>
       </aside>

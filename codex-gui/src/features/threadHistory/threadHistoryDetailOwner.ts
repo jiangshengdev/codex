@@ -6,7 +6,7 @@ import type { Thread } from "@codex-protocol/v2";
 
 export type ThreadHistoryDetailState =
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "error"; error: unknown }>
+  | Readonly<{ type: "error" | "retrying"; error: unknown }>
   | Readonly<{ type: "ready"; thread: Thread; transcriptState: TranscriptState }>;
 
 export const initialThreadHistoryDetailState: ThreadHistoryDetailState = { type: "loading" };
@@ -71,7 +71,11 @@ export class ThreadHistoryDetailOwner {
 
   private requestThread(): void {
     const generation = ++this.generation;
-    this.publish(initialThreadHistoryDetailState);
+    this.publish(
+      this.state.type === "error"
+        ? { type: "retrying", error: this.state.error }
+        : initialThreadHistoryDetailState,
+    );
     void this.readThread({ threadId: this.threadId, includeTurns: true }).then(
       (response) => {
         if (!this.canSettle(generation)) {

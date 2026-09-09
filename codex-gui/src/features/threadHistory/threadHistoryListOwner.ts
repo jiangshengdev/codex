@@ -12,11 +12,16 @@ const THREAD_HISTORY_REQUEST_BASE = {
 
 export type ThreadHistoryListState =
   | Readonly<{ type: "initialLoading"; threads: readonly Thread[]; nextCursor: null }>
-  | Readonly<{ type: "initialError"; threads: readonly Thread[]; nextCursor: null; error: unknown }>
+  | Readonly<{
+      type: "initialError" | "initialRetrying";
+      threads: readonly Thread[];
+      nextCursor: null;
+      error: unknown;
+    }>
   | Readonly<{ type: "ready"; threads: readonly Thread[]; nextCursor: string | null }>
   | Readonly<{ type: "appendLoading"; threads: readonly Thread[]; nextCursor: string }>
   | Readonly<{
-      type: "appendError";
+      type: "appendError" | "appendRetrying";
       threads: readonly Thread[];
       nextCursor: string;
       error: unknown;
@@ -107,13 +112,21 @@ export class ThreadHistoryListOwner {
   }
 
   private requestInitialPage(): void {
-    this.publish(initialThreadHistoryListState);
+    this.publish(
+      this.state.type === "initialError"
+        ? { ...this.state, type: "initialRetrying" }
+        : initialThreadHistoryListState,
+    );
     this.requestPage({ ...THREAD_HISTORY_REQUEST_BASE, cwd: this.cwd }, "initial");
   }
 
   private requestAppendPage(cursor: string): void {
     const threads = this.state.threads;
-    this.publish({ type: "appendLoading", threads, nextCursor: cursor });
+    this.publish(
+      this.state.type === "appendError"
+        ? { ...this.state, type: "appendRetrying" }
+        : { type: "appendLoading", threads, nextCursor: cursor },
+    );
     this.requestPage({ ...THREAD_HISTORY_REQUEST_BASE, cursor, cwd: this.cwd }, "append");
   }
 

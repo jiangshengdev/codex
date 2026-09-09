@@ -46,6 +46,39 @@ const createOwner = (listThreads: GuiHostCommands["listThreads"]) => {
 };
 
 describe("ThreadHistoryListOwner", () => {
+  it("retains the latest initial failure through repeated retries until ready", async () => {
+    const firstFailure = new Error("first list failure");
+    const secondFailure = new Error("second list failure");
+    const retryPage = deferred<ThreadListResponse>();
+    const finalPage = deferred<ThreadListResponse>();
+    const listThreads = vi
+      .fn<GuiHostCommands["listThreads"]>()
+      .mockRejectedValueOnce(firstFailure)
+      .mockReturnValueOnce(retryPage.promise)
+      .mockReturnValueOnce(finalPage.promise);
+    const { owner } = createOwner(listThreads);
+    owner.start();
+    await Promise.resolve();
+    expect(owner.retry()).toBe(true);
+    expect(owner.getSnapshot()).toStrictEqual({
+      type: "initialRetrying",
+      threads: [],
+      nextCursor: null,
+      error: firstFailure,
+    });
+    expect(owner.retry()).toBe(false);
+    expect(owner.loadMore()).toBe(false);
+    retryPage.reject(secondFailure);
+    await Promise.resolve();
+    expect(owner.getSnapshot()).toMatchObject({ type: "initialError", error: secondFailure });
+    expect(owner.retry()).toBe(true);
+    expect(owner.getSnapshot()).toMatchObject({ type: "initialRetrying", error: secondFailure });
+    finalPage.resolve(response([thread("recovered")], null));
+    await Promise.resolve();
+    expectReady(owner, ["recovered"], null);
+    expect(listThreads).toHaveBeenCalledTimes(3);
+  });
+
   it("keeps each new owner on an isolated initial snapshot and stops notifying after unsubscribe", async () => {
     const firstPage = deferred<ThreadListResponse>();
     const listThreads = vi.fn<GuiHostCommands["listThreads"]>().mockReturnValue(firstPage.promise);
@@ -171,6 +204,12 @@ describe("ThreadHistoryListOwner", () => {
     expect(owner.retry()).toBe(true);
     expect(owner.retry()).toBe(false);
     expect(listThreads.mock.calls[2]?.[0]).toStrictEqual(listThreads.mock.calls[1]?.[0]);
+    expect(owner.getSnapshot()).toStrictEqual({
+      type: "appendRetrying",
+      threads: [thread("thread-1")],
+      nextCursor: "cursor-1",
+      error: failure,
+    });
     retryPage.resolve(response([thread("thread-2")], null));
     await Promise.resolve();
     expectReady(owner, ["thread-1", "thread-2"], null);

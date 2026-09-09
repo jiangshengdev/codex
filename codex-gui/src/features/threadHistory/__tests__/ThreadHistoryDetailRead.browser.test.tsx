@@ -41,10 +41,11 @@ test.each([
 
 test("loads with exact read parameters, preserves the complete error, and retries into empty history", async () => {
   const initialRead = deferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+  const retryRead = deferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
   const readThread = vi
     .fn<GuiHostCommands["readThread"]>()
     .mockReturnValueOnce(initialRead.promise)
-    .mockResolvedValueOnce({ thread: emptyHistoryThread() });
+    .mockReturnValueOnce(retryRead.promise);
   const commands = { ...createGuiHostCommands(), readThread };
   const { screen } = await renderDetail({ commands });
 
@@ -64,7 +65,7 @@ test("loads with exact read parameters, preserves the complete error, and retrie
   await expect.element(dialog.getByText(rawFailure.message, { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Close diagnostics" }).click();
   const originalViewport = { width: window.innerWidth, height: window.innerHeight };
-  const retry = alert.getByRole("button", { name: "Retry" });
+  const retry = alert.getByRole("button", { name: "Load task history" });
   const description = alert.getByRole("button", { name: "View diagnostic information" });
   try {
     for (const width of [1280, 375]) {
@@ -96,7 +97,18 @@ test("loads with exact read parameters, preserves the complete error, and retrie
   } finally {
     await page.viewport(originalViewport.width, originalViewport.height);
   }
-  await alert.getByRole("button", { name: "Retry" }).click();
+  await alert.getByRole("button", { name: "Load task history" }).click();
+  const pendingAction = alert.getByRole("button", { name: "Loading task history…" });
+  await expect.element(pendingAction).toHaveAttribute("data-pending", "true");
+  await expect.element(alert.getByText("Unable to load task history")).toBeVisible();
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  await expect.element(dialog.getByText(rawFailure.message, { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Close diagnostics" }).click();
+  const pendingButton = pendingAction.element();
+  if (!(pendingButton instanceof HTMLButtonElement)) throw new Error("Expected retry button");
+  pendingButton.click();
+  expect(readThread).toHaveBeenCalledTimes(2);
+  retryRead.resolve({ thread: emptyHistoryThread() });
 
   await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
   await expect.element(screen.getByRole("heading", { name: "Historical task" })).toBeVisible();
@@ -152,7 +164,7 @@ test("rejects a mismatched thread identity and retries the requested detail", as
     includeTurns: true,
   });
 
-  await alert.getByRole("button", { name: "Retry" }).click();
+  await alert.getByRole("button", { name: "Load task history" }).click();
 
   await expect.element(screen.getByText("Requested thread content")).toBeVisible();
   await expect
@@ -234,7 +246,9 @@ test("shows a connection dependency notice without an invalid Retry before comma
   await expect
     .element(screen.getByText("Task history is unavailable until the connection is restored."))
     .toBeVisible();
-  await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("button", { name: "Load task history" }))
+    .not.toBeInTheDocument();
   await expect.element(screen.getByText("Loading task history…")).not.toBeInTheDocument();
 });
 

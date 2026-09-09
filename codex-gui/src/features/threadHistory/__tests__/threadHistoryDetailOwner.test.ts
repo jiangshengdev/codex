@@ -26,6 +26,35 @@ const createOwner = (commands: GuiHostCommands, threadId = "history-thread") => 
 };
 
 describe("ThreadHistoryDetailOwner", () => {
+  it("retains each read failure during retry and ignores a disposed retry settlement", async () => {
+    const firstFailure = new Error("first read failure");
+    const nextFailure = new Error("second read failure");
+    const retryRead = deferred<ReadThreadResponse>();
+    const finalRead = deferred<ReadThreadResponse>();
+    const commands = createGuiHostCommands();
+    vi.mocked(commands.readThread)
+      .mockRejectedValueOnce(firstFailure)
+      .mockReturnValueOnce(retryRead.promise)
+      .mockReturnValueOnce(finalRead.promise);
+    const { owner, states } = createOwner(commands);
+    owner.start();
+    await Promise.resolve();
+    expect(owner.retry()).toBe(true);
+    expect(owner.getSnapshot()).toStrictEqual({ type: "retrying", error: firstFailure });
+    expect(owner.retry()).toBe(false);
+    retryRead.reject(nextFailure);
+    await Promise.resolve();
+    expect(owner.getSnapshot()).toStrictEqual({ type: "error", error: nextFailure });
+    expect(owner.retry()).toBe(true);
+    expect(owner.getSnapshot()).toStrictEqual({ type: "retrying", error: nextFailure });
+    const count = states.length;
+    owner.dispose();
+    finalRead.resolve(response("history-thread"));
+    await Promise.resolve();
+    expect(states).toHaveLength(count);
+    expect(commands.readThread).toHaveBeenCalledTimes(3);
+  });
+
   it("reads the complete thread exactly once and makes empty turns ready without resuming", async () => {
     const commands = createGuiHostCommands();
     vi.mocked(commands.readThread).mockResolvedValueOnce(response("history-thread"));
