@@ -532,7 +532,7 @@ test("preserves catalog loading, refresh, partial error, total error, retry, emp
   await expect
     .element(screen.getByText("Showing saved skills because refresh failed", { exact: true }))
     .toBeVisible();
-  await expect.element(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Reload skills" })).toBeVisible();
 
   await screen.rerender(renderForCatalog(catalog("ready", [], 1)));
   await expect
@@ -551,7 +551,7 @@ test("preserves catalog loading, refresh, partial error, total error, retry, emp
   await expect.element(screen.getByText("No matching skills")).not.toBeInTheDocument();
   const failedListbox = screen.getByRole("listbox", { name: "Typeahead menu" });
   expect(failedListbox.getByRole("option").length).toBe(0);
-  const retryButton = screen.getByRole("button", { name: "Retry" });
+  const retryButton = screen.getByRole("button", { name: "Reload skills" });
   await expect.element(editor).toHaveFocus();
   await screen.user.keyboard("{Shift>}{Tab}{/Shift}");
   await expect.element(retryButton).toHaveFocus();
@@ -566,41 +566,99 @@ test("preserves catalog loading, refresh, partial error, total error, retry, emp
 });
 
 test.each([
+  { type: "failed", message: "Skills could not be loaded", partialErrorCount: 0 },
+  { type: "stale", message: "Showing saved skills because refresh failed", partialErrorCount: 0 },
+  { type: "ready", message: "Some skills could not be loaded", partialErrorCount: 1 },
+] as const)(
+  "retains $type feedback and the same retry button while reloading",
+  async ({ type, message, partialErrorCount }) => {
+    const candidates = type === "failed" ? [] : [skill("available", "/skills/available/SKILL.md")];
+    const failedCatalog = catalog(type, candidates, partialErrorCount);
+    const onRetrySkillCatalog = vi.fn<() => void>();
+    const renderForCatalog = (skillCatalog: SkillCatalogState) => (
+      <ComposerEditorFixture
+        ariaLabel="Message"
+        disabled={false}
+        guardCompositionEndEnter={false}
+        onRetrySkillCatalog={onRetrySkillCatalog}
+        onSubmit={() => undefined}
+        placeholder="Message Codex"
+        skillCatalog={skillCatalog}
+      />
+    );
+    const screen = await renderWithProviders(renderForCatalog(failedCatalog));
+    await screen.getByRole("combobox", { name: "Message" }).fill("$");
+    const retry = screen.getByRole("button", { name: "Reload skills", exact: true });
+    const originalButton = retry.element();
+    await retry.click();
+    await screen.rerender(
+      renderForCatalog({
+        type: type === "failed" ? "initialLoading" : "refreshing",
+        previousFailure: type === "ready" ? null : type,
+        candidates,
+        partialErrorCount,
+      }),
+    );
+    const pending = screen.getByRole("button", { name: "Reloading skills…", exact: true });
+    await expect.element(screen.getByText(message, { exact: true })).toBeVisible();
+    await expect.element(pending).toBeDisabled();
+    expect(pending.element()).toBe(originalButton);
+    expect(onRetrySkillCatalog).toHaveBeenCalledOnce();
+    await expect
+      .poll(() =>
+        screen
+          .getByRole("option", { name: /available/ })
+          .elements()
+          .filter((option) => option.checkVisibility()),
+      )
+      .toHaveLength(candidates.length);
+
+    await screen.rerender(renderForCatalog(failedCatalog));
+    await expect.element(retry).toBeEnabled();
+    await retry.click();
+    expect(onRetrySkillCatalog).toHaveBeenCalledTimes(2);
+    await screen.rerender(renderForCatalog(catalog("ready", candidates)));
+    await expect.element(screen.getByText(message, { exact: true })).not.toBeInTheDocument();
+    await expect.element(retry).not.toBeInTheDocument();
+  },
+);
+
+test.each([
   {
     locale: "en" as const,
     type: "failed" as const,
     message: "Skills could not be loaded",
-    retryLabel: "Retry",
+    retryLabel: "Reload skills",
   },
   {
     locale: "en" as const,
     type: "stale" as const,
     message: "Showing saved skills because refresh failed",
-    retryLabel: "Retry",
+    retryLabel: "Reload skills",
   },
   {
     locale: "en" as const,
     type: "ready" as const,
     message: "Some skills could not be loaded",
-    retryLabel: "Retry",
+    retryLabel: "Reload skills",
   },
   {
     locale: "zh-CN" as const,
     type: "failed" as const,
     message: "无法加载技能",
-    retryLabel: "重试",
+    retryLabel: "重新加载技能",
   },
   {
     locale: "zh-CN" as const,
     type: "stale" as const,
     message: "刷新失败，正在显示已保存的技能",
-    retryLabel: "重试",
+    retryLabel: "重新加载技能",
   },
   {
     locale: "zh-CN" as const,
     type: "ready" as const,
     message: "部分技能无法加载",
-    retryLabel: "重试",
+    retryLabel: "重新加载技能",
   },
 ])(
   "places $type skill retry after its content in a narrow menu at a wide viewport in $locale",

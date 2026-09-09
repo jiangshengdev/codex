@@ -11,12 +11,18 @@ type SkillCatalogContents = Readonly<{
   partialErrorCount: number;
 }>;
 
-export type SkillCatalogState =
-  | (Readonly<{ type: "initialLoading" }> & SkillCatalogContents)
+type SettledSkillCatalogState =
   | (Readonly<{ type: "ready" }> & SkillCatalogContents)
-  | (Readonly<{ type: "refreshing" }> & SkillCatalogContents)
   | (Readonly<{ type: "stale" }> & SkillCatalogContents)
   | (Readonly<{ type: "failed" }> & SkillCatalogContents);
+
+export type SkillCatalogState =
+  | SettledSkillCatalogState
+  | (Readonly<{
+      type: "initialLoading" | "refreshing";
+      previousFailure: Exclude<SettledSkillCatalogState["type"], "ready"> | null;
+    }> &
+      SkillCatalogContents);
 
 const emptyContents = (): SkillCatalogContents => ({
   candidates: [],
@@ -32,7 +38,11 @@ export class SkillCatalogOwner {
   private readonly cwd: string;
   private readonly listSkills: GuiHostCommands["listSkills"];
   private readonly listeners = createListenerSet();
-  private state: SkillCatalogState = { type: "initialLoading", ...emptyContents() };
+  private state: SkillCatalogState = {
+    type: "initialLoading",
+    previousFailure: null,
+    ...emptyContents(),
+  };
   private generation = 0;
   private started = false;
   private disposed = false;
@@ -113,11 +123,14 @@ export class SkillCatalogOwner {
   private requestCatalog(kind: "initial" | "refresh"): void {
     const generation = ++this.generation;
     this.requestInFlight = true;
+    const previousFailure =
+      this.state.type === "failed" || this.state.type === "stale" ? this.state.type : null;
     if (kind === "initial") {
-      this.publish({ type: "initialLoading", ...emptyContents() });
+      this.publish({ type: "initialLoading", previousFailure, ...emptyContents() });
     } else {
       this.publish({
         type: "refreshing",
+        previousFailure,
         candidates: this.state.candidates,
         partialErrorCount: this.state.partialErrorCount,
       });

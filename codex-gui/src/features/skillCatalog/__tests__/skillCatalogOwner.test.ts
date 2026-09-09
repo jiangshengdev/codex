@@ -67,6 +67,7 @@ describe("SkillCatalogOwner", () => {
     expect(owner.start()).toBe(false);
     expect(owner.getSnapshot()).toStrictEqual({
       type: "initialLoading",
+      previousFailure: null,
       candidates: [],
       partialErrorCount: 0,
     });
@@ -198,5 +199,75 @@ describe("SkillCatalogOwner", () => {
     expect(owner.invalidate()).toBe(false);
     expect(owner.retry()).toBe(false);
     expect(owner.start()).toBe(false);
+  });
+
+  it.each(["failed", "stale", "partial"] as const)(
+    "retains %s feedback through retries and replaces it with the settled result",
+    async (failureKind) => {
+      const firstRetry = deferred<SkillsListResponse>();
+      const secondRetry = deferred<SkillsListResponse>();
+      const contents = response({
+        currentSkills: [skill("stable")],
+        errors:
+          failureKind === "partial"
+            ? [{ path: "/secret/private/SKILL.md", message: "invalid skill" }]
+            : [],
+      });
+      const listSkills = vi.fn<GuiHostCommands["listSkills"]>();
+      if (failureKind === "failed") listSkills.mockRejectedValueOnce(new Error("initial"));
+      else listSkills.mockResolvedValueOnce(contents);
+      if (failureKind === "stale") listSkills.mockRejectedValueOnce(new Error("refresh"));
+      listSkills.mockReturnValueOnce(firstRetry.promise).mockReturnValueOnce(secondRetry.promise);
+      const { owner } = createOwner(listSkills);
+      owner.start();
+      await Promise.resolve();
+      if (failureKind === "stale") {
+        owner.invalidate();
+        await Promise.resolve();
+      }
+      const beforeRetry = owner.getSnapshot();
+      const callsBeforeRetry = listSkills.mock.calls.length;
+
+      expect(owner.retry()).toBe(true);
+      expect(owner.getSnapshot()).toStrictEqual({
+        type: failureKind === "failed" ? "initialLoading" : "refreshing",
+        previousFailure: failureKind === "partial" ? null : failureKind,
+        candidates: beforeRetry.candidates,
+        partialErrorCount: beforeRetry.partialErrorCount,
+      });
+      expect(owner.retry()).toBe(false);
+      expect(listSkills).toHaveBeenCalledTimes(callsBeforeRetry + 1);
+      firstRetry.reject(new Error("retry failed at /secret/private"));
+      await Promise.resolve();
+      expect(owner.getSnapshot().type).toBe(failureKind === "failed" ? "failed" : "stale");
+      expect(JSON.stringify(owner.getSnapshot())).not.toContain("/secret/private");
+
+      expect(owner.retry()).toBe(true);
+      expect(owner.getSnapshot()).toMatchObject({
+        previousFailure: failureKind === "failed" ? "failed" : "stale",
+        candidates: beforeRetry.candidates,
+        partialErrorCount: beforeRetry.partialErrorCount,
+      });
+      secondRetry.resolve(response({ currentSkills: [skill("fresh")] }));
+      await Promise.resolve();
+      expect(owner.getSnapshot()).toMatchObject({ type: "ready", partialErrorCount: 0 });
+      expect(owner.getSnapshot()).not.toHaveProperty("previousFailure");
+      expect(owner.getSnapshot().candidates.map(({ name }) => name)).toStrictEqual(["fresh"]);
+    },
+  );
+
+  it("keeps a partial result retryable when a reload still contains errors", async () => {
+    const partial = response({
+      currentSkills: [skill("available")],
+      errors: [{ path: "/secret/private/SKILL.md", message: "invalid" }],
+    });
+    const listSkills = vi.fn<GuiHostCommands["listSkills"]>().mockResolvedValue(partial);
+    const { owner } = createOwner(listSkills);
+    owner.start();
+    await Promise.resolve();
+    expect(owner.retry()).toBe(true);
+    await Promise.resolve();
+    expect(owner.getSnapshot()).toMatchObject({ type: "ready", partialErrorCount: 1 });
+    expect(owner.retry()).toBe(true);
   });
 });
