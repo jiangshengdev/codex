@@ -110,7 +110,7 @@ test("a failed membership write shows the requested task error and retries witho
     await expect.element(dialog).toHaveTextContent("Session collection persistence failed: write");
     await dialog.getByRole("button", { name: "Close diagnostics", exact: true }).click();
     await expect.element(dialog).not.toBeInTheDocument();
-    const retry = screen.getByRole("button", { name: "Retry", exact: true });
+    const retry = screen.getByRole("button", { name: "Load task", exact: true });
     await expect.element(retry).toBeVisible();
     await expect.element(composer).not.toBeInTheDocument();
     await expect

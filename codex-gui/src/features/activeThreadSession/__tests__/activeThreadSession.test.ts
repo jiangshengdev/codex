@@ -242,6 +242,38 @@ describe("ActiveThreadSession", () => {
     expect(h.commands.resumeThread).not.toHaveBeenCalled();
   });
 
+  it("retains initialization diagnostics through repeated pending retries and clears them on success", async () => {
+    const h = createHarness();
+    const threadId = attachBaseline.snapshot.thread.id;
+    const firstError = new Error("first load failed");
+    vi.mocked(h.commands.listLoadedThreads).mockRejectedValueOnce(firstError);
+    await h.controller.activateRecoveryThread();
+    for (const [error, nextError] of [
+      [firstError, new Error("second load failed")],
+      [new Error("second load failed"), null],
+    ] as const) {
+      const deferred = createDeferred<Awaited<ReturnType<GuiHostCommands["listLoadedThreads"]>>>();
+      vi.mocked(h.commands.listLoadedThreads).mockReturnValueOnce(deferred.promise);
+      const retry = h.session.retry(threadId);
+      expect(h.session.retry(threadId)).toBe(retry);
+      await Promise.resolve();
+      expect(h.session.getSnapshot()).toMatchObject({ phase: "loading", error });
+      expect(h.session.getCollectionSnapshot().members[0]).toMatchObject({
+        retryPending: true,
+        retryAction: "load",
+        error,
+      });
+      if (nextError != null) deferred.reject(nextError);
+      else deferred.resolve({ data: [threadId], nextCursor: null });
+      await retry;
+      expect(h.session.getCollectionSnapshot().members[0]).toMatchObject({
+        retryPending: false,
+        error: nextError,
+      });
+    }
+    expect(h.session.getSnapshot().phase).toBe("active");
+  });
+
   it("does not infer an unloaded thread when a later loaded page fails", async () => {
     const h = createHarness();
     const error = new Error("second page unavailable");
@@ -701,6 +733,26 @@ describe("ActiveThreadSession", () => {
       type: "removed",
       threadId,
       wasViewed: true,
+    });
+  });
+
+  it("deduplicates status retries and preserves unknown status after a resolved failed read", async () => {
+    const h = createHarness();
+    await activateInitial(h);
+    const threadId = attachBaseline.snapshot.thread.id;
+    const deferred = createDeferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+    vi.mocked(h.commands.readThread).mockReturnValueOnce(deferred.promise);
+    const retry = h.session.retry(threadId);
+    expect(h.session.retry(threadId)).toBe(retry);
+    expect(h.session.getCollectionSnapshot().members[0]).toMatchObject({
+      retryPending: true,
+      retryAction: "status",
+    });
+    deferred.reject(new Error("status read failed"));
+    await expect(retry).resolves.toMatchObject({ type: "ready" });
+    expect(h.session.getCollectionSnapshot().members[0]).toMatchObject({
+      retryPending: false,
+      removalBlockers: ["statusUnknown"],
     });
   });
 

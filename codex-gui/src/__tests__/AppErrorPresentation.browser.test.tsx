@@ -4,6 +4,7 @@ import { page } from "vitest/browser";
 import {
   attachResponse,
   createGuiHostCommands,
+  createDeferred,
   getHostOptions,
   initializeHost,
   launchThreadId,
@@ -116,6 +117,77 @@ test.each(["success", "failure"] as const)(
     await expect.element(screen.getByText("Loading task…")).not.toBeInTheDocument();
   },
 );
+
+test("task loading retry retains its error, diagnostics and pending action until success", async () => {
+  const commands = createGuiHostCommands();
+  queueAttachProjectionError(commands, new Error("first attach failed"));
+  const screen = await renderWithProviders(<App />);
+  initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
+  const main = screen.getByRole("main");
+  const action = main.getByRole("button", { name: "Load task", exact: true });
+  await expect.element(action).toBeEnabled();
+  for (const [detail, nextDetail] of [
+    ["first attach failed", "second attach failed"],
+    ["second attach failed", null],
+  ] as const) {
+    await expect.element(action).toBeEnabled();
+    const pending = queueDeferredAttachProjection(commands);
+    await action.click();
+    await expect.poll(pending.getState).toBe("pending");
+    const loadingAction = main.getByRole("button", { name: "Loading task…", exact: true });
+    await expect.element(loadingAction).toHaveAttribute("aria-disabled", "true");
+    await expect.element(main.getByText("The current task could not be loaded.")).toBeVisible();
+    await expectDiagnostic(
+      main.getByRole("button", { name: "View diagnostic information", exact: true }),
+      detail,
+    );
+    const count = vi.mocked(commands.attachThreadProjection).mock.calls.length;
+    (loadingAction.element() as HTMLButtonElement).click();
+    expect(commands.attachThreadProjection).toHaveBeenCalledTimes(count);
+    if (nextDetail != null) {
+      pending.reject(new Error(nextDetail));
+    } else pending.resolve();
+  }
+  await expect.element(screen.getByRole("region", { name: "Message composer" })).toBeVisible();
+  await expect.element(main.getByRole("alert")).not.toBeInTheDocument();
+});
+
+test("a failed status refresh restores its action and retains independent operation diagnostics", async () => {
+  const commands = createGuiHostCommands();
+  queueAttachProjectionResponse(
+    commands,
+    attachWithSnapshotThread(attachResponse, {
+      ...attachResponse.snapshot.thread,
+      status: { type: "systemError" },
+    }),
+  );
+  const screen = await renderWithProviders(<App currentTaskComponent={ObservedTaskPage} />);
+  initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
+  const main = screen.getByRole("main");
+  const action = main.getByRole("button", { name: "Refresh status", exact: true });
+  await expect.element(action).toBeEnabled();
+  requireSession().setOperationError(
+    launchThreadId,
+    "navigation",
+    new Error("previous navigation error"),
+  );
+  const pending = createDeferred<Awaited<ReturnType<typeof commands.readThread>>>();
+  vi.mocked(commands.readThread).mockReturnValueOnce(pending.promise);
+  await action.click();
+  await expect
+    .element(main.getByRole("button", { name: "Refreshing status…", exact: true }))
+    .toHaveAttribute("aria-disabled", "true");
+  await expectDiagnostic(
+    main.getByRole("button", { name: "View diagnostic information", exact: true }),
+    "previous navigation error",
+  );
+  pending.reject(new Error("status refresh failed"));
+  await expect.element(action).toBeEnabled();
+  await expect.element(main.getByText("The task could not be opened.")).toBeVisible();
+  await action.click();
+  await expect.element(action).not.toBeInTheDocument();
+  await expect.element(main.getByText("The task could not be opened.")).toBeVisible();
+});
 
 test.each([`/task/${launchThreadId}`, "/history", `/history/${launchThreadId}`])(
   "App displays a shared connection error once on %s",
@@ -239,10 +311,10 @@ test("independent global and task operations with identical details remain indep
     .getByRole("alert")
     .filter({ hasText: "The task could not be removed." });
   await expect
-    .element(navigationNotice.getByRole("button", { name: "Retry", exact: true }))
+    .element(navigationNotice.getByRole("button", { name: "Open task", exact: true }))
     .toHaveClass("button--primary");
   await expect
-    .element(removalNotice.getByRole("button", { name: "Retry", exact: true }))
+    .element(removalNotice.getByRole("button", { name: "Remove task", exact: true }))
     .toHaveClass("button--danger");
   for (let index = 0; index < 3; index += 1) {
     await expectDiagnostic(diagnostics.nth(index), detail);
@@ -273,7 +345,9 @@ test.each(["notLoaded", "systemError"] as const)(
     });
     const screen = await renderWithProviders(<App />);
     initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
-    const retry = screen.getByRole("main").getByRole("button", { name: "Retry", exact: true });
+    const retry = screen
+      .getByRole("main")
+      .getByRole("button", { name: "Refresh status", exact: true });
     await expect.element(retry).toBeEnabled();
     await expect.element(retry).toHaveClass("button--primary");
     await retry.click();
@@ -301,7 +375,7 @@ test("initialization and cleanup failures both remain visible in the task page",
   const notice = main.getByRole("alert");
   await expect.element(notice).toHaveTextContent("The current task could not be loaded.");
   await expect
-    .element(notice.getByRole("button", { name: "Retry", exact: true }))
+    .element(notice.getByRole("button", { name: "Load task", exact: true }))
     .toHaveClass("button--primary");
   await expectDiagnostic(
     notice.getByRole("button", { name: "View diagnostic information", exact: true }),
@@ -312,7 +386,7 @@ test("initialization and cleanup failures both remain visible in the task page",
   try {
     for (const width of [1280, 375]) {
       await page.viewport(width, 720);
-      const retry = notice.getByRole("button", { name: "Retry", exact: true });
+      const retry = notice.getByRole("button", { name: "Load task", exact: true });
       expect(
         notice.element().getBoundingClientRect().top -
           screen.getByRole("banner").element().getBoundingClientRect().bottom,
@@ -469,13 +543,15 @@ test("App keeps a membership save failure global before the task exists and reta
       detail,
     );
     await expect.element(screen.getByRole("main").getByText(detail)).not.toBeInTheDocument();
-    await expect.element(screen.getByRole("button", { name: "Retry", exact: true })).toBeEnabled();
     await expect
-      .element(screen.getByRole("button", { name: "Retry", exact: true }))
+      .element(screen.getByRole("button", { name: "Load task", exact: true }))
+      .toBeEnabled();
+    await expect
+      .element(screen.getByRole("button", { name: "Load task", exact: true }))
       .toHaveClass("button--primary");
     expect(commands.resumeThread).not.toHaveBeenCalled();
     storageWrite.mockRestore();
-    await screen.getByRole("button", { name: "Retry", exact: true }).click();
+    await screen.getByRole("button", { name: "Load task", exact: true }).click();
     await expect.element(screen.getByRole("region", { name: "Message composer" })).toBeVisible();
     await expect.element(page.getByText(detail)).not.toBeInTheDocument();
     await expect
@@ -498,7 +574,7 @@ test.each([false, true])(
     const notice = screen.getByRole("main").getByRole("alert");
     await expect.element(notice).toHaveTextContent("The current task could not be loaded.");
     await expect
-      .element(notice.getByRole("button", { name: "Retry", exact: true }))
+      .element(notice.getByRole("button", { name: "Load task", exact: true }))
       .toHaveClass("button--primary");
     await expectDiagnostic(
       notice.getByRole("button", { name: "View diagnostic information", exact: true }),

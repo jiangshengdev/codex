@@ -8,6 +8,7 @@ import {
   type ActiveThreadMemberLifecycle,
 } from "./activeThreadMemberLifecycle";
 import type {
+  ActiveThreadCollectionMember,
   ActiveThreadCollectionSnapshot,
   ActiveThreadRemovalOutcome,
   ActiveThreadCollectionError,
@@ -71,6 +72,10 @@ type Member = {
   lifecycle: ActiveThreadMemberLifecycle;
   operationErrors: readonly ActiveThreadMemberOperationError[];
   removal: Promise<ActiveThreadRemovalOutcome> | null;
+  retry: Readonly<{
+    action: ActiveThreadCollectionMember["retryAction"];
+    pending: Promise<ActiveThreadRetryOutcome>;
+  }> | null;
   unsubscribe: () => void;
 };
 
@@ -248,11 +253,37 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     return { type: "ready", threadId, warnings };
   };
 
-  private retry = async (threadId: string): Promise<ActiveThreadRetryOutcome> => {
-    if (this.isDisposed()) return this.connectionFailure(threadId);
-    if (!this.loadCollection()) return this.collectionFailure("collectionRead", null);
+  private retry = (threadId: string): Promise<ActiveThreadRetryOutcome> => {
     const intent = this.selectionIntent;
     const wasViewed = this.viewedThreadId === threadId;
+    const member = this.members.get(threadId);
+    if (member?.retry != null) return member.retry.pending;
+    if (member == null) return this.retryMember(threadId, intent, wasViewed);
+    const state = member.lifecycle.getState();
+    const action = state.retryRemoval ? "remove" : state.phase === "ready" ? "status" : "load";
+    let run: () => void = () => undefined;
+    const result = new Promise<ActiveThreadRetryOutcome>((resolve, reject) => {
+      run = () => {
+        void this.retryMember(threadId, intent, wasViewed).then(resolve, reject);
+      };
+    });
+    const pending = result.finally(() => {
+      if (member.retry?.pending === pending) member.retry = null;
+      this.publish();
+    });
+    member.retry = { action, pending };
+    this.publish();
+    run();
+    return pending;
+  };
+
+  private retryMember = async (
+    threadId: string,
+    intent: number,
+    wasViewed: boolean,
+  ): Promise<ActiveThreadRetryOutcome> => {
+    if (this.isDisposed()) return this.connectionFailure(threadId);
+    if (!this.loadCollection()) return this.collectionFailure("collectionRead", null);
     this.initializeWaitingMembers(threadId);
     const member = this.members.get(threadId);
     if (member == null)
@@ -320,6 +351,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       lifecycle,
       operationErrors,
       removal: null,
+      retry: null,
       unsubscribe: lifecycle.subscribe(() => {
         this.publish();
       }),
@@ -464,13 +496,19 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     this.collectionSnapshot = {
       viewedThreadId: this.viewedThreadId,
       members: [...this.members.values()].map((member) => {
-        const { phase, snapshot, error, removalBlockers } = member.lifecycle.getState();
+        const { phase, snapshot, error, removalBlockers, retryRemoval, isPending } =
+          member.lifecycle.getState();
         return {
           threadId: member.threadId,
           phase,
           snapshot,
           error,
           operationErrors: member.operationErrors,
+          retryAction:
+            member.retry?.action ??
+            (retryRemoval ? "remove" : phase === "ready" ? "status" : "load"),
+          retryPending: member.retry != null || isPending || member.removal != null,
+          removalPending: member.removal != null,
           canRemove: member.removal == null && removalBlockers.length === 0,
           removalBlockers,
         };

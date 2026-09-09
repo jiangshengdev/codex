@@ -149,6 +149,7 @@ class ActiveThreadMemberLifecycleImpl {
       phase: member.phase,
       snapshot: member.snapshot,
       error: member.error,
+      isPending: member.pending != null,
       removalBlockers: this.removalBlockers(member),
       retryRemoval:
         !member.cleanupFromFailure &&
@@ -202,12 +203,11 @@ class ActiveThreadMemberLifecycleImpl {
       return Promise.resolve(this.failure("prepare", member.error));
     }
     member.phase = "initializing";
-    member.error = null;
-    member.initializationError = null;
     member.notifications = [];
     member.subscriptionId = null;
     const pending = this.initializeMember(member).finally(() => {
       if (member.pending === pending) member.pending = null;
+      this.publish();
     });
     member.pending = pending;
     this.publish();
@@ -297,6 +297,8 @@ class ActiveThreadMemberLifecycleImpl {
       }
       member.cwd = response.snapshot.thread.cwd;
       member.phase = "ready";
+      member.error = null;
+      member.initializationError = null;
       this.publish();
       return { type: "ready", threadId: member.threadId, warnings: [] };
     } catch (error: unknown) {
@@ -391,7 +393,6 @@ class ActiveThreadMemberLifecycleImpl {
         return { type: "failed", threadId, phase: "detach", error };
       }
     }
-    member.error = null;
     member.phase = "removalPending";
     if (this.isDisposed()) return { type: "unavailable", threadId };
     return { type: "released" };

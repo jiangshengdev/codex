@@ -146,6 +146,9 @@ export type ActiveThreadCollectionMember = Readonly<{
   snapshot: ActiveThreadSessionSnapshot | null;
   error: unknown;
   operationErrors: readonly ActiveThreadMemberOperationError[];
+  retryAction: "load" | "remove" | "status";
+  retryPending: boolean;
+  removalPending: boolean;
   canRemove: boolean;
   removalBlockers: readonly ActiveThreadRemovalBlocker[];
 }>;
