@@ -9,6 +9,7 @@ import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostC
 import type { NewSessionOwner } from "@/features/newSession/newSessionOwner";
 import { useAppSelector } from "@/app/hooks";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
+import type { GuiHostConnectionRecovery } from "./guiHostConnectionLifecycle";
 
 export type AppCapabilities = Readonly<{
   status: GuiHostStatus;
@@ -17,6 +18,7 @@ export type AppCapabilities = Readonly<{
   routeTarget: GuiRouteTarget;
   activeThreadSession: ActiveThreadSession | null;
   newSessionOwner: NewSessionOwner;
+  connectionRecovery: GuiHostConnectionRecovery | null;
 }>;
 
 export const AppCapabilitiesContext = createContext<AppCapabilities | null>(null);

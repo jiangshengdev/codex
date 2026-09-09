@@ -113,6 +113,8 @@ export type LiveActiveThreadSession = Readonly<{
   getSnapshot(): LiveActiveThreadSessionSnapshot;
   subscribe(listener: () => void): () => void;
   connectionUnavailable(): void;
+  beginConnectionRecovery(): boolean;
+  failConnectionRecovery(error: unknown): void;
   beginProjectionRecovery(): boolean;
   failProjectionRecovery(error: unknown): void;
   commitProjectionRecovery(

@@ -129,6 +129,12 @@ export class SkillCatalogOwner {
     this.refreshQueued = false;
   }
 
+  resume(): void {
+    if (this.disposed || !this.suspended) return;
+    this.suspended = false;
+    this.requestCatalog(this.hasSuccessfulCatalog ? "refresh" : "initial");
+  }
+
   private requestCatalog(kind: "initial" | "refresh"): void {
     const generation = ++this.generation;
     this.requestInFlight = true;

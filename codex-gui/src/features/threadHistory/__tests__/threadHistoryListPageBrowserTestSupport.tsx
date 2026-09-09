@@ -87,6 +87,7 @@ export const renderHistory = async (
       : suppliedActiveThreadSession;
   const target = { type: "historyList" } as const;
   const capabilities: AppCapabilities = {
+    connectionRecovery: null,
     newSessionOwner: new NewSessionOwner(),
     activeThreadSession,
     authorizationToken: null,

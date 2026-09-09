@@ -114,6 +114,36 @@ const activateInitial = async (harness: ReturnType<typeof createHarness>) => {
   });
 };
 
+it("restores the retained current member and keeps a task failure separate from the shared connection", async () => {
+  const h = createHarness();
+  await activateInitial(h);
+  const before = h.session.getSnapshot();
+  if (before.phase !== "active") throw new Error("expected active member");
+  const draft = composerCapture("retained unsent draft").draft;
+  before.composerRole.retainDraft(draft);
+  h.controller.connectionUnavailable();
+  const replacement = createGuiHostCommands({ loadedThreadIds: [before.threadId] });
+  const error = new Error("task attach unavailable");
+  vi.mocked(replacement.attachThreadProjection).mockRejectedValueOnce(error);
+  await expect(
+    h.controller.restoreConnection(replacement, () => before.threadId),
+  ).resolves.toBeUndefined();
+  expect(h.session.getSnapshot()).toMatchObject({
+    identity: before.identity,
+    connection: { phase: "unavailable", recovery: { pending: false, error } },
+  });
+  await expect(h.session.recoverConnection(before.threadId, before.identity)).resolves.toEqual({
+    type: "recovered",
+  });
+  const recovered = h.session.getSnapshot();
+  if (recovered.phase !== "active") throw new Error("expected recovered member");
+  expect(recovered.connection.phase).toBe("available");
+  expect(recovered.composerRole).toBe(before.composerRole);
+  expect(recovered.composerRole.getDraft()).toEqual(draft);
+  expect(h.session.getCollectionSnapshot().viewedThreadId).toBe(before.threadId);
+  expect(replacement.startTurn).not.toHaveBeenCalled();
+});
+
 it("retains the last successfully selected directory across removal and failed activation", async () => {
   const h = createHarness();
   await activateInitial(h);

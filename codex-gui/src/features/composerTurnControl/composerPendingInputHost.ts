@@ -5,7 +5,7 @@ import { createComposerPendingInputSession } from "./composerPendingInputSession
 
 type Binding = Omit<
   ComposerPendingInputDrawerProps,
-  "pendingInputSession" | "pendingInputSnapshot"
+  "pendingInputSession" | "pendingInputSnapshot" | "recoveryNotice"
 >;
 type Connection = Readonly<{ token: object; binding: Binding }>;
 

@@ -68,6 +68,10 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private readonly compaction: ActiveThreadCompaction;
   private readonly connection: CreateLiveActiveThreadSessionInput["connection"];
   private connectionClosed = false;
+  private connectionRecovery: { pending: boolean; error: unknown } = {
+    pending: false,
+    error: null,
+  };
   private readonly skillCatalog: SkillCatalogOwner;
   private readonly threadStatus: ActiveThreadStatus;
   private readonly dispatch: AppDispatch;
@@ -176,8 +180,15 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   getSnapshot = (): LiveActiveThreadSessionSnapshot => this.snapshot;
 
   connectionUnavailable = (): void => {
-    if (this.disposed || this.connectionClosed) return;
+    if (this.disposed) return;
+    if (
+      this.connectionClosed &&
+      !this.connectionRecovery.pending &&
+      this.connection.capture() == null
+    )
+      return;
     this.connectionClosed = true;
+    this.connectionRecovery = { ...this.connectionRecovery, pending: false };
     this.connection.revoke();
     this.editGeneration += 1;
     this.generation += 1;
@@ -193,6 +204,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   beginProjectionRecovery = (): boolean => {
     if (
       this.disposed ||
+      this.connectionClosed ||
       this.projectionUnavailableReason == null ||
       this.projectionRecovery.pending
     )
@@ -200,6 +212,31 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     this.projectionRecovery = { ...this.projectionRecovery, pending: true };
     this.publishTransition([]);
     return !this.disposed;
+  };
+
+  beginConnectionRecovery = (): boolean => {
+    if (
+      this.disposed ||
+      !this.connectionClosed ||
+      this.connectionRecovery.pending ||
+      this.connection.capture() == null
+    )
+      return false;
+    this.connectionRecovery = { ...this.connectionRecovery, pending: true };
+    this.publishTransition([]);
+    return !this.disposed;
+  };
+
+  failConnectionRecovery = (error: unknown): void => {
+    if (this.disposed) return;
+    this.connectionClosed = true;
+    this.connectionRecovery = { pending: false, error };
+    this.runChildTransaction(() => {
+      this.queue.setConnectionUnavailable(true);
+      this.threadStatus.suspend();
+      this.skillCatalog.suspend();
+    });
+    this.publishTransition([]);
   };
 
   failProjectionRecovery = (error: unknown): void => {
@@ -213,7 +250,8 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     projection,
     drainCandidate,
   ) => {
-    if (this.disposed || !this.projectionRecovery.pending || !drainCandidate())
+    const reconnecting = this.connectionRecovery.pending;
+    if (this.disposed || (!this.projectionRecovery.pending && !reconnecting) || !drainCandidate())
       return { type: "unavailable" };
     if (
       response.snapshot.thread.id !== this.threadId ||
@@ -230,7 +268,8 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       >,
     ) => {
       this.projectionUnavailableReason = originalReason;
-      this.failProjectionRecovery(result.error);
+      if (reconnecting) this.failConnectionRecovery(result.error);
+      else this.failProjectionRecovery(result.error);
       return result;
     };
     const saveBatch = (batch: ActiveThreadProjectionStagedBatch, turns: readonly Turn[] | null) => {
@@ -267,6 +306,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       this.activeTurnId = activeTurnIdFromTurns(response.snapshot.thread.turns);
       this.compaction.reconcileSnapshot(response.snapshot.thread.turns);
       this.threadStatus.rebase(response.snapshot.thread.status);
+      if (!drainCandidate()) return { type: "unavailable" };
       this.applyOwnerFacts(queueFacts);
       this.projection = projection;
       this.subscriptionId = response.subscriptionId;
@@ -304,10 +344,18 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     const published = drainPublished();
     if (published.type !== "recovered") return published;
     this.projectionRecovery = { pending: false, error: null };
+    if (reconnecting) {
+      this.connectionClosed = false;
+      this.connectionRecovery = { pending: false, error: null };
+    }
     this.runChildTransaction(() => {
       this.queue.setProjectionUnavailable(false);
+      if (reconnecting && this.connectionIsAvailable()) {
+        this.queue.setConnectionUnavailable(false);
+        if (this.connectionIsAvailable()) this.skillCatalog.resume();
+      }
     });
-    if (this.isDisposed()) return { type: "unavailable" };
+    if (this.isDisposed() || this.connectionClosed) return { type: "unavailable" };
     return { type: "recovered" };
   };
 
@@ -769,7 +817,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       composer: this.queue.getSnapshot(),
       skills: this.skillCatalog.getSnapshot(),
       connection: this.connectionClosed
-        ? { phase: "unavailable" as const, recovery: { pending: false, error: null } }
+        ? { phase: "unavailable" as const, recovery: this.connectionRecovery }
         : { phase: "available" as const },
     };
     return this.projectionUnavailableReason == null
@@ -789,6 +837,10 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private isDisposed(): boolean {
     // Child publications and dispatch subscribers may synchronously dispose this owner.
     return this.disposed;
+  }
+
+  private connectionIsAvailable(): boolean {
+    return !this.connectionClosed && this.connection.capture() != null;
   }
 
   private settleCompactionRequest(

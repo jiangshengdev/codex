@@ -35,6 +35,7 @@ function setup() {
     view: vi.fn<ActiveThreadSession["view"]>(),
     retry: vi.fn<ActiveThreadSession["retry"]>(),
     recoverProjection: vi.fn<ActiveThreadSession["recoverProjection"]>(),
+    recoverConnection: vi.fn<ActiveThreadSession["recoverConnection"]>(),
     remove: vi.fn<ActiveThreadSession["remove"]>(),
     setOperationError: vi.fn<ActiveThreadSession["setOperationError"]>(),
   };

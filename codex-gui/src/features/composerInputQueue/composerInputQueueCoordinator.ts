@@ -459,6 +459,10 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     }
     const pending = [...this.pendingFacts];
     const draft = this.pendingDraft;
+    const completesRestoration =
+      turns != null &&
+      this.connectionUnavailable &&
+      (this.state.sendingBarrier === "suspended" || this.state.sendingBarrier === "restoring");
     const result = this.persistTransaction(
       () => {
         for (const fact of pending) fact();
@@ -480,11 +484,19 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
         for (const fact of facts) {
           if (fact.notification.threadId === this.threadId) this.applyAcceptedEventImpl(fact);
         }
+        if (completesRestoration) {
+          this.state.sendingBarrier = null;
+          this.queue.setAutomaticSendingPaused(this.automaticSendingPaused());
+        }
       },
       true,
       () => {
         if (this.pendingDraft === draft) this.pendingDraft = null;
         this.pendingFacts.splice(0, pending.length);
+        if (completesRestoration && this.state.sendingBarrier == null) {
+          this.reconciliationRequested = true;
+          this.reconciliationComplete = true;
+        }
       },
     );
     if (result.type !== "committed") {

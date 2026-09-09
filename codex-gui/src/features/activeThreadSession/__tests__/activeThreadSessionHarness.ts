@@ -49,6 +49,7 @@ export type ActiveThreadSessionHarness = Readonly<{
   view: Mock<ActiveThreadSession["view"]>;
   retry: Mock<ActiveThreadSession["retry"]>;
   recoverProjection: Mock<ActiveThreadSession["recoverProjection"]>;
+  recoverConnection: Mock<ActiveThreadSession["recoverConnection"]>;
   remove: Mock<ActiveThreadSession["remove"]>;
   setOperationError: Mock<ActiveThreadSession["setOperationError"]>;
   subscribe: Mock<ActiveThreadSession["subscribe"]>;
@@ -314,6 +315,9 @@ export const createActiveThreadSessionHarness = (
   const recoverProjection = vi.fn<ActiveThreadSession["recoverProjection"]>(() =>
     Promise.resolve({ type: "unavailable" }),
   );
+  const recoverConnection = vi.fn<ActiveThreadSession["recoverConnection"]>(() =>
+    Promise.resolve({ type: "unavailable" }),
+  );
   const view = vi.fn<ActiveThreadSession["view"]>((threadId) =>
     Promise.resolve(
       typeof activateOutcome === "function" ? activateOutcome(threadId) : activateOutcome,
@@ -336,6 +340,7 @@ export const createActiveThreadSessionHarness = (
     view,
     retry,
     recoverProjection,
+    recoverConnection,
     remove,
     setOperationError: (threadId, operation, error) => {
       setOperationError(threadId, operation, error);
@@ -381,6 +386,7 @@ export const createActiveThreadSessionHarness = (
     view,
     retry,
     recoverProjection,
+    recoverConnection,
     remove,
     setOperationError,
     subscribe,

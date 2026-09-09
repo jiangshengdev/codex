@@ -133,12 +133,38 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
           Promise.resolve({ type: "unavailable" })
         );
       },
+      recoverConnection: (threadId, expectedIdentity) => {
+        if (this.disposed || this.connection.capture() == null)
+          return Promise.resolve({ type: "unavailable" });
+        return (
+          this.members.get(threadId)?.lifecycle.recoverConnection(expectedIdentity) ??
+          Promise.resolve({ type: "unavailable" })
+        );
+      },
       remove: this.remove,
       setOperationError: this.setOperationError,
     };
   }
 
   getSnapshot = (): ActiveThreadSessionSnapshot => this.snapshot;
+  restoreConnection: ActiveThreadSessionController["restoreConnection"] = async (
+    commands,
+    getPreferredThreadId,
+  ) => {
+    if (this.disposed) return;
+    this.connection.replace(commands);
+    const threadId =
+      getPreferredThreadId() ?? this.viewedThreadId ?? this.members.keys().next().value;
+    if (threadId == null) return;
+    const member = this.members.get(threadId);
+    if (member == null) return;
+    const snapshot = member.lifecycle.getState().snapshot;
+    if (snapshot?.phase === "active" || snapshot?.phase === "projectionUnavailable") {
+      await member.lifecycle.recoverConnection(snapshot.identity);
+    } else {
+      await member.lifecycle.initialize();
+    }
+  };
   getCollectionSnapshot = (): ActiveThreadCollectionSnapshot => this.collectionSnapshot;
   subscribe = (listener: () => void): (() => void) => this.listeners.subscribe(listener);
 

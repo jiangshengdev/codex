@@ -169,7 +169,16 @@ class ActiveThreadMemberLifecycleImpl {
   subscribe = (listener: () => void): (() => void) => this.listeners.subscribe(listener);
   recoverProjection = (
     expectedIdentity: ActiveThreadSessionIdentity,
-  ): Promise<ProjectionRecoveryOutcome> => {
+  ): Promise<ProjectionRecoveryOutcome> => this.recoverMember(expectedIdentity, "projection");
+
+  recoverConnection = (
+    expectedIdentity: ActiveThreadSessionIdentity,
+  ): Promise<ProjectionRecoveryOutcome> => this.recoverMember(expectedIdentity, "connection");
+
+  private recoverMember(
+    expectedIdentity: ActiveThreadSessionIdentity,
+    mode: "projection" | "connection",
+  ): Promise<ProjectionRecoveryOutcome> {
     const live = this.member.live;
     if (
       this.disposed ||
@@ -185,16 +194,17 @@ class ActiveThreadMemberLifecycleImpl {
     let run: () => void = () => undefined;
     const pending = new Promise<ProjectionRecoveryOutcome>((resolve) => {
       run = () => {
-        void this.performProjectionRecovery(live).then(resolve);
+        void this.performProjectionRecovery(live, mode).then(resolve);
       };
     });
     this.recovery = { live, pending, notifications: [] };
     run();
     return pending;
-  };
+  }
 
   private async performProjectionRecovery(
     live: LiveActiveThreadSession,
+    mode: "projection" | "connection",
   ): Promise<ProjectionRecoveryOutcome> {
     const attempt = this.recovery;
     const round = this.connection.capture();
@@ -204,15 +214,31 @@ class ActiveThreadMemberLifecycleImpl {
       this.isReadyMember(live) &&
       this.recovery === attempt;
     try {
-      if (!live.beginProjectionRecovery() || !current()) return { type: "unavailable" };
+      const began =
+        mode === "connection" ? live.beginConnectionRecovery() : live.beginProjectionRecovery();
+      if (!began || !current() || round == null) return { type: "unavailable" };
       this.cancelFrame(this.member);
       live.flushProjection();
       if (!current()) return { type: "unavailable" };
-      const response = await this.connection.run((commands) =>
-        commands.attachThreadProjection({
-          threadId: this.member.threadId,
-        }),
-      );
+      if (mode === "connection") {
+        let cursor: string | null = null;
+        let loaded = false;
+        do {
+          const page = await round.commands.listLoadedThreads(cursor == null ? {} : { cursor });
+          if (!current()) return { type: "unavailable" };
+          loaded = page.data.includes(this.member.threadId);
+          cursor = page.nextCursor;
+        } while (!loaded && cursor != null);
+        if (!loaded) {
+          const response = await round.commands.resumeThread({ threadId: this.member.threadId });
+          if (!current()) return { type: "unavailable" };
+          if (response.thread.id !== this.member.threadId)
+            throw new Error("thread/resume returned a different thread identity");
+        }
+      }
+      const response = await round.commands.attachThreadProjection({
+        threadId: this.member.threadId,
+      });
       if (!current()) return { type: "unavailable" };
       const projection = createActiveThreadProjection({
         threadId: this.member.threadId,
@@ -233,6 +259,7 @@ class ActiveThreadMemberLifecycleImpl {
       const outcome = live.commitProjectionRecovery(response, projection, drain);
       if (!current()) return { type: "unavailable" };
       if (outcome.type === "recovered") {
+        this.member.attached = true;
         this.member.subscriptionId = response.subscriptionId;
         // Sending resumes only after publication. Any notification caused by that
         // release belongs to the now-current subscription and follows normal ingress.
@@ -243,14 +270,16 @@ class ActiveThreadMemberLifecycleImpl {
         if (this.disposed || !this.isReadyMember(live)) return { type: "unavailable" };
         if (live.getSnapshot().phase === "projectionUnavailable") {
           const error = new Error("The subscription stopped after synchronization recovery");
-          live.failProjectionRecovery(error);
+          if (mode === "connection") live.failConnectionRecovery(error);
+          else live.failProjectionRecovery(error);
           return { type: "failed", error };
         }
       }
       return outcome;
     } catch (error: unknown) {
       if (!current()) return { type: "unavailable" };
-      live.failProjectionRecovery(error);
+      if (mode === "connection") live.failConnectionRecovery(error);
+      else live.failProjectionRecovery(error);
       return { type: "failed", error };
     } finally {
       if (this.recovery === attempt) this.recovery = null;
@@ -779,6 +808,7 @@ export function createActiveThreadMemberLifecycle(input: CreateActiveThreadMembe
     initialize: member.initialize,
     retry: member.retry,
     recoverProjection: member.recoverProjection,
+    recoverConnection: member.recoverConnection,
     handleProjectionEvent: member.handleProjectionEvent,
     handleProjectionDelta: member.handleProjectionDelta,
     handleProjectionClosed: member.handleProjectionClosed,

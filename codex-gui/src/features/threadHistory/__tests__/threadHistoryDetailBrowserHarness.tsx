@@ -79,6 +79,7 @@ export const renderDetail = async ({
       ? activeThreadSessionHarness.session
       : suppliedActiveThreadSession;
   const initialCapabilities: AppCapabilities = {
+    connectionRecovery: null,
     newSessionOwner: new NewSessionOwner(),
     activeThreadSession,
     authorizationToken,

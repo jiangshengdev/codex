@@ -17,13 +17,25 @@ import { errorText } from "@/text/errorText";
 
 export type GuiHostConnectionLifecycleInput = {
   dispatch: AppDispatch;
-  startupTarget: GuiRouteTarget;
+  getRouteTarget: () => GuiRouteTarget;
   newSessionOwner: NewSessionOwner;
   setStatus: (status: GuiHostStatus) => void;
   setCommands: (commands: GuiHostCommands | null) => void;
   setAuthorizationToken: (token: string | null) => void;
   setActiveThreadSession: (session: ActiveThreadSession | null) => void;
+  setConnectionRecovery: (recovery: GuiHostConnectionRecovery | null) => void;
 };
+
+export type GuiHostConnectionRecovery = Readonly<{
+  pending: boolean;
+  error: unknown;
+  reconnect(): void;
+}>;
+
+export type GuiHostConnectionLifecycle = Readonly<{
+  dispose(): void;
+  reconnect(): void;
+}>;
 
 type PageTransitionHandlers = {
   onHide: () => void;
@@ -79,46 +91,134 @@ export function startGuiHostConnectionLifecycle(
   input: GuiHostConnectionLifecycleInput,
   environment = browserEnvironment(),
   dependencies = productionDependencies,
-): () => void {
-  const restart = (): void => {
-    releaseRound();
-    releaseRound = startRound(input, environment, dependencies, restart);
-  };
-  let releaseRound = startRound(input, environment, dependencies, restart);
-  return () => {
-    releaseRound();
-  };
-}
-
-function startRound(
-  input: GuiHostConnectionLifecycleInput,
-  environment: GuiHostConnectionLifecycleEnvironment,
-  dependencies: LifecycleDependencies,
-  restart: () => void,
-): () => void {
+): GuiHostConnectionLifecycle {
   const { newSessionOwner, setStatus, setCommands, setAuthorizationToken, setActiveThreadSession } =
     input;
   let active = true;
   let controller: ActiveThreadSessionController | null = null;
-  let cleanupConnection: (() => void) | undefined;
-  let authorizationSession;
-  try {
-    authorizationSession = dependencies.consumeAuthorization({
-      location: environment.readLocation(),
-      replaceState: environment.replaceState,
-    });
-  } catch (error: unknown) {
-    environment.queueMicrotask(() => {
-      if (active) setStatus({ label: "error", message: errorText(error) });
-    });
-    return () => {
-      active = false;
-      setAuthorizationToken(null);
-      setActiveThreadSession(null);
+  let round = 0;
+  let cleanupConnection: (() => void) | null = null;
+  let recovery: GuiHostConnectionRecovery | null = null;
+  const publishRecovery = (pending: boolean, error: unknown): void => {
+    recovery = { pending, error, reconnect };
+    input.setConnectionRecovery(recovery);
+  };
+  const unavailable = (): void => {
+    newSessionOwner.setConnection(null);
+    controller?.connectionUnavailable();
+    setCommands(null);
+  };
+  const preferredThreadId = (): string | null => {
+    const target = input.getRouteTarget();
+    return target.type === "currentTask" ? target.threadId : null;
+  };
+  const startRound = (): void => {
+    const identity = ++round;
+    let terminated = false;
+    const current = (): boolean => active && identity === round;
+    const fail = (error: unknown): void => {
+      if (!current()) return;
+      terminated = true;
+      unavailable();
+      setStatus({ label: "error", message: errorText(error) });
+      publishRecovery(false, error);
     };
-  }
-
-  setAuthorizationToken(authorizationSession.getSnapshot().token);
+    let authorizationSession;
+    try {
+      authorizationSession = dependencies.consumeAuthorization({
+        location: environment.readLocation(),
+        replaceState: environment.replaceState,
+      });
+    } catch (error: unknown) {
+      environment.queueMicrotask(() => {
+        fail(error);
+      });
+      return;
+    }
+    setAuthorizationToken(authorizationSession.getSnapshot().token);
+    try {
+      cleanupConnection = dependencies.startConnection({
+        location: environment.readLocation(),
+        token: authorizationSession.getSnapshot().token,
+        onStatus: (status) => {
+          if (!current()) return;
+          setStatus(status);
+          if (status.label === "error") publishRecovery(false, new Error(status.message));
+          if (status.label === "closed") publishRecovery(false, recovery?.error ?? null);
+        },
+        onProjectionEvent: (notification) => {
+          if (current()) controller?.handleProjectionEvent(notification);
+        },
+        onProjectionDelta: (notification) => {
+          if (current()) controller?.handleProjectionDelta(notification);
+        },
+        onProjectionClosed: (notification) => {
+          if (current()) controller?.handleProjectionClosed(notification);
+        },
+        onSkillsChanged: () => {
+          if (current()) controller?.handleSkillsChanged();
+        },
+        onThreadStatusChanged: (notification) => {
+          if (current()) controller?.handleThreadStatusChanged(notification);
+        },
+        onCommandsReady: (commands) => {
+          if (!current() || terminated) return;
+          setCommands(commands);
+          if (controller != null) {
+            const retained = controller;
+            const restoration = retained.restoreConnection(commands, preferredThreadId);
+            if (!current()) return;
+            newSessionOwner.setConnection({ commands, session: retained.session });
+            recovery = null;
+            input.setConnectionRecovery(null);
+            void restoration.catch((error: unknown) => {
+              if (current()) fail(error);
+            });
+            return;
+          }
+          const nextController = dependencies.createSession({
+            authorizationSession,
+            commands,
+            dispatch: input.dispatch,
+            scheduler: environment.scheduler,
+            persistence: { authorizationContext: authorizationSession.getPersistenceContext() },
+          });
+          controller = nextController;
+          newSessionOwner.setConnection({ commands, session: nextController.session });
+          setActiveThreadSession(nextController.session);
+          recovery = null;
+          input.setConnectionRecovery(null);
+          void nextController.activateRecoveryThread(preferredThreadId());
+        },
+        onCommandsUnavailable: () => {
+          if (!current()) return;
+          terminated = true;
+          unavailable();
+          publishRecovery(false, recovery?.error ?? null);
+        },
+      });
+    } catch (error: unknown) {
+      environment.queueMicrotask(() => {
+        fail(error);
+      });
+    }
+  };
+  const reconnect = (): void => {
+    if (!active || recovery?.pending) return;
+    round += 1;
+    unavailable();
+    publishRecovery(true, recovery?.error ?? null);
+    const cleanup = cleanupConnection;
+    try {
+      cleanup?.();
+    } catch (error: unknown) {
+      publishRecovery(false, error);
+      setStatus({ label: "error", message: errorText(error) });
+      return;
+    }
+    cleanupConnection = null;
+    startRound();
+  };
   const suspend = (): void => {
     if (active) controller?.suspendRestoredQueue();
   };
@@ -127,67 +227,12 @@ function startRound(
     onShow: (event) => {
       if (!active || !event.persisted) return;
       suspend();
-      restart();
+      reconnect();
     },
   });
-  const connectionUnavailable = (): void => {
+  startRound();
+  const dispose = (): void => {
     if (!active) return;
-    newSessionOwner.setConnection(null);
-    controller?.connectionUnavailable();
-    setCommands(null);
-  };
-
-  try {
-    cleanupConnection = dependencies.startConnection({
-      location: environment.readLocation(),
-      token: authorizationSession.getSnapshot().token,
-      onStatus: (status) => {
-        if (active) setStatus(status);
-      },
-      onProjectionEvent: (notification) => {
-        if (active) controller?.handleProjectionEvent(notification);
-      },
-      onProjectionDelta: (notification) => {
-        if (active) controller?.handleProjectionDelta(notification);
-      },
-      onProjectionClosed: (notification) => {
-        if (active) controller?.handleProjectionClosed(notification);
-      },
-      onSkillsChanged: () => {
-        if (active) controller?.handleSkillsChanged();
-      },
-      onThreadStatusChanged: (notification) => {
-        if (active) controller?.handleThreadStatusChanged(notification);
-      },
-      onCommandsReady: (commands) => {
-        if (!active) return;
-        setCommands(commands);
-        const nextController = dependencies.createSession({
-          authorizationSession,
-          commands,
-          dispatch: input.dispatch,
-          scheduler: environment.scheduler,
-          persistence: { authorizationContext: authorizationSession.getPersistenceContext() },
-        });
-        controller = nextController;
-        newSessionOwner.setConnection({ commands, session: nextController.session });
-        setActiveThreadSession(nextController.session);
-        const target = input.startupTarget;
-        void nextController.activateRecoveryThread(
-          target.type === "currentTask" ? target.threadId : undefined,
-        );
-      },
-      onCommandsUnavailable: connectionUnavailable,
-    });
-  } catch (error: unknown) {
-    environment.queueMicrotask(() => {
-      if (!active) return;
-      connectionUnavailable();
-      setStatus({ label: "error", message: errorText(error) });
-    });
-  }
-
-  return () => {
     active = false;
     newSessionOwner.setConnection(null);
     unsubscribe();
@@ -196,6 +241,8 @@ function startRound(
     setCommands(null);
     setAuthorizationToken(null);
     setActiveThreadSession(null);
+    input.setConnectionRecovery(null);
     cleanupConnection?.();
   };
+  return { dispose, reconnect };
 }

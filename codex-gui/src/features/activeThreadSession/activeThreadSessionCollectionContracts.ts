@@ -4,6 +4,7 @@ import type {
   ProjectionRecoveryOutcome,
 } from "./activeThreadSessionContracts";
 import type { ActiveThreadSessionIdentity } from "./activeThreadSessionIdentity";
+import type { GuiHostCommands } from "@/features/guiHost/guiHostCommandGateway";
 import type {
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
@@ -118,6 +119,10 @@ export type ActiveThreadSession = Readonly<{
     threadId: string,
     expectedIdentity: ActiveThreadSessionIdentity,
   ): Promise<ProjectionRecoveryOutcome>;
+  recoverConnection(
+    threadId: string,
+    expectedIdentity: ActiveThreadSessionIdentity,
+  ): Promise<ProjectionRecoveryOutcome>;
   remove(threadId: string): Promise<ActiveThreadRemovalOutcome>;
   setOperationError(
     threadId: string,
@@ -129,6 +134,10 @@ export type ActiveThreadSession = Readonly<{
 export type ActiveThreadSessionController = Readonly<{
   session: ActiveThreadSession;
   activateRecoveryThread(preferredThreadId?: string | null): Promise<ActiveThreadActivationOutcome>;
+  restoreConnection(
+    commands: GuiHostCommands,
+    getPreferredThreadId: () => string | null,
+  ): Promise<void>;
   handleProjectionEvent(notification: ThreadProjectionEventNotification): void;
   handleProjectionDelta(notification: ThreadProjectionDeltaNotification): void;
   handleProjectionClosed(notification: ThreadProjectionClosedNotification): void;

@@ -35,6 +35,7 @@ const capabilities = ({
   newSessionOwner: new NewSessionOwner(),
   authorizationToken: null,
   commands: null,
+  connectionRecovery: null,
   routeTarget,
   status: { label: "initialized" },
 });

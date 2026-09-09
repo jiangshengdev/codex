@@ -73,6 +73,8 @@ export async function createMultiSessionHarness(
     }),
   );
   let connection: WebSocketRoute | undefined;
+  let holdInitialize = false;
+  let pendingInitialize: ((error?: string) => void) | undefined;
   let commitSequence = 0;
   const subscriptions = new Map<string, string>();
   const heads = new Map<string, string | null>();
@@ -128,14 +130,29 @@ export async function createMultiSessionHarness(
         case "gui/authenticate":
           reply({ authenticated: true });
           return;
-        case "initialize":
-          reply({
-            userAgent: "codex-gui-multi-session-e2e",
-            codexHome: "/tmp/codex-home",
-            platformFamily: "unix",
-            platformOs: "macos",
-          } satisfies InitializeResponse);
+        case "initialize": {
+          const complete = (error?: string) => {
+            if (error != null) {
+              socket.send(
+                JSON.stringify({
+                  jsonrpc: "2.0",
+                  id: request.id,
+                  error: { code: -32000, message: error },
+                }),
+              );
+              return;
+            }
+            reply({
+              userAgent: "codex-gui-multi-session-e2e",
+              codexHome: "/tmp/codex-home",
+              platformFamily: "unix",
+              platformOs: "macos",
+            } satisfies InitializeResponse);
+          };
+          if (holdInitialize) pendingInitialize = complete;
+          else complete();
           return;
+        }
         case "initialized":
           return;
         case "thread/loaded/list":
@@ -288,6 +305,19 @@ export async function createMultiSessionHarness(
   });
   return {
     requests,
+    async closeNormally() {
+      if (connection == null) throw new Error("No connected test socket");
+      await connection.close({ code: 1000, reason: "Normal test closure" });
+    },
+    setInitializeHold(hold: boolean) {
+      holdInitialize = hold;
+    },
+    releaseInitialize(error?: string) {
+      if (pendingInitialize == null) throw new Error("No held initialization");
+      pendingInitialize(error);
+      pendingInitialize = undefined;
+    },
+    initializations: () => requests.filter((request) => request.method === "initialize"),
     setThreadCwd(id: string, cwd: string) {
       thread(id).cwd = cwd;
     },

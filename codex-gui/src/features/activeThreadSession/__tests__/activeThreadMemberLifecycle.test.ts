@@ -4,6 +4,7 @@ import { makeStore, type AppDispatch } from "@/app/store";
 import { createDeferred, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createPersistenceTestContext } from "@/features/composerInputQueue/__tests__/composerInputQueueCoordinatorTestFixtures";
 import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
+import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import {
   attachBaseline,
   closedBackpressure,
@@ -55,6 +56,158 @@ function createHarness(
 }
 
 describe("active thread member lifecycle", () => {
+  it("preserves unknown delivery and never sends it again when the connection recovers", async () => {
+    const h = createHarness();
+    await h.member.initialize();
+    const before = h.member.getState().snapshot;
+    if (before?.phase !== "active") throw new Error("expected active member");
+    vi.mocked(h.commands.startTurn).mockRejectedValueOnce(
+      new GuiHostCommandError({
+        source: "unavailable",
+        delivery: "deliveryUnknown",
+        error: new Error("connection lost"),
+      }),
+    );
+    before.composerRole.submit(before.revision, composerCapture("unknown delivery"));
+    h.member.connectionUnavailable();
+    await Promise.resolve();
+    const replacement = createGuiHostCommands({ loadedThreadIds: [threadId] });
+    h.connection.replace(replacement);
+    await expect(h.member.recoverConnection(before.identity)).resolves.toEqual({
+      type: "recovered",
+    });
+    expect(h.member.getState().snapshot).toMatchObject({
+      connection: { phase: "available" },
+      composer: { persistence: { unknownMessages: [{ text: "unknown delivery" }] } },
+    });
+    expect(replacement.startTurn).not.toHaveBeenCalled();
+  });
+
+  it("keeps a connection failure when the candidate subscription closes before attachment completes", async () => {
+    const h = createHarness();
+    await h.member.initialize();
+    const before = h.member.getState().snapshot;
+    if (before?.phase !== "active") throw new Error("expected active member");
+    h.member.connectionUnavailable();
+    const replacement = createGuiHostCommands({ loadedThreadIds: [threadId] });
+    const attach = createDeferred<typeof attachBaseline>();
+    vi.mocked(replacement.attachThreadProjection).mockReturnValueOnce(attach.promise);
+    h.connection.replace(replacement);
+    const pending = h.member.recoverConnection(before.identity);
+    await Promise.resolve();
+    const response = attachWithSnapshotThread(
+      attachBaseline,
+      attachBaseline.snapshot.thread,
+      "closed-candidate",
+    );
+    h.member.handleProjectionClosed(
+      closedWithEnvelope(closedBackpressure, { subscriptionId: response.subscriptionId }),
+    );
+    attach.resolve(response);
+    await expect(pending).resolves.toMatchObject({ type: "failed" });
+    expect(h.member.getState().snapshot).toMatchObject({
+      subscriptionId: before.subscriptionId,
+      connection: { phase: "unavailable", recovery: { pending: false } },
+    });
+    await expect(h.member.recoverConnection(before.identity)).resolves.toEqual({
+      type: "recovered",
+    });
+  });
+
+  it("abandons recovery when the replacement connection closes and can recover on the next round", async () => {
+    const h = createHarness();
+    await h.member.initialize();
+    const before = h.member.getState().snapshot;
+    if (before?.phase !== "active") throw new Error("expected active member");
+    h.member.connectionUnavailable();
+    const replacement = createGuiHostCommands({ loadedThreadIds: [threadId] });
+    const attached = createDeferred<typeof attachBaseline>();
+    vi.mocked(replacement.attachThreadProjection).mockReturnValueOnce(attached.promise);
+    h.connection.replace(replacement);
+    const pending = h.member.recoverConnection(before.identity);
+    await Promise.resolve();
+    h.connection.revoke();
+    h.member.connectionUnavailable();
+    attached.resolve(attachBaseline);
+    await expect(pending).resolves.toEqual({ type: "unavailable" });
+    expect(h.member.getState().snapshot).toMatchObject({
+      connection: { phase: "unavailable", recovery: { pending: false } },
+    });
+    const next = createGuiHostCommands({ loadedThreadIds: [threadId] });
+    h.connection.replace(next);
+    await expect(h.member.recoverConnection(before.identity)).resolves.toEqual({
+      type: "recovered",
+    });
+  });
+
+  it("keeps a failed connection recovery retryable and resumes only after exhausting loaded pages", async () => {
+    const h = createHarness();
+    await h.member.initialize();
+    const before = h.member.getState().snapshot;
+    if (before?.phase !== "active") throw new Error("expected active member");
+    h.member.connectionUnavailable();
+    const replacement = createGuiHostCommands({ loadedThreadIds: [threadId] });
+    const failed = new Error("loaded query failed");
+    vi.mocked(replacement.listLoadedThreads).mockRejectedValueOnce(failed);
+    h.connection.replace(replacement);
+    await expect(h.member.recoverConnection(before.identity)).resolves.toEqual({
+      type: "failed",
+      error: failed,
+    });
+    expect(h.member.getState().snapshot).toMatchObject({
+      subscriptionId: before.subscriptionId,
+      connection: { phase: "unavailable", recovery: { pending: false, error: failed } },
+    });
+    expect(replacement.resumeThread).not.toHaveBeenCalled();
+    expect(replacement.attachThreadProjection).not.toHaveBeenCalled();
+    vi.mocked(replacement.listLoadedThreads)
+      .mockResolvedValueOnce({ data: ["another-task"], nextCursor: "next-page" })
+      .mockResolvedValueOnce({ data: [], nextCursor: null });
+    const pending = h.member.recoverConnection(before.identity);
+    expect(h.member.recoverConnection(before.identity)).toBe(pending);
+    expect(h.member.getState().snapshot).toMatchObject({
+      connection: { recovery: { pending: true, error: failed } },
+    });
+    await expect(pending).resolves.toEqual({ type: "recovered" });
+    expect(replacement.listLoadedThreads).toHaveBeenLastCalledWith({ cursor: "next-page" });
+    expect(replacement.resumeThread).toHaveBeenCalledTimes(1);
+    expect(replacement.attachThreadProjection).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers a disconnected loaded member in place using replacement commands", async () => {
+    const h = createHarness();
+    await h.member.initialize();
+    const before = h.member.getState().snapshot;
+    if (before?.phase !== "active") throw new Error("expected active member");
+    h.member.connectionUnavailable();
+    const replacement = createGuiHostCommands({ loadedThreadIds: [threadId] });
+    vi.mocked(replacement.attachThreadProjection).mockResolvedValue(
+      attachWithSnapshotThread(
+        attachBaseline,
+        attachBaseline.snapshot.thread,
+        "replacement-subscription",
+      ),
+    );
+    h.connection.replace(replacement);
+    await expect(h.member.recoverConnection(before.identity)).resolves.toEqual({
+      type: "recovered",
+    });
+    const recovered = h.member.getState().snapshot;
+    expect(recovered).toMatchObject({
+      phase: "active",
+      identity: before.identity,
+      connection: { phase: "available" },
+      subscriptionId: "replacement-subscription",
+    });
+    if (recovered?.phase !== "active") throw new Error("expected recovered member");
+    expect(recovered.composerRole).toBe(before.composerRole);
+    expect(replacement.resumeThread).not.toHaveBeenCalled();
+    expect(replacement.listLoadedThreads).toHaveBeenCalledTimes(1);
+    recovered.composerRole.submit(recovered.revision, composerCapture("new connection"));
+    expect(replacement.startTurn).toHaveBeenCalledTimes(1);
+    expect(h.commands.startTurn).not.toHaveBeenCalled();
+  });
+
   it("keeps the old baseline when the candidate closes during its persistence transaction", async () => {
     const persistence = createPersistenceTestContext();
     const h = createHarness(() => undefined, persistence);

@@ -25,7 +25,7 @@ export function AppShellTopBar() {
   const { t } = useLingui();
   const navigate = useNavigate();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const { routeTarget, status, newSessionOwner } = useAppCapabilities();
+  const { routeTarget, status, newSessionOwner, connectionRecovery } = useAppCapabilities();
   const newSession = useNewSessionSnapshot();
   const newSessionCwd = useNewSessionCwd();
   const canOpenNewSession = newSession != null || newSessionCwd != null;
@@ -39,6 +39,7 @@ export function AppShellTopBar() {
   const hasError =
     status.label === "error" ||
     status.label === "closed" ||
+    connectionRecovery != null ||
     collection.errors.length > 0 ||
     collection.members.some(activeThreadMemberHasError);
   const isCurrentTask = routeTarget.type === "currentTask";

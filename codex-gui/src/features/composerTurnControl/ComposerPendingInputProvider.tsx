@@ -2,8 +2,15 @@ import { useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ComposerPendingInputDrawer } from "./ComposerPendingInputDrawer";
 import { PendingInputContext, PendingInputHost } from "./composerPendingInputHost";
+import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 
-export function ComposerPendingInputProvider({ children }: Readonly<{ children: ReactNode }>) {
+export function ComposerPendingInputProvider({
+  children,
+  renderConnectionRecovery,
+}: Readonly<{
+  children: ReactNode;
+  renderConnectionRecovery?: (composerRole: ActiveThreadComposerRole) => ReactNode;
+}>) {
   const { t } = useLingui();
   const [host] = useState(() => new PendingInputHost());
   const snapshot = useSyncExternalStore(host.subscribe, host.getSnapshot);
@@ -30,6 +37,7 @@ export function ComposerPendingInputProvider({ children }: Readonly<{ children: 
         {connection == null ? null : (
           <ComposerPendingInputDrawer
             {...connection.binding}
+            recoveryNotice={renderConnectionRecovery?.(connection.binding.composerRole)}
             mutationsEnabled={host.isConnected(connection) && connection.binding.mutationsEnabled}
             pendingInputSession={host.session}
             pendingInputSnapshot={snapshot.pending}

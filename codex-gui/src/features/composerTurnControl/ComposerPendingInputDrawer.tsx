@@ -1,6 +1,6 @@
 import { Alert, AlertDialog, Button, Chip, Drawer, TextArea } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useCallback, useEffect, useRef, useState, type Ref } from "react";
+import { useCallback, useEffect, useRef, useState, type Ref, type ReactNode } from "react";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ComposerEditorController } from "@/features/composerEditor/ComposerEditor";
 import type {
@@ -35,6 +35,7 @@ export type ComposerPendingInputDrawerProps = Readonly<{
   sessionRevision: number;
   skillCatalog: SkillCatalogState;
   snapshot: ComposerInputQueueCoordinatorSnapshot;
+  recoveryNotice?: ReactNode;
 }>;
 
 export function ComposerPendingInputDrawer({
@@ -49,6 +50,7 @@ export function ComposerPendingInputDrawer({
   sessionRevision,
   skillCatalog,
   snapshot,
+  recoveryNotice,
 }: ComposerPendingInputDrawerProps) {
   const { t } = useLingui();
   const { guidingCount, ordinaryQueuedCount } = snapshot;
@@ -202,6 +204,7 @@ export function ComposerPendingInputDrawer({
               </Drawer.Heading>
             </Drawer.Header>
             <Drawer.Body>
+              {recoveryNotice}
               {pendingInputSnapshot.alert == null ? null : (
                 <PendingManagementAlert alert={pendingInputSnapshot.alert} />
               )}

@@ -54,6 +54,60 @@ function owner(fixture: ReturnType<typeof persistenceFixture>, activeTurnId: str
 }
 
 describe("coordinator persistence boundaries", () => {
+  it("keeps suspended pending messages paused until the existing continue-sending confirmation", () => {
+    const fixture = persistenceFixture();
+    const { coordinator, startTurn } = owner(fixture, "running-turn");
+    coordinator.submit(composerDraftCapture("wait for confirmation"));
+    coordinator.suspendRestored();
+    coordinator.setConnectionUnavailable(true);
+    expect(coordinator.reconcileProjection([baseTurn("running-turn")], [])).toEqual({
+      type: "committed",
+    });
+    coordinator.setConnectionUnavailable(false);
+    const snapshot = coordinator.getSnapshot();
+    expect(snapshot.persistence.restoredPaused).toBe(true);
+    expect(startTurn).not.toHaveBeenCalled();
+    expect(coordinator.resumeRestored(snapshot.persistence.revision)).toBe(true);
+    expect(startTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not complete suspended restoration when saving the snapshot fails", () => {
+    const fixture = persistenceFixture();
+    const { coordinator, startTurn } = owner(fixture, null);
+    coordinator.suspendRestored();
+    coordinator.setConnectionUnavailable(true);
+    fixture.failWrites(true);
+    expect(coordinator.reconcileProjection([], [])).toEqual({
+      type: "blocked",
+      error: "Browser persistence failed: write",
+    });
+    coordinator.setConnectionUnavailable(false);
+    fixture.failWrites(false);
+    expect(coordinator.retryPersistence()).toBe(true);
+    expect(coordinator.submit(composerDraftCapture("still blocked"))).toEqual({ type: "accepted" });
+    expect(startTurn).not.toHaveBeenCalled();
+    expect(coordinator.resumeRestored(coordinator.getSnapshot().persistence.revision)).toBe(false);
+    coordinator.setConnectionUnavailable(true);
+    expect(coordinator.reconcileProjection([], [])).toEqual({ type: "committed" });
+    coordinator.setConnectionUnavailable(false);
+    expect(startTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows a new send after an empty suspended owner is reconciled on the restored connection", () => {
+    const fixture = persistenceFixture();
+    const { coordinator, startTurn } = owner(fixture, null);
+    coordinator.suspendRestored();
+    coordinator.setConnectionUnavailable(true);
+    expect(coordinator.reconcileProjection([], [])).toEqual({ type: "committed" });
+    expect(startTurn).not.toHaveBeenCalled();
+    coordinator.setConnectionUnavailable(false);
+    expect(coordinator.getSnapshot().persistence.restoredPaused).toBe(false);
+    expect(coordinator.submit(composerDraftCapture("send after restoration"))).toEqual({
+      type: "accepted",
+    });
+    expect(startTurn).toHaveBeenCalledTimes(1);
+  });
+
   it("rebases an active queue while keeping sends frozen until projection publication", () => {
     const fixture = persistenceFixture();
     const { coordinator, startTurn } = owner(fixture, "running-turn");

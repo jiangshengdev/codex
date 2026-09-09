@@ -257,6 +257,57 @@ test("App records a synchronization pause when a projection event breaks the bas
     });
 });
 
+test("App retries a failed connection and task restoration without replacing its draft editor", async () => {
+  const screen = await renderWithProviders(<App />);
+  const first = getHostOptions(startGuiHostConnectionMock);
+  const baseline = attachWithCommittedMessages();
+  const originalCommands = initializeAppWithProjection(first, baseline);
+  const input = getAppComposer(screen);
+  await expect.element(input).toHaveAttribute("contenteditable", "true");
+  await input.fill("Draft survives every recovery attempt");
+  const editor = input.element();
+  first.onCommandsUnavailable?.();
+  first.onStatus?.({ label: "closed" });
+  const reconnect = screen.getByRole("button", { name: "Reconnect", exact: true });
+  await reconnect.click();
+  await expect
+    .element(screen.getByRole("button", { name: "Reconnecting…", exact: true }))
+    .toBeDisabled();
+  getHostOptions(startGuiHostConnectionMock, "latest").onStatus?.({
+    label: "error",
+    message: "Handshake unavailable",
+  });
+  await expect.element(reconnect).toBeEnabled();
+  await reconnect.click();
+  await expect
+    .element(
+      screen.getByText("The connection could not be restored. You can try again.", { exact: true }),
+    )
+    .toBeVisible();
+  await screen.getByRole("button", { name: "View diagnostic information", exact: true }).click();
+  const diagnostics = screen.getByRole("dialog", { name: "Diagnostic information", exact: true });
+  await expect.element(diagnostics).toHaveTextContent("Handshake unavailable");
+  await diagnostics.getByRole("button", { name: "Close diagnostics", exact: true }).click();
+  const replacement = createGuiHostCommands();
+  queueAttachProjectionError(replacement, new Error("Task attachment unavailable"));
+  initializeHost(getHostOptions(startGuiHostConnectionMock, "latest"), replacement);
+  await expect
+    .element(
+      screen.getByText("This task could not be restored. You can try again.", { exact: true }),
+    )
+    .toBeVisible();
+  await expectAppComposerDisabled(screen);
+  queueAttachProjectionResponse(replacement, baseline);
+  await screen.getByRole("button", { name: "Restore task", exact: true }).click();
+  await expect.element(input).toHaveAttribute("contenteditable", "true");
+  await expect.element(input).toHaveTextContent("Draft survives every recovery attempt");
+  await expect.element(screen.getByText("Committed App response", { exact: true })).toBeVisible();
+  expect(input.element()).toBe(editor);
+  expect(startGuiHostConnectionMock).toHaveBeenCalledTimes(3);
+  expect(originalCommands.startTurn).not.toHaveBeenCalled();
+  expect(replacement.startTurn).not.toHaveBeenCalled();
+});
+
 test("CurrentTaskPage retains its draft, transcript and diagnostics through failed and successful sync restoration", async () => {
   const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);

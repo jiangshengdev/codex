@@ -23,6 +23,7 @@ import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
 import { ProjectionRecoveryNotice } from "./ProjectionRecoveryNotice";
+import { ConnectionTaskRecoveryNotice } from "./ConnectionTaskRecoveryNotice";
 
 function isMacAppleWebKitRuntime(): boolean {
   return (
@@ -36,7 +37,8 @@ export function CurrentTaskPage() {
   const { t } = useLingui();
   const navigate = useNavigate();
   const router = useRouter();
-  const { activeThreadSession, authorizationToken, routeTarget, status } = useAppCapabilities();
+  const { activeThreadSession, authorizationToken, routeTarget, status, connectionRecovery } =
+    useAppCapabilities();
   const routeThreadId = routeTarget.type === "currentTask" ? routeTarget.threadId : null;
   const requestScope = useMemo(
     () => ({
@@ -422,6 +424,15 @@ export function CurrentTaskPage() {
       status={status}
       notices={
         <>
+          {snapshot.connection.phase === "unavailable" ? (
+            <ConnectionTaskRecoveryNotice
+              connection={snapshot.connection}
+              canRecover={status.label === "initialized" && connectionRecovery == null}
+              onRecover={() => {
+                void activeThreadSession.recoverConnection(snapshot.threadId, snapshot.identity);
+              }}
+            />
+          ) : null}
           {snapshot.phase === "projectionUnavailable" ? (
             <ProjectionRecoveryNotice
               snapshot={snapshot}
