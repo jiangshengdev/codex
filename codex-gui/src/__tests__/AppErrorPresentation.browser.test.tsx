@@ -490,7 +490,7 @@ test("consecutive global errors remain 12px apart", async () => {
       label: "error",
       message: "Connection failed",
     });
-    await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
+    await expect.element(screen.getByText("Connection closed", { exact: true })).toBeVisible();
     const alerts = screen.container.querySelectorAll(
       '[data-app-shell-top-notices] [data-slot="alert-root"]',
     );
