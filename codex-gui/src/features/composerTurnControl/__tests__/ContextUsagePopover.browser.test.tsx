@@ -271,6 +271,48 @@ describe("ContextUsagePopover", () => {
     },
   );
 
+  it("retains the error and action through retry, failure, and canonical start", async () => {
+    const onRequestCompaction = vi.fn<() => void>();
+    const content = (compaction: ActiveThreadCompactionView) => (
+      <ContextUsagePopover
+        compaction={compaction}
+        onRequestCompaction={onRequestCompaction}
+        usage={knownUsage}
+      />
+    );
+    const screen = await renderWithProviders(
+      content({ ...idleCompaction, startFailure: "first private failure" }),
+    );
+    await screen.getByRole("button").click();
+    const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
+    const action = dialog.getByRole("button", { name: "Compress context", exact: true });
+    await action.click();
+    expect(onRequestCompaction).toHaveBeenCalledTimes(1);
+    const originalButton = action.element();
+
+    for (const phase of ["requestPending", "deliveryUnknown"] as const) {
+      await screen.rerender(
+        content({ phase, canRequest: false, startFailure: "first private failure" }),
+      );
+      const pending = dialog.getByRole("button", { name: "Compressing", exact: true });
+      await expect.element(pending).toBeDisabled();
+      expect(pending.element()).toBe(originalButton);
+      await expect.element(dialog.getByRole("alert")).toBeVisible();
+      expect(dialog.element().textContent).not.toContain("first private failure");
+    }
+
+    await screen.rerender(content({ ...idleCompaction, startFailure: "second private failure" }));
+    await expect.element(action).toBeEnabled();
+    await expect.element(dialog.getByRole("alert")).toBeVisible();
+    await action.click();
+    expect(onRequestCompaction).toHaveBeenCalledTimes(2);
+    await screen.rerender(content({ phase: "running", canRequest: false, startFailure: null }));
+    await expect.element(dialog.getByRole("alert")).not.toBeInTheDocument();
+    await expect
+      .element(dialog.getByRole("button", { name: "Compressing", exact: true }))
+      .toBeDisabled();
+  });
+
   it("announces a definite start failure without exposing transport detail", async () => {
     const screen = await renderPopover(knownUsage, {
       phase: "idle",

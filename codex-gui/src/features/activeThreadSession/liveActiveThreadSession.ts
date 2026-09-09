@@ -629,7 +629,11 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private compactionView(): ActiveThreadCompactionView {
     const state = this.compaction.getState();
     if (state.phase !== "idle") {
-      return { phase: state.phase, canRequest: false, startFailure: null };
+      return {
+        phase: state.phase,
+        canRequest: false,
+        startFailure: state.phase === "running" ? null : state.startFailure,
+      };
     }
     return {
       phase: "idle",

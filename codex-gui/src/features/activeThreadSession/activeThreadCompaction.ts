@@ -8,11 +8,13 @@ export type ActiveThreadCompactionState =
   | Readonly<{ phase: "idle"; startFailure: string | null }>
   | Readonly<{
       phase: "requestPending";
+      startFailure: string | null;
       claimId: string;
       candidateTurnId: string | null;
     }>
   | Readonly<{
       phase: "deliveryUnknown";
+      startFailure: string | null;
       claimId: string;
       candidateTurnId: string | null;
     }>
@@ -90,6 +92,7 @@ class ActiveThreadCompactionImpl implements ActiveThreadCompaction {
     this.requestClaim = { claim, reservation, settlement: "pending" };
     this.state = {
       phase: "requestPending",
+      startFailure: this.state.startFailure,
       claimId: claim.id,
       candidateTurnId: null,
     };
@@ -116,6 +119,7 @@ class ActiveThreadCompactionImpl implements ActiveThreadCompaction {
       this.requestClaim.settlement = "deliveryUnknown";
       this.state = {
         phase: "deliveryUnknown",
+        startFailure: this.state.phase === "requestPending" ? this.state.startFailure : null,
         claimId: claim.id,
         candidateTurnId: this.candidateTurnId(),
       };

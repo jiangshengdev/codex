@@ -36,7 +36,10 @@ export type ActiveThreadCompactionView =
   | Readonly<{
       phase: Exclude<ActiveThreadCompactionState["phase"], "idle">;
       canRequest: false;
-      startFailure: null;
+      startFailure: Extract<
+        ActiveThreadCompactionState,
+        { phase: "requestPending" }
+      >["startFailure"];
     }>;
 
 export type ActiveThreadRequestCompactionResult =

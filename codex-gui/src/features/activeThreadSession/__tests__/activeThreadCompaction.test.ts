@@ -85,6 +85,7 @@ describe("ActiveThreadCompaction", () => {
       claim: claimed.claim,
       state: {
         phase: "requestPending",
+        startFailure: null,
         claimId: claimed.claim.id,
         candidateTurnId: null,
       },
@@ -116,6 +117,7 @@ describe("ActiveThreadCompaction", () => {
     ).toEqual({ type: "unchanged" });
     expect(operation.getState()).toEqual({
       phase: "requestPending",
+      startFailure: null,
       claimId: claim.id,
       candidateTurnId: null,
     });
@@ -123,6 +125,7 @@ describe("ActiveThreadCompaction", () => {
       type: "changed",
       state: {
         phase: "requestPending",
+        startFailure: null,
         claimId: claim.id,
         candidateTurnId: "turn-1",
       },
@@ -221,6 +224,7 @@ describe("ActiveThreadCompaction", () => {
     const secondClaim = claimRequest(operation, second.reservation);
     expect(operation.getState()).toEqual({
       phase: "requestPending",
+      startFailure: "compaction was rejected",
       claimId: secondClaim.id,
       candidateTurnId: null,
     });
@@ -231,6 +235,25 @@ describe("ActiveThreadCompaction", () => {
       }),
     ).toEqual({ type: "unchanged" });
     expect(second.release).not.toHaveBeenCalled();
+    operation.settleRequest(secondClaim, {
+      type: "rejected",
+      error: commandError("definitelyNotAccepted", "retry was rejected"),
+    });
+    expect(operation.getState()).toEqual({ phase: "idle", startFailure: "retry was rejected" });
+
+    const third = reservation();
+    const thirdClaim = claimRequest(operation, third.reservation);
+    operation.settleRequest(thirdClaim, { type: "accepted" });
+    expect(operation.getState()).toMatchObject({
+      phase: "requestPending",
+      startFailure: "retry was rejected",
+    });
+    operation.observeAcceptedEvent(startedCompaction("turn-retry", "compact-retry"));
+    expect(operation.getState()).toEqual({
+      phase: "running",
+      turnId: "turn-retry",
+      itemId: "compact-retry",
+    });
   });
 
   it("keeps delivery-unknown requests claimed and does not make them retryable", () => {
@@ -247,6 +270,7 @@ describe("ActiveThreadCompaction", () => {
       type: "changed",
       state: {
         phase: "deliveryUnknown",
+        startFailure: null,
         claimId: claim.id,
         candidateTurnId: null,
       },
@@ -265,6 +289,7 @@ describe("ActiveThreadCompaction", () => {
       type: "changed",
       state: {
         phase: "deliveryUnknown",
+        startFailure: null,
         claimId: claim.id,
         candidateTurnId: "turn-unknown",
       },

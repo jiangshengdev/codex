@@ -1,5 +1,6 @@
 import { Button, Popover, ProgressCircle, Spinner } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { RetryActionButton } from "@/feedback/RetryActionButton";
 import type { ActiveThreadCompactionView } from "@/features/activeThreadSession/activeThreadSessionContracts";
 import type { ContextUsageModel } from "./contextUsageModel";
 
@@ -88,27 +89,23 @@ export function ContextUsagePopover({
             )}
           </div>
           <div className="mt-3 grid gap-2">
-            <Button
+            <RetryActionButton
               isDisabled={!compaction.canRequest}
               isPending={isCompressing}
+              pendingChildren={
+                <Trans comment="Status shown while the current conversation context is compressed">
+                  Compressing
+                </Trans>
+              }
               onPress={onRequestCompaction}
               size="sm"
               variant="secondary"
             >
-              {isCompressing ? (
-                <>
-                  <Spinner aria-hidden color="current" size="sm" />
-                  <Trans comment="Status shown while the current conversation context is compressed">
-                    Compressing
-                  </Trans>
-                </>
-              ) : (
-                <Trans comment="Button that starts compression for the current conversation context">
-                  Compress context
-                </Trans>
-              )}
-            </Button>
-            {compaction.phase === "idle" && compaction.startFailure != null ? (
+              <Trans comment="Button that starts compression for the current conversation context">
+                Compress context
+              </Trans>
+            </RetryActionButton>
+            {compaction.startFailure != null ? (
               <p className="text-sm text-danger" role="alert">
                 <Trans>Context compression could not be started.</Trans>
               </p>

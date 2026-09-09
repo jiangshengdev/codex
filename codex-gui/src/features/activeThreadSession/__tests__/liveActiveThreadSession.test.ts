@@ -285,6 +285,37 @@ describe("LiveActiveThreadSession", () => {
     expect(unexpectedSnapshot.compaction.phase).toBe("deliveryUnknown");
   });
 
+  it("retains the last start failure during retry and unknown delivery until canonical start", async () => {
+    const h = createHarness();
+    h.compactThread.mockRejectedValueOnce(commandError("definitelyNotAccepted", "first failure"));
+    h.session.requestCompaction(h.session.getSnapshot().revision);
+    await Promise.resolve();
+
+    const response = createDeferred<undefined>();
+    h.compactThread.mockReturnValue(response.promise.then(() => ({})));
+    h.session.requestCompaction(h.session.getSnapshot().revision);
+    expect(h.session.getSnapshot()).toMatchObject({
+      compaction: { phase: "requestPending", canRequest: false, startFailure: "first failure" },
+    });
+    expect(h.session.requestCompaction(h.session.getSnapshot().revision)).toEqual({
+      type: "rejected",
+      reason: "operationInProgress",
+    });
+    expect(h.compactThread).toHaveBeenCalledTimes(2);
+
+    response.reject(commandError("deliveryUnknown", "connection lost"));
+    await response.promise.catch(() => undefined);
+    await Promise.resolve();
+    expect(h.session.getSnapshot()).toMatchObject({
+      compaction: { phase: "deliveryUnknown", canRequest: false, startFailure: "first failure" },
+    });
+    h.session.handleProjectionEvent(compactTurnStarted);
+    h.session.handleProjectionEvent(compactItemStarted);
+    expect(h.session.getSnapshot()).toMatchObject({
+      compaction: { phase: "running", canRequest: false, startFailure: null },
+    });
+  });
+
   it("invalidates pending compaction callbacks on projection loss and dispose", async () => {
     for (const terminate of ["projection", "dispose"] as const) {
       const h = createHarness();
