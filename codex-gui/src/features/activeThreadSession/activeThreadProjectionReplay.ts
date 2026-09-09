@@ -4,6 +4,7 @@ import type { ActiveThreadProjectionEventReplay } from "./activeThreadProjection
 type SnapshotReplayIndex = {
   turnStatusById: Partial<Record<string, Turn["status"]>>;
   itemIdsById: Record<string, true>;
+  completedItemIdsById: Record<string, true>;
 };
 
 const idsById = (ids: string[]): Record<string, true> =>
@@ -12,6 +13,13 @@ const idsById = (ids: string[]): Record<string, true> =>
 export const snapshotReplayIndexFromTurns = (turns: Turn[]): SnapshotReplayIndex => ({
   turnStatusById: Object.fromEntries(turns.map((turn) => [turn.id, turn.status])),
   itemIdsById: idsById(turns.flatMap((turn) => turn.items.map((item) => item.id))),
+  completedItemIdsById: idsById(
+    turns.flatMap((turn) =>
+      turn.items
+        .filter((item) => item.type !== "collabAgentToolCall" || item.status !== "inProgress")
+        .map((item) => item.id),
+    ),
+  ),
 });
 
 export const replayForProjectionEvent = (
@@ -29,8 +37,11 @@ export const replayForProjectionEvent = (
         ? "snapshotDuplicate"
         : "live";
     case "itemStarted":
-    case "itemCompleted":
       return index.itemIdsById[notification.event.notification.item.id] === true
+        ? "snapshotDuplicate"
+        : "live";
+    case "itemCompleted":
+      return index.completedItemIdsById[notification.event.notification.item.id] === true
         ? "snapshotDuplicate"
         : "live";
     case "tokenUsageUpdated":
