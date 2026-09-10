@@ -1,5 +1,72 @@
 # Codex GUI 助手回答数学公式显示实施计划
 
+> 当前修订：2026-09-10，长公式局部横向滚动设计已确认；下方修订实施计划待确认。
+> 原计划及其当时状态保留为历史。修订仅替代公式溢出约束，不重开已完成的语法任务。
+
+## 修订实施计划：长公式局部横向滚动
+
+### 目标、依据与范围
+
+落实[设计的当前有效补充](../../../../specs/2026/09/10/2026-09-10-codex-gui-assistant-math-rendering-design.md)：
+长公式仅在公式区域横向滚动，保持正常字号和数学排版，不撑宽页面。
+用户已选择 A 并确认设计与计划落盘；本段形成可审阅实施方案，尚未授权本修订的源码修改或提交。
+
+当前 `MarkdownText.tsx` 与 `LiveMarkdownText.tsx` 通过 `enableMath` 区分助手数学消费者，
+`index.css` 已导入 Streamdown 与 KaTeX 样式。真实历史曾在 390px 视口产生 419px 页面内容宽度。
+因此修订在助手数学展示边界约束公式宽度与滚动，不改消息内容、语法 tokenizer 或 transcript 分块。
+
+沿用原计划 MATH、TEST、DOC 集合；STYLE 在 `codex-gui/src/index.css` 中扩展为允许助手数学专属
+宽度与溢出样式。只修改必要的共享数学配置、静态/流式接入及对应 Browser 测试。
+滚动 owner 必须落在公式区域，不得给整条消息或页面设置横向滚动来替代；不得以隐藏内容通过宽度检查。
+短公式、行内/块级语义、MathML、复制、非助手消费者与原流式行为继续受保护。
+不改 Rust、后端、依赖、锁文件、协议或翻译；不创建 scratch/worktree，不操作远程。
+
+### 执行节点与提交边界
+
+以下节点继承原计划公共字段、资源锁、失败域、命令入口与唯一 Git owner 约束。
+本修订的 `authorizationGate` 为 pending；用户确认本实施计划后才进入执行。
+主代理负责有界展示修正与验证；沿用已确认的 Standards、Spec 独立只读审查，审查者不得编辑、测试或 Git 写。
+无额外产品任务；这是已提交数学展示能力的新独立修订，禁止 amend 或混入纯代码重排。
+
+| nodeId | taskBoundary / operationKind | 硬前置与理由 | 消费→产出及完成证据 | writeSet / stateEffects / commandScope |
+| --- | --- | --- | --- | --- |
+| O.doc.stage | DOC / stage | 本修订实施确认、文档 diff 检查通过 | 修订文档→精确 staged diff | DOC/index；限定 git add |
+| O.doc.commit | DOC / commit | O.doc.stage：暂存核查通过 | staged docs→实施前独立文档提交 | index/提交；git commit |
+| O.edit | 溢出修订 / edit | O.doc.commit：文档屏障 | 当前数学展示与窄屏失败证据→局部滚动源码及回归 | 必要 MATH、STYLE、TEST；普通源码编辑 |
+| O.format | 溢出修订 / format | O.edit：变更文件确定 | 源码→限定格式化 diff | 同 O.edit；项目格式化 owner |
+| O.verify | 溢出修订 / verify | O.format：稳定源码 | 源码→三浏览器定向回归与静态检查证据 | runner 产物；原计划定向及静态入口 |
+| O.stage | 溢出修订 / stage | O.verify：检查通过 | 精确任务 diff→staged diff | index；限定 git add、staged diff 检查 |
+| O.commit | 溢出修订 / commit | O.stage：暂存核查通过 | staged 源码→新独立实现提交 | index/提交；git commit |
+| O.review | 无提交 / review | O.commit：稳定实现 | 修订提交与设计→Standards、Spec 独立结论 | 无；只读审查 |
+| O.level1 | 无提交 / verify | O.commit：稳定实现 | 组合源码→CI、完整 Browser 证据 | runner 产物；原计划最终 Level 1 入口 |
+| O.level2 | 无提交 / verify | O.commit、当前 runtime 与有效会话授权 | 相同服务源码→真实局部滚动与页面宽度证据 | 专用无头浏览器状态；原 Level 2 入口 |
+| O.join | 无提交 / fan-in | O.review、O.level1、O.level2：结果或明确缺口齐备 | 全部证据→修订及整体完成判断 | 无；只读汇总，不将缺口视为通过 |
+| O.record | DOC / edit | O.join：结论已形成 | 验收结果→现有执行记录增量更新 | DOC；文档编辑，保留历史 |
+| O.record.stage | DOC / stage | O.record：文档检查通过 | 执行记录→精确 staged diff | DOC/index；限定 git add |
+| O.record.commit | DOC / commit | O.record.stage：暂存核查通过 | staged 记录→独立文档提交 | index/提交；git commit |
+
+初始 ready set 在实施确认后为 O.doc.stage。O.commit 后的独立审查、Level 1、Level 2 可在资源无冲突时
+并行；同一测试 runner 内串行执行入口。关键路径为文档提交→展示修正与定向验证→实现提交→
+最晚就绪的审查/验收→记录提交。缺少真实 runtime 或专用会话授权只阻塞对应真实场景。
+
+### 验证与完成要求
+
+- 从实际消息展示入口构造合法的最小四语法样例，覆盖静态、流式、结束切换与历史重附，
+  同时包含短公式、超宽行内/块级公式和普通正文。复用现有 projection builder，不复制私人全文。
+- 在窄屏测量局部容器 `clientWidth`、`scrollWidth` 和滚动位置；交互后可到达公式末端。
+  检查页面/消息宽度及正文位置，证明只有公式区域横向滚动；不能仅断言存在 CSS class。
+- 对照桌面与窄屏的正常字号、数学语义及公式完整内容；普通宽度公式不出现无必要的滚动，
+  非助手消费者与现有 Markdown 功能不受影响。
+- 执行原计划定向三浏览器入口、适用静态检查，最终执行 `ci` 与完整 `test:browser`。
+  命令及 fnm 环境沿用下方权威入口，实施前重新预检，不安装缺失工具或依赖。
+- Level 2 在当前完整 URL、明确无头状态和服务源码一致的前提下，重验真实历史的 390px 窄屏、
+  桌面、局部滚动末端和页面宽度；有授权的真实增量输出中验证流式与结束状态。
+  向模型发送样例仍须专用验证会话，不能将本次设计确认当成修改既有任务的授权。
+- 此前完整 Browser 失败及四语法真实流式缺口保持开放，分别记录新证据；不改基线、放宽断言或宣称已修复。
+  新增滚动要求未达到时继续本修订内修正；完整计划仍以所有适用验证和审查闭环为完成标准。
+
+## 原始实施计划记录
+
 > 日期：2026-09-10
 > 状态：任务拆分与依赖已确认，计划已落盘；尚未执行
 > 确认依据：用户在两个任务、依赖及提交/验收边界展示后回复「确认」
