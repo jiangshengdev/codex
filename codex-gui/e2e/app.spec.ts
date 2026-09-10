@@ -275,20 +275,27 @@ test("fits committed transcript and composer in a narrow mobile viewport", async
   await expect(page.getByRole("status", { name: "Current task is idle" })).toHaveText("Idle");
 
   const layout = await page.evaluate<LayoutMetrics>(`(() => {
-    const appSurface = document.querySelector(".surface");
-    const transcriptSurface = document.querySelector(".committed-transcript-surface");
-    const composer = document.querySelector('[aria-label="Message composer"]');
-    const composerStatus = document.querySelector(".current-thread-status");
+    const requireElement = (selector) => {
+      const elements = document.querySelectorAll(selector);
+      if (elements.length !== 1) {
+        throw new Error("Expected exactly one layout element for " + selector + ", found " + elements.length);
+      }
+      return elements[0];
+    };
+    const appSurface = requireElement("main > .surface.task-reading-boundary");
+    const transcriptSurface = requireElement(".committed-transcript-surface");
+    const composer = requireElement('[aria-label="Message composer"]');
+    const composerStatus = requireElement(".current-thread-status");
 
     return {
       clientWidth: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
       bodyClientWidth: document.body.clientWidth,
       bodyScrollWidth: document.body.scrollWidth,
-      appSurfaceRight: appSurface?.getBoundingClientRect().right ?? 0,
-      transcriptSurfaceRight: transcriptSurface?.getBoundingClientRect().right ?? 0,
-      composerRight: composer?.getBoundingClientRect().right ?? 0,
-      composerStatusRight: composerStatus?.getBoundingClientRect().right ?? 0,
+      appSurfaceRight: appSurface.getBoundingClientRect().right,
+      transcriptSurfaceRight: transcriptSurface.getBoundingClientRect().right,
+      composerRight: composer.getBoundingClientRect().right,
+      composerStatusRight: composerStatus.getBoundingClientRect().right,
     };
   })()`);
 
