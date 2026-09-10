@@ -253,5 +253,6 @@ rp_require_head_superpowers_diff_empty() {
 
 rp_require_staged_diff_check_for_merge() {
   rp_git diff --no-color --cached --check -- . \
-    ':(exclude,glob)**/*.snap'
+    ':(exclude,glob)**/*.snap' \
+    ':(exclude,glob)**/*.patch'
 }

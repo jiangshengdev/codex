@@ -59,6 +59,16 @@ repo="$(new_repo snapshot-whitespace)"
 stage_snapshot "$repo"
 expect_pass snapshot-whitespace "$repo"
 
+repo="$(new_repo patch-whitespace)"
+mkdir -p "$repo/patches"
+printf ' \n+   \n\n' >"$repo/patches/test.patch"
+printf ' \n+   \n\n' >"$repo/root.patch"
+git -C "$repo" add patches/test.patch root.patch
+expect_pass patch-whitespace "$repo"
+printf 'bad   \n' >"$repo/bad.rs"
+git -C "$repo" add bad.rs
+expect_fail patch-and-source-whitespace "$repo"
+
 repo="$(new_repo source-whitespace)"
 printf 'bad   \n' >"$repo/bad.rs"
 git -C "$repo" add bad.rs
