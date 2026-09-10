@@ -1,5 +1,7 @@
 import { Streamdown } from "streamdown";
+import { parseAssistantMarkdownIntoBlocks } from "./remarkBackslashMath";
 import {
+  assistantRemarkPlugins,
   assistantStreamdownPlugins,
   markdownContainerClassName,
   streamdownCommonProps,
@@ -16,6 +18,8 @@ export const LiveMarkdownText = ({
     <Streamdown
       {...streamdownCommonProps}
       plugins={enableMath ? assistantStreamdownPlugins : streamdownCommonProps.plugins}
+      remarkPlugins={enableMath ? assistantRemarkPlugins : undefined}
+      parseMarkdownIntoBlocksFn={enableMath ? parseAssistantMarkdownIntoBlocks : undefined}
       caret="block"
       isAnimating
       mode="streaming"

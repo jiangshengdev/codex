@@ -1,5 +1,6 @@
 import { Streamdown } from "streamdown";
 import {
+  assistantRemarkPlugins,
   assistantStreamdownPlugins,
   markdownContainerClassName,
   streamdownCommonProps,
@@ -16,6 +17,7 @@ export const MarkdownText = ({
     <Streamdown
       {...streamdownCommonProps}
       plugins={enableMath ? assistantStreamdownPlugins : streamdownCommonProps.plugins}
+      remarkPlugins={enableMath ? assistantRemarkPlugins : undefined}
       mode="static"
     >
       {source}

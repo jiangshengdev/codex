@@ -171,6 +171,12 @@ importers:
       globals:
         specifier: ^17.11.0
         version: 17.11.0
+      mdast-util-from-markdown:
+        specifier: 2.0.3
+        version: 2.0.3
+      micromark-util-types:
+        specifier: 2.0.2
+        version: 2.0.2
       oxfmt:
         specifier: ^0.59.0
         version: 0.59.0
@@ -189,6 +195,9 @@ importers:
       typescript-eslint:
         specifier: ^8.68.0
         version: 8.68.0(eslint@10.9.1(jiti@2.7.0))(typescript@6.0.3)
+      unified:
+        specifier: 11.0.5
+        version: 11.0.5
       vite:
         specifier: ^8.2.2
         version: 8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)

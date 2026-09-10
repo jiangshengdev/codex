@@ -4,6 +4,7 @@ import { createMathPlugin } from "@streamdown/math";
 import { defaultHandlers, type Handler } from "mdast-util-to-hast";
 import { isAbsolute } from "pathe";
 import {
+  defaultRemarkPlugins,
   defaultRehypePlugins,
   type AllowElement,
   type Components,
@@ -11,6 +12,7 @@ import {
   type StreamdownProps,
 } from "streamdown";
 import { parse as parseUri } from "uri-js";
+import { remarkBackslashMath } from "./remarkBackslashMath";
 
 const isAbsolutePath = isAbsolute as (path: string) => boolean;
 
@@ -67,6 +69,7 @@ export const assistantStreamdownPlugins = {
   ...streamdownPlugins,
   math: createMathPlugin({ singleDollarTextMath: true }),
 };
+export const assistantRemarkPlugins = [...Object.values(defaultRemarkPlugins), remarkBackslashMath];
 
 const clipboardWriteAvailable =
   typeof window !== "undefined" &&
