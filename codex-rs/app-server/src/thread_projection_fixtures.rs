@@ -206,6 +206,7 @@ fn closed_backpressure() -> ThreadProjectionClosedNotification {
 fn thread(thread_id: &str, name: Option<String>, turns: Vec<Turn>) -> Result<Thread> {
     Ok(Thread {
         id: thread_id.to_string(),
+        environments: None,
         extra: None,
         session_id: thread_id.to_string(),
         forked_from_id: None,
@@ -227,6 +228,7 @@ fn thread(thread_id: &str, name: Option<String>, turns: Vec<Turn>) -> Result<Thr
         cwd: AbsolutePathBuf::from_absolute_path(FIXTURE_CWD)
             .context("fixture cwd must be absolute")?,
         cli_version: "projection-fixture".to_string(),
+        originator: None,
         source: SessionSource::AppServer,
         can_accept_direct_input: Some(true),
         thread_source: None,
@@ -234,6 +236,7 @@ fn thread(thread_id: &str, name: Option<String>, turns: Vec<Turn>) -> Result<Thr
         agent_role: None,
         git_info: None,
         name,
+        daybreak_enabled: None,
         turns,
     })
 }

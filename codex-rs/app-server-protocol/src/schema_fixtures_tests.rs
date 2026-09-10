@@ -613,6 +613,7 @@ fn client_request_definitions_export_method_params_and_response() -> Result<()> 
         .collect::<String>();
 
     for expected in [
+        r#"importtype{GetAccountRateLimitsParams}from"./v2/GetAccountRateLimitsParams";"#,
         r#"importtype{GetAccountTokenUsageParams}from"./v2/GetAccountTokenUsageParams";"#,
         r#"{method:"initialize";params:InitializeParams;response:InitializeResponse;}"#,
         r#"{method:"thread/projection/attach";params:ThreadProjectionAttachParams;response:ThreadProjectionAttachResponse;}"#,
@@ -620,6 +621,7 @@ fn client_request_definitions_export_method_params_and_response() -> Result<()> 
         r#"{method:"turn/interrupt";params:TurnInterruptParams;response:TurnInterruptResponse;}"#,
         r#"{method:"config/mcpServer/reload";params:undefined;response:McpServerRefreshResponse;}"#,
         r#"{method:"account/usage/read";params:GetAccountTokenUsageParams|null;response:GetAccountTokenUsageResponse;}"#,
+        r#"{method:"account/rateLimits/read";params:GetAccountRateLimitsParams|null;response:GetAccountRateLimitsResponse;}"#,
     ] {
         assert!(
             compact_typescript.contains(expected),
@@ -652,6 +654,8 @@ fn client_request_definitions_export_method_params_and_response() -> Result<()> 
 
     for expected in [
         r#"importtype{RemoteControlEnableParams}from"./v2/RemoteControlEnableParams";"#,
+        r#"importtype{GetAccountRateLimitsParams}from"./v2/GetAccountRateLimitsParams";"#,
+        r#"{method:"account/rateLimits/read";params:GetAccountRateLimitsParams|null;response:GetAccountRateLimitsResponse;}"#,
         r#"importtype{RemoteControlDisableParams}from"./v2/RemoteControlDisableParams";"#,
         r#"{method:"remoteControl/enable";params:RemoteControlEnableParams|null;response:RemoteControlEnableResponse;}"#,
         r#"{method:"remoteControl/disable";params:RemoteControlDisableParams|null;response:RemoteControlDisableResponse;}"#,
@@ -702,6 +706,11 @@ fn client_request_definitions_export_method_params_and_response() -> Result<()> 
             "method": "account/usage/read",
             "paramsSchema": "v2/GetAccountTokenUsageParams",
             "responseSchema": "v2/GetAccountTokenUsageResponse",
+        }),
+        json!({
+            "method": "account/rateLimits/read",
+            "paramsSchema": "v2/GetAccountRateLimitsParams",
+            "responseSchema": "v2/GetAccountRateLimitsResponse",
         }),
         json!({
             "method": "remoteControl/enable",

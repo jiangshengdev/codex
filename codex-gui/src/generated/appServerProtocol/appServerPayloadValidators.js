@@ -860,7 +860,7 @@ function validate26(data, { instancePath = "", parentData, parentDataProperty, r
 }
 var validateV2ThreadListResponse = validate27;
 var schema32 = { "$schema": "http://json-schema.org/draft-07/schema#", "properties": { "backwardsCursor": { "description": "Opaque cursor to pass as `cursor` when reversing `sortDirection`. This is only populated when the page contains at least one thread. Use it with the opposite `sortDirection`; for timestamp sorts it anchors at the start of the page timestamp so same-second updates are not skipped.", "type": ["string", "null"] }, "data": { "items": { "$ref": "#/definitions/v2/Thread" }, "type": "array" }, "nextCursor": { "description": "Opaque cursor to pass to the next call to continue after the last item. if None, there are no more items to return.", "type": ["string", "null"] } }, "required": ["backwardsCursor", "data", "nextCursor"], "title": "ThreadListResponse", "type": "object" };
-var schema33 = { "properties": { "agentNickname": { "description": "Optional random unique nickname assigned to an AgentControl-spawned sub-agent.", "type": ["string", "null"] }, "agentRole": { "description": "Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.", "type": ["string", "null"] }, "cliVersion": { "description": "Version of the CLI that created the thread.", "type": "string" }, "createdAt": { "description": "Unix timestamp (in seconds) when the thread was created.", "format": "int64", "type": "integer" }, "cwd": { "allOf": [{ "$ref": "#/definitions/v2/AbsolutePathBuf" }], "description": "Working directory captured for the thread." }, "ephemeral": { "description": "Whether the thread is ephemeral and should not be materialized on disk.", "type": "boolean" }, "forkedFromId": { "description": "Source thread id when this thread was created by forking another thread.", "type": ["string", "null"] }, "gitInfo": { "anyOf": [{ "$ref": "#/definitions/v2/GitInfo" }, { "type": "null" }], "description": "Optional Git metadata captured when the thread was created." }, "historyMode": { "allOf": [{ "$ref": "#/definitions/v2/ThreadHistoryMode" }], "default": "legacy", "description": "Persisted thread history contract selected when this thread was created." }, "id": { "description": "Identifier for this thread. Codex-generated thread IDs are UUIDv7.", "type": "string" }, "model": { "description": "Current configured model when loaded, otherwise the latest persisted model. Null when unavailable. This is not per-turn execution telemetry.", "type": ["string", "null"] }, "modelProvider": { "description": "Model provider used for this thread (for example, 'openai').", "type": "string" }, "name": { "description": "Optional user-facing thread title.", "type": ["string", "null"] }, "parentThreadId": { "description": "The ID of the parent thread. This will only be set if this thread is a subagent.", "type": ["string", "null"] }, "path": { "description": "[UNSTABLE] Path to the thread on disk.", "type": ["string", "null"] }, "preview": { "description": "Usually the first user message in the thread, if available.", "type": "string" }, "projectId": { "description": "Canonical project assignment owned by app-server, if any.", "type": ["string", "null"] }, "reasoningEffort": { "anyOf": [{ "$ref": "#/definitions/v2/ReasoningEffort" }, { "type": "null" }], "description": "Current configured reasoning effort when loaded, otherwise the latest persisted effort. Null when unset or unavailable. This is not per-turn execution telemetry." }, "recencyAt": { "description": "Unix timestamp (in seconds) used for thread recency ordering.", "format": "int64", "type": ["integer", "null"] }, "section": { "anyOf": [{ "$ref": "#/definitions/v2/ThreadSection" }, { "type": "null" }], "default": null, "description": "The independently persisted section selected for this thread, if any." }, "sectionEnteredAt": { "default": null, "description": "Unix timestamp in seconds when the thread entered its current section.", "format": "int64", "type": ["integer", "null"] }, "sessionId": { "description": "Session id shared by threads that belong to the same session tree.", "type": "string" }, "source": { "allOf": [{ "$ref": "#/definitions/v2/SessionSource" }], "description": "Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.)." }, "status": { "allOf": [{ "$ref": "#/definitions/v2/ThreadStatus" }], "description": "Current runtime status for the thread." }, "threadSource": { "anyOf": [{ "$ref": "#/definitions/v2/ThreadSource" }, { "type": "null" }], "description": "Optional analytics source classification for this thread." }, "turns": { "description": "Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read` (when `includeTurns` is true) responses. For all other responses and notifications returning a Thread, the turns field will be an empty list.", "items": { "$ref": "#/definitions/v2/Turn" }, "type": "array" }, "updatedAt": { "description": "Unix timestamp (in seconds) when the thread was last updated.", "format": "int64", "type": "integer" } }, "required": ["cliVersion", "createdAt", "cwd", "ephemeral", "id", "modelProvider", "preview", "projectId", "sessionId", "source", "status", "turns", "updatedAt"], "type": "object" };
+var schema33 = { "properties": { "agentNickname": { "description": "Optional random unique nickname assigned to an AgentControl-spawned sub-agent.", "type": ["string", "null"] }, "agentRole": { "description": "Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.", "type": ["string", "null"] }, "cliVersion": { "description": "Version of the CLI that created the thread.", "type": "string" }, "createdAt": { "description": "Unix timestamp (in seconds) when the thread was created.", "format": "int64", "type": "integer" }, "cwd": { "allOf": [{ "$ref": "#/definitions/v2/AbsolutePathBuf" }], "description": "Working directory captured for the thread." }, "ephemeral": { "description": "Whether the thread is ephemeral and should not be materialized on disk.", "type": "boolean" }, "forkedFromId": { "description": "Source thread id when this thread was created by forking another thread.", "type": ["string", "null"] }, "gitInfo": { "anyOf": [{ "$ref": "#/definitions/v2/GitInfo" }, { "type": "null" }], "description": "Optional Git metadata captured when the thread was created." }, "historyMode": { "allOf": [{ "$ref": "#/definitions/v2/ThreadHistoryMode" }], "default": "legacy", "description": "Persisted thread history contract selected when this thread was created." }, "id": { "description": "Identifier for this thread. Codex-generated thread IDs are UUIDv7.", "type": "string" }, "model": { "description": "Current configured model when loaded, otherwise the latest persisted model. Null when unavailable. This is not per-turn execution telemetry.", "type": ["string", "null"] }, "modelProvider": { "description": "Model provider used for this thread (for example, 'openai').", "type": "string" }, "name": { "description": "Optional user-facing thread title.", "type": ["string", "null"] }, "originator": { "description": "Originator recorded when the thread was created, independent of its current client or executor. Null when the recorded originator is unavailable.", "type": ["string", "null"] }, "parentThreadId": { "description": "The ID of the parent thread. This will only be set if this thread is a subagent.", "type": ["string", "null"] }, "path": { "description": "[UNSTABLE] Path to the thread on disk.", "type": ["string", "null"] }, "preview": { "description": "Usually the first user message in the thread, if available.", "type": "string" }, "projectId": { "description": "Canonical project assignment owned by app-server, if any.", "type": ["string", "null"] }, "reasoningEffort": { "anyOf": [{ "$ref": "#/definitions/v2/ReasoningEffort" }, { "type": "null" }], "description": "Current configured reasoning effort when loaded, otherwise the latest persisted effort. Null when unset or unavailable. This is not per-turn execution telemetry." }, "recencyAt": { "description": "Unix timestamp (in seconds) used for thread recency ordering.", "format": "int64", "type": ["integer", "null"] }, "section": { "anyOf": [{ "$ref": "#/definitions/v2/ThreadSection" }, { "type": "null" }], "default": null, "description": "The independently persisted section selected for this thread, if any." }, "sectionEnteredAt": { "default": null, "description": "Unix timestamp in seconds when the thread entered its current section.", "format": "int64", "type": ["integer", "null"] }, "sessionId": { "description": "Session id shared by threads that belong to the same session tree.", "type": "string" }, "source": { "allOf": [{ "$ref": "#/definitions/v2/SessionSource" }], "description": "Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.)." }, "status": { "allOf": [{ "$ref": "#/definitions/v2/ThreadStatus" }], "description": "Current runtime status for the thread." }, "threadSource": { "anyOf": [{ "$ref": "#/definitions/v2/ThreadSource" }, { "type": "null" }], "description": "Optional analytics source classification for this thread." }, "turns": { "description": "Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read` (when `includeTurns` is true) responses. For all other responses and notifications returning a Thread, the turns field will be an empty list.", "items": { "$ref": "#/definitions/v2/Turn" }, "type": "array" }, "updatedAt": { "description": "Unix timestamp (in seconds) when the thread was last updated.", "format": "int64", "type": "integer" } }, "required": ["cliVersion", "createdAt", "cwd", "ephemeral", "id", "modelProvider", "preview", "projectId", "sessionId", "source", "status", "turns", "updatedAt"], "type": "object" };
 var schema35 = { "properties": { "branch": { "type": ["string", "null"] }, "originUrl": { "type": ["string", "null"] }, "sha": { "type": ["string", "null"] } }, "type": "object" };
 var schema36 = { "enum": ["legacy", "paginated"], "type": "string" };
 var func2 = require_ucs2length().default;
@@ -9671,11 +9671,11 @@ function validate29(data, { instancePath = "", parentData, parentDataProperty, r
                                   var valid0 = true;
                                 }
                                 if (valid0) {
-                                  if (data.parentThreadId !== void 0) {
-                                    let data16 = data.parentThreadId;
+                                  if (data.originator !== void 0) {
+                                    let data16 = data.originator;
                                     const _errs42 = errors;
                                     if (typeof data16 !== "string" && data16 !== null) {
-                                      validate29.errors = [{ instancePath: instancePath + "/parentThreadId", schemaPath: "#/properties/parentThreadId/type", keyword: "type", params: { type: schema33.properties.parentThreadId.type } }];
+                                      validate29.errors = [{ instancePath: instancePath + "/originator", schemaPath: "#/properties/originator/type", keyword: "type", params: { type: schema33.properties.originator.type } }];
                                       return false;
                                     }
                                     var valid0 = _errs42 === errors;
@@ -9683,11 +9683,11 @@ function validate29(data, { instancePath = "", parentData, parentDataProperty, r
                                     var valid0 = true;
                                   }
                                   if (valid0) {
-                                    if (data.path !== void 0) {
-                                      let data17 = data.path;
+                                    if (data.parentThreadId !== void 0) {
+                                      let data17 = data.parentThreadId;
                                       const _errs44 = errors;
                                       if (typeof data17 !== "string" && data17 !== null) {
-                                        validate29.errors = [{ instancePath: instancePath + "/path", schemaPath: "#/properties/path/type", keyword: "type", params: { type: schema33.properties.path.type } }];
+                                        validate29.errors = [{ instancePath: instancePath + "/parentThreadId", schemaPath: "#/properties/parentThreadId/type", keyword: "type", params: { type: schema33.properties.parentThreadId.type } }];
                                         return false;
                                       }
                                       var valid0 = _errs44 === errors;
@@ -9695,10 +9695,11 @@ function validate29(data, { instancePath = "", parentData, parentDataProperty, r
                                       var valid0 = true;
                                     }
                                     if (valid0) {
-                                      if (data.preview !== void 0) {
+                                      if (data.path !== void 0) {
+                                        let data18 = data.path;
                                         const _errs46 = errors;
-                                        if (typeof data.preview !== "string") {
-                                          validate29.errors = [{ instancePath: instancePath + "/preview", schemaPath: "#/properties/preview/type", keyword: "type", params: { type: "string" } }];
+                                        if (typeof data18 !== "string" && data18 !== null) {
+                                          validate29.errors = [{ instancePath: instancePath + "/path", schemaPath: "#/properties/path/type", keyword: "type", params: { type: schema33.properties.path.type } }];
                                           return false;
                                         }
                                         var valid0 = _errs46 === errors;
@@ -9706,11 +9707,10 @@ function validate29(data, { instancePath = "", parentData, parentDataProperty, r
                                         var valid0 = true;
                                       }
                                       if (valid0) {
-                                        if (data.projectId !== void 0) {
-                                          let data19 = data.projectId;
+                                        if (data.preview !== void 0) {
                                           const _errs48 = errors;
-                                          if (typeof data19 !== "string" && data19 !== null) {
-                                            validate29.errors = [{ instancePath: instancePath + "/projectId", schemaPath: "#/properties/projectId/type", keyword: "type", params: { type: schema33.properties.projectId.type } }];
+                                          if (typeof data.preview !== "string") {
+                                            validate29.errors = [{ instancePath: instancePath + "/preview", schemaPath: "#/properties/preview/type", keyword: "type", params: { type: "string" } }];
                                             return false;
                                           }
                                           var valid0 = _errs48 === errors;
@@ -9718,154 +9718,155 @@ function validate29(data, { instancePath = "", parentData, parentDataProperty, r
                                           var valid0 = true;
                                         }
                                         if (valid0) {
-                                          if (data.reasoningEffort !== void 0) {
-                                            let data20 = data.reasoningEffort;
+                                          if (data.projectId !== void 0) {
+                                            let data20 = data.projectId;
                                             const _errs50 = errors;
-                                            const _errs51 = errors;
-                                            let valid8 = false;
-                                            const _errs52 = errors;
-                                            const _errs53 = errors;
-                                            if (errors === _errs53) {
-                                              if (typeof data20 === "string") {
-                                                if (func2(data20) < 1) {
-                                                  const err6 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/definitions/v2/ReasoningEffort/minLength", keyword: "minLength", params: { limit: 1 } };
-                                                  if (vErrors === null) {
-                                                    vErrors = [err6];
-                                                  } else {
-                                                    vErrors.push(err6);
-                                                  }
-                                                  errors++;
-                                                }
-                                              } else {
-                                                const err7 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/definitions/v2/ReasoningEffort/type", keyword: "type", params: { type: "string" } };
-                                                if (vErrors === null) {
-                                                  vErrors = [err7];
-                                                } else {
-                                                  vErrors.push(err7);
-                                                }
-                                                errors++;
-                                              }
-                                            }
-                                            var _valid1 = _errs52 === errors;
-                                            valid8 = valid8 || _valid1;
-                                            if (!valid8) {
-                                              const _errs55 = errors;
-                                              if (data20 !== null) {
-                                                const err8 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/properties/reasoningEffort/anyOf/1/type", keyword: "type", params: { type: "null" } };
-                                                if (vErrors === null) {
-                                                  vErrors = [err8];
-                                                } else {
-                                                  vErrors.push(err8);
-                                                }
-                                                errors++;
-                                              }
-                                              var _valid1 = _errs55 === errors;
-                                              valid8 = valid8 || _valid1;
-                                            }
-                                            if (!valid8) {
-                                              const err9 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/properties/reasoningEffort/anyOf", keyword: "anyOf", params: {} };
-                                              if (vErrors === null) {
-                                                vErrors = [err9];
-                                              } else {
-                                                vErrors.push(err9);
-                                              }
-                                              errors++;
-                                              validate29.errors = vErrors;
+                                            if (typeof data20 !== "string" && data20 !== null) {
+                                              validate29.errors = [{ instancePath: instancePath + "/projectId", schemaPath: "#/properties/projectId/type", keyword: "type", params: { type: schema33.properties.projectId.type } }];
                                               return false;
-                                            } else {
-                                              errors = _errs51;
-                                              if (vErrors !== null) {
-                                                if (_errs51) {
-                                                  vErrors.length = _errs51;
-                                                } else {
-                                                  vErrors = null;
-                                                }
-                                              }
                                             }
                                             var valid0 = _errs50 === errors;
                                           } else {
                                             var valid0 = true;
                                           }
                                           if (valid0) {
-                                            if (data.recencyAt !== void 0) {
-                                              let data21 = data.recencyAt;
-                                              const _errs57 = errors;
-                                              if (!(typeof data21 == "number" && (!(data21 % 1) && !isNaN(data21)) && isFinite(data21)) && data21 !== null) {
-                                                validate29.errors = [{ instancePath: instancePath + "/recencyAt", schemaPath: "#/properties/recencyAt/type", keyword: "type", params: { type: schema33.properties.recencyAt.type } }];
-                                                return false;
+                                            if (data.reasoningEffort !== void 0) {
+                                              let data21 = data.reasoningEffort;
+                                              const _errs52 = errors;
+                                              const _errs53 = errors;
+                                              let valid8 = false;
+                                              const _errs54 = errors;
+                                              const _errs55 = errors;
+                                              if (errors === _errs55) {
+                                                if (typeof data21 === "string") {
+                                                  if (func2(data21) < 1) {
+                                                    const err6 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/definitions/v2/ReasoningEffort/minLength", keyword: "minLength", params: { limit: 1 } };
+                                                    if (vErrors === null) {
+                                                      vErrors = [err6];
+                                                    } else {
+                                                      vErrors.push(err6);
+                                                    }
+                                                    errors++;
+                                                  }
+                                                } else {
+                                                  const err7 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/definitions/v2/ReasoningEffort/type", keyword: "type", params: { type: "string" } };
+                                                  if (vErrors === null) {
+                                                    vErrors = [err7];
+                                                  } else {
+                                                    vErrors.push(err7);
+                                                  }
+                                                  errors++;
+                                                }
                                               }
-                                              var valid0 = _errs57 === errors;
+                                              var _valid1 = _errs54 === errors;
+                                              valid8 = valid8 || _valid1;
+                                              if (!valid8) {
+                                                const _errs57 = errors;
+                                                if (data21 !== null) {
+                                                  const err8 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/properties/reasoningEffort/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                                  if (vErrors === null) {
+                                                    vErrors = [err8];
+                                                  } else {
+                                                    vErrors.push(err8);
+                                                  }
+                                                  errors++;
+                                                }
+                                                var _valid1 = _errs57 === errors;
+                                                valid8 = valid8 || _valid1;
+                                              }
+                                              if (!valid8) {
+                                                const err9 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/properties/reasoningEffort/anyOf", keyword: "anyOf", params: {} };
+                                                if (vErrors === null) {
+                                                  vErrors = [err9];
+                                                } else {
+                                                  vErrors.push(err9);
+                                                }
+                                                errors++;
+                                                validate29.errors = vErrors;
+                                                return false;
+                                              } else {
+                                                errors = _errs53;
+                                                if (vErrors !== null) {
+                                                  if (_errs53) {
+                                                    vErrors.length = _errs53;
+                                                  } else {
+                                                    vErrors = null;
+                                                  }
+                                                }
+                                              }
+                                              var valid0 = _errs52 === errors;
                                             } else {
                                               var valid0 = true;
                                             }
                                             if (valid0) {
-                                              if (data.section !== void 0) {
-                                                let data22 = data.section;
+                                              if (data.recencyAt !== void 0) {
+                                                let data22 = data.recencyAt;
                                                 const _errs59 = errors;
-                                                const _errs60 = errors;
-                                                let valid10 = false;
-                                                const _errs61 = errors;
-                                                if (!validate30(data22, { instancePath: instancePath + "/section", parentData: data, parentDataProperty: "section", rootData })) {
-                                                  vErrors = vErrors === null ? validate30.errors : vErrors.concat(validate30.errors);
-                                                  errors = vErrors.length;
-                                                }
-                                                var _valid2 = _errs61 === errors;
-                                                valid10 = valid10 || _valid2;
-                                                if (!valid10) {
-                                                  const _errs62 = errors;
-                                                  if (data22 !== null) {
-                                                    const err10 = { instancePath: instancePath + "/section", schemaPath: "#/properties/section/anyOf/1/type", keyword: "type", params: { type: "null" } };
-                                                    if (vErrors === null) {
-                                                      vErrors = [err10];
-                                                    } else {
-                                                      vErrors.push(err10);
-                                                    }
-                                                    errors++;
-                                                  }
-                                                  var _valid2 = _errs62 === errors;
-                                                  valid10 = valid10 || _valid2;
-                                                }
-                                                if (!valid10) {
-                                                  const err11 = { instancePath: instancePath + "/section", schemaPath: "#/properties/section/anyOf", keyword: "anyOf", params: {} };
-                                                  if (vErrors === null) {
-                                                    vErrors = [err11];
-                                                  } else {
-                                                    vErrors.push(err11);
-                                                  }
-                                                  errors++;
-                                                  validate29.errors = vErrors;
+                                                if (!(typeof data22 == "number" && (!(data22 % 1) && !isNaN(data22)) && isFinite(data22)) && data22 !== null) {
+                                                  validate29.errors = [{ instancePath: instancePath + "/recencyAt", schemaPath: "#/properties/recencyAt/type", keyword: "type", params: { type: schema33.properties.recencyAt.type } }];
                                                   return false;
-                                                } else {
-                                                  errors = _errs60;
-                                                  if (vErrors !== null) {
-                                                    if (_errs60) {
-                                                      vErrors.length = _errs60;
-                                                    } else {
-                                                      vErrors = null;
-                                                    }
-                                                  }
                                                 }
                                                 var valid0 = _errs59 === errors;
                                               } else {
                                                 var valid0 = true;
                                               }
                                               if (valid0) {
-                                                if (data.sectionEnteredAt !== void 0) {
-                                                  let data23 = data.sectionEnteredAt;
-                                                  const _errs64 = errors;
-                                                  if (!(typeof data23 == "number" && (!(data23 % 1) && !isNaN(data23)) && isFinite(data23)) && data23 !== null) {
-                                                    validate29.errors = [{ instancePath: instancePath + "/sectionEnteredAt", schemaPath: "#/properties/sectionEnteredAt/type", keyword: "type", params: { type: schema33.properties.sectionEnteredAt.type } }];
-                                                    return false;
+                                                if (data.section !== void 0) {
+                                                  let data23 = data.section;
+                                                  const _errs61 = errors;
+                                                  const _errs62 = errors;
+                                                  let valid10 = false;
+                                                  const _errs63 = errors;
+                                                  if (!validate30(data23, { instancePath: instancePath + "/section", parentData: data, parentDataProperty: "section", rootData })) {
+                                                    vErrors = vErrors === null ? validate30.errors : vErrors.concat(validate30.errors);
+                                                    errors = vErrors.length;
                                                   }
-                                                  var valid0 = _errs64 === errors;
+                                                  var _valid2 = _errs63 === errors;
+                                                  valid10 = valid10 || _valid2;
+                                                  if (!valid10) {
+                                                    const _errs64 = errors;
+                                                    if (data23 !== null) {
+                                                      const err10 = { instancePath: instancePath + "/section", schemaPath: "#/properties/section/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                                      if (vErrors === null) {
+                                                        vErrors = [err10];
+                                                      } else {
+                                                        vErrors.push(err10);
+                                                      }
+                                                      errors++;
+                                                    }
+                                                    var _valid2 = _errs64 === errors;
+                                                    valid10 = valid10 || _valid2;
+                                                  }
+                                                  if (!valid10) {
+                                                    const err11 = { instancePath: instancePath + "/section", schemaPath: "#/properties/section/anyOf", keyword: "anyOf", params: {} };
+                                                    if (vErrors === null) {
+                                                      vErrors = [err11];
+                                                    } else {
+                                                      vErrors.push(err11);
+                                                    }
+                                                    errors++;
+                                                    validate29.errors = vErrors;
+                                                    return false;
+                                                  } else {
+                                                    errors = _errs62;
+                                                    if (vErrors !== null) {
+                                                      if (_errs62) {
+                                                        vErrors.length = _errs62;
+                                                      } else {
+                                                        vErrors = null;
+                                                      }
+                                                    }
+                                                  }
+                                                  var valid0 = _errs61 === errors;
                                                 } else {
                                                   var valid0 = true;
                                                 }
                                                 if (valid0) {
-                                                  if (data.sessionId !== void 0) {
+                                                  if (data.sectionEnteredAt !== void 0) {
+                                                    let data24 = data.sectionEnteredAt;
                                                     const _errs66 = errors;
-                                                    if (typeof data.sessionId !== "string") {
-                                                      validate29.errors = [{ instancePath: instancePath + "/sessionId", schemaPath: "#/properties/sessionId/type", keyword: "type", params: { type: "string" } }];
+                                                    if (!(typeof data24 == "number" && (!(data24 % 1) && !isNaN(data24)) && isFinite(data24)) && data24 !== null) {
+                                                      validate29.errors = [{ instancePath: instancePath + "/sectionEnteredAt", schemaPath: "#/properties/sectionEnteredAt/type", keyword: "type", params: { type: schema33.properties.sectionEnteredAt.type } }];
                                                       return false;
                                                     }
                                                     var valid0 = _errs66 === errors;
@@ -9873,21 +9874,21 @@ function validate29(data, { instancePath = "", parentData, parentDataProperty, r
                                                     var valid0 = true;
                                                   }
                                                   if (valid0) {
-                                                    if (data.source !== void 0) {
+                                                    if (data.sessionId !== void 0) {
                                                       const _errs68 = errors;
-                                                      if (!validate32(data.source, { instancePath: instancePath + "/source", parentData: data, parentDataProperty: "source", rootData })) {
-                                                        vErrors = vErrors === null ? validate32.errors : vErrors.concat(validate32.errors);
-                                                        errors = vErrors.length;
+                                                      if (typeof data.sessionId !== "string") {
+                                                        validate29.errors = [{ instancePath: instancePath + "/sessionId", schemaPath: "#/properties/sessionId/type", keyword: "type", params: { type: "string" } }];
+                                                        return false;
                                                       }
                                                       var valid0 = _errs68 === errors;
                                                     } else {
                                                       var valid0 = true;
                                                     }
                                                     if (valid0) {
-                                                      if (data.status !== void 0) {
+                                                      if (data.source !== void 0) {
                                                         const _errs70 = errors;
-                                                        if (!validate36(data.status, { instancePath: instancePath + "/status", parentData: data, parentDataProperty: "status", rootData })) {
-                                                          vErrors = vErrors === null ? validate36.errors : vErrors.concat(validate36.errors);
+                                                        if (!validate32(data.source, { instancePath: instancePath + "/source", parentData: data, parentDataProperty: "source", rootData })) {
+                                                          vErrors = vErrors === null ? validate32.errors : vErrors.concat(validate32.errors);
                                                           errors = vErrors.length;
                                                         }
                                                         var valid0 = _errs70 === errors;
@@ -9895,100 +9896,112 @@ function validate29(data, { instancePath = "", parentData, parentDataProperty, r
                                                         var valid0 = true;
                                                       }
                                                       if (valid0) {
-                                                        if (data.threadSource !== void 0) {
-                                                          let data27 = data.threadSource;
+                                                        if (data.status !== void 0) {
                                                           const _errs72 = errors;
-                                                          const _errs73 = errors;
-                                                          let valid13 = false;
-                                                          const _errs74 = errors;
-                                                          if (typeof data27 !== "string") {
-                                                            const err12 = { instancePath: instancePath + "/threadSource", schemaPath: "#/definitions/v2/ThreadSource/type", keyword: "type", params: { type: "string" } };
-                                                            if (vErrors === null) {
-                                                              vErrors = [err12];
-                                                            } else {
-                                                              vErrors.push(err12);
-                                                            }
-                                                            errors++;
-                                                          }
-                                                          var _valid3 = _errs74 === errors;
-                                                          valid13 = valid13 || _valid3;
-                                                          if (!valid13) {
-                                                            const _errs77 = errors;
-                                                            if (data27 !== null) {
-                                                              const err13 = { instancePath: instancePath + "/threadSource", schemaPath: "#/properties/threadSource/anyOf/1/type", keyword: "type", params: { type: "null" } };
-                                                              if (vErrors === null) {
-                                                                vErrors = [err13];
-                                                              } else {
-                                                                vErrors.push(err13);
-                                                              }
-                                                              errors++;
-                                                            }
-                                                            var _valid3 = _errs77 === errors;
-                                                            valid13 = valid13 || _valid3;
-                                                          }
-                                                          if (!valid13) {
-                                                            const err14 = { instancePath: instancePath + "/threadSource", schemaPath: "#/properties/threadSource/anyOf", keyword: "anyOf", params: {} };
-                                                            if (vErrors === null) {
-                                                              vErrors = [err14];
-                                                            } else {
-                                                              vErrors.push(err14);
-                                                            }
-                                                            errors++;
-                                                            validate29.errors = vErrors;
-                                                            return false;
-                                                          } else {
-                                                            errors = _errs73;
-                                                            if (vErrors !== null) {
-                                                              if (_errs73) {
-                                                                vErrors.length = _errs73;
-                                                              } else {
-                                                                vErrors = null;
-                                                              }
-                                                            }
+                                                          if (!validate36(data.status, { instancePath: instancePath + "/status", parentData: data, parentDataProperty: "status", rootData })) {
+                                                            vErrors = vErrors === null ? validate36.errors : vErrors.concat(validate36.errors);
+                                                            errors = vErrors.length;
                                                           }
                                                           var valid0 = _errs72 === errors;
                                                         } else {
                                                           var valid0 = true;
                                                         }
                                                         if (valid0) {
-                                                          if (data.turns !== void 0) {
-                                                            let data28 = data.turns;
-                                                            const _errs79 = errors;
-                                                            if (errors === _errs79) {
-                                                              if (Array.isArray(data28)) {
-                                                                var valid15 = true;
-                                                                const len0 = data28.length;
-                                                                for (let i0 = 0; i0 < len0; i0++) {
-                                                                  const _errs81 = errors;
-                                                                  if (!validate38(data28[i0], { instancePath: instancePath + "/turns/" + i0, parentData: data28, parentDataProperty: i0, rootData })) {
-                                                                    vErrors = vErrors === null ? validate38.errors : vErrors.concat(validate38.errors);
-                                                                    errors = vErrors.length;
-                                                                  }
-                                                                  var valid15 = _errs81 === errors;
-                                                                  if (!valid15) {
-                                                                    break;
-                                                                  }
-                                                                }
+                                                          if (data.threadSource !== void 0) {
+                                                            let data28 = data.threadSource;
+                                                            const _errs74 = errors;
+                                                            const _errs75 = errors;
+                                                            let valid13 = false;
+                                                            const _errs76 = errors;
+                                                            if (typeof data28 !== "string") {
+                                                              const err12 = { instancePath: instancePath + "/threadSource", schemaPath: "#/definitions/v2/ThreadSource/type", keyword: "type", params: { type: "string" } };
+                                                              if (vErrors === null) {
+                                                                vErrors = [err12];
                                                               } else {
-                                                                validate29.errors = [{ instancePath: instancePath + "/turns", schemaPath: "#/properties/turns/type", keyword: "type", params: { type: "array" } }];
-                                                                return false;
+                                                                vErrors.push(err12);
+                                                              }
+                                                              errors++;
+                                                            }
+                                                            var _valid3 = _errs76 === errors;
+                                                            valid13 = valid13 || _valid3;
+                                                            if (!valid13) {
+                                                              const _errs79 = errors;
+                                                              if (data28 !== null) {
+                                                                const err13 = { instancePath: instancePath + "/threadSource", schemaPath: "#/properties/threadSource/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                                                if (vErrors === null) {
+                                                                  vErrors = [err13];
+                                                                } else {
+                                                                  vErrors.push(err13);
+                                                                }
+                                                                errors++;
+                                                              }
+                                                              var _valid3 = _errs79 === errors;
+                                                              valid13 = valid13 || _valid3;
+                                                            }
+                                                            if (!valid13) {
+                                                              const err14 = { instancePath: instancePath + "/threadSource", schemaPath: "#/properties/threadSource/anyOf", keyword: "anyOf", params: {} };
+                                                              if (vErrors === null) {
+                                                                vErrors = [err14];
+                                                              } else {
+                                                                vErrors.push(err14);
+                                                              }
+                                                              errors++;
+                                                              validate29.errors = vErrors;
+                                                              return false;
+                                                            } else {
+                                                              errors = _errs75;
+                                                              if (vErrors !== null) {
+                                                                if (_errs75) {
+                                                                  vErrors.length = _errs75;
+                                                                } else {
+                                                                  vErrors = null;
+                                                                }
                                                               }
                                                             }
-                                                            var valid0 = _errs79 === errors;
+                                                            var valid0 = _errs74 === errors;
                                                           } else {
                                                             var valid0 = true;
                                                           }
                                                           if (valid0) {
-                                                            if (data.updatedAt !== void 0) {
-                                                              let data30 = data.updatedAt;
-                                                              const _errs82 = errors;
-                                                              if (!(typeof data30 == "number" && (!(data30 % 1) && !isNaN(data30)) && isFinite(data30))) {
-                                                                validate29.errors = [{ instancePath: instancePath + "/updatedAt", schemaPath: "#/properties/updatedAt/type", keyword: "type", params: { type: "integer" } }];
-                                                                return false;
+                                                            if (data.turns !== void 0) {
+                                                              let data29 = data.turns;
+                                                              const _errs81 = errors;
+                                                              if (errors === _errs81) {
+                                                                if (Array.isArray(data29)) {
+                                                                  var valid15 = true;
+                                                                  const len0 = data29.length;
+                                                                  for (let i0 = 0; i0 < len0; i0++) {
+                                                                    const _errs83 = errors;
+                                                                    if (!validate38(data29[i0], { instancePath: instancePath + "/turns/" + i0, parentData: data29, parentDataProperty: i0, rootData })) {
+                                                                      vErrors = vErrors === null ? validate38.errors : vErrors.concat(validate38.errors);
+                                                                      errors = vErrors.length;
+                                                                    }
+                                                                    var valid15 = _errs83 === errors;
+                                                                    if (!valid15) {
+                                                                      break;
+                                                                    }
+                                                                  }
+                                                                } else {
+                                                                  validate29.errors = [{ instancePath: instancePath + "/turns", schemaPath: "#/properties/turns/type", keyword: "type", params: { type: "array" } }];
+                                                                  return false;
+                                                                }
                                                               }
-                                                              var valid0 = _errs82 === errors;
+                                                              var valid0 = _errs81 === errors;
                                                             } else {
                                                               var valid0 = true;
+                                                            }
+                                                            if (valid0) {
+                                                              if (data.updatedAt !== void 0) {
+                                                                let data31 = data.updatedAt;
+                                                                const _errs84 = errors;
+                                                                if (!(typeof data31 == "number" && (!(data31 % 1) && !isNaN(data31)) && isFinite(data31))) {
+                                                                  validate29.errors = [{ instancePath: instancePath + "/updatedAt", schemaPath: "#/properties/updatedAt/type", keyword: "type", params: { type: "integer" } }];
+                                                                  return false;
+                                                                }
+                                                                var valid0 = _errs84 === errors;
+                                                              } else {
+                                                                var valid0 = true;
+                                                              }
                                                             }
                                                           }
                                                         }
