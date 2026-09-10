@@ -1028,9 +1028,9 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     const pending = this.removePendingTarget(threadId, turnId, true);
     const unsent = this.removeUnsentTarget(threadId, turnId);
     const intents = [...pending, ...unsent.intents];
-    this.rejectedSteersQueue.push(
-      ...intents.map((intent) => this.createRejected(intent, reason, closedTarget.rejectionBatch)),
-    );
+    for (const intent of intents) {
+      this.insertRejectedByOrder(this.createRejected(intent, reason, closedTarget.rejectionBatch));
+    }
     return {
       type: "terminal",
       messageIds: intents.map(({ message }) => message.id),

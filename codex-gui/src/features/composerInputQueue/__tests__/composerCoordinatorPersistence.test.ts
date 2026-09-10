@@ -17,6 +17,9 @@ import {
   turnCompleted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { eventTurnCompleted } from "@/features/projection/__tests__/projectionFixtures";
+import { createComposerInputQueue, type RecoveryBatch } from "../composerInputQueue";
+import { createComposerInterruptState } from "../composerInterruptState";
+import { composerQueueMessage } from "./composerInputQueueTestFixtures";
 
 function persistenceFixture() {
   const records = new Map<string, string>();
@@ -54,6 +57,126 @@ function owner(fixture: ReturnType<typeof persistenceFixture>, activeTurnId: str
 }
 
 describe("coordinator persistence boundaries", () => {
+  it.each(["startDefinitelyNotAccepted", "steerDefinitelyNotAccepted", "userStopped"] as const)(
+    "merges legacy acceptance with %s recovery and preserves it through write failure",
+    (reason) => {
+      const fixture = persistenceFixture();
+      const queue = createComposerInputQueue({
+        threadId: "thread-1",
+        activeTurnId:
+          reason === "startDefinitelyNotAccepted"
+            ? null
+            : reason === "steerDefinitelyNotAccepted"
+              ? "legacy-turn"
+              : "prior-turn",
+      });
+      let batch: RecoveryBatch;
+      if (reason === "userStopped") {
+        queue.submit(composerQueueMessage("existing"));
+        queue.prepareInterruptedTerminal({
+          type: "turnCompleted",
+          turnId: "prior-turn",
+          status: "interrupted",
+          commitId: "prior-terminal",
+        });
+        const effect = queue.applyInterruptedDisposition("prior-turn", "local").effects[0];
+        if (effect?.type !== "recover") throw new Error("Expected local recovery");
+        batch = effect.batch;
+      } else {
+        const sent =
+          reason === "startDefinitelyNotAccepted"
+            ? queue.submit(composerQueueMessage("existing"))
+            : queue.submitSteer(composerQueueMessage("existing"));
+        const request = sent.effects[0];
+        if (request?.type !== "performStart" && request?.type !== "performSteer")
+          throw new Error("Expected request");
+        const failed =
+          request.type === "performStart"
+            ? queue.settleStart({ type: "definitelyNotAccepted", claim: request.claim })
+            : queue.settleSteer({ type: "definitelyNotAccepted", claim: request.claim });
+        const effect = failed.effects[0];
+        if (effect?.type !== "recover") throw new Error("Expected failed request recovery");
+        batch = effect.batch;
+      }
+      queue.observe({ type: "turnStarted", turnId: "legacy-turn", commitId: "legacy-start" });
+      queue.submitSteer(composerQueueMessage("legacy"));
+      queue.observe({
+        type: "turnCompleted",
+        turnId: "legacy-turn",
+        status: "completed",
+        commitId: "legacy-terminal",
+      });
+      const state = queue.exportState(batch);
+      const legacy = {
+        ...state,
+        version: 1,
+        steer: {
+          ...state.steer,
+          pending: state.steer.pending.map((entry) => ({
+            ...entry,
+            phase: "acceptedAwaitingCommit",
+          })),
+          closedTargets: state.steer.closedTargets.map(({ target, ...identity }) => ({
+            ...identity,
+            target: { reason: target.reason, rejectionBatch: target.rejectionBatch },
+          })),
+        },
+      };
+      fixture.context.storage.setItem(
+        "codex-gui.browserPersistence.thread-1",
+        JSON.stringify({
+          version: 1,
+          authorizationContext: fixture.context.authorizationContext,
+          threadId: "thread-1",
+          revision: 1,
+          payload: {
+            version: 1,
+            queue: legacy,
+            draft: null,
+            interrupt: createComposerInterruptState().exportState(),
+            failedInterruptTurnId: null,
+          },
+        }),
+      );
+      const saved = [...fixture.records.values()];
+      const startTurn = vi.fn<StartTurn>(() => new Promise(() => {}));
+      const coordinator = createCoordinator({
+        threadId: "thread-1",
+        activeTurnId: null,
+        startTurn,
+        steerTurn: vi.fn<SteerTurn>(),
+        persistence: fixture.context,
+      });
+      fixture.failWrites(true);
+      coordinator.reconcileRestoredTurns([baseTurn("legacy-turn")]);
+      expect([...fixture.records.values()]).toEqual(saved);
+      expect(coordinator.getSnapshot().persistence.error).toBe("Browser persistence failed: write");
+      fixture.failWrites(false);
+      expect(coordinator.retryPersistence()).toBe(true);
+      coordinator.completeRestoreReconciliation();
+      expect(coordinator.getSnapshot()).toMatchObject({
+        guidingCount: 0,
+        recoveryCount: 2,
+        persistence: { error: null, restoredPaused: true },
+      });
+      expect(startTurn).not.toHaveBeenCalled();
+      coordinator.dispose();
+      const restored = owner(fixture, null);
+      expect(restored.coordinator.getSnapshot()).toMatchObject({
+        recoveryCount: 2,
+        persistence: { error: null },
+      });
+      expect(restored.coordinator.recover()).toBe(true);
+      expect(
+        restored.coordinator.resumeRestored(
+          restored.coordinator.getSnapshot().persistence.revision,
+        ),
+      ).toBe(true);
+      expect(restored.startTurn).toHaveBeenCalledTimes(1);
+      restored.coordinator.dispose();
+    },
+  );
+
   it("retries a late local acceptance without publishing or consuming recovery before storage commits", async () => {
     const fixture = persistenceFixture();
     let accept!: (response: Awaited<ReturnType<SteerTurn>>) => void;

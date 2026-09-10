@@ -26,6 +26,86 @@ function restored(queue: ComposerInputQueue): ComposerInputQueue {
 }
 
 describe("composer queue persistence transactions", () => {
+  it.each([
+    "acceptedAwaitingCommit",
+    "issuing",
+    "deliveryUnknown",
+    "responseTurnMismatch",
+  ] as const)("recovers legacy %s without granting automatic resend permission", (phase) => {
+    const queue = createComposerInputQueue({ threadId: "thread-a", activeTurnId: "turn-a" });
+    queue.submitSteer(composerQueueMessage("legacy"));
+    queue.observe({
+      type: "turnCompleted",
+      turnId: "turn-a",
+      status: "completed",
+      commitId: "terminal",
+    });
+    const current = queue.exportState(null);
+    const legacy = {
+      ...current,
+      version: 1,
+      steer: {
+        ...current.steer,
+        pending: current.steer.pending.map((entry) => ({ ...entry, phase })),
+        closedTargets: current.steer.closedTargets.map(({ target, ...identity }) => ({
+          ...identity,
+          target: { reason: target.reason, rejectionBatch: target.rejectionBatch },
+        })),
+      },
+    };
+    const restoredQueue = createComposerInputQueue({ threadId: "thread-a", activeTurnId: null });
+    expect(restoredQueue.rehydrateState(legacy)).toBeNull();
+    const result = restoredQueue.reconcileSnapshot([baseTurn("turn-a")]);
+    if (phase === "acceptedAwaitingCommit") {
+      const recovery = result.effects[0];
+      expect(recovery?.type).toBe("recover");
+      if (recovery?.type !== "recover" || recovery.batch.reason !== "userStopped")
+        throw new Error("Expected manual legacy recovery");
+      expect(recovery.batch.rejected?.entries[0]?.intent.message.input).toEqual(
+        composerQueueMessage("legacy").input,
+      );
+      expect(restoredQueue.exportState(recovery.batch).version).toBe(2);
+      expect(restoredQueue.view().guidingCount).toBe(0);
+    } else {
+      expect(result.effects).toEqual([]);
+      expect(restoredQueue.unknownMessages()).toHaveLength(1);
+      expect(restoredQueue.view().guidingCount).toBe(1);
+    }
+  });
+
+  it("matches a legacy accepted commit before producing manual recovery", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-a", activeTurnId: "turn-a" });
+    queue.submitSteer(composerQueueMessage("legacy"));
+    queue.observe({
+      type: "turnCompleted",
+      turnId: "turn-a",
+      status: "completed",
+      commitId: "terminal",
+    });
+    const current = queue.exportState(null);
+    const pending = current.steer.pending[0];
+    if (pending == null) throw new Error("Expected pending steer");
+    const legacy = {
+      ...current,
+      version: 1,
+      steer: {
+        ...current.steer,
+        pending: [{ ...pending, phase: "acceptedAwaitingCommit" }],
+        closedTargets: current.steer.closedTargets.map(({ target, ...identity }) => ({
+          ...identity,
+          target: { reason: target.reason, rejectionBatch: target.rejectionBatch },
+        })),
+      },
+    };
+    const restoredQueue = createComposerInputQueue({ threadId: "thread-a", activeTurnId: null });
+    restoredQueue.rehydrateState(legacy);
+    const committed = userMessage("committed", [], pending.intent.clientUserMessageId);
+    expect(
+      restoredQueue.reconcileSnapshot([{ ...baseTurn("turn-a"), items: [committed] }]).effects,
+    ).toEqual([]);
+    expect(restoredQueue.view().releaseState).toEqual({ type: "safe" });
+  });
+
   it("replaces the current turn from a candidate snapshot only when its transaction commits", () => {
     const queue = createComposerInputQueue({ threadId: "thread-a", activeTurnId: "old-turn" });
     queue.submit(composerQueueMessage("queued"));

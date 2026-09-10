@@ -23,6 +23,96 @@ function emptyRecord(): ComposerCoordinatorRecord {
 }
 
 describe("decodeComposerCoordinatorRecord", () => {
+  it("retains legacy merged-start ownership so unknown delivery can still be explicitly removed", () => {
+    const queue = createComposerInputQueue({ threadId, activeTurnId: "old-turn" });
+    const effect = queue.submitSteer(composerQueueMessage("merged")).effects[0];
+    if (effect?.type !== "performSteer") throw new Error("Expected steer");
+    queue.settleSteer({ type: "activeTurnNotSteerable", claim: effect.claim });
+    queue.observe({
+      type: "turnCompleted",
+      turnId: "old-turn",
+      status: "completed",
+      commitId: "terminal",
+    });
+    const state = queue.exportState(null);
+    const decoded = decodeComposerCoordinatorRecord(
+      {
+        ...emptyRecord(),
+        queue: {
+          ...state,
+          version: 1,
+          steer: {
+            ...state.steer,
+            closedTargets: state.steer.closedTargets.map(({ target, ...identity }) => ({
+              ...identity,
+              target: { reason: target.reason, rejectionBatch: target.rejectionBatch },
+            })),
+          },
+        },
+      },
+      threadId,
+    );
+    expect(decoded.queue.start).toEqual(state.start);
+    const restored = createComposerInputQueue({ threadId, activeTurnId: null });
+    restored.rehydrateState(decoded.queue);
+    expect(restored.unknownMessages()).toHaveLength(1);
+    const unknown = restored.unknownMessages()[0];
+    if (unknown == null) throw new Error("Expected unknown merged start");
+    expect(restored.discardUnknown(unknown.id)).toBe(true);
+    expect(restored.exportState(null).knownMessageIds).toEqual([]);
+    expect(restored.view().releaseState).toEqual({ type: "safe" });
+  });
+
+  it("upgrades old target dispositions without consuming accepted messages or rewriting issuing phases", () => {
+    const queue = createComposerInputQueue({ threadId, activeTurnId: "old-turn" });
+    queue.submitSteer(composerQueueMessage("late"));
+    queue.observe({
+      type: "turnCompleted",
+      turnId: "old-turn",
+      status: "completed",
+      commitId: "terminal",
+    });
+    const current = queue.exportState(null);
+    const legacy = {
+      ...emptyRecord(),
+      queue: {
+        ...current,
+        version: 1,
+        steer: {
+          ...current.steer,
+          closedTargets: current.steer.closedTargets.map(({ target, ...identity }) => ({
+            ...identity,
+            target: { reason: target.reason, rejectionBatch: target.rejectionBatch },
+          })),
+        },
+      },
+    };
+    const original = JSON.stringify(legacy);
+    const decoded = decodeComposerCoordinatorRecord(legacy, threadId);
+    expect(decoded.queue.version).toBe(2);
+    expect(decoded.queue.steer.pending[0]?.phase).toBe("issuing");
+    expect(decoded.queue.steer.closedTargets[0]?.target.disposition).toBe("manualRecovery");
+    expect(JSON.stringify(legacy)).toBe(original);
+    const accepted = decodeComposerCoordinatorRecord(
+      {
+        ...legacy,
+        queue: {
+          ...legacy.queue,
+          steer: {
+            ...legacy.queue.steer,
+            pending: legacy.queue.steer.pending.map((entry) => ({
+              ...entry,
+              phase: "acceptedAwaitingCommit",
+            })),
+          },
+        },
+      },
+      threadId,
+    );
+    expect(accepted.queue.steer.pending[0]?.phase).toBe("acceptedAwaitingCommit");
+    expect(accepted.queue.recovery).toBeNull();
+  });
+
   it("validates a complete record with an editor-owned draft", () => {
     const record = {
       ...emptyRecord(),

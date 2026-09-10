@@ -17,6 +17,32 @@ function decodeMessage(value: unknown) {
 }
 
 describe("lane persistence and transaction candidates", () => {
+  it("keeps an earlier terminal batch ahead of later rejections during snapshot convergence", () => {
+    const owner = createComposerSteerQueue();
+    owner.transition({ type: "enqueue", input: composerSteerInput("early", "turn-a") });
+    owner.transition({ type: "issueNext" });
+    owner.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" });
+    owner.transition({ type: "enqueue", input: composerSteerInput("later", "turn-b") });
+    owner.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-b" });
+    const state = owner.exportState(({ id }) => id);
+    const restored = createComposerSteerQueue();
+    restored.rehydrateState(
+      {
+        ...state,
+        pending: state.pending.map((entry) => ({ ...entry, phase: "acceptedAwaitingCommit" })),
+      },
+      decodeMessage,
+    );
+    restored.reconcileSnapshot([baseTurn("turn-a")]);
+    const taken = restored.transition({ type: "takeRejected" });
+    expect(taken.type).toBe("rejectedTaken");
+    if (taken.type !== "rejectedTaken") throw new Error("Expected rejected transfer");
+    expect(taken.transfer.entries.map(({ intent }) => intent.message.id)).toEqual([
+      "early",
+      "later",
+    ]);
+  });
+
   it("confirms restored start from snapshot client identity without replaying historical owners", () => {
     const owner = new ComposerStartQueueState();
     const claim = owner.issue(composerQueueMessage("snapshot-start"));

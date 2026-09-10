@@ -9,6 +9,7 @@ import {
 import {
   attachWithThreadId,
   attachWithTurns,
+  baseTurn,
   eventWithEnvelope,
   inProgressTurn,
   turnCompleted,
@@ -28,6 +29,11 @@ import {
 } from "./appBrowserTestSupport";
 import { eventTurnCompleted } from "@/features/projection/__tests__/projectionFixtures";
 import type { TurnSteerResponse } from "@codex-protocol/v2";
+import { createComposerInputQueue } from "@/features/composerInputQueue/composerInputQueue";
+import { composerQueueMessage } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
+import { createComposerInterruptState } from "@/features/composerInputQueue/composerInterruptState";
+import { BrowserPersistenceStore } from "@/features/browserPersistence/browserPersistenceStore";
+import { consumeBrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 
 const hostMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -91,6 +97,80 @@ test("shows late accepted guidance in the existing local-stop recovery and sends
   await expect
     .element(screen.getByText("2 messages have not been sent", { exact: true }))
     .not.toBeInTheDocument();
+});
+
+test("opens legacy accepted guidance in manual recovery without sending on startup", async () => {
+  const queue = createComposerInputQueue({ threadId: launchThreadId, activeTurnId: "legacy-turn" });
+  queue.submitSteer(composerQueueMessage("legacy guidance"));
+  queue.observe({
+    type: "turnCompleted",
+    turnId: "legacy-turn",
+    status: "completed",
+    commitId: "legacy-terminal",
+  });
+  const state = queue.exportState(null);
+  const session = consumeBrowserAuthorizationSession({
+    location: new URL("https://codex.test/"),
+    replaceState: () => undefined,
+    storage: window.sessionStorage,
+  });
+  const store = new BrowserPersistenceStore({
+    authorizationContext: session.getPersistenceContext(),
+    threadId: launchThreadId,
+    storage: window.sessionStorage,
+    codec: { encode: (value: unknown) => value, decode: (value: unknown) => value },
+  });
+  store.commit(
+    {
+      version: 1,
+      queue: {
+        ...state,
+        version: 1,
+        steer: {
+          ...state.steer,
+          pending: state.steer.pending.map((entry) => ({
+            ...entry,
+            phase: "acceptedAwaitingCommit",
+          })),
+          closedTargets: state.steer.closedTargets.map(({ target, ...identity }) => ({
+            ...identity,
+            target: { reason: target.reason, rejectionBatch: target.rejectionBatch },
+          })),
+        },
+      },
+      draft: null,
+      interrupt: createComposerInterruptState().exportState(),
+      failedInterruptTurnId: null,
+    },
+    null,
+  );
+  const router = createAppRouter(
+    createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
+  );
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const commands = createGuiHostCommands();
+  vi.mocked(commands.startTurn).mockImplementation(() => new Promise(() => {}));
+  queueAttachProjectionResponse(
+    commands,
+    attachWithTurns(attachResponse, [baseTurn("legacy-turn")]),
+  );
+  initializeHost(getHostOptions(hostMock.startGuiHostConnection), commands);
+  await expect
+    .element(screen.getByText("1 message has not been sent", { exact: true }))
+    .toBeVisible();
+  expect(commands.startTurn).not.toHaveBeenCalled();
+  await screen
+    .getByRole("status")
+    .getByRole("button", { name: "Continue sending", exact: true })
+    .click();
+  await expect
+    .element(screen.getByText("Restored messages are paused", { exact: true }))
+    .not.toBeInTheDocument();
+  expect(commands.startTurn).not.toHaveBeenCalled();
+  await screen.getByRole("button", { name: "Continue sending", exact: true }).click();
+  await expect
+    .poll(() => vi.mocked(commands.startTurn).mock.calls[0]?.[0].input)
+    .toEqual(composerQueueMessage("legacy guidance").input);
 });
 
 test.each([HISTORY_LIST_ROUTE_PATH, NEW_TASK_ROUTE_PATH, CURRENT_TASK_ROUTE_PATH])(
