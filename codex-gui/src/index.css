@@ -64,14 +64,13 @@
 }
 
 [data-assistant-math] .katex {
-  display: inline-block;
+  display: inline-grid;
   max-width: 100%;
   overflow-x: auto;
-  vertical-align: middle;
 }
 
 [data-assistant-math] .katex-display > .katex {
-  display: block;
+  display: grid;
 }
 
 [data-assistant-math] .katex > .katex-html {

@@ -173,6 +173,58 @@ test("scrolls only overflowing formulas without shrinking them across message li
   }
 });
 
+test("preserves the original inline math baseline and full formula height", async () => {
+  const { store } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-math-baseline", [
+          agentMessage(
+            "agent-math-baseline",
+            String.raw`Before $x^2$ after.
+
+Before $x_2$ after.
+
+Before $\dfrac{1}{\dfrac{1}{x^2}}$ after.`,
+          ),
+        ]),
+      ]),
+    ),
+  );
+  await expect.poll(() => document.querySelectorAll(".katex").length).toBe(3);
+  await document.fonts.ready;
+  const container = document.querySelector("[data-assistant-math]");
+  assert(container);
+  for (const formula of document.querySelectorAll<HTMLElement>(".katex")) {
+    const paragraph = formula.closest("p");
+    assert(paragraph?.firstChild);
+    const proseRange = document.createRange();
+    proseRange.selectNodeContents(paragraph.firstChild);
+    const mathBody = formula.querySelector<HTMLElement>(".katex-html > .base");
+    assert(mathBody);
+    const baselineOffset = () =>
+      mathBody.getBoundingClientRect().bottom - proseRange.getBoundingClientRect().bottom;
+    const offset = baselineOffset();
+    const height = mathBody.getBoundingClientRect().height;
+    expect(formula.clientHeight).toBeGreaterThanOrEqual(Math.floor(height));
+    expect(mathBody.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      formula.getBoundingClientRect().top - 1,
+    );
+    expect(mathBody.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      formula.getBoundingClientRect().bottom + 1,
+    );
+    container.removeAttribute("data-assistant-math");
+    const originalOffset = baselineOffset();
+    const originalHeight = mathBody.getBoundingClientRect().height;
+    container.setAttribute("data-assistant-math", "true");
+    expect(Math.abs(offset - originalOffset)).toBeLessThanOrEqual(1);
+    expect(height).toBe(originalHeight);
+  }
+});
+
 test("renders an empty committed transcript region", async () => {
   const screen = await renderTranscriptWithProviders(
     transcriptIdentity,
