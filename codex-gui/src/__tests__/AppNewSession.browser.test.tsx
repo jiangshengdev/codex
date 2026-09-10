@@ -21,6 +21,7 @@ import {
   queueAttachProjectionResponse,
   resetAppBrowserTestSupport,
   seedBrowserAuthorizationSession,
+  skillsListResponse,
 } from "./appBrowserTestSupport";
 
 const host = vi.hoisted(() => ({
@@ -145,12 +146,107 @@ test("working directory remains available after disconnection without enabling s
   const connection = getHostOptions(host.startGuiHostConnection);
   connection.onCommandsUnavailable?.();
   connection.onStatus?.({ label: "closed" });
-  await expect.element(page.getByText("Connect to Codex to send this draft.")).toBeVisible();
-  await expectWorkingDirectory("/workspace/codex");
+  const editor = page.getByRole("combobox", { name: "Message Codex" });
+  await expect.element(editor).toHaveTextContent("retained offline draft");
+  await expect.element(editor).toHaveAttribute("contenteditable", "false");
   await expect
-    .element(page.getByRole("button", { name: "Send", exact: true }))
+    .element(page.getByText("Connect to Codex to send this draft."))
     .not.toBeInTheDocument();
+  await expectWorkingDirectory("/workspace/codex");
+  await expect.element(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   expect(commands.startThread).not.toHaveBeenCalled();
+});
+
+test.each(["", "draft survives reconnect"])(
+  "disconnected draft %s stays disabled until a new connection is ready",
+  async (draft) => {
+    const { commands } = await mount("/new");
+    const editor = page.getByRole("combobox", { name: "Message Codex" });
+    await expect.element(editor).toBeVisible();
+    if (draft) await editor.fill(draft);
+    const skillRequests = vi.mocked(commands.listSkills).mock.calls.length;
+    const connection = getHostOptions(host.startGuiHostConnection);
+    connection.onCommandsUnavailable?.();
+    connection.onStatus?.({ label: "closed" });
+    await expect.element(editor).toHaveAttribute("contenteditable", "false");
+    await expect.element(editor).toHaveTextContent(draft);
+    await editor.click();
+    await userEvent.keyboard("x{Enter}");
+    await expect.element(editor).toHaveTextContent(draft);
+    expect(commands.listSkills).toHaveBeenCalledTimes(skillRequests);
+    expect(commands.startThread).not.toHaveBeenCalled();
+    await page.getByRole("button", { name: "Reconnect", exact: true }).click();
+    await expect.element(editor).toHaveAttribute("contenteditable", "false");
+    const replacement = createGuiHostCommands();
+    initializeHost(getHostOptions(host.startGuiHostConnection, "latest"), replacement);
+    await expect.element(editor).toHaveAttribute("contenteditable", "true");
+    await expect.element(editor).toHaveTextContent(draft);
+    await expect.element(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+    await expect.poll(() => replacement.listSkills).toHaveBeenCalled();
+    expect(replacement.startThread).not.toHaveBeenCalled();
+    expect(replacement.startTurn).not.toHaveBeenCalled();
+    await expectWorkingDirectory(cwd);
+  },
+);
+
+test("entering the new page while disconnected keeps an empty disabled composer", async () => {
+  const { router, commands } = await mount("/new");
+  await expect.element(page.getByRole("combobox", { name: "Message Codex" })).toBeVisible();
+  await router.navigate({ to: "/history" });
+  const connection = getHostOptions(host.startGuiHostConnection);
+  connection.onCommandsUnavailable?.();
+  connection.onStatus?.({ label: "closed" });
+  const skillRequests = vi.mocked(commands.listSkills).mock.calls.length;
+  await router.navigate({ to: "/new" });
+  const editor = page.getByRole("combobox", { name: "Message Codex" });
+  await expect.element(editor).toBeVisible();
+  await expect.element(editor).toHaveAttribute("contenteditable", "false");
+  await expect.element(editor).toHaveTextContent("");
+  await expectWorkingDirectory(cwd);
+  expect(commands.listSkills).toHaveBeenCalledTimes(skillRequests);
+  expect(commands.startThread).not.toHaveBeenCalled();
+});
+
+test("a late skill response from the disconnected session cannot replace the new catalog", async () => {
+  const { router, commands } = await mount("/new");
+  await expect.element(page.getByRole("combobox", { name: "Message Codex" })).toBeVisible();
+  await router.navigate({ to: "/history" });
+  const stale = createDeferred<Awaited<ReturnType<GuiHostCommands["listSkills"]>>>();
+  vi.mocked(commands.listSkills).mockReturnValue(stale.promise);
+  const requests = vi.mocked(commands.listSkills).mock.calls.length;
+  await router.navigate({ to: "/new" });
+  await expect
+    .poll(() => vi.mocked(commands.listSkills).mock.calls.length)
+    .toBeGreaterThan(requests);
+  const connection = getHostOptions(host.startGuiHostConnection);
+  connection.onCommandsUnavailable?.();
+  connection.onStatus?.({ label: "closed" });
+  await page.getByRole("button", { name: "Reconnect", exact: true }).click();
+  const replacement = createGuiHostCommands();
+  vi.mocked(replacement.listSkills).mockResolvedValue(
+    skillsListResponse(cwd, [
+      {
+        name: "current-skill",
+        description: "Skill from the current connection",
+        path: `${cwd}/skills/current-skill/SKILL.md`,
+        scope: "repo",
+        enabled: true,
+        pluginId: null,
+      },
+    ]),
+  );
+  initializeHost(getHostOptions(host.startGuiHostConnection, "latest"), replacement);
+  const editor = page.getByRole("combobox", { name: "Message Codex" });
+  await expect.element(editor).toHaveAttribute("contenteditable", "true");
+  await editor.fill("$");
+  const menu = page.getByRole("listbox", { name: "Typeahead menu" });
+  await expect.element(menu).toHaveTextContent("current-skill");
+  stale.resolve(skillsListResponse(cwd, []));
+  await userEvent.keyboard("{Escape}");
+  await editor.fill("");
+  await editor.fill("$");
+  await expect.element(menu).toHaveTextContent("current-skill");
+  expect(replacement.startThread).not.toHaveBeenCalled();
 });
 
 test.each([

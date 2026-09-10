@@ -83,7 +83,7 @@ msgid "A message update is missing its associated turn, so it cannot be fully di
 msgstr "收到的消息更新缺少所属轮次，暂时无法完整展示。"
 
 #: src/features/appShell/AppShellTopBar.tsx:163
-#: src/features/newSession/NewSessionPage.tsx:40
+#: src/features/newSession/NewSessionPage.tsx:39
 msgid "A working directory is required to start a session."
 msgstr "需要工作目录才能新建会话。"
 
@@ -203,8 +203,8 @@ msgid "Compression request result unknown"
 msgstr "压缩请求结果不明"
 
 #: src/features/newSession/NewSessionPage.tsx:47
-msgid "Connect to Codex to send this draft."
-msgstr "连接到 Codex 后即可发送此草稿。"
+#~ msgid "Connect to Codex to send this draft."
+#~ msgstr "连接到 Codex 后即可发送此草稿。"
 
 #. GUI connection ended; retained conversations remain read-only
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:41
@@ -465,7 +465,7 @@ msgid "In progress"
 msgstr "进行中"
 
 #. Input may already belong to the existing task queue; do not offer another send
-#: src/features/newSession/NewSessionPage.tsx:99
+#: src/features/newSession/NewSessionPage.tsx:89
 msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 msgstr "无法确认消息是否已加入队列。请打开会话，检查队列后再继续。"
 
@@ -565,8 +565,8 @@ msgstr "消息不能为空"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:203
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:213
-#: src/features/newSession/NewSessionPage.tsx:138
-#: src/features/newSession/NewSessionPage.tsx:156
+#: src/features/newSession/NewSessionPage.tsx:128
+#: src/features/newSession/NewSessionPage.tsx:144
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
@@ -692,7 +692,7 @@ msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其
 msgid "Open current task"
 msgstr "打开当前任务"
 
-#: src/features/newSession/NewSessionPage.tsx:128
+#: src/features/newSession/NewSessionPage.tsx:118
 msgid "Open session"
 msgstr "打开会话"
 
@@ -958,12 +958,12 @@ msgid "Scan with phone"
 msgstr "使用手机扫描"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:283
-#: src/features/newSession/NewSessionPage.tsx:174
+#: src/features/newSession/NewSessionPage.tsx:162
 msgid "Send"
 msgstr "发送"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:166
+#: src/features/newSession/NewSessionPage.tsx:154
 msgid "Sending"
 msgstr "正在发送"
 
@@ -1120,7 +1120,7 @@ msgid "The conversation shown here may be out of date. Restore sync to get the l
 msgstr "当前显示的对话可能不是最新内容。恢复同步可获取最新内容。"
 
 #. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
-#: src/features/newSession/NewSessionPage.tsx:105
+#: src/features/newSession/NewSessionPage.tsx:95
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "创建结果未知。重试可能留下额外的空会话。"
 
@@ -1300,7 +1300,7 @@ msgstr "无法重试此任务。请检查当前状态后再试。"
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
-#: src/features/newSession/NewSessionPage.tsx:95
+#: src/features/newSession/NewSessionPage.tsx:85
 msgid "Unable to start the conversation"
 msgstr "无法开始对话"
 
@@ -1440,7 +1440,7 @@ msgstr "修改未能保存。请先复制需要保留的内容，再丢弃修改
 msgid "Your changes have not been saved. Return to copy them, or discard them to continue."
 msgstr "修改尚未保存。可以返回复制内容，或丢弃修改后继续。"
 
-#: src/features/newSession/NewSessionPage.tsx:109
+#: src/features/newSession/NewSessionPage.tsx:99
 msgid "Your input is retained. Retry to continue."
 msgstr "输入内容已保留。重试以继续。"
 

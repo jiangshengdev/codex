@@ -1,7 +1,7 @@
 import { Alert, Button, Surface } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
@@ -18,11 +18,10 @@ import {
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
 import { ComposerSkillMenuLayer } from "@/features/composerTurnControl/ComposerSkillMenuLayer";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
-import { SkillCatalogOwner } from "@/features/skillCatalog/skillCatalogOwner";
-import { useStrictModeSafeOwner } from "@/features/threadHistory/useStrictModeSafeOwner";
 import { errorText } from "@/text/errorText";
 import type { NewSessionSnapshot } from "./newSessionOwner";
 import { NewSessionWorkingDirectory } from "./NewSessionWorkingDirectory";
+import { useNewSessionSkillCatalog } from "./useNewSessionSkillCatalog";
 
 export function NewSessionPage() {
   const { newSessionOwner, commands } = useAppCapabilities();
@@ -42,13 +41,7 @@ export function NewSessionPage() {
       ) : (
         <Surface className="flex min-w-0 flex-col gap-1 rounded-3xl p-1" variant="secondary">
           <NewSessionWorkingDirectory cwd={snapshot.cwd} />
-          {commands == null ? (
-            <p className="px-4 pb-3 text-muted">
-              <Trans>Connect to Codex to send this draft.</Trans>
-            </p>
-          ) : (
-            <NewSessionEditor commands={commands} snapshot={snapshot} />
-          )}
+          <NewSessionEditor commands={commands} snapshot={snapshot} />
         </Surface>
       )}
     </main>
@@ -59,7 +52,7 @@ function NewSessionEditor({
   commands,
   snapshot,
 }: Readonly<{
-  commands: GuiHostCommands;
+  commands: GuiHostCommands | null;
   snapshot: NonNullable<NewSessionSnapshot>;
 }>) {
   const { t } = useLingui();
@@ -67,14 +60,11 @@ function NewSessionEditor({
   const { newSessionOwner, activeThreadSession } = useAppCapabilities();
   const controller = useRef<ComposerEditorController | null>(null);
   const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
-  const catalogOwner = useMemo(
-    () => new SkillCatalogOwner({ cwd: snapshot.cwd, listSkills: commands.listSkills }),
-    [commands, snapshot.cwd],
-  );
-  const skillCatalog = useStrictModeSafeOwner(catalogOwner);
+  const { skillCatalog, retry } = useNewSessionSkillCatalog(snapshot.cwd, commands);
   const pending = snapshot.phase === "creating" || snapshot.phase === "activating";
   const unknownHandoff = snapshot.phase === "handoffUnknown";
   const submit = async (capture?: ComposerDraftCapture): Promise<void> => {
+    if (commands == null) return;
     const result = await newSessionOwner.submit(capture);
     if (result.type !== "accepted") return;
     try {
@@ -137,7 +127,7 @@ function NewSessionEditor({
         <ComposerEditor
           ariaLabel={t`Message Codex`}
           controllerRef={controller}
-          disabled={snapshot.isInputLocked}
+          disabled={commands == null || snapshot.isInputLocked}
           guardCompositionEndEnter={
             navigator.vendor === "Apple Computer, Inc." &&
             navigator.platform === "MacIntel" &&
@@ -147,9 +137,7 @@ function NewSessionEditor({
           onDraftChange={(draft) => {
             newSessionOwner.saveDraft(draft);
           }}
-          onRetrySkillCatalog={() => {
-            catalogOwner.retry();
-          }}
+          onRetrySkillCatalog={retry}
           onSubmit={(capture) => {
             void submit(capture);
           }}
@@ -160,7 +148,7 @@ function NewSessionEditor({
         <div className="flex justify-end">
           <RetryActionButton
             variant="primary"
-            isDisabled={pending || unknownHandoff}
+            isDisabled={commands == null || pending || unknownHandoff}
             isPending={pending}
             pendingChildren={
               <Trans comment="Pending state of Send while creating a session and handing off its first message">

@@ -177,9 +177,12 @@ test("a lost creation response preserves input across connection replacement and
   await host.open();
   await openNewSession(page);
   await sendNewSession(page, "Keep input after the creation socket closes");
+  await expect(composer(page)).toHaveText("Keep input after the creation socket closes");
+  await expect(composer(page)).toHaveAttribute("contenteditable", "false");
+  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await expect(
     page.getByText("Connect to Codex to send this draft.", { exact: true }),
-  ).toBeVisible();
+  ).toBeHidden();
   expect(host.starts()).toHaveLength(1);
   expect(host.attachments(createdThreadId)).toHaveLength(0);
   expect(host.sends(createdThreadId)).toHaveLength(0);
@@ -200,6 +203,7 @@ test("a lost creation response preserves input across connection replacement and
       exact: true,
     }),
   ).toBeVisible();
+  await expect(composer(page)).toHaveAttribute("contenteditable", "false");
   await settledRender(page);
   expect(host.starts()).toHaveLength(1);
   expect(host.sends(createdThreadId)).toHaveLength(0);

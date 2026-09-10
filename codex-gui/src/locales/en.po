@@ -83,7 +83,7 @@ msgid "A message update is missing its associated turn, so it cannot be fully di
 msgstr "A message update is missing its associated turn, so it cannot be fully displayed."
 
 #: src/features/appShell/AppShellTopBar.tsx:163
-#: src/features/newSession/NewSessionPage.tsx:40
+#: src/features/newSession/NewSessionPage.tsx:39
 msgid "A working directory is required to start a session."
 msgstr "A working directory is required to start a session."
 
@@ -203,8 +203,8 @@ msgid "Compression request result unknown"
 msgstr "Compression request result unknown"
 
 #: src/features/newSession/NewSessionPage.tsx:47
-msgid "Connect to Codex to send this draft."
-msgstr "Connect to Codex to send this draft."
+#~ msgid "Connect to Codex to send this draft."
+#~ msgstr "Connect to Codex to send this draft."
 
 #. GUI connection ended; retained conversations remain read-only
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:41
@@ -465,7 +465,7 @@ msgid "In progress"
 msgstr "In progress"
 
 #. Input may already belong to the existing task queue; do not offer another send
-#: src/features/newSession/NewSessionPage.tsx:99
+#: src/features/newSession/NewSessionPage.tsx:89
 msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 msgstr "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 
@@ -565,8 +565,8 @@ msgstr "Message cannot be empty"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:203
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:213
-#: src/features/newSession/NewSessionPage.tsx:138
-#: src/features/newSession/NewSessionPage.tsx:156
+#: src/features/newSession/NewSessionPage.tsx:128
+#: src/features/newSession/NewSessionPage.tsx:144
 msgid "Message Codex"
 msgstr "Message Codex"
 
@@ -692,7 +692,7 @@ msgstr "Open an active task in this browser tab before viewing its history."
 msgid "Open current task"
 msgstr "Open current task"
 
-#: src/features/newSession/NewSessionPage.tsx:128
+#: src/features/newSession/NewSessionPage.tsx:118
 msgid "Open session"
 msgstr "Open session"
 
@@ -958,12 +958,12 @@ msgid "Scan with phone"
 msgstr "Scan with phone"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:283
-#: src/features/newSession/NewSessionPage.tsx:174
+#: src/features/newSession/NewSessionPage.tsx:162
 msgid "Send"
 msgstr "Send"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:166
+#: src/features/newSession/NewSessionPage.tsx:154
 msgid "Sending"
 msgstr "Sending"
 
@@ -1120,7 +1120,7 @@ msgid "The conversation shown here may be out of date. Restore sync to get the l
 msgstr "The conversation shown here may be out of date. Restore sync to get the latest content."
 
 #. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
-#: src/features/newSession/NewSessionPage.tsx:105
+#: src/features/newSession/NewSessionPage.tsx:95
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "The creation result is unknown. Retrying may leave an extra empty session."
 
@@ -1300,7 +1300,7 @@ msgstr "Unable to retry this task. Review its current state and try again."
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
-#: src/features/newSession/NewSessionPage.tsx:95
+#: src/features/newSession/NewSessionPage.tsx:85
 msgid "Unable to start the conversation"
 msgstr "Unable to start the conversation"
 
@@ -1440,7 +1440,7 @@ msgstr "Your changes could not be saved. Copy them before discarding."
 msgid "Your changes have not been saved. Return to copy them, or discard them to continue."
 msgstr "Your changes have not been saved. Return to copy them, or discard them to continue."
 
-#: src/features/newSession/NewSessionPage.tsx:109
+#: src/features/newSession/NewSessionPage.tsx:99
 msgid "Your input is retained. Retry to continue."
 msgstr "Your input is retained. Retry to continue."
 
