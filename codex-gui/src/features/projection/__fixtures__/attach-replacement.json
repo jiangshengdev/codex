@@ -3,6 +3,7 @@
   "snapshot": {
     "thread": {
       "id": "00000000-0000-0000-0000-000000000001",
+      "environments": null,
       "extra": null,
       "sessionId": "00000000-0000-0000-0000-000000000001",
       "forkedFromId": null,
@@ -25,6 +26,7 @@
       "path": null,
       "cwd": "/tmp/codex-gui-projection-fixtures",
       "cliVersion": "projection-fixture",
+      "originator": null,
       "source": "appServer",
       "canAcceptDirectInput": true,
       "threadSource": null,
@@ -32,6 +34,7 @@
       "agentRole": null,
       "gitInfo": null,
       "name": "Replacement projection fixture",
+      "daybreakEnabled": null,
       "turns": [
         {
           "id": "replacement-baseline-turn",
