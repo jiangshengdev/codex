@@ -371,6 +371,7 @@ mod tests {
             Arc::new(codex_extension_api::ExtensionRegistryBuilder::new().build()),
             Arc::new(codex_core::test_support::EmptyUserInstructionsProvider),
             /*analytics_events_client*/ None,
+            codex_core::passthrough_image_store(),
             thread_store.clone(),
             /*agent_graph_store*/ None,
             uuid::Uuid::new_v4().to_string(),
