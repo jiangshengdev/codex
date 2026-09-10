@@ -1,0 +1,121 @@
+# 任务 02 执行记录
+
+日期：2026-09-10。状态：实现、CI 与独立审查完成，已提交 `a2e1fa429`；完整 Browser 和真实 runtime 验收仍有缺口。
+
+## 授权与执行图
+
+用户直接请求 `$implement`「02」，随后亲自添加所需开发依赖并通知继续。
+复用原计划节点字段、集合、资源锁、失败域和提交边界；不改写已确认设计或计划正文。
+当前 checkout 为 `/Users/jiangsheng/cnb/codex`，分支 `dev`，基点 `22e7c845a`。
+文档前置提交 `7bfc904c8` 与任务 01 提交 `f0b75b370` 已存在。
+
+- `T2.edit`：active；主代理编辑 SYNTAX、必要 MATH、TEST。用户添加的
+  `codex-gui/package.json`、`codex-gui/pnpm-lock.yaml` 纳入本任务提交集合。
+- `T2.red`：新增 verify 节点，消费一个已确认消息展示入口的测试；预期三浏览器因缺少反斜杠数学节点失败。
+  predecessor 为测试编辑完成；只解锁该切片实现，不要求全部用例预先编写。
+- `T2.format`、`T2.verify`、`T2.stage`、`T2.commit`：依原计划等待稳定源码与验证证据。
+- `F.review`：拆为 Standards 与 Spec 两个只读并行节点；消费最终任务提交及原设计、票据。
+  独立审查授权来自 `$implement` 要求的 `$code-review`；禁止子代理编辑、运行测试、Git 写与继续委派。
+- `F.level1`：主代理唯一 runner owner；完整 `ci` 与 `test:browser` 串行使用同一项目缓存。
+- `F.level2`：等待当前完整 `/gui` URL 与真实 runtime 版本证据；不复用历史地址，不开可见窗口。
+- `F.join`、`R.edit`、`R.stage`、`R.commit`：消费最终审查和验证结果，记录实际缺口并独立提交文档。
+
+各节点的能力信封继承原计划目标及范围，以本次直接实施请求为 grantSource；仅上述动作 active。
+主代理是源码编辑、格式化、runner、执行记录与实际 Git index 的唯一写 owner；独立审查只读稳定输入。
+不创建 scratch/worktree，不安装依赖，不操作 Git 远程，不改后端、协议、参考仓库或全局规则。
+编辑与读取同一可变源码的验证不并行。节点完成或失败即释放锁，重新计算依赖；范围内缺陷继续修正。
+
+## 已核验事实
+
+- 用户新增的三个包均已直接解析：`unified@11.0.5`、`micromark-util-types@2.0.2`、
+  `mdast-util-from-markdown@2.0.3`；lock 中版本已存在，新增直接开发依赖声明。
+- fnm Node v24.17.0、pnpm 10.34.5；Chromium、Firefox、WebKit 二进制均存在。
+- 使用 `/Users/jiangsheng/GitHub/streamdown` 可读源码核对扩展接口和默认分块；
+  仅使用已安装包的公开 `.d.ts` 核对解析器类型，不修改或研究压缩实现。
+- 测试 seam 复用 `CommittedTranscriptSurface`、合法 projection builders 与真实数学语义 DOM。
+
+## 事件与验证
+
+- 初始依赖预检通过；开始历史四语法的第一个 TDD 切片。
+- 历史测试先在三浏览器得到预期红灯（2 个美元数学节点，预期共 5 个），接入后通过。
+- 多行流式测试暴露换行事件协议错误；修正 tokenizer 的逐行 token、编译 buffer 和 paragraph interruption 后通过。
+  未闭合公式返回解析失败，由普通 Markdown 接手，不增加补齐、占位或完成屏障。
+- Vite 首次优化新增 `mdast-util-from-markdown` 时重载导致未收集测试；缓存稳定后重跑实际目标。
+- CRLF 长前文样例先在三浏览器失败（1 个数学节点，预期 2 个），按 Streamdown 已分块的实际字符串计算
+  offset 后通过。只合并公式跨越的 Markdown 块，不改变 transcript chunk 或原始消息。
+- 边界测试核对 Streamdown 可读源码后，按逐行块元素检查代码字面量；粗体按其现有 `data-streamdown="strong"`
+  输出检查。引用链接历史中解析并编码方括号，流式跨块定义保持依赖原有字面输出；不为数学扩展修复引用链接分块。
+- 格式检查通过；独立 `type-check` 通过。
+- 最新定向 Browser：30 文件、222 测试通过，三浏览器无类型错误。
+- Lint 的可修正源码问题已处理。剩余 `consistent-type-definitions` 与 TypeScript module augmentation
+  必需 interface 冲突；参照现有 `src/router.tsx` 可用两条局部注释，但用户禁止新增豁免，已单独请求确认，尚未修改。
+
+## 动态调度
+
+`T2.verify` 中 Lint 与提交后继等待授权；将独立审查前置调整为稳定工作树源码，完整测试也消费同一稳定输入，
+不等待无关的 Lint 确认。审查期间禁止编辑这些源码；若必须修正，旧审查证据失效并对新快照复审。
+稳定基点仍为 `22e7c845a`，新增模块 SHA-256 为
+`f33da0acde4d72dac89775a3c814e3665dbaaae09a134a73592a86e863776bea`，
+消息测试 SHA-256 为 `958435ab581f5a3136c034ff7413da3d5b5c582ab1042f8fb3ddf4fa9e6715bb`。
+主代理继续独占 runner 和文档写；两个审查者只读源码与规则，不读取动态执行记录作为稳定产品输入。
+
+## 最终收集到的证据
+
+所有前端命令 cwd 均为 `/Users/jiangsheng/cnb/codex/codex-gui`，统一经
+`/opt/homebrew/bin/fnm exec --using-file pnpm run` 调用；浏览器全部无头。
+
+| 节点/入口 | 实际结果 |
+| --- | --- |
+| `format:oxfmt` | 通过；项目 fix 只改变本次两个源码文件，随后非 fix 复查通过 |
+| `type-check` | 通过 |
+| `test:browser:parallel src/features/committedTranscriptSurface/__tests__` | 30 文件、222 测试通过，三浏览器，无类型错误 |
+| `ci` | validator check、format、oxlint 通过；ESLint 仅剩新模块第 12、20 行声明合并的 `consistent-type-definitions`，后续步骤被命令链阻断 |
+| `test:browser` 的 parallel 阶段 | 171 文件，1595 通过、1 失败；因此自动 sequential 未执行 |
+| 显式 `test:browser:sequential` | 24 文件，45 通过、3 失败；无类型错误 |
+| 单独复跑 `test:browser:parallel src/features/composerTurnControl/__tests__/ComposerPendingInputProvider.browser.test.tsx` | 3 文件、12 测试通过；只证明此次未复现，不是修复证据 |
+| 补跑 CI 被阻断的 `test:unit` | 99 文件、1241 测试通过，无类型错误 |
+| 补跑 CI 被阻断的 `test:browser:smoke` | 3 文件、5 测试通过 |
+
+完整 Browser 的失败明细：
+
+- Chromium：`ComposerPendingInputProvider.browser.test.tsx:85`，
+  `returns from backdrop confirmation without cancelling the edit or replacing the main draft`；
+  点击 backdrop 后未找到 `alertdialog`。该文件及 Composer 消费者没有本任务 diff；本次未修改它们。
+  仅只读检查现有测试和入口，随后复跑整个文件通过，未做临时插桩、改基线或其他诊断。
+- Chromium、Firefox、WebKit：`src/__tests__/sequential/composer-focus.browser.test.tsx:155`，
+  `supports pointer editing and visibly indicates keyboard focus`；焦点绘制综合判断返回 false。
+  该测试与本次 CSS 均无 diff；未验证根因，不宣称既有问题或与本次改动无关。
+  修复范围外 Composer 行为或引入有状态诊断需要新的对应授权，不把数学任务扩展为 Composer 修复。
+
+## Standards
+
+独立代理 `/root/math02_standards_review`：0 项发现。核验公共类型派生、共享语法责任、助手入口隔离、
+原 chunk owner 与 projection fixture 约束，未发现明确规则违反或充分证据的 smell。
+已知 Lint 冲突单独保留，不计入人工静态审查。代理仅只读，未运行测试或 Git 写。
+
+## Spec
+
+独立代理 `/root/math02_spec_review`：0 项发现。核验两种反斜杠语法、同一 KaTeX 链路、代码与链接边界、
+未闭合恢复、流式分块与 CRLF 位置一致性，未发现可确证需求偏离或范围外行为。
+代理仅只读，未运行实验或修改文件。两份审查的 SHA-256 与最终源码复核一致。
+
+## 授权闭环与提交
+
+- 用户随后单独回复「确认」，允许两个 interface 声明前添加此前展示的局部 Lint 注释。
+  仅豁免 `consistent-type-definitions`，并注明 TypeScript 声明合并原因；未修改全局检查配置。
+- 重新执行 `ci` 完整通过：validator check、format、oxlint、ESLint、type-check、
+  99 文件/1241 项单元测试、3 文件/5 项浏览器 smoke。
+- 两名独立审查者复核：移除新加的两行注释后，模块 SHA-256 与原审查输入完全一致；
+  Standards 0 发现、Spec 0 发现结论保持有效。运行逻辑未改，保留已有定向/完整 Browser 证据，未重复跑全量。
+- 主代理精确暂存七个任务文件，检查 staged diff 与 `git diff --cached --check` 后，
+  在当前 `dev` 创建独立提交 `a2e1fa429 feat(gui): render backslash math in assistant messages`。
+  未 amend、squash、远程操作或强制暂存；用户亲自添加的直接依赖声明随本任务提交。
+
+## 剩余完成边界
+
+- `T2.stage`、`T2.commit` 已完成；执行记录与票据状态作为独立文档提交落盘。
+- Level 1 的 CI、定向 Browser 通过；完整 Browser 尚未全绿，不能称完整验收通过。
+- Level 2 适用但未执行：已请求当前完整 `/gui` URL，尚未收到；当前工具未暴露 `launch_gui`。
+  真实历史、流式、结束、窄屏和长公式场景仍缺证据，不以 fixture 代替。
+- Level 3 不适用；未打开可见窗口。
+- 两个审查节点已释放只读锁；runner 已结束并释放锁，记录由主代理独占维护。
