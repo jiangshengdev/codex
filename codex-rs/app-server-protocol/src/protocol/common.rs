@@ -1389,6 +1389,7 @@ client_request_definitions! {
 
     GetAccountRateLimits => "account/rateLimits/read" {
         params: #[ts(optional, as = "Option<GetAccountRateLimitsParamsTypeScript>", inline)] #[serde(default, skip_serializing_if = "Option::is_none")] v2::NullableGetAccountRateLimitsParams,
+        contract_params: nullable(v2::GetAccountRateLimitsParams),
         serialization: None,
         response: v2::GetAccountRateLimitsResponse,
     },
