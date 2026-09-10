@@ -67,6 +67,7 @@
   display: inline-grid;
   max-width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
 }
 
 [data-assistant-math] .katex-display > .katex {
@@ -77,6 +78,8 @@
   display: inline-block;
   width: max-content;
   min-width: 100%;
+  /* KaTeX's vlist alignment cell extends 2px beyond the formula's measured width. */
+  padding-inline-end: 2px;
 }
 
 .committed-transcript-entry-markdown [data-streamdown="code-block-body"] code > span {

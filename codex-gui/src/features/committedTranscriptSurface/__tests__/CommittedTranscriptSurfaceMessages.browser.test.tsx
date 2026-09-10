@@ -188,17 +188,22 @@ test("preserves the original inline math baseline and full formula height", asyn
 
 Before $x_2$ after.
 
-Before $\dfrac{1}{\dfrac{1}{x^2}}$ after.`,
+Before $\dfrac{1}{\dfrac{1}{x^2}}$ after.
+
+Before $\theta_1=\theta_2$ after.
+
+Before $\boxed{\alpha=\beta}$ after.`,
           ),
         ]),
       ]),
     ),
   );
-  await expect.poll(() => document.querySelectorAll(".katex").length).toBe(3);
+  await expect.poll(() => document.querySelectorAll(".katex").length).toBe(5);
   await document.fonts.ready;
   const container = document.querySelector("[data-assistant-math]");
   assert(container);
   for (const formula of document.querySelectorAll<HTMLElement>(".katex")) {
+    expect(formula.scrollWidth).toBeLessThanOrEqual(formula.clientWidth);
     const paragraph = formula.closest("p");
     assert(paragraph?.firstChild);
     const proseRange = document.createRange();
