@@ -13,6 +13,7 @@ import {
   inProgressTurn,
   itemCompleted,
   itemStarted,
+  reasoningItem,
   textInput,
   turnCompleted,
   turnStarted,
@@ -318,6 +319,31 @@ test("renders assistant transcript markdown", async () => {
   expect(allowedLink?.textContent).toContain("Allowed link");
 });
 
+test("renders dollar math with semantic output and loaded fonts in assistant history", async () => {
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-math", [
+          userMessage("user-math", [textInput("Keep $x^2$ literal")]),
+          agentMessage("agent-math", "Inline $x^2$ and $$y^2$$.\n\n$$\n\\frac{1}{2}\n$$"),
+        ]),
+      ]),
+    ),
+  );
+  await expect.element(screen.getByText("Keep $x^2$ literal")).toBeVisible();
+  await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(3);
+  expect(document.querySelectorAll(".katex-display")).toHaveLength(1);
+  expect(document.querySelector("math mfrac")).not.toBeNull();
+  expect(document.querySelector("math msup")).not.toBeNull();
+  const fonts = await document.fonts.load("16px KaTeX_Main");
+  expect(fonts.length).toBeGreaterThan(0);
+  expect(fonts.every((font) => font.status === "loaded")).toBe(true);
+});
+
 test("keeps user markdown syntax as plain text", async () => {
   const { store, ...screen } = await renderTranscriptWithProviders(
     transcriptIdentity,
@@ -339,6 +365,92 @@ test("keeps user markdown syntax as plain text", async () => {
   await expect
     .element(screen.getByRole("heading", { name: "User heading" }))
     .not.toBeInTheDocument();
+});
+
+test("preserves default math completion while assistant deltas settle into history", async () => {
+  const { store } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
+  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  const turnId = "turn-streaming-math";
+  const itemId = "agent-streaming-math";
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemStarted(eventItemStarted, "math-start", turnId, agentMessage(itemId, "")),
+      replay: "live",
+    }),
+  );
+  const append = (delta: string) =>
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [agentMessageDelta(eventAgentMessageDelta, turnId, itemId, delta)],
+      }),
+    );
+  append("Single $x^2");
+  await expect
+    .poll(() => document.querySelector(".committed-transcript-live-assistant-message")?.textContent)
+    .toContain("$x^2");
+  expect(document.querySelector(".katex")).toBeNull();
+  append("$\n\n$$\ny^2");
+  await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(2);
+  expect(document.querySelectorAll(".katex-display")).toHaveLength(1);
+  append("\n$$\n\nDone");
+  await expect
+    .poll(() => document.querySelector(".committed-transcript-live-assistant-message")?.textContent)
+    .toContain("Done");
+  const source = "Single $x^2$\n\n$$\ny^2\n$$\n\nDone";
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "math-completed",
+        turnId,
+        agentMessage(itemId, source),
+      ),
+      replay: "live",
+    }),
+  );
+  await expect
+    .poll(() => document.querySelector(".committed-transcript-live-assistant-message"))
+    .toBeNull();
+  await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(2);
+  expect(document.querySelectorAll(".katex-display")).toHaveLength(1);
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [baseTurn(turnId, [agentMessage(itemId, source)])]),
+    ),
+  );
+  await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(2);
+});
+
+test("keeps reasoning and code literal and leaves invalid math readable", async () => {
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-math-boundaries", [
+          reasoningItem("reasoning-math", ["Reasoning $x^2$ and $$y^2$$"]),
+          agentMessage(
+            "agent-math-boundaries",
+            "Use `$x^2$`.\n\n```text\n$$y^2$$\n```\n\nBefore $\\frac{1}$ after.\n\n| Value |\n| --- |\n| $z^2$ |",
+          ),
+        ]),
+      ]),
+    ),
+  );
+  await screen.getByRole("button", { name: /Intermediate updates/ }).click();
+  await expect.element(screen.getByText("Reasoning $x^2$ and $$y^2$$")).toBeVisible();
+  expect(document.querySelector(".committed-transcript-entry-reasoning .katex")).toBeNull();
+  await expect.poll(() => document.querySelector(".katex-error")?.textContent).toBe("\\frac{1}");
+  await expect.element(screen.getByText(/Before/)).toBeVisible();
+  await expect.element(screen.getByText(/after\./)).toBeVisible();
+  expect(document.querySelector("p code")?.textContent).toBe("$x^2$");
+  expect(document.querySelector("pre")?.textContent).toContain("$$y^2$$");
+  expect(document.querySelector("table math msup")).not.toBeNull();
 });
 
 test("keeps raw html and images inactive while allowing markdown links", async () => {

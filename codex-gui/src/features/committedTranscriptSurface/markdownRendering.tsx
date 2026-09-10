@@ -1,5 +1,6 @@
 import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
+import { createMathPlugin } from "@streamdown/math";
 import { defaultHandlers, type Handler } from "mdast-util-to-hast";
 import { isAbsolute } from "pathe";
 import {
@@ -62,6 +63,10 @@ export const streamdownRemarkRehypeOptions: NonNullable<StreamdownProps["remarkR
 };
 
 export const streamdownPlugins = { code, cjk };
+export const assistantStreamdownPlugins = {
+  ...streamdownPlugins,
+  math: createMathPlugin({ singleDollarTextMath: true }),
+};
 
 const clipboardWriteAvailable =
   typeof window !== "undefined" &&

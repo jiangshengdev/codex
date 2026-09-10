@@ -1,9 +1,23 @@
 import { Streamdown } from "streamdown";
-import { markdownContainerClassName, streamdownCommonProps } from "./markdownRendering";
+import {
+  assistantStreamdownPlugins,
+  markdownContainerClassName,
+  streamdownCommonProps,
+} from "./markdownRendering";
 
-export const MarkdownText = ({ source }: { source: string }) => (
+export const MarkdownText = ({
+  source,
+  enableMath = false,
+}: {
+  source: string;
+  enableMath?: boolean;
+}) => (
   <div className={markdownContainerClassName}>
-    <Streamdown {...streamdownCommonProps} mode="static">
+    <Streamdown
+      {...streamdownCommonProps}
+      plugins={enableMath ? assistantStreamdownPlugins : streamdownCommonProps.plugins}
+      mode="static"
+    >
       {source}
     </Streamdown>
   </div>

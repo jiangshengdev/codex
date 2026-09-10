@@ -1,9 +1,25 @@
 import { Streamdown } from "streamdown";
-import { markdownContainerClassName, streamdownCommonProps } from "./markdownRendering";
+import {
+  assistantStreamdownPlugins,
+  markdownContainerClassName,
+  streamdownCommonProps,
+} from "./markdownRendering";
 
-export const LiveMarkdownText = ({ source }: { source: string }) => (
+export const LiveMarkdownText = ({
+  source,
+  enableMath = false,
+}: {
+  source: string;
+  enableMath?: boolean;
+}) => (
   <div className={`${markdownContainerClassName} committed-transcript-live-markdown`}>
-    <Streamdown {...streamdownCommonProps} caret="block" isAnimating mode="streaming">
+    <Streamdown
+      {...streamdownCommonProps}
+      plugins={enableMath ? assistantStreamdownPlugins : streamdownCommonProps.plugins}
+      caret="block"
+      isAnimating
+      mode="streaming"
+    >
       {source}
     </Streamdown>
   </div>
