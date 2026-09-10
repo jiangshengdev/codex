@@ -1069,10 +1069,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     turnId: Turn["id"],
     disposition: ComposerInterruptedDisposition,
   ): void {
-    if (this.recovery != null) {
-      if (this.recovery.reason !== "steerDefinitelyNotAccepted") {
-        throw new Error("Interrupted terminal conflicts with non-steer recovery");
-      }
+    if (this.recovery?.reason === "steerDefinitelyNotAccepted") {
       const restored = this.queue.restoreSteerRecovery(this.recovery.transfer);
       if (
         restored.result.type !== "applied" ||

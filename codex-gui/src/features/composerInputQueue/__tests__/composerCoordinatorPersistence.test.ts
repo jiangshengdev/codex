@@ -57,6 +57,102 @@ function owner(fixture: ReturnType<typeof persistenceFixture>, activeTurnId: str
 }
 
 describe("coordinator persistence boundaries", () => {
+  it.each(["restore", "projection"])(
+    "merges an old accepted message and a newer pending interrupt through %s",
+    (entrypoint) => {
+      const fixture = persistenceFixture();
+      const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "old-turn" });
+      queue.submitSteer(composerQueueMessage("old guidance"));
+      queue.observe({
+        type: "turnCompleted",
+        turnId: "old-turn",
+        status: "completed",
+        commitId: "old-terminal",
+      });
+      queue.observe({ type: "turnStarted", turnId: "new-turn", commitId: "new-start" });
+      queue.submit(composerQueueMessage("new ordinary"));
+      const state = queue.exportState(null);
+      const legacy = {
+        ...state,
+        version: 1,
+        steer: {
+          ...state.steer,
+          pending: state.steer.pending.map((entry) => ({
+            ...entry,
+            phase: "acceptedAwaitingCommit",
+          })),
+          closedTargets: state.steer.closedTargets.map(({ target, ...identity }) => ({
+            ...identity,
+            target: { reason: target.reason, rejectionBatch: target.rejectionBatch },
+          })),
+        },
+      };
+      const interrupt = createComposerInterruptState();
+      interrupt.transition({
+        type: "issue",
+        params: { threadId: "thread-1", turnId: "new-turn" },
+        generation: 1,
+      });
+      fixture.context.storage.setItem(
+        "codex-gui.browserPersistence.thread-1",
+        JSON.stringify({
+          version: 1,
+          authorizationContext: fixture.context.authorizationContext,
+          threadId: "thread-1",
+          revision: 1,
+          payload: {
+            version: 1,
+            queue: legacy,
+            draft: null,
+            interrupt: interrupt.exportState(),
+            failedInterruptTurnId: null,
+          },
+        }),
+      );
+      const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
+      const coordinator = createCoordinator({
+        threadId: "thread-1",
+        activeTurnId: null,
+        startTurn,
+        steerTurn: vi.fn<SteerTurn>(),
+        persistence: fixture.context,
+      });
+      const turns = [
+        baseTurn("old-turn"),
+        { ...baseTurn("new-turn"), status: "interrupted" as const },
+      ];
+      coordinator.setConnectionUnavailable(entrypoint === "projection");
+      let result: ReturnType<typeof coordinator.reconcileProjection> | null = null;
+      if (entrypoint === "restore") coordinator.reconcileRestoredTurns(turns);
+      else result = coordinator.reconcileProjection(turns, []);
+      expect(result).toEqual(entrypoint === "restore" ? null : { type: "committed" });
+      coordinator.setConnectionUnavailable(false);
+      coordinator.completeRestoreReconciliation();
+      expect(coordinator.getSnapshot()).toMatchObject({
+        guidingCount: 0,
+        ordinaryQueuedCount: 0,
+        recoveryCount: 2,
+        interrupt: null,
+        persistence: { error: null },
+      });
+      expect(startTurn).not.toHaveBeenCalled();
+      coordinator.dispose();
+      const restored = owner(fixture, null);
+      expect(restored.coordinator.getSnapshot().recoveryCount).toBe(2);
+      expect(restored.coordinator.recover()).toBe(true);
+      expect(
+        restored.coordinator.resumeRestored(
+          restored.coordinator.getSnapshot().persistence.revision,
+        ),
+      ).toBe(true);
+      expect(restored.startTurn.mock.calls[0]?.[0].input).toEqual(
+        composerQueueMessage("old guidance").input,
+      );
+      expect(restored.coordinator.getSnapshot().ordinaryQueuedCount).toBe(1);
+      restored.coordinator.dispose();
+    },
+  );
+
   it.each(["startDefinitelyNotAccepted", "steerDefinitelyNotAccepted", "userStopped"] as const)(
     "merges legacy acceptance with %s recovery and preserves it through write failure",
     (reason) => {
@@ -139,7 +235,7 @@ describe("coordinator persistence boundaries", () => {
         }),
       );
       const saved = [...fixture.records.values()];
-      const startTurn = vi.fn<StartTurn>(() => new Promise(() => {}));
+      const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
       const coordinator = createCoordinator({
         threadId: "thread-1",
         activeTurnId: null,
@@ -186,14 +282,14 @@ describe("coordinator persistence boundaries", () => {
           accept = resolve;
         }),
     );
-    const startTurn = vi.fn<StartTurn>(() => new Promise(() => {}));
+    const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
     const coordinator = createCoordinator({
       threadId: "thread-1",
       activeTurnId: "running-turn",
       persistence: fixture.context,
       startTurn,
       steerTurn,
-      interruptTurn: async () => ({}),
+      interruptTurn: () => Promise.resolve({}),
     });
     coordinator.completeRestoreReconciliation();
     coordinator.submitSteer(composerDraftCapture("late"));

@@ -30,13 +30,13 @@ describe("ComposerInputQueueCoordinator", () => {
           responses.push(resolve);
         }),
     );
-    const startTurn = vi.fn<StartTurn>(() => new Promise(() => {}));
+    const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
     const coordinator = createCoordinator({
       threadId: "thread-1",
       activeTurnId: "turn-1",
       startTurn,
       steerTurn,
-      interruptTurn: async () => ({}),
+      interruptTurn: () => Promise.resolve({}),
     });
     coordinator.submitSteer(input("first"));
     responses[0]?.({ turnId: "turn-1" });
@@ -80,13 +80,13 @@ describe("ComposerInputQueueCoordinator", () => {
             accept = resolve;
           }),
       );
-      const startTurn = vi.fn<StartTurn>(() => new Promise(() => {}));
+      const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
       const coordinator = createCoordinator({
         threadId: "thread-1",
         activeTurnId: "turn-1",
         startTurn,
         steerTurn,
-        interruptTurn: async () => ({}),
+        interruptTurn: () => Promise.resolve({}),
       });
       coordinator.submitSteer(input("late"));
       if (recoveryState !== "empty") coordinator.submit(input("ordinary"));
@@ -100,7 +100,8 @@ describe("ComposerInputQueueCoordinator", () => {
           }),
         ),
       );
-      if (recoveryState === "consumed") expect(coordinator.recover()).toBe(true);
+      const recovered = recoveryState === "consumed" ? coordinator.recover() : null;
+      expect(recovered).toBe(recoveryState === "consumed" ? true : null);
       accept({ turnId: "turn-1" });
       await nextMicrotask();
       expect(coordinator.getSnapshot()).toMatchObject({
@@ -125,7 +126,7 @@ describe("ComposerInputQueueCoordinator", () => {
             accept = resolve;
           }),
       );
-      const startTurn = vi.fn<StartTurn>(() => new Promise(() => {}));
+      const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
       const coordinator = createCoordinator({
         threadId: "thread-1",
         activeTurnId: "turn-1",
@@ -159,7 +160,7 @@ describe("ComposerInputQueueCoordinator", () => {
             reject = no;
           }),
       );
-      const startTurn = vi.fn<StartTurn>(() => new Promise(() => {}));
+      const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
       const coordinator = createCoordinator({
         threadId: "thread-1",
         activeTurnId: "turn-1",

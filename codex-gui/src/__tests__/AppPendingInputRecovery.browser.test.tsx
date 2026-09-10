@@ -59,7 +59,7 @@ test("shows late accepted guidance in the existing local-stop recovery and sends
         accept = resolve;
       }),
   );
-  vi.mocked(commands.startTurn).mockImplementation(() => new Promise(() => {}));
+  vi.mocked(commands.startTurn).mockImplementation(() => new Promise(() => undefined));
   const active = inProgressTurn("late-guide-turn");
   queueAttachProjectionResponse(commands, attachWithTurns(attachResponse, [active]));
   const options = getHostOptions(hostMock.startGuiHostConnection);
@@ -149,7 +149,7 @@ test("opens legacy accepted guidance in manual recovery without sending on start
   );
   const screen = await renderWithProviders(<RouterProvider router={router} />);
   const commands = createGuiHostCommands();
-  vi.mocked(commands.startTurn).mockImplementation(() => new Promise(() => {}));
+  vi.mocked(commands.startTurn).mockImplementation(() => new Promise(() => undefined));
   queueAttachProjectionResponse(
     commands,
     attachWithTurns(attachResponse, [baseTurn("legacy-turn")]),

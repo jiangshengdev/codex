@@ -56,21 +56,30 @@ describe("composer queue persistence transactions", () => {
     const restoredQueue = createComposerInputQueue({ threadId: "thread-a", activeTurnId: null });
     expect(restoredQueue.rehydrateState(legacy)).toBeNull();
     const result = restoredQueue.reconcileSnapshot([baseTurn("turn-a")]);
-    if (phase === "acceptedAwaitingCommit") {
-      const recovery = result.effects[0];
-      expect(recovery?.type).toBe("recover");
-      if (recovery?.type !== "recover" || recovery.batch.reason !== "userStopped")
-        throw new Error("Expected manual legacy recovery");
-      expect(recovery.batch.rejected?.entries[0]?.intent.message.input).toEqual(
-        composerQueueMessage("legacy").input,
-      );
-      expect(restoredQueue.exportState(recovery.batch).version).toBe(2);
-      expect(restoredQueue.view().guidingCount).toBe(0);
-    } else {
-      expect(result.effects).toEqual([]);
-      expect(restoredQueue.unknownMessages()).toHaveLength(1);
-      expect(restoredQueue.view().guidingCount).toBe(1);
-    }
+    const accepted = phase === "acceptedAwaitingCommit";
+    expect(result.effects).toMatchObject(
+      accepted
+        ? [
+            {
+              type: "recover",
+              batch: {
+                reason: "userStopped",
+                rejected: {
+                  entries: [
+                    { intent: { message: { input: composerQueueMessage("legacy").input } } },
+                  ],
+                },
+              },
+            },
+          ]
+        : [],
+    );
+    const effect = result.effects[0];
+    expect(
+      restoredQueue.exportState(effect?.type === "recover" ? effect.batch : null).version,
+    ).toBe(2);
+    expect(restoredQueue.unknownMessages()).toHaveLength(accepted ? 0 : 1);
+    expect(restoredQueue.view().guidingCount).toBe(accepted ? 0 : 1);
   });
 
   it("matches a legacy accepted commit before producing manual recovery", () => {
