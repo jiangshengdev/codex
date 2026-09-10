@@ -13,7 +13,7 @@ export const MarkdownText = ({
   source: string;
   enableMath?: boolean;
 }) => (
-  <div className={markdownContainerClassName}>
+  <div className={markdownContainerClassName} data-assistant-math={enableMath || undefined}>
     <Streamdown
       {...streamdownCommonProps}
       plugins={enableMath ? assistantStreamdownPlugins : streamdownCommonProps.plugins}

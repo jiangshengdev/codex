@@ -1,4 +1,5 @@
-import { expect, test } from "vitest";
+import { assert, expect, test } from "vitest";
+import { page } from "vitest/browser";
 import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
   ActiveThreadProjectionAcceptedEvent,
@@ -67,6 +68,110 @@ const quotaError = {
   additionalDetails: null,
   misalignment: null,
 } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
+
+test("scrolls only overflowing formulas without shrinking them across message lifecycles", async () => {
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  const expression = `${Array.from({ length: 16 }, (_, index) => String.raw`\frac{x_{${index + 1}}^2}{y_{${index + 1}}}`).join(" + ")} = z`;
+  const source = [
+    `Before $${expression}$ after.`,
+    `Before \\(${expression}\\) after.`,
+    `$$\n${expression}\n$$`,
+    `\\[\n${expression}\n\\]`,
+    "Short $x^2$ stays readable.",
+  ].join("\n\n");
+  const turnId = "turn-math-overflow";
+  const itemId = "agent-math-overflow";
+  try {
+    await page.viewport(1280, 900);
+    const { store } = await renderTranscriptWithProviders(
+      transcriptIdentity,
+      <CommittedTranscriptSurface identity={transcriptIdentity} />,
+    );
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "overflow-start",
+          turnId,
+          agentMessage(itemId, ""),
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [agentMessageDelta(eventAgentMessageDelta, turnId, itemId, source)],
+      }),
+    );
+    await expect.poll(() => document.querySelectorAll(".katex").length).toBe(5);
+    await document.fonts.ready;
+    const desktopFontSizes = Array.from(
+      document.querySelectorAll(".katex"),
+      (node) => getComputedStyle(node).fontSize,
+    );
+    await page.viewport(390, 844);
+
+    const verifyOverflow = async () => {
+      await expect.poll(() => document.querySelectorAll(".katex").length).toBe(5);
+      const formulas = Array.from(document.querySelectorAll<HTMLElement>(".katex"));
+      expect(formulas.map((node) => getComputedStyle(node).fontSize)).toEqual(desktopFontSizes);
+      expect(document.documentElement.scrollWidth).toBe(document.documentElement.clientWidth);
+      const paragraph = document.querySelector(".committed-transcript-entry-markdown p");
+      assert(paragraph, "Expected message prose beside the formulas");
+      const paragraphLeft = paragraph.getBoundingClientRect().left;
+      for (const formula of formulas.slice(0, 4)) {
+        let scroller: HTMLElement | null = formula;
+        while (scroller && !["auto", "scroll"].includes(getComputedStyle(scroller).overflowX)) {
+          scroller = scroller.parentElement;
+        }
+        assert(scroller, "Expected a horizontal scroll container for the formula");
+        const scrollContainer = scroller;
+        expect(scrollContainer.textContent).not.toContain("Before");
+        expect(scrollContainer.scrollWidth).toBeGreaterThan(scrollContainer.clientWidth);
+        scrollContainer.scrollTo({ left: scrollContainer.scrollWidth, behavior: "instant" });
+        await expect.poll(() => scrollContainer.scrollLeft).toBeGreaterThan(0);
+        expect(
+          Math.abs(
+            scrollContainer.scrollWidth - scrollContainer.clientWidth - scrollContainer.scrollLeft,
+          ),
+        ).toBeLessThanOrEqual(1);
+        expect(paragraph.getBoundingClientRect().left).toBe(paragraphLeft);
+        expect(document.documentElement.scrollLeft).toBe(0);
+        expect(formula.querySelector("math mfrac")).not.toBeNull();
+        expect(formula.querySelector("annotation")?.textContent.trim()).toBe(expression);
+      }
+      const shortFormula = formulas[4];
+      assert(shortFormula, "Expected the short formula after the four long formulas");
+      expect(shortFormula.scrollWidth).toBeLessThanOrEqual(shortFormula.clientWidth);
+    };
+
+    await verifyOverflow();
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "overflow-complete",
+          turnId,
+          agentMessage(itemId, source),
+        ),
+        replay: "live",
+      }),
+    );
+    await expect
+      .poll(() => document.querySelector(".committed-transcript-live-assistant-message"))
+      .toBeNull();
+    await verifyOverflow();
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [baseTurn(turnId, [agentMessage(itemId, source)])]),
+      ),
+    );
+    await verifyOverflow();
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
 
 test("renders an empty committed transcript region", async () => {
   const screen = await renderTranscriptWithProviders(

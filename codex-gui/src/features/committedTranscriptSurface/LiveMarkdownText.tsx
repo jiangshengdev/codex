@@ -14,7 +14,10 @@ export const LiveMarkdownText = ({
   source: string;
   enableMath?: boolean;
 }) => (
-  <div className={`${markdownContainerClassName} committed-transcript-live-markdown`}>
+  <div
+    className={`${markdownContainerClassName} committed-transcript-live-markdown`}
+    data-assistant-math={enableMath || undefined}
+  >
     <Streamdown
       {...streamdownCommonProps}
       plugins={enableMath ? assistantStreamdownPlugins : streamdownCommonProps.plugins}

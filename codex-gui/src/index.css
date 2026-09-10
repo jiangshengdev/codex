@@ -63,6 +63,23 @@
   white-space: pre-wrap;
 }
 
+[data-assistant-math] .katex {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  vertical-align: middle;
+}
+
+[data-assistant-math] .katex-display > .katex {
+  display: block;
+}
+
+[data-assistant-math] .katex > .katex-html {
+  display: inline-block;
+  width: max-content;
+  min-width: 100%;
+}
+
 .committed-transcript-entry-markdown [data-streamdown="code-block-body"] code > span {
   display: block;
 }
