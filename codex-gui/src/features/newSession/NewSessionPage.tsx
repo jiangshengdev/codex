@@ -22,12 +22,12 @@ import { SkillCatalogOwner } from "@/features/skillCatalog/skillCatalogOwner";
 import { useStrictModeSafeOwner } from "@/features/threadHistory/useStrictModeSafeOwner";
 import { errorText } from "@/text/errorText";
 import type { NewSessionSnapshot } from "./newSessionOwner";
+import { NewSessionWorkingDirectory } from "./NewSessionWorkingDirectory";
 
 export function NewSessionPage() {
   const { newSessionOwner, commands } = useAppCapabilities();
   const snapshot = useNewSessionSnapshot();
   const cwd = useNewSessionCwd();
-  const draftCwd = snapshot?.cwd;
 
   useEffect(() => {
     newSessionOwner.open(cwd);
@@ -40,20 +40,16 @@ export function NewSessionPage() {
           <Trans>A working directory is required to start a session.</Trans>
         </p>
       ) : (
-        <>
-          <p className="min-w-0 text-sm wrap-anywhere text-muted">
-            <Trans comment="The fixed working directory of the single new-session draft; it does not follow later task switches">
-              Working directory: {draftCwd}
-            </Trans>
-          </p>
+        <Surface className="flex min-w-0 flex-col gap-1 rounded-3xl p-1" variant="secondary">
+          <NewSessionWorkingDirectory cwd={snapshot.cwd} />
           {commands == null ? (
-            <p className="text-muted">
+            <p className="px-4 pb-3 text-muted">
               <Trans>Connect to Codex to send this draft.</Trans>
             </p>
           ) : (
             <NewSessionEditor commands={commands} snapshot={snapshot} />
           )}
-        </>
+        </Surface>
       )}
     </main>
   );

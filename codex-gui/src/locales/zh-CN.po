@@ -202,7 +202,7 @@ msgstr "正在压缩"
 msgid "Compression request result unknown"
 msgstr "压缩请求结果不明"
 
-#: src/features/newSession/NewSessionPage.tsx:51
+#: src/features/newSession/NewSessionPage.tsx:47
 msgid "Connect to Codex to send this draft."
 msgstr "连接到 Codex 后即可发送此草稿。"
 
@@ -465,7 +465,7 @@ msgid "In progress"
 msgstr "进行中"
 
 #. Input may already belong to the existing task queue; do not offer another send
-#: src/features/newSession/NewSessionPage.tsx:103
+#: src/features/newSession/NewSessionPage.tsx:99
 msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 msgstr "无法确认消息是否已加入队列。请打开会话，检查队列后再继续。"
 
@@ -513,13 +513,13 @@ msgid "Load more"
 msgstr "加载更多"
 
 #: src/features/currentTask/CurrentTaskPage.tsx:264
-#: src/features/currentTask/CurrentTaskPage.tsx:340
-#: src/features/currentTask/CurrentTaskPage.tsx:410
+#: src/features/currentTask/CurrentTaskPage.tsx:337
+#: src/features/currentTask/CurrentTaskPage.tsx:404
 msgid "Load task"
 msgstr "加载任务"
 
 #. Button to read the selected task's historical messages
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:99
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:101
 msgid "Load task history"
 msgstr "加载任务历史"
 
@@ -540,14 +540,14 @@ msgid "Loading skills…"
 msgstr "正在加载技能…"
 
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:46
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:97
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:99
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
 #: src/features/currentTask/CurrentTaskPage.tsx:257
-#: src/features/currentTask/CurrentTaskPage.tsx:326
-#: src/features/currentTask/CurrentTaskPage.tsx:390
-#: src/features/currentTask/CurrentTaskPage.tsx:545
+#: src/features/currentTask/CurrentTaskPage.tsx:323
+#: src/features/currentTask/CurrentTaskPage.tsx:384
+#: src/features/currentTask/CurrentTaskPage.tsx:536
 msgid "Loading task…"
 msgstr "正在加载任务…"
 
@@ -565,8 +565,8 @@ msgstr "消息不能为空"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:203
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:213
-#: src/features/newSession/NewSessionPage.tsx:142
-#: src/features/newSession/NewSessionPage.tsx:160
+#: src/features/newSession/NewSessionPage.tsx:138
+#: src/features/newSession/NewSessionPage.tsx:156
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
@@ -692,7 +692,7 @@ msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其
 msgid "Open current task"
 msgstr "打开当前任务"
 
-#: src/features/newSession/NewSessionPage.tsx:132
+#: src/features/newSession/NewSessionPage.tsx:128
 msgid "Open session"
 msgstr "打开会话"
 
@@ -807,7 +807,7 @@ msgid "Refresh complete. Try the action again."
 msgstr "已刷新，请重试此操作。"
 
 #. Reload the current task's runtime status
-#: src/features/currentTask/CurrentTaskPage.tsx:412
+#: src/features/currentTask/CurrentTaskPage.tsx:406
 msgid "Refresh status"
 msgstr "刷新状态"
 
@@ -815,7 +815,7 @@ msgstr "刷新状态"
 msgid "Refreshing skills…"
 msgstr "正在刷新技能…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:392
+#: src/features/currentTask/CurrentTaskPage.tsx:386
 msgid "Refreshing status…"
 msgstr "正在刷新状态…"
 
@@ -848,8 +848,8 @@ msgstr "保存前请移除或替换无效技能。"
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #: src/features/currentTask/CurrentTaskPage.tsx:217
-#: src/features/currentTask/CurrentTaskPage.tsx:336
-#: src/features/currentTask/CurrentTaskPage.tsx:406
+#: src/features/currentTask/CurrentTaskPage.tsx:333
+#: src/features/currentTask/CurrentTaskPage.tsx:400
 msgid "Remove task"
 msgstr "移出任务列表"
 
@@ -857,8 +857,8 @@ msgstr "移出任务列表"
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #: src/features/currentTask/CurrentTaskPage.tsx:203
-#: src/features/currentTask/CurrentTaskPage.tsx:322
-#: src/features/currentTask/CurrentTaskPage.tsx:386
+#: src/features/currentTask/CurrentTaskPage.tsx:319
+#: src/features/currentTask/CurrentTaskPage.tsx:380
 msgid "Removing task…"
 msgstr "正在移出任务列表…"
 
@@ -958,12 +958,12 @@ msgid "Scan with phone"
 msgstr "使用手机扫描"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:283
-#: src/features/newSession/NewSessionPage.tsx:178
+#: src/features/newSession/NewSessionPage.tsx:174
 msgid "Send"
 msgstr "发送"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:170
+#: src/features/newSession/NewSessionPage.tsx:166
 msgid "Sending"
 msgstr "正在发送"
 
@@ -1064,7 +1064,7 @@ msgid "System error"
 msgstr "系统错误"
 
 #: src/features/currentTask/CurrentTaskPage.tsx:228
-#: src/features/currentTask/CurrentTaskPage.tsx:450
+#: src/features/currentTask/CurrentTaskPage.tsx:444
 msgid "Task action failed"
 msgstr "任务操作失败"
 
@@ -1120,12 +1120,12 @@ msgid "The conversation shown here may be out of date. Restore sync to get the l
 msgstr "当前显示的对话可能不是最新内容。恢复同步可获取最新内容。"
 
 #. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
-#: src/features/newSession/NewSessionPage.tsx:109
+#: src/features/newSession/NewSessionPage.tsx:105
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "创建结果未知。重试可能留下额外的空会话。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:281
-#: src/features/currentTask/CurrentTaskPage.tsx:358
+#: src/features/currentTask/CurrentTaskPage.tsx:278
+#: src/features/currentTask/CurrentTaskPage.tsx:352
 msgid "The current task could not be loaded."
 msgstr "当前任务未能加载。"
 
@@ -1153,7 +1153,7 @@ msgstr "上一个任务连接未能完全清理，后续状态可能受到影响
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:453
+#: src/features/currentTask/CurrentTaskPage.tsx:447
 msgid "The task action could not be completed."
 msgstr "任务操作未能完成。"
 
@@ -1185,7 +1185,7 @@ msgstr "任务未能移出列表。"
 msgid "The task could not be resumed."
 msgstr "无法恢复任务。"
 
-#: src/features/appShell/AppShell.tsx:88
+#: src/features/appShell/AppShell.tsx:92
 msgid "The task list could not be updated."
 msgstr "任务列表未能更新。"
 
@@ -1193,7 +1193,7 @@ msgstr "任务列表未能更新。"
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "任务已打开，但部分状态同步未完成。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:475
+#: src/features/currentTask/CurrentTaskPage.tsx:469
 msgid "The task recovery could not be completed."
 msgstr "任务恢复未能完成。"
 
@@ -1278,16 +1278,16 @@ msgstr "无法继续此任务"
 msgid "Unable to load history"
 msgstr "无法加载历史记录"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:108
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:110
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:278
-#: src/features/currentTask/CurrentTaskPage.tsx:355
+#: src/features/currentTask/CurrentTaskPage.tsx:275
+#: src/features/currentTask/CurrentTaskPage.tsx:349
 msgid "Unable to load the current task"
 msgstr "无法加载当前任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:472
+#: src/features/currentTask/CurrentTaskPage.tsx:466
 msgid "Unable to recover the current task"
 msgstr "无法恢复当前任务"
 
@@ -1300,7 +1300,7 @@ msgstr "无法重试此任务。请检查当前状态后再试。"
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
-#: src/features/newSession/NewSessionPage.tsx:99
+#: src/features/newSession/NewSessionPage.tsx:95
 msgid "Unable to start the conversation"
 msgstr "无法开始对话"
 
@@ -1309,7 +1309,7 @@ msgstr "无法开始对话"
 msgid "Unable to switch tasks yet"
 msgstr "暂时无法切换任务"
 
-#: src/features/appShell/AppShell.tsx:85
+#: src/features/appShell/AppShell.tsx:89
 msgid "Unable to update the task list"
 msgstr "无法更新任务列表"
 
@@ -1412,10 +1412,20 @@ msgstr "正在等待压缩请求结果。确认结果前，仍无法发送消息
 msgid "Will send first"
 msgstr "将优先发送"
 
+#. Accessible name of the popover showing the new-session draft's full path
+#: src/features/newSession/NewSessionWorkingDirectory.tsx:29
+msgid "Working directory"
+msgstr "工作目录"
+
+#. Accessible name of the new-session directory button; opens the full path
+#: src/features/newSession/NewSessionWorkingDirectory.tsx:17
+msgid "Working directory: {directoryName}"
+msgstr "工作目录：{directoryName}"
+
 #. The fixed working directory of the single new-session draft; it does not follow later task switches
 #: src/features/newSession/NewSessionPage.tsx:45
-msgid "Working directory: {draftCwd}"
-msgstr "工作目录：{draftCwd}"
+#~ msgid "Working directory: {draftCwd}"
+#~ msgstr "工作目录：{draftCwd}"
 
 #. History date group: tasks last active on the previous local day
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:134
@@ -1430,7 +1440,7 @@ msgstr "修改未能保存。请先复制需要保留的内容，再丢弃修改
 msgid "Your changes have not been saved. Return to copy them, or discard them to continue."
 msgstr "修改尚未保存。可以返回复制内容，或丢弃修改后继续。"
 
-#: src/features/newSession/NewSessionPage.tsx:113
+#: src/features/newSession/NewSessionPage.tsx:109
 msgid "Your input is retained. Retry to continue."
 msgstr "输入内容已保留。重试以继续。"
 

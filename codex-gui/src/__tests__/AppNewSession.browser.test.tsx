@@ -57,7 +57,11 @@ function creationResponse(): Awaited<ReturnType<GuiHostCommands["startThread"]>>
   };
 }
 
-async function mount(initialEntry = `/task/${launchThreadId}`, withDirectory = true) {
+async function mount(
+  initialEntry = `/task/${launchThreadId}`,
+  withDirectory = true,
+  directory = cwd,
+) {
   seedBrowserAuthorizationSession({ token: "new-session-test" });
   if (withDirectory && initialEntry === "/new") {
     const authorization = consumeBrowserAuthorizationSession({
@@ -65,7 +69,7 @@ async function mount(initialEntry = `/task/${launchThreadId}`, withDirectory = t
       replaceState: () => undefined,
       storage: window.sessionStorage,
     });
-    authorization.commitActiveThread(launchThreadId, cwd);
+    authorization.commitActiveThread(launchThreadId, directory);
     authorization.clearActiveThread();
   }
   const router = createAppRouter(createMemoryHistory({ initialEntries: [initialEntry] }));
@@ -104,6 +108,90 @@ async function openNewSession() {
     .toBeVisible();
 }
 
+async function expectWorkingDirectory(path: string) {
+  await page.getByRole("button", { name: /^Working directory:/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Working directory", exact: true });
+  await expect.element(dialog.getByText(path, { exact: true })).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(dialog).not.toBeInTheDocument();
+}
+
+test("working directory reveals its selectable full path without changing the draft", async () => {
+  const { commands } = await mount("/new", true, "/workspace/codex");
+  const editor = page.getByRole("combobox", { name: "Message Codex" });
+  await editor.fill("keep this draft");
+  const directory = page.getByRole("button", { name: "Working directory: codex", exact: true });
+  await expect.element(directory).toHaveTextContent("codex");
+  await expect.element(page.getByText("/workspace/codex", { exact: true })).not.toBeInTheDocument();
+  await directory.click();
+  const dialog = page.getByRole("dialog", { name: "Working directory", exact: true });
+  await expect.element(dialog).toHaveTextContent("/workspace/codex");
+  await dialog.getByText("/workspace/codex", { exact: true }).tripleClick();
+  expect(window.getSelection()?.getRangeAt(0).cloneContents().textContent).toBe("/workspace/codex");
+  await expect.element(dialog.getByRole("button")).not.toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(dialog).not.toBeInTheDocument();
+  await expect.element(directory).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(dialog).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(editor).toHaveTextContent("keep this draft");
+  expect(commands.startThread).not.toHaveBeenCalled();
+});
+
+test("working directory remains available after disconnection without enabling send", async () => {
+  const { commands } = await mount("/new", true, "/workspace/codex");
+  await page.getByRole("combobox", { name: "Message Codex" }).fill("retained offline draft");
+  const connection = getHostOptions(host.startGuiHostConnection);
+  connection.onCommandsUnavailable?.();
+  connection.onStatus?.({ label: "closed" });
+  await expect.element(page.getByText("Connect to Codex to send this draft.")).toBeVisible();
+  await expectWorkingDirectory("/workspace/codex");
+  await expect
+    .element(page.getByRole("button", { name: "Send", exact: true }))
+    .not.toBeInTheDocument();
+  expect(commands.startThread).not.toHaveBeenCalled();
+});
+
+test.each([
+  ["/", "/"],
+  ["/workspace/project/", "project"],
+  ["/workspace/a directory", "a directory"],
+  ["/workspace/a\\directory", "a\\directory"],
+  ["C:\\workspace\\project", "project"],
+])("working directory %s has a readable name and preserves the full path", async (path, name) => {
+  await mount("/new", true, path);
+  await expect
+    .element(page.getByRole("button", { name: `Working directory: ${name}`, exact: true }))
+    .toHaveTextContent(name);
+  await expectWorkingDirectory(path);
+});
+
+test("long directory names and paths fit a narrow viewport", async () => {
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  const name = "long-directory-name-".repeat(12);
+  const path = `/workspace/${name}`;
+  try {
+    await page.viewport(375, 812);
+    await mount("/new", true, path);
+    const trigger = page.getByRole("button", { name: `Working directory: ${name}`, exact: true });
+    await expect.element(trigger).toBeVisible();
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+    await trigger.click();
+    const dialog = page.getByRole("dialog", { name: "Working directory", exact: true });
+    await expect.element(dialog.getByText(path, { exact: true })).toBeVisible();
+    await expect
+      .poll(() => {
+        const rect = dialog.element().getBoundingClientRect();
+        return rect.left >= 0 && rect.right <= window.innerWidth;
+      })
+      .toBe(true);
+    expect(dialog.element().scrollWidth).toBeLessThanOrEqual(dialog.element().clientWidth);
+  } finally {
+    await page.viewport(viewport.width, viewport.height);
+  }
+});
+
 test("menu opens one directory-bound draft, retains it across other directories, and creates only on send", async () => {
   const { router, commands } = await mount();
   await expect.element(page.getByRole("combobox", { name: "Message Codex" })).toBeVisible();
@@ -111,7 +199,7 @@ test("menu opens one directory-bound draft, retains it across other directories,
   const editor = page.getByRole("combobox", { name: "Message Codex" });
   await editor.fill("first new message");
   expect(commands.startThread).not.toHaveBeenCalled();
-  await expect.element(page.getByText(`Working directory: ${cwd}`, { exact: true })).toBeVisible();
+  await expectWorkingDirectory(cwd);
   await expect.poll(() => document.title).toBe("New session · Codex");
   expect(document.querySelector('[data-app-shell-content-layout="reading"]')).not.toBeNull();
 
@@ -122,7 +210,7 @@ test("menu opens one directory-bound draft, retains it across other directories,
   await expect.element(editor).toBeVisible();
   await openNewSession();
   await expect.element(editor).toHaveTextContent("first new message");
-  await expect.element(page.getByText(`Working directory: ${cwd}`, { exact: true })).toBeVisible();
+  await expectWorkingDirectory(cwd);
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   const navigation = page.getByRole("navigation", { name: "Main navigation" });
   await expect
@@ -166,9 +254,7 @@ test("new-session directory follows the viewed task when persisting its selectio
     await expect.element(page.getByRole("combobox", { name: "Message Codex" })).toBeVisible();
     expect(window.sessionStorage.getItem(storageKey)).toBe(storedSelection);
     await openNewSession();
-    await expect
-      .element(page.getByText("Working directory: /other-directory", { exact: true }))
-      .toBeVisible();
+    await expectWorkingDirectory("/other-directory");
     expect(commands.startThread).not.toHaveBeenCalled();
   } finally {
     storageWrite.mockRestore();
@@ -228,7 +314,7 @@ test("a refreshed new route uses retained directory but drops the unsent draft",
   initializeHost(getHostOptions(host.startGuiHostConnection), commands);
   await expect.element(editor).toBeVisible();
   await expect.element(editor).toHaveTextContent("");
-  await expect.element(page.getByText(`Working directory: ${cwd}`, { exact: true })).toBeVisible();
+  await expectWorkingDirectory(cwd);
   expect(commands.startThread).not.toHaveBeenCalled();
   expect(commands.startTurn).not.toHaveBeenCalled();
 });

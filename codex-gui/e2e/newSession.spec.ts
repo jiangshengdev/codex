@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   activeRow,
   continueSecondTask,
@@ -18,13 +18,21 @@ import {
 } from "./newSessionHarness";
 import { composer, ready, settledRender, submit } from "./persistenceHarness";
 
+async function expectOriginalDirectory(page: Page) {
+  await page.getByRole("button", { name: /^Working directory:/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Working directory", exact: true });
+  await expect(dialog.getByText(originalCwd, { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+}
+
 test("opening and editing creates nothing; the first send creates, attaches and transfers input once", async ({
   page,
 }) => {
   const host = await createNewSessionHarness(page);
   await host.open();
   await openNewSession(page);
-  await expect(page.getByText(`Working directory: ${originalCwd}`, { exact: true })).toBeVisible();
+  await expectOriginalDirectory(page);
   await composer(page).fill("First new-session message");
   await settledRender(page);
   expect(host.starts()).toHaveLength(0);
@@ -61,7 +69,7 @@ test("one draft keeps its original directory after viewing a task from another d
   await selectTask(page, secondThreadId);
   await openNewSession(page);
   await expect(composer(page)).toHaveText("Draft bound to its first directory");
-  await expect(page.getByText(`Working directory: ${originalCwd}`, { exact: true })).toBeVisible();
+  await expectOriginalDirectory(page);
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/task/${createdThreadId}$`));
   expect(host.starts()[0]?.params).toEqual({ cwd: originalCwd });
@@ -79,7 +87,7 @@ test("reload drops the uncreated draft while restoring both existing collection 
   await page.reload();
   await expect(page).toHaveURL(/\/new$/);
   await expect(composer(page)).toHaveText("");
-  await expect(page.getByText(`Working directory: ${originalCwd}`, { exact: true })).toBeVisible();
+  await expectOriginalDirectory(page);
   await openMenu(page);
   await expect(activeRow(page, firstThreadId)).toBeVisible();
   await expect(activeRow(page, secondThreadId)).toBeVisible();

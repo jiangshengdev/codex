@@ -202,7 +202,7 @@ msgstr "Compressing"
 msgid "Compression request result unknown"
 msgstr "Compression request result unknown"
 
-#: src/features/newSession/NewSessionPage.tsx:51
+#: src/features/newSession/NewSessionPage.tsx:47
 msgid "Connect to Codex to send this draft."
 msgstr "Connect to Codex to send this draft."
 
@@ -465,7 +465,7 @@ msgid "In progress"
 msgstr "In progress"
 
 #. Input may already belong to the existing task queue; do not offer another send
-#: src/features/newSession/NewSessionPage.tsx:103
+#: src/features/newSession/NewSessionPage.tsx:99
 msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 msgstr "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 
@@ -513,13 +513,13 @@ msgid "Load more"
 msgstr "Load more"
 
 #: src/features/currentTask/CurrentTaskPage.tsx:264
-#: src/features/currentTask/CurrentTaskPage.tsx:340
-#: src/features/currentTask/CurrentTaskPage.tsx:410
+#: src/features/currentTask/CurrentTaskPage.tsx:337
+#: src/features/currentTask/CurrentTaskPage.tsx:404
 msgid "Load task"
 msgstr "Load task"
 
 #. Button to read the selected task's historical messages
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:99
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:101
 msgid "Load task history"
 msgstr "Load task history"
 
@@ -540,14 +540,14 @@ msgid "Loading skills…"
 msgstr "Loading skills…"
 
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:46
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:97
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:99
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
 #: src/features/currentTask/CurrentTaskPage.tsx:257
-#: src/features/currentTask/CurrentTaskPage.tsx:326
-#: src/features/currentTask/CurrentTaskPage.tsx:390
-#: src/features/currentTask/CurrentTaskPage.tsx:545
+#: src/features/currentTask/CurrentTaskPage.tsx:323
+#: src/features/currentTask/CurrentTaskPage.tsx:384
+#: src/features/currentTask/CurrentTaskPage.tsx:536
 msgid "Loading task…"
 msgstr "Loading task…"
 
@@ -565,8 +565,8 @@ msgstr "Message cannot be empty"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:203
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:213
-#: src/features/newSession/NewSessionPage.tsx:142
-#: src/features/newSession/NewSessionPage.tsx:160
+#: src/features/newSession/NewSessionPage.tsx:138
+#: src/features/newSession/NewSessionPage.tsx:156
 msgid "Message Codex"
 msgstr "Message Codex"
 
@@ -692,7 +692,7 @@ msgstr "Open an active task in this browser tab before viewing its history."
 msgid "Open current task"
 msgstr "Open current task"
 
-#: src/features/newSession/NewSessionPage.tsx:132
+#: src/features/newSession/NewSessionPage.tsx:128
 msgid "Open session"
 msgstr "Open session"
 
@@ -807,7 +807,7 @@ msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
 
 #. Reload the current task's runtime status
-#: src/features/currentTask/CurrentTaskPage.tsx:412
+#: src/features/currentTask/CurrentTaskPage.tsx:406
 msgid "Refresh status"
 msgstr "Refresh status"
 
@@ -815,7 +815,7 @@ msgstr "Refresh status"
 msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:392
+#: src/features/currentTask/CurrentTaskPage.tsx:386
 msgid "Refreshing status…"
 msgstr "Refreshing status…"
 
@@ -848,8 +848,8 @@ msgstr "Remove or replace invalid skills before saving."
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #: src/features/currentTask/CurrentTaskPage.tsx:217
-#: src/features/currentTask/CurrentTaskPage.tsx:336
-#: src/features/currentTask/CurrentTaskPage.tsx:406
+#: src/features/currentTask/CurrentTaskPage.tsx:333
+#: src/features/currentTask/CurrentTaskPage.tsx:400
 msgid "Remove task"
 msgstr "Remove task"
 
@@ -857,8 +857,8 @@ msgstr "Remove task"
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #: src/features/currentTask/CurrentTaskPage.tsx:203
-#: src/features/currentTask/CurrentTaskPage.tsx:322
-#: src/features/currentTask/CurrentTaskPage.tsx:386
+#: src/features/currentTask/CurrentTaskPage.tsx:319
+#: src/features/currentTask/CurrentTaskPage.tsx:380
 msgid "Removing task…"
 msgstr "Removing task…"
 
@@ -958,12 +958,12 @@ msgid "Scan with phone"
 msgstr "Scan with phone"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:283
-#: src/features/newSession/NewSessionPage.tsx:178
+#: src/features/newSession/NewSessionPage.tsx:174
 msgid "Send"
 msgstr "Send"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:170
+#: src/features/newSession/NewSessionPage.tsx:166
 msgid "Sending"
 msgstr "Sending"
 
@@ -1064,7 +1064,7 @@ msgid "System error"
 msgstr "System error"
 
 #: src/features/currentTask/CurrentTaskPage.tsx:228
-#: src/features/currentTask/CurrentTaskPage.tsx:450
+#: src/features/currentTask/CurrentTaskPage.tsx:444
 msgid "Task action failed"
 msgstr "Task action failed"
 
@@ -1120,12 +1120,12 @@ msgid "The conversation shown here may be out of date. Restore sync to get the l
 msgstr "The conversation shown here may be out of date. Restore sync to get the latest content."
 
 #. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
-#: src/features/newSession/NewSessionPage.tsx:109
+#: src/features/newSession/NewSessionPage.tsx:105
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "The creation result is unknown. Retrying may leave an extra empty session."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:281
-#: src/features/currentTask/CurrentTaskPage.tsx:358
+#: src/features/currentTask/CurrentTaskPage.tsx:278
+#: src/features/currentTask/CurrentTaskPage.tsx:352
 msgid "The current task could not be loaded."
 msgstr "The current task could not be loaded."
 
@@ -1153,7 +1153,7 @@ msgstr "The previous task connection could not be fully cleaned up. Later state 
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:453
+#: src/features/currentTask/CurrentTaskPage.tsx:447
 msgid "The task action could not be completed."
 msgstr "The task action could not be completed."
 
@@ -1185,7 +1185,7 @@ msgstr "The task could not be removed."
 msgid "The task could not be resumed."
 msgstr "The task could not be resumed."
 
-#: src/features/appShell/AppShell.tsx:88
+#: src/features/appShell/AppShell.tsx:92
 msgid "The task list could not be updated."
 msgstr "The task list could not be updated."
 
@@ -1193,7 +1193,7 @@ msgstr "The task list could not be updated."
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:475
+#: src/features/currentTask/CurrentTaskPage.tsx:469
 msgid "The task recovery could not be completed."
 msgstr "The task recovery could not be completed."
 
@@ -1278,16 +1278,16 @@ msgstr "Unable to continue this task"
 msgid "Unable to load history"
 msgstr "Unable to load history"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:108
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:110
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:278
-#: src/features/currentTask/CurrentTaskPage.tsx:355
+#: src/features/currentTask/CurrentTaskPage.tsx:275
+#: src/features/currentTask/CurrentTaskPage.tsx:349
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:472
+#: src/features/currentTask/CurrentTaskPage.tsx:466
 msgid "Unable to recover the current task"
 msgstr "Unable to recover the current task"
 
@@ -1300,7 +1300,7 @@ msgstr "Unable to retry this task. Review its current state and try again."
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
-#: src/features/newSession/NewSessionPage.tsx:99
+#: src/features/newSession/NewSessionPage.tsx:95
 msgid "Unable to start the conversation"
 msgstr "Unable to start the conversation"
 
@@ -1309,7 +1309,7 @@ msgstr "Unable to start the conversation"
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
-#: src/features/appShell/AppShell.tsx:85
+#: src/features/appShell/AppShell.tsx:89
 msgid "Unable to update the task list"
 msgstr "Unable to update the task list"
 
@@ -1412,10 +1412,20 @@ msgstr "Waiting for the compression request result. Sending remains unavailable 
 msgid "Will send first"
 msgstr "Will send first"
 
+#. Accessible name of the popover showing the new-session draft's full path
+#: src/features/newSession/NewSessionWorkingDirectory.tsx:29
+msgid "Working directory"
+msgstr "Working directory"
+
+#. Accessible name of the new-session directory button; opens the full path
+#: src/features/newSession/NewSessionWorkingDirectory.tsx:17
+msgid "Working directory: {directoryName}"
+msgstr "Working directory: {directoryName}"
+
 #. The fixed working directory of the single new-session draft; it does not follow later task switches
 #: src/features/newSession/NewSessionPage.tsx:45
-msgid "Working directory: {draftCwd}"
-msgstr "Working directory: {draftCwd}"
+#~ msgid "Working directory: {draftCwd}"
+#~ msgstr "Working directory: {draftCwd}"
 
 #. History date group: tasks last active on the previous local day
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:134
@@ -1430,7 +1440,7 @@ msgstr "Your changes could not be saved. Copy them before discarding."
 msgid "Your changes have not been saved. Return to copy them, or discard them to continue."
 msgstr "Your changes have not been saved. Return to copy them, or discard them to continue."
 
-#: src/features/newSession/NewSessionPage.tsx:113
+#: src/features/newSession/NewSessionPage.tsx:109
 msgid "Your input is retained. Retry to continue."
 msgstr "Your input is retained. Retry to continue."
 
