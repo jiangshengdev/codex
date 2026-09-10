@@ -126,7 +126,7 @@ jobs:
             bash "${GITHUB_WORKSPACE}/.github/scripts/retry-command.sh" \
               sudo apt-get update -y
             bash "${GITHUB_WORKSPACE}/.github/scripts/retry-command.sh" \
-              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential pkg-config libcap-dev bubblewrap
+              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential pkg-config libcap-dev libasound2-dev bubblewrap
           fi
 
       - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
@@ -352,7 +352,7 @@ jobs:
             bash "${GITHUB_WORKSPACE}/.github/scripts/retry-command.sh" \
               sudo apt-get update -y
             bash "${GITHUB_WORKSPACE}/.github/scripts/retry-command.sh" \
-              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config libcap-dev bubblewrap
+              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config libcap-dev libasound2-dev bubblewrap
           fi
 
       - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
