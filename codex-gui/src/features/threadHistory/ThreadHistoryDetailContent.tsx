@@ -61,10 +61,12 @@ export function ThreadHistoryDetailContent({
         </Typography>
       ) : null}
       {state.type === "ready" && state.thread.turns.length > 0 ? (
-        <ReadOnlyCommittedTranscriptSurface
-          surfaceKey={state.thread.id}
-          transcriptState={state.transcriptState}
-        />
+        <div className="pt-3">
+          <ReadOnlyCommittedTranscriptSurface
+            surfaceKey={state.thread.id}
+            transcriptState={state.transcriptState}
+          />
+        </div>
       ) : null}
       {state.type === "ready" ? (
         <ContinueTaskAction

@@ -21,6 +21,24 @@
   padding-inline: var(--app-shell-content-gutter);
 }
 
+.task-page-layout {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 3);
+  padding-top: calc(var(--spacing) * 3);
+}
+
+.task-page {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: inherit;
+}
+
 .task-reading-boundary {
   margin-inline: auto;
   width: calc(100% - var(--app-shell-content-gutter) * 2);

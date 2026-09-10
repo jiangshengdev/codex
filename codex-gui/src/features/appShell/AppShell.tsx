@@ -39,10 +39,12 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
   );
 }
 
-function AppShellTopNotices({ children }: { children: ReactNode }) {
+function AppShellTopNotices({ children, contained }: { children: ReactNode; contained: boolean }) {
   return (
     <div className="sticky top-14 z-20" data-app-shell-top-notices="">
-      <div className="app-shell-content-boundary grid gap-3 pt-3">{children}</div>
+      <div className={contained ? "grid gap-3" : "app-shell-content-boundary grid gap-3 pt-3"}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -50,6 +52,7 @@ function AppShellTopNotices({ children }: { children: ReactNode }) {
 export function AppShell({ children }: AppShellProps) {
   const { routeTarget, status, connectionRecovery, activeThreadSession } = useAppCapabilities();
   const collection = useActiveThreadCollectionSnapshot();
+  const isCurrentTask = routeTarget.type === "currentTask";
   const hasTopNotice =
     status.label === "error" ||
     status.label === "closed" ||
@@ -64,42 +67,44 @@ export function AppShell({ children }: AppShellProps) {
       <Toast.Provider placement="top" />
       <AppShellTopBar />
       <div aria-hidden="true" className="h-14 shrink-0" />
-      {hasTopNotice ? (
-        <AppShellTopNotices>
-          {connectionRecovery == null ? <GuiHostErrorAlert status={status} /> : null}
-          {status.label === "closed" || connectionRecovery != null ? (
-            <ConnectionRecoveryNotice
-              recovery={connectionRecovery}
-              hasRetainedSession={activeThreadSession != null}
-            />
-          ) : null}
-          {collection.errors.map(({ operation, threadId, error }) => {
-            const diagnostic = collectionErrorText(error);
+      <div className={isCurrentTask ? "app-shell-content-boundary task-page-layout" : "contents"}>
+        {hasTopNotice ? (
+          <AppShellTopNotices contained={isCurrentTask}>
+            {connectionRecovery == null ? <GuiHostErrorAlert status={status} /> : null}
+            {status.label === "closed" || connectionRecovery != null ? (
+              <ConnectionRecoveryNotice
+                recovery={connectionRecovery}
+                hasRetainedSession={activeThreadSession != null}
+              />
+            ) : null}
+            {collection.errors.map(({ operation, threadId, error }) => {
+              const diagnostic = collectionErrorText(error);
 
-            return (
-              <Alert key={`${operation}:${threadId ?? ""}`} role="alert" status="danger">
-                <Alert.Indicator />
-                <FailureLayout>
-                  <Alert.Content>
-                    <Alert.Title>
-                      <Trans>Unable to update the task list</Trans>
-                    </Alert.Title>
-                    <Alert.Description>
-                      <Trans>The task list could not be updated.</Trans>
-                    </Alert.Description>
-                    {diagnostic ? (
-                      <FailureDiagnosticModal triggerClassName="mt-2 self-start">
-                        {diagnostic}
-                      </FailureDiagnosticModal>
-                    ) : null}
-                  </Alert.Content>
-                </FailureLayout>
-              </Alert>
-            );
-          })}
-        </AppShellTopNotices>
-      ) : null}
-      {children}
+              return (
+                <Alert key={`${operation}:${threadId ?? ""}`} role="alert" status="danger">
+                  <Alert.Indicator />
+                  <FailureLayout>
+                    <Alert.Content>
+                      <Alert.Title>
+                        <Trans>Unable to update the task list</Trans>
+                      </Alert.Title>
+                      <Alert.Description>
+                        <Trans>The task list could not be updated.</Trans>
+                      </Alert.Description>
+                      {diagnostic ? (
+                        <FailureDiagnosticModal triggerClassName="mt-2 self-start">
+                          {diagnostic}
+                        </FailureDiagnosticModal>
+                      ) : null}
+                    </Alert.Content>
+                  </FailureLayout>
+                </Alert>
+              );
+            })}
+          </AppShellTopNotices>
+        ) : null}
+        {children}
+      </div>
     </div>
   );
 }
