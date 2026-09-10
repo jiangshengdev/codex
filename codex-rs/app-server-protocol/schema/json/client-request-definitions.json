@@ -406,7 +406,7 @@
   },
   {
     "method": "account/rateLimits/read",
-    "paramsSchema": "v2/NullableGetAccountRateLimitsParams",
+    "paramsSchema": "v2/GetAccountRateLimitsParams",
     "responseSchema": "v2/GetAccountRateLimitsResponse"
   },
   {

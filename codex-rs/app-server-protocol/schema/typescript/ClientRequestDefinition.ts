@@ -58,6 +58,7 @@ import type { FsWriteFileResponse } from "./v2/FsWriteFileResponse";
 import type { FuzzyFileSearchParams } from "./FuzzyFileSearchParams";
 import type { FuzzyFileSearchResponse } from "./FuzzyFileSearchResponse";
 import type { GetAccountParams } from "./v2/GetAccountParams";
+import type { GetAccountRateLimitsParams } from "./v2/GetAccountRateLimitsParams";
 import type { GetAccountRateLimitsResponse } from "./v2/GetAccountRateLimitsResponse";
 import type { GetAccountResponse } from "./v2/GetAccountResponse";
 import type { GetAccountTokenUsageParams } from "./v2/GetAccountTokenUsageParams";
