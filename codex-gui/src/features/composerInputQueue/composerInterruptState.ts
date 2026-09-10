@@ -1,6 +1,6 @@
 import type { Turn, TurnInterruptParams } from "@codex-protocol/v2";
 import { randomUuid } from "@/identity/randomUuid";
-import { validateV2TurnSteerParams } from "@/generated/appServerProtocol/appServerPayloadValidators.js";
+import { validateV2TurnInterruptParams } from "@/generated/appServerProtocol/appServerPayloadValidators.js";
 import { persistedArray, persistedRecord } from "./composerLanePersistenceValidation";
 
 const interruptClaimCapability: unique symbol = Symbol("InterruptClaim");
@@ -86,9 +86,8 @@ export type PersistedComposerInterruptState = Readonly<{
 
 function importInterruptParams(raw: unknown): Readonly<TurnInterruptParams> {
   const value = persistedRecord(raw);
-  const params = { threadId: value.threadId, expectedTurnId: value.turnId, input: [] };
-  if (!validateV2TurnSteerParams(params)) throw new Error("Invalid persisted interrupt target");
-  return { threadId: params.threadId, turnId: params.expectedTurnId };
+  if (!validateV2TurnInterruptParams(value)) throw new Error("Invalid persisted interrupt target");
+  return { threadId: value.threadId, turnId: value.turnId };
 }
 
 export function decodePersistedComposerInterruptState(

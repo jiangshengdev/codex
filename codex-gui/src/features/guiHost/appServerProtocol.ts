@@ -40,6 +40,7 @@ export const APP_SERVER_NOTIFICATION_METHODS = [
 
 export const APP_SERVER_AUXILIARY_SCHEMA_IDS = [
   "v2/TurnError",
+  "v2/TurnInterruptParams",
   "v2/TurnStartParams",
   "v2/TurnSteerParams",
 ] as const;

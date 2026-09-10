@@ -226,6 +226,77 @@ describe("lane persistence and transaction candidates", () => {
     );
   });
 
+  it("restores interrupt targets while discarding additional persisted fields", () => {
+    const owner = createComposerInterruptState();
+    const params = { threadId: "thread-a", turnId: "turn-a" };
+    const target = { ...params, extra: "ignored" };
+    owner.rehydrateState(
+      {
+        pending: { params: target, phase: "accepted", terminal: target },
+        recentTerminals: [target],
+      },
+      2,
+    );
+    expect(owner.exportState()).toEqual({
+      pending: { params, phase: "accepted", terminal: params },
+      recentTerminals: [params],
+    });
+  });
+
+  it.each([
+    {},
+    { threadId: "thread-a" },
+    { turnId: "turn-a" },
+    { threadId: 1, turnId: "turn-a" },
+    { threadId: "thread-a", turnId: null },
+  ])("rejects malformed interrupt targets without replacing live state: %j", (invalidTarget) => {
+    const owner = createComposerInterruptState();
+    owner.transition({
+      type: "issue",
+      params: { threadId: "thread-a", turnId: "turn-a" },
+      generation: 1,
+    });
+    const saved = owner.exportState();
+    const pending = saved.pending;
+    if (pending === null) throw new Error("Expected pending interrupt");
+    for (const invalidState of [
+      { ...saved, pending: { ...pending, params: invalidTarget } },
+      { ...saved, pending: { ...pending, terminal: invalidTarget } },
+      { ...saved, recentTerminals: [invalidTarget] },
+    ]) {
+      expect(() => {
+        owner.rehydrateState(invalidState, 2);
+      }).toThrow("Invalid persisted interrupt target");
+      expect(owner.exportState()).toEqual(saved);
+    }
+  });
+
+  it("rejects invalid interrupt phases and mismatched terminals without replacing live state", () => {
+    const owner = createComposerInterruptState();
+    owner.transition({
+      type: "issue",
+      params: { threadId: "thread-a", turnId: "turn-a" },
+      generation: 1,
+    });
+    const saved = owner.exportState();
+    const pending = saved.pending;
+    if (pending === null) throw new Error("Expected pending interrupt");
+    expect(() => {
+      owner.rehydrateState({ ...saved, pending: { ...pending, phase: "invalid" } }, 2);
+    }).toThrow("Invalid persisted interrupt phase");
+    expect(owner.exportState()).toEqual(saved);
+    expect(() => {
+      owner.rehydrateState(
+        {
+          ...saved,
+          pending: { ...pending, terminal: { threadId: "thread-a", turnId: "turn-b" } },
+        },
+        2,
+      );
+    }).toThrow("Persisted interrupt terminal has a different target");
+    expect(owner.exportState()).toEqual(saved);
+  });
+
   it("preserves cursor ownership on an adopted candidate", () => {
     const identity = new ComposerPendingInputIdentity();
     const cursor = identity.createCursor("ordinary", 1);
