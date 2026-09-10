@@ -928,9 +928,13 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       switch (effect.type) {
         case "recover":
           if (this.recovery != null) {
-            throw new Error("Composer input queue produced a second recovery batch");
+            if (this.recovery.reason !== "userStopped" || effect.batch.reason !== "userStopped") {
+              throw new Error("Composer input queue produced incompatible recovery batches");
+            }
+            this.recovery = this.queue.mergeUserStoppedRecovery(this.recovery, effect.batch);
+          } else {
+            this.recovery = effect.batch;
           }
-          this.recovery = effect.batch;
           this.deferredEffects = [...effects.slice(index + 1), ...this.deferredEffects];
           return;
         case "performStart":

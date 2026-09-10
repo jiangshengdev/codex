@@ -54,6 +54,68 @@ function owner(fixture: ReturnType<typeof persistenceFixture>, activeTurnId: str
 }
 
 describe("coordinator persistence boundaries", () => {
+  it("retries a late local acceptance without publishing or consuming recovery before storage commits", async () => {
+    const fixture = persistenceFixture();
+    let accept!: (response: Awaited<ReturnType<SteerTurn>>) => void;
+    const steerTurn = vi.fn<SteerTurn>(
+      () =>
+        new Promise((resolve) => {
+          accept = resolve;
+        }),
+    );
+    const startTurn = vi.fn<StartTurn>(() => new Promise(() => {}));
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "running-turn",
+      persistence: fixture.context,
+      startTurn,
+      steerTurn,
+      interruptTurn: async () => ({}),
+    });
+    coordinator.completeRestoreReconciliation();
+    coordinator.submitSteer(composerDraftCapture("late"));
+    coordinator.submit(composerDraftCapture("ordinary"));
+    coordinator.interruptActiveTurn();
+    await Promise.resolve();
+    coordinator.observeAcceptedEvent(
+      live(
+        turnCompleted(eventTurnCompleted, "stopped", {
+          ...baseTurn("running-turn"),
+          status: "interrupted",
+        }),
+      ),
+    );
+    const saved = [...fixture.records.values()];
+    fixture.failWrites(true);
+    accept({ turnId: "running-turn" });
+    await Promise.resolve();
+    expect(coordinator.getSnapshot()).toMatchObject({
+      guidingCount: 1,
+      recoveryCount: 1,
+      persistence: { error: "Browser persistence failed: write" },
+    });
+    expect([...fixture.records.values()]).toEqual(saved);
+    expect(startTurn).not.toHaveBeenCalled();
+    fixture.failWrites(false);
+    expect(coordinator.retryPersistence()).toBe(true);
+    expect(coordinator.getSnapshot()).toMatchObject({
+      guidingCount: 0,
+      recoveryCount: 2,
+      persistence: { error: null },
+    });
+    coordinator.dispose();
+    const restored = owner(fixture, null);
+    restored.coordinator.reconcileRestoredTurns([baseTurn("running-turn")]);
+    expect(restored.coordinator.getSnapshot().recoveryCount).toBe(2);
+    expect(restored.startTurn).not.toHaveBeenCalled();
+    expect(restored.coordinator.recover()).toBe(true);
+    expect(
+      restored.coordinator.resumeRestored(restored.coordinator.getSnapshot().persistence.revision),
+    ).toBe(true);
+    expect(restored.startTurn.mock.calls[0]?.[0].input).toEqual(composerDraftCapture("late").input);
+    restored.coordinator.dispose();
+  });
+
   it("keeps suspended pending messages paused until the existing continue-sending confirmation", () => {
     const fixture = persistenceFixture();
     const { coordinator, startTurn } = owner(fixture, "running-turn");

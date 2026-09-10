@@ -9,13 +9,16 @@ import {
 import {
   attachWithThreadId,
   attachWithTurns,
+  eventWithEnvelope,
   inProgressTurn,
+  turnCompleted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createAppRouter } from "@/router";
 import { renderWithProviders } from "@/utils/test-utils";
 import {
   attachResponse,
   createGuiHostCommands,
+  emitProjectionEvent,
   getHostOptions,
   initializeHost,
   launchThreadId,
@@ -23,6 +26,8 @@ import {
   resetAppBrowserTestSupport,
   seedBrowserAuthorizationSession,
 } from "./appBrowserTestSupport";
+import { eventTurnCompleted } from "@/features/projection/__tests__/projectionFixtures";
+import type { TurnSteerResponse } from "@codex-protocol/v2";
 
 const hostMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -33,6 +38,59 @@ vi.mock("@/features/guiHost/guiHostClient", () => ({
 beforeEach(() => {
   resetAppBrowserTestSupport(hostMock.startGuiHostConnection);
   seedBrowserAuthorizationSession({ token: "pending-edit-recovery-test" });
+});
+
+test("shows late accepted guidance in the existing local-stop recovery and sends only on confirmation", async () => {
+  const router = createAppRouter(
+    createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
+  );
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const commands = createGuiHostCommands();
+  let accept!: (response: TurnSteerResponse) => void;
+  vi.mocked(commands.steerTurn).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        accept = resolve;
+      }),
+  );
+  vi.mocked(commands.startTurn).mockImplementation(() => new Promise(() => {}));
+  const active = inProgressTurn("late-guide-turn");
+  queueAttachProjectionResponse(commands, attachWithTurns(attachResponse, [active]));
+  const options = getHostOptions(hostMock.startGuiHostConnection);
+  initializeHost(options, commands);
+  const composer = screen.getByRole("combobox", { name: "Message Codex", exact: true });
+  await composer.fill("Late guidance");
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await expect.poll(() => vi.mocked(commands.steerTurn).mock.calls.length).toBe(1);
+  await composer.fill("Ordinary queued message");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await screen.getByRole("button", { name: "Stop", exact: true }).click();
+  await expect.poll(() => vi.mocked(commands.interruptTurn).mock.calls.length).toBe(1);
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(
+      turnCompleted(eventTurnCompleted, "late-guide-terminal", {
+        ...active,
+        status: "interrupted",
+      }),
+      { parentCommitId: attachResponse.snapshot.headCommitId },
+    ),
+  );
+  await expect
+    .element(screen.getByText("1 message has not been sent", { exact: true }))
+    .toBeVisible();
+  accept({ turnId: active.id });
+  await expect
+    .element(screen.getByText("2 messages have not been sent", { exact: true }))
+    .toBeVisible();
+  expect(commands.startTurn).not.toHaveBeenCalled();
+  await screen.getByRole("button", { name: "Continue sending", exact: true }).click();
+  await expect
+    .poll(() => vi.mocked(commands.startTurn).mock.calls[0]?.[0].input)
+    .toEqual([{ type: "text", text: "Late guidance", text_elements: [] }]);
+  await expect
+    .element(screen.getByText("2 messages have not been sent", { exact: true }))
+    .not.toBeInTheDocument();
 });
 
 test.each([HISTORY_LIST_ROUTE_PATH, NEW_TASK_ROUTE_PATH, CURRENT_TASK_ROUTE_PATH])(

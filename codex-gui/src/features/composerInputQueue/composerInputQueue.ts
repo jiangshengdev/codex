@@ -147,7 +147,7 @@ type PersistedRecovery =
     }>;
 
 export type ComposerInputQueuePersistedState = Readonly<{
-  version: 1;
+  version: 2;
   threadId: string;
   activeTurnId: TurnIdentity | null;
   preparedInterruptedTurnId: TurnIdentity | null;
@@ -206,6 +206,10 @@ export type ComposerInputQueue = Readonly<{
     disposition: ComposerInterruptedDisposition,
   ): ComposerInputQueueTransition;
   restoreUserStoppedRecovery(batch: UserStoppedRecoveryBatch): ComposerInputQueueTransition;
+  mergeUserStoppedRecovery(
+    first: UserStoppedRecoveryBatch,
+    second: UserStoppedRecoveryBatch,
+  ): UserStoppedRecoveryBatch;
   observe(observation: NonInterruptedRuntimeObservation): ComposerInputQueueTransition;
 }>;
 
@@ -363,7 +367,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
 
   public exportState(recovery: RecoveryBatch | null): ComposerInputQueuePersistedState {
     return {
-      version: 1,
+      version: 2,
       threadId: this.threadId,
       activeTurnId: this.activeTurnId,
       preparedInterruptedTurnId: this.preparedInterruptedTurnId,
@@ -390,7 +394,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
 
   public rehydrateState(value: unknown): RecoveryBatch | null {
     const record = persistenceObject(value);
-    if (record.version !== 1 || record.threadId !== this.threadId) {
+    if (record.version !== 2 || record.threadId !== this.threadId) {
       throw new Error("Invalid persisted composer queue version or owner");
     }
     if (record.activeTurnId !== null) persistenceIdentity(record.activeTurnId);
@@ -463,16 +467,20 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     const start = this.startState.reconcileSnapshot(turns);
     if (start.type === "resolved") this.releaseStartClaim(start.claim);
     let editInvalidation: ComposerPendingInputEditInvalidation | undefined;
+    const terminalMessageIds: string[] = [];
     for (const result of this.steerState.reconcileSnapshot(turns)) {
       if (result.type === "committed") {
         this.knownMessageIds.delete(result.messageId);
         this.removeNormalDisplayKeys([result.messageId]);
       } else if (result.type === "terminal") {
+        terminalMessageIds.push(...result.messageIds);
         editInvalidation =
           this.consumeSteerEditInvalidation(result.editInvalidations) ?? editInvalidation;
         this.removeNormalDisplayKeys(result.messageIds);
       }
     }
+    const manual = this.takeManualSteerRecovery(terminalMessageIds);
+    if (manual != null) return manual;
     const effect = this.activeTurnId == null ? this.drainNextStart() : this.drainSteer();
     return this.drainTransition("observationRecorded", effect, editInvalidation);
   }
@@ -1443,6 +1451,8 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
         : undefined;
     if (result.type === "rejected") {
       this.removeNormalDisplayKeys(result.messageIds);
+      const manual = this.takeManualSteerRecovery(result.messageIds);
+      if (manual != null) return manual;
     }
     const operation =
       result.type === "accepted"
@@ -1450,7 +1460,11 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
         : result.type === "rejected"
           ? "steerRejected"
           : "observationRecorded";
-    return this.drainTransition(operation, this.drainSteer(), editInvalidation);
+    return this.drainTransition(
+      operation,
+      this.activeTurnId == null ? this.drainNextStart() : this.drainSteer(),
+      editInvalidation,
+    );
   };
 
   public prepareInterruptedTerminal = (
@@ -1480,6 +1494,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       type: "terminal",
       threadId: this.threadId,
       turnId,
+      disposition: disposition === "local" ? "manualRecovery" : "automatic",
     });
     const editInvalidation =
       terminal.type === "terminal"
@@ -1521,6 +1536,62 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     ]);
     return editInvalidation == null ? recovery : { ...recovery, editInvalidation };
   };
+
+  private takeManualSteerRecovery(
+    messageIds: readonly string[],
+  ): ComposerInputQueueTransition | null {
+    const taken = this.steerState.transition({
+      type: "takeRejected",
+      manualOnly: true,
+      messageIds,
+    });
+    if (taken.type !== "rejectedTaken") return null;
+    const batch: UserStoppedRecoveryBatch = {
+      reason: "userStopped",
+      messages: [],
+      rejected: taken.transfer,
+    };
+    this.userStoppedRecoveryOwners.add(batch);
+    return recoveryTransition(
+      batch,
+      taken.transfer.entries.map(({ intent }) => intent.message.id),
+    );
+  }
+
+  public mergeUserStoppedRecovery(
+    first: UserStoppedRecoveryBatch,
+    second: UserStoppedRecoveryBatch,
+  ): UserStoppedRecoveryBatch {
+    if (
+      first === second ||
+      !this.userStoppedRecoveryOwners.has(first) ||
+      !this.userStoppedRecoveryOwners.has(second)
+    ) {
+      throw new Error("Cannot merge unowned user-stopped recovery");
+    }
+    const messageIds: string[] = [];
+    for (const batch of [first, second]) {
+      if (batch.rejected != null) {
+        const restored = this.steerState.transition({
+          type: "restoreRejected",
+          transfer: batch.rejected,
+        });
+        if (restored.type !== "rejectedRestored")
+          throw new Error("Cannot merge unowned rejected transfer");
+        messageIds.push(...restored.messageIds);
+      }
+    }
+    const taken = this.steerState.transition({ type: "takeRejected", messageIds });
+    const merged: UserStoppedRecoveryBatch = {
+      reason: "userStopped",
+      messages: [...first.messages, ...second.messages],
+      rejected: taken.type === "rejectedTaken" ? taken.transfer : null,
+    };
+    this.userStoppedRecoveryOwners.delete(first);
+    this.userStoppedRecoveryOwners.delete(second);
+    this.userStoppedRecoveryOwners.add(merged);
+    return merged;
+  }
 
   public restoreUserStoppedRecovery = (
     batch: UserStoppedRecoveryBatch,
