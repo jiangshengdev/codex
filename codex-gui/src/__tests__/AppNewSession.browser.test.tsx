@@ -134,6 +134,23 @@ test.each(["/new", `/task/${launchThreadId}`])(
   },
 );
 
+test("send follows nonblank draft content without creating an empty session", async () => {
+  const { commands } = await mount("/new");
+  const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
+  const send = page.getByRole("button", { name: "Send", exact: true });
+  await expect.element(send).toBeDisabled();
+  await editor.fill("   ");
+  await expect.element(send).toBeDisabled();
+  await userEvent.keyboard("{Enter}");
+  expect(commands.startThread).not.toHaveBeenCalled();
+  await editor.fill("message");
+  await expect.element(send).toBeEnabled();
+  await editor.fill("");
+  await expect.element(send).toBeDisabled();
+  await userEvent.keyboard("{Enter}");
+  expect(commands.startThread).not.toHaveBeenCalled();
+});
+
 test("working directory reveals its selectable full path without changing the draft", async () => {
   const { commands } = await mount("/new", true, "/workspace/codex");
   const editor = page.getByRole("combobox", { name: "Message Codex" });
@@ -198,7 +215,8 @@ test.each(["", "draft survives reconnect"])(
     initializeHost(getHostOptions(host.startGuiHostConnection, "latest"), replacement);
     await expect.element(editor).toHaveAttribute("contenteditable", "true");
     await expect.element(editor).toHaveTextContent(draft);
-    await expect.element(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+    const send = page.getByRole("button", { name: "Send", exact: true });
+    await expect.poll(() => send.element().matches(":disabled")).toBe(draft.length === 0);
     await expect.poll(() => replacement.listSkills).toHaveBeenCalled();
     expect(replacement.startThread).not.toHaveBeenCalled();
     expect(replacement.startTurn).not.toHaveBeenCalled();

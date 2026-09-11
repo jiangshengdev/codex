@@ -62,22 +62,24 @@ export function ComposerPendingInputEditor({
         className="pointer-events-none absolute inset-x-0 top-full z-20 max-h-[min(22rem,45vh)]"
         ref={setSkillMenuParent}
       />
-      <Surface className="composer-field" variant="default">
-        <ComposerEditor
-          ariaLabel={t`Edit pending message`}
-          disabled={false}
-          guardCompositionEndEnter={guardCompositionEndEnter}
-          onControllerChange={handleControllerChange}
-          onRetrySkillCatalog={onRetrySkillCatalog}
-          onSubmit={(capture) => {
-            if (valid) onSave(capture);
-          }}
-          placeholder={t`Edit pending message`}
-          skillCatalog={skillCatalog}
-          skillMenuParent={skillMenuParent}
-          skillMenuPlacement="below"
-          skillValidity={skillValidity}
-        />
+      <Surface className="composer-frame" variant="secondary">
+        <Surface className="composer-field" variant="default">
+          <ComposerEditor
+            ariaLabel={t`Edit pending message`}
+            disabled={false}
+            guardCompositionEndEnter={guardCompositionEndEnter}
+            onControllerChange={handleControllerChange}
+            onRetrySkillCatalog={onRetrySkillCatalog}
+            onSubmit={(capture) => {
+              if (valid) onSave(capture);
+            }}
+            placeholder={t`Edit pending message`}
+            skillCatalog={skillCatalog}
+            skillMenuParent={skillMenuParent}
+            skillMenuPlacement="below"
+            skillValidity={skillValidity}
+          />
+        </Surface>
       </Surface>
       {invalidPaths.size > 0 ? (
         <Alert role="alert" status="danger">

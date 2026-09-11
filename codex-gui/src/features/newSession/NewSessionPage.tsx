@@ -1,7 +1,7 @@
 import { Alert, Button, Surface } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
@@ -39,7 +39,7 @@ export function NewSessionPage() {
           <Trans>A working directory is required to start a session.</Trans>
         </p>
       ) : (
-        <Surface className="flex min-w-0 flex-col gap-1 rounded-3xl p-1" variant="secondary">
+        <Surface className="composer-frame flex flex-col gap-1" variant="secondary">
           <NewSessionWorkingDirectory cwd={snapshot.cwd} />
           <NewSessionEditor commands={commands} snapshot={snapshot} />
         </Surface>
@@ -58,7 +58,11 @@ function NewSessionEditor({
   const { t } = useLingui();
   const navigate = useNavigate();
   const { newSessionOwner, activeThreadSession } = useAppCapabilities();
-  const controller = useRef<ComposerEditorController | null>(null);
+  const [controller, setController] = useState<ComposerEditorController | null>(null);
+  const draftText = useSyncExternalStore(
+    controller?.subscribe ?? subscribeUnavailableEditor,
+    () => controller?.getSnapshot().textContent ?? "",
+  );
   const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
   const { skillCatalog, retry } = useNewSessionSkillCatalog(snapshot.cwd, commands);
   const pending = snapshot.phase === "creating" || snapshot.phase === "activating";
@@ -123,13 +127,13 @@ function NewSessionEditor({
         </Alert>
       )}
       <Surface
-        className="composer-field"
+        className="composer-field grid gap-2"
         data-readonly={commands == null || snapshot.isInputLocked}
       >
         <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
         <ComposerEditor
           ariaLabel={t`Message Codex`}
-          controllerRef={controller}
+          onControllerChange={setController}
           disabled={commands == null || snapshot.isInputLocked}
           guardCompositionEndEnter={
             navigator.vendor === "Apple Computer, Inc." &&
@@ -150,8 +154,10 @@ function NewSessionEditor({
         />
         <div className="flex justify-end">
           <RetryActionButton
-            variant="primary"
-            isDisabled={commands == null || pending || unknownHandoff}
+            variant="outline"
+            isDisabled={
+              commands == null || pending || unknownHandoff || draftText.trim().length === 0
+            }
             isPending={pending}
             pendingChildren={
               <Trans comment="Pending state of Send while creating a session and handing off its first message">
@@ -159,7 +165,7 @@ function NewSessionEditor({
               </Trans>
             }
             onPress={() => {
-              void submit(snapshot.isInputLocked ? undefined : controller.current?.capture());
+              void submit(snapshot.isInputLocked ? undefined : controller?.capture());
             }}
           >
             <Trans>Send</Trans>
@@ -169,3 +175,5 @@ function NewSessionEditor({
     </>
   );
 }
+
+const subscribeUnavailableEditor = (): (() => void) => () => undefined;
