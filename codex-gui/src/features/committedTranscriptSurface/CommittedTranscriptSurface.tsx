@@ -5,6 +5,7 @@ import { CommittedTranscriptTurnFragment } from "./CommittedTranscriptTurnFragme
 import { CommittedTranscriptSurfaceRenderer } from "./CommittedTranscriptSurfaceRenderer";
 import { TranscriptReadProvider } from "./TranscriptReadProvider";
 import type { TranscriptReadTarget } from "./TranscriptReadContext";
+import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
 
 export const CommittedTranscriptSurface = ({
   identity,
@@ -24,7 +25,12 @@ export const CommittedTranscriptSurface = ({
 export const ReadOnlyCommittedTranscriptSurface = ({
   surfaceKey,
   transcriptState,
-}: Readonly<{ surfaceKey: string; transcriptState: TranscriptState }>) => {
+  turnPosition = null,
+}: Readonly<{
+  surfaceKey: string;
+  transcriptState: TranscriptState;
+  turnPosition?: TurnPositionRequest | null;
+}>) => {
   const target = useMemo<TranscriptReadTarget>(
     () => ({ kind: "fixed", transcriptState }),
     [transcriptState],
@@ -33,6 +39,7 @@ export const ReadOnlyCommittedTranscriptSurface = ({
     <TranscriptReadProvider target={target}>
       <CommittedTranscriptSurfaceRenderer
         key={surfaceKey}
+        turnPosition={turnPosition}
         subscriptionInterruptionHandled={false}
         turnFragmentRenderer={CommittedTranscriptTurnFragment}
       />

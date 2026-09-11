@@ -8,12 +8,14 @@ import {
   ThreadHistoryDetailOwner,
 } from "./threadHistoryDetailOwner";
 import { useStrictModeSafeOwner } from "./useStrictModeSafeOwner";
+import { useTurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
 
 export function ThreadHistoryDetailPage() {
   const { threadId } = useParams({ from: "/app/history/$threadId" });
   const { activeThreadSession, authorizationToken, commands, routeTarget, status } =
     useAppCapabilities();
   const activateThread = activeThreadSession?.activate ?? null;
+  const turnPosition = useTurnPositionRequest(routeTarget);
   const readThread = commands?.readThread ?? null;
   const owner = useMemo(() => new ThreadHistoryDetailOwner({ threadId }), [threadId]);
   useLayoutEffect(() => {
@@ -45,6 +47,7 @@ export function ThreadHistoryDetailPage() {
           retry={readThread == null ? null : owner.retry}
           routeTarget={routeTarget}
           state={state}
+          turnPosition={turnPosition}
           threadId={threadId}
         />
       )}

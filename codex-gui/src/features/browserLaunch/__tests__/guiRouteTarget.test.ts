@@ -7,6 +7,7 @@ import {
   NEW_TASK_ROUTE_PATH,
   selectGuiRouteTarget,
   validateEmptyRouteSearch,
+  validateTurnPositionSearch,
 } from "../guiRouteTarget";
 
 type RouteMatch = MakeRouteMatchUnion;
@@ -87,10 +88,34 @@ describe("validateEmptyRouteSearch", () => {
   });
 });
 
+describe("validateTurnPositionSearch", () => {
+  it("accepts no positioning or a complete end position", () => {
+    expect(validateTurnPositionSearch({})).toEqual({});
+    expect(validateTurnPositionSearch({ turnId: "turn-1", position: "end" })).toEqual({
+      turnId: "turn-1",
+      position: "end",
+    });
+  });
+
+  it.each([
+    { turnId: "turn-1" },
+    { position: "end" },
+    { turnId: "", position: "end" },
+    { turnId: " ", position: "end" },
+    { turnId: "turn-1", position: "start" },
+    { turnId: ["first", "second"], position: "end" },
+    { turnId: "turn-1", position: ["end", "end"] },
+    { turnId: "turn-1", position: "end", extra: "value" },
+  ])("rejects invalid positioning %j", (search) => {
+    expect(() => validateTurnPositionSearch(search)).toThrow("Invalid turn positioning parameters");
+  });
+});
+
 function successfulMatch(fullPath: string, params: Readonly<Record<string, string>>): RouteMatch {
   return {
     fullPath,
     params,
+    search: {},
     searchError: undefined,
     status: "success",
   } as RouteMatch;
