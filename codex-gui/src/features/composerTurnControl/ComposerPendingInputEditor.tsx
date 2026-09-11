@@ -62,10 +62,7 @@ export function ComposerPendingInputEditor({
         className="pointer-events-none absolute inset-x-0 top-full z-20 max-h-[min(22rem,45vh)]"
         ref={setSkillMenuParent}
       />
-      <Surface
-        className="relative min-w-0 rounded-field border bg-field text-field-foreground [border-color:var(--field-border)] [border-width:var(--border-width-field)]"
-        variant="default"
-      >
+      <Surface className="composer-field" variant="default">
         <ComposerEditor
           ariaLabel={t`Edit pending message`}
           disabled={false}

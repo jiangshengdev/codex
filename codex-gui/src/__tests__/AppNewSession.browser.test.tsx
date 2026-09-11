@@ -117,6 +117,23 @@ async function expectWorkingDirectory(path: string) {
   await expect.element(dialog).not.toBeInTheDocument();
 }
 
+test.each(["/new", `/task/${launchThreadId}`])(
+  "uses consistent message field geometry on %s",
+  async (route) => {
+    await mount(route);
+    const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
+    await expect.element(editor).toBeVisible();
+    const panel = editor.element().closest('[data-slot="surface"]');
+    if (!(panel instanceof HTMLElement)) throw new Error("message field must have a surface");
+    const style = getComputedStyle(panel);
+    expect(style.borderRadius).toBe("20px");
+    expect(style.padding).toBe("8px");
+    expect(style.borderWidth).toBe("0px");
+    expect(getComputedStyle(editor.element()).minHeight).toBe("96px");
+    expect(style.boxShadow).not.toBe("none");
+  },
+);
+
 test("working directory reveals its selectable full path without changing the draft", async () => {
   const { commands } = await mount("/new", true, "/workspace/codex");
   const editor = page.getByRole("combobox", { name: "Message Codex" });

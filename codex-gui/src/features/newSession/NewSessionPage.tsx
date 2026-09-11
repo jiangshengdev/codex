@@ -122,7 +122,10 @@ function NewSessionEditor({
           </FailureLayout>
         </Alert>
       )}
-      <Surface className="relative min-w-0 rounded-[calc(var(--radius-3xl)-var(--spacing))] border border-separator p-2">
+      <Surface
+        className="composer-field"
+        data-readonly={commands == null || snapshot.isInputLocked}
+      >
         <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
         <ComposerEditor
           ariaLabel={t`Message Codex`}

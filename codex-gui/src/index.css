@@ -52,10 +52,43 @@
 }
 
 @layer components {
-  .task-bottom-panel {
-    @apply rounded-3xl border bg-field p-2 text-field-foreground shadow-field;
+  .task-bottom-panel,
+  .composer-field {
+    @apply border bg-field p-2 text-field-foreground shadow-field;
     border-color: var(--field-border);
     border-width: var(--border-width-field);
+  }
+
+  .task-bottom-panel {
+    @apply rounded-3xl;
+  }
+
+  .composer-field {
+    @apply relative min-w-0 transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none;
+    border-radius: calc(var(--radius) * 2.5);
+
+    &:has([contenteditable]:focus) {
+      @apply bg-field-focus status-focused-field;
+      border-color: var(--field-border-focus);
+    }
+
+    @media (hover: hover) {
+      &:hover:not([data-disabled="true"]):not([data-readonly="true"]):not(
+        :has([contenteditable]:focus)
+      ) {
+        @apply bg-field-hover;
+        border-color: var(--field-border-hover);
+      }
+    }
+
+    &[data-disabled="true"] {
+      @apply status-disabled;
+    }
+
+    &[data-readonly="true"] {
+      opacity: var(--disabled-opacity);
+      cursor: var(--cursor-disabled);
+    }
   }
 }
 

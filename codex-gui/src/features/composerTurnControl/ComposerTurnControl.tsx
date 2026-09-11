@@ -192,7 +192,7 @@ export function ComposerTurnControl({
     >
       <Surface
         aria-disabled={!controlView.operationsEnabled}
-        className="composer-panel task-bottom-panel relative grid gap-2 transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none [&:has([contenteditable]:focus)]:bg-field-focus [&:has([contenteditable]:focus)]:status-focused-field [&:has([contenteditable]:focus)]:[border-color:var(--field-border-focus)] [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:bg-field-hover [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:[border-color:var(--field-border-hover)] data-[disabled=true]:status-disabled"
+        className="composer-panel task-bottom-panel composer-field grid gap-2"
         data-disabled={!controlView.operationsEnabled}
         data-focus-visible={composerFocusVisible}
         variant="default"
