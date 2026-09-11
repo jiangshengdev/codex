@@ -22,6 +22,182 @@ import {
 } from "./composerInputQueueCoordinatorTestFixtures";
 import { composerCapture as input, composerDraftCapture } from "./composerInputQueueTestFixtures";
 describe("ComposerInputQueueCoordinator", () => {
+  it("does not return previously authorized guidance to recovery when another acceptance arrives late", async () => {
+    const responses: ((response: TurnSteerResponse) => void)[] = [];
+    const steerTurn = vi.fn<SteerTurn>(
+      () =>
+        new Promise((resolve) => {
+          responses.push(resolve);
+        }),
+    );
+    const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn-1",
+      startTurn,
+      steerTurn,
+      interruptTurn: () => Promise.resolve({}),
+    });
+    coordinator.submitSteer(input("first"));
+    responses[0]?.({ turnId: "turn-1" });
+    await nextMicrotask();
+    coordinator.submitSteer(input("late"));
+    coordinator.interruptActiveTurn();
+    await nextMicrotask();
+    coordinator.observeAcceptedEvent(
+      live(
+        turnCompleted(eventTurnCompleted, "terminal-late", {
+          ...baseTurn("turn-1"),
+          status: "interrupted",
+        }),
+      ),
+    );
+    expect(coordinator.getSnapshot().recoveryCount).toBe(1);
+    expect(coordinator.recover()).toBe(true);
+    responses[1]?.({ turnId: "turn-1" });
+    await nextMicrotask();
+    expect(coordinator.getSnapshot()).toMatchObject({
+      guidingCount: 0,
+      recoveryCount: 1,
+      persistence: { error: null },
+    });
+    expect(startTurn).not.toHaveBeenCalled();
+    expect(coordinator.recover()).toBe(true);
+    expect(startTurn.mock.calls[0]?.[0].input).toEqual([
+      ...input("first").input,
+      ...input("late").input,
+    ]);
+    coordinator.dispose();
+  });
+
+  it.each(["empty", "pending", "consumed"])(
+    "requires manual recovery for late acceptance after a local stop with %s recovery",
+    async (recoveryState) => {
+      let accept!: (response: TurnSteerResponse) => void;
+      const steerTurn = vi.fn<SteerTurn>(
+        () =>
+          new Promise((resolve) => {
+            accept = resolve;
+          }),
+      );
+      const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
+      const coordinator = createCoordinator({
+        threadId: "thread-1",
+        activeTurnId: "turn-1",
+        startTurn,
+        steerTurn,
+        interruptTurn: () => Promise.resolve({}),
+      });
+      coordinator.submitSteer(input("late"));
+      if (recoveryState !== "empty") coordinator.submit(input("ordinary"));
+      coordinator.interruptActiveTurn();
+      await nextMicrotask();
+      coordinator.observeAcceptedEvent(
+        live(
+          turnCompleted(eventTurnCompleted, "terminal-late", {
+            ...baseTurn("turn-1"),
+            status: "interrupted",
+          }),
+        ),
+      );
+      const recovered = recoveryState === "consumed" ? coordinator.recover() : null;
+      expect(recovered).toBe(recoveryState === "consumed" ? true : null);
+      accept({ turnId: "turn-1" });
+      await nextMicrotask();
+      expect(coordinator.getSnapshot()).toMatchObject({
+        guidingCount: 0,
+        recoveryCount: recoveryState === "pending" ? 2 : 1,
+        persistence: { error: null },
+      });
+      expect(startTurn).not.toHaveBeenCalled();
+      expect(coordinator.recover()).toBe(true);
+      expect(startTurn.mock.calls[0]?.[0].input).toEqual(input("late").input);
+      coordinator.dispose();
+    },
+  );
+
+  it.each(["completed", "interrupted", "failed"] as const)(
+    "starts an uncommitted steer when its accepted response follows %s",
+    async (status) => {
+      let accept!: (response: TurnSteerResponse) => void;
+      const steerTurn = vi.fn<SteerTurn>(
+        () =>
+          new Promise((resolve) => {
+            accept = resolve;
+          }),
+      );
+      const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
+      const coordinator = createCoordinator({
+        threadId: "thread-1",
+        activeTurnId: "turn-1",
+        startTurn,
+        steerTurn,
+      });
+      coordinator.submitSteer(input("late"));
+      coordinator.submit(input("ordinary"));
+      coordinator.observeAcceptedEvent(
+        live(turnCompleted(eventTurnCompleted, "terminal-late", { ...baseTurn("turn-1"), status })),
+      );
+      expect(startTurn).not.toHaveBeenCalled();
+      accept({ turnId: "turn-1" });
+      await nextMicrotask();
+      expect(coordinator.getSnapshot().guidingCount).toBe(0);
+      expect(startTurn.mock.calls[0]?.[0].input).toEqual(input("late").input);
+      expect(coordinator.getSnapshot().ordinaryQueuedCount).toBe(1);
+      coordinator.dispose();
+    },
+  );
+
+  it.each(["deliveryUnknown", "mismatch", "committed"])(
+    "preserves %s identity when completion precedes the response",
+    async (outcome) => {
+      let accept!: (response: TurnSteerResponse) => void;
+      let reject!: (error: unknown) => void;
+      const steerTurn = vi.fn<SteerTurn>(
+        () =>
+          new Promise((yes, no) => {
+            accept = yes;
+            reject = no;
+          }),
+      );
+      const startTurn = vi.fn<StartTurn>(() => new Promise(() => undefined));
+      const coordinator = createCoordinator({
+        threadId: "thread-1",
+        activeTurnId: "turn-1",
+        startTurn,
+        steerTurn,
+      });
+      coordinator.submitSteer(input("late"));
+      const params = steerTurn.mock.calls[0]?.[0];
+      if (outcome === "committed") {
+        coordinator.observeAcceptedEvent(
+          live(
+            itemStarted(
+              eventItemStarted,
+              "commit-late",
+              "turn-1",
+              committedUserMessage(params?.clientUserMessageId ?? "missing"),
+            ),
+          ),
+        );
+      }
+      const terminal = live(turnCompleted(eventTurnCompleted, "terminal-late", baseTurn("turn-1")));
+      coordinator.observeAcceptedEvent(terminal);
+      if (outcome === "deliveryUnknown") reject(new Error("connection lost"));
+      else accept({ turnId: outcome === "mismatch" ? "wrong-turn" : "turn-1" });
+      await nextMicrotask();
+      coordinator.observeAcceptedEvent(terminal);
+      expect(coordinator.getSnapshot()).toMatchObject({
+        guidingCount: outcome === "committed" ? 0 : 1,
+        hasUnknownSteer: outcome !== "committed",
+        recoveryCount: 0,
+        persistence: { error: null },
+      });
+      expect(startTurn).not.toHaveBeenCalled();
+      coordinator.dispose();
+    },
+  );
+
   it("sends exact steer identities, issues an accepted successor, and releases only its commit", async () => {
     const responses: {
       promise: Promise<TurnSteerResponse>;

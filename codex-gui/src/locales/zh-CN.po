@@ -53,7 +53,7 @@ msgid "{0} skill details, {1}"
 msgstr "{0} 技能详情，{1}"
 
 #. Disclosure label showing how many intermediate transcript updates it contains
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:94
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:95
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {中间更新 · # 项} other {中间更新 · # 项}}"
 
@@ -83,7 +83,7 @@ msgid "A message update is missing its associated turn, so it cannot be fully di
 msgstr "收到的消息更新缺少所属轮次，暂时无法完整展示。"
 
 #: src/features/appShell/AppShellTopBar.tsx:163
-#: src/features/newSession/NewSessionPage.tsx:40
+#: src/features/newSession/NewSessionPage.tsx:39
 msgid "A working directory is required to start a session."
 msgstr "需要工作目录才能新建会话。"
 
@@ -166,13 +166,13 @@ msgid "Collapse pending message: {previewText}"
 msgstr "收起待处理消息：{previewText}"
 
 #. Accessible name for the region containing committed transcript turns
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:83
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:144
 msgid "Committed transcript"
 msgstr "已提交的对话记录"
 
 #. Status chip for a completed turn
 #. Status of a collaborating agent that completed its work
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:183
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:184
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:97
 msgid "Completed"
 msgstr "已完成"
@@ -202,16 +202,12 @@ msgstr "正在压缩"
 msgid "Compression request result unknown"
 msgstr "压缩请求结果不明"
 
-#: src/features/newSession/NewSessionPage.tsx:51
-msgid "Connect to Codex to send this draft."
-msgstr "连接到 Codex 后即可发送此草稿。"
-
 #. GUI connection ended; retained conversations remain read-only
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:41
 msgid "Connection closed"
 msgstr "连接已关闭"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:101
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:165
 msgid "Connection interrupted. Reconnect required."
 msgstr "连接已中断，需要重新连接。"
 
@@ -353,13 +349,18 @@ msgstr "丢弃修改"
 msgid "Discard unsaved changes?"
 msgstr "丢弃尚未保存的修改？"
 
+#. Dismiss the fork creation error notice
+#: src/features/threadFork/ThreadForkNotice.tsx:41
+msgid "Dismiss"
+msgstr "关闭提示"
+
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:364
 msgid "Edit"
 msgstr "编辑"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:202
-#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:70
-#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:78
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:68
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:76
 msgid "Edit pending message"
 msgstr "编辑待处理消息"
 
@@ -398,12 +399,12 @@ msgid "Expand pending message: {previewText}"
 msgstr "展开待处理消息：{previewText}"
 
 #. Status chip for a failed turn
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:193
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:194
 msgid "Failed"
 msgstr "失败"
 
 #. Status entry indicating that transcript processing failed
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:105
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:111
 msgid "Failed."
 msgstr "失败。"
 
@@ -411,11 +412,20 @@ msgstr "失败。"
 msgid "Finished waiting"
 msgstr "等待结束"
 
+#: src/features/threadFork/ThreadForkNotice.tsx:51
+msgid "Fork created"
+msgstr "分叉会话已创建"
+
+#. Button at the end of a chat turn; creates a new conversation including history through this turn
+#: src/features/threadFork/ThreadForkAction.tsx:36
+msgid "Fork from here"
+msgstr "从此处分叉"
+
 #: src/NotFoundPage.tsx:17
 msgid "Go back home"
 msgstr "返回首页"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:271
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:272
 msgid "Guide"
 msgstr "引导"
 
@@ -447,7 +457,7 @@ msgstr "历史记录上下文不可用"
 
 #: src/features/appShell/AppShellTopBar.tsx:59
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:36
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
 msgid "History detail"
 msgstr "历史详情"
 
@@ -459,13 +469,13 @@ msgstr "空闲"
 
 #. Short in-progress label for the current task beside the composer QR button
 #. Status chip for a turn that is still in progress
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:198
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:199
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:39
 msgid "In progress"
 msgstr "进行中"
 
 #. Input may already belong to the existing task queue; do not offer another send
-#: src/features/newSession/NewSessionPage.tsx:103
+#: src/features/newSession/NewSessionPage.tsx:93
 msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 msgstr "无法确认消息是否已加入队列。请打开会话，检查队列后再继续。"
 
@@ -476,7 +486,7 @@ msgstr "已与 <0/> <1/>交互"
 
 #. Status chip for an interrupted turn
 #. Status of a collaborating agent whose work was interrupted
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:188
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:189
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:88
 msgid "Interrupted"
 msgstr "已中断"
@@ -487,12 +497,12 @@ msgid "Interrupted <0/> <1/>"
 msgstr "已中断 <0/> <1/>"
 
 #. Status entry indicating that transcript processing was interrupted
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:99
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:105
 msgid "Interrupted."
 msgstr "已中断。"
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:41
-#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:90
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:89
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:110
 msgid "Invalid skill"
 msgstr "无效技能"
@@ -512,14 +522,14 @@ msgstr "加载历史记录"
 msgid "Load more"
 msgstr "加载更多"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:264
-#: src/features/currentTask/CurrentTaskPage.tsx:340
+#: src/features/currentTask/CurrentTaskPage.tsx:270
+#: src/features/currentTask/CurrentTaskPage.tsx:343
 #: src/features/currentTask/CurrentTaskPage.tsx:410
 msgid "Load task"
 msgstr "加载任务"
 
 #. Button to read the selected task's historical messages
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:99
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:108
 msgid "Load task history"
 msgstr "加载任务历史"
 
@@ -539,15 +549,15 @@ msgstr "正在加载更多…"
 msgid "Loading skills…"
 msgstr "正在加载技能…"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:46
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:97
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:106
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:257
-#: src/features/currentTask/CurrentTaskPage.tsx:326
+#: src/features/currentTask/CurrentTaskPage.tsx:263
+#: src/features/currentTask/CurrentTaskPage.tsx:329
 #: src/features/currentTask/CurrentTaskPage.tsx:390
-#: src/features/currentTask/CurrentTaskPage.tsx:545
+#: src/features/currentTask/CurrentTaskPage.tsx:559
 msgid "Loading task…"
 msgstr "正在加载任务…"
 
@@ -563,10 +573,10 @@ msgstr "菜单"
 msgid "Message cannot be empty"
 msgstr "消息不能为空"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:203
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:213
-#: src/features/newSession/NewSessionPage.tsx:142
-#: src/features/newSession/NewSessionPage.tsx:160
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:204
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:214
+#: src/features/newSession/NewSessionPage.tsx:135
+#: src/features/newSession/NewSessionPage.tsx:151
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
@@ -656,7 +666,7 @@ msgstr "下一上下文页"
 msgid "No agents completed yet"
 msgstr "尚无智能体完成任务"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:113
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:177
 msgid "No committed messages yet."
 msgstr "暂无已提交的消息。"
 
@@ -692,15 +702,20 @@ msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其
 msgid "Open current task"
 msgstr "打开当前任务"
 
-#: src/features/newSession/NewSessionPage.tsx:132
+#. Resume opening an already created fork without creating it again
+#: src/features/threadFork/ThreadForkNotice.tsx:69
+msgid "Open fork"
+msgstr "打开分叉会话"
+
+#: src/features/newSession/NewSessionPage.tsx:122
 msgid "Open session"
 msgstr "打开会话"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:221
+#: src/features/currentTask/CurrentTaskPage.tsx:227
 msgid "Open task"
 msgstr "打开任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:207
+#: src/features/currentTask/CurrentTaskPage.tsx:213
 msgid "Opening task…"
 msgstr "正在打开任务…"
 
@@ -840,15 +855,15 @@ msgstr "移出列表"
 msgid "Remove local record"
 msgstr "移除本地记录"
 
-#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:93
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:92
 msgid "Remove or replace invalid skills before saving."
 msgstr "保存前请移除或替换无效技能。"
 
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
-#: src/features/currentTask/CurrentTaskPage.tsx:217
-#: src/features/currentTask/CurrentTaskPage.tsx:336
+#: src/features/currentTask/CurrentTaskPage.tsx:223
+#: src/features/currentTask/CurrentTaskPage.tsx:339
 #: src/features/currentTask/CurrentTaskPage.tsx:406
 msgid "Remove task"
 msgstr "移出任务列表"
@@ -856,8 +871,8 @@ msgstr "移出任务列表"
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
-#: src/features/currentTask/CurrentTaskPage.tsx:203
-#: src/features/currentTask/CurrentTaskPage.tsx:322
+#: src/features/currentTask/CurrentTaskPage.tsx:209
+#: src/features/currentTask/CurrentTaskPage.tsx:325
 #: src/features/currentTask/CurrentTaskPage.tsx:386
 msgid "Removing task…"
 msgstr "正在移出任务列表…"
@@ -869,7 +884,7 @@ msgstr "正在移出任务列表…"
 msgid "Repository"
 msgstr "仓库"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:146
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:147
 msgid "Request failed"
 msgstr "请求失败"
 
@@ -957,13 +972,13 @@ msgstr "保存"
 msgid "Scan with phone"
 msgstr "使用手机扫描"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:283
-#: src/features/newSession/NewSessionPage.tsx:178
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:284
+#: src/features/newSession/NewSessionPage.tsx:171
 msgid "Send"
 msgstr "发送"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:170
+#: src/features/newSession/NewSessionPage.tsx:163
 msgid "Sending"
 msgstr "正在发送"
 
@@ -1035,11 +1050,11 @@ msgstr "开始新对话"
 msgid "Started <0/> <1/>"
 msgstr "已启动 <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:259
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:260
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:250
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:251
 msgid "Stop failed"
 msgstr "停止失败"
 
@@ -1063,8 +1078,8 @@ msgstr "系统"
 msgid "System error"
 msgstr "系统错误"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:228
-#: src/features/currentTask/CurrentTaskPage.tsx:450
+#: src/features/currentTask/CurrentTaskPage.tsx:234
+#: src/features/currentTask/CurrentTaskPage.tsx:453
 msgid "Task action failed"
 msgstr "任务操作失败"
 
@@ -1073,7 +1088,7 @@ msgstr "任务操作失败"
 msgid "Task actions"
 msgstr "任务操作"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:29
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:31
 msgid "Task history is unavailable until the connection is restored."
 msgstr "连接恢复前无法查看任务历史。"
 
@@ -1120,11 +1135,11 @@ msgid "The conversation shown here may be out of date. Restore sync to get the l
 msgstr "当前显示的对话可能不是最新内容。恢复同步可获取最新内容。"
 
 #. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
-#: src/features/newSession/NewSessionPage.tsx:109
+#: src/features/newSession/NewSessionPage.tsx:99
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "创建结果未知。重试可能留下额外的空会话。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:281
+#: src/features/currentTask/CurrentTaskPage.tsx:284
 #: src/features/currentTask/CurrentTaskPage.tsx:358
 msgid "The current task could not be loaded."
 msgstr "当前任务未能加载。"
@@ -1136,6 +1151,10 @@ msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:432
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "消息已移动，但队列反复变化，无法加载更新后的顺序。"
+
+#: src/features/threadFork/ThreadForkNotice.tsx:54
+msgid "The new conversation is saved. Continue opening it without creating another fork."
+msgstr "新会话已保存。继续打开该会话，不会重复创建分叉。"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:427
 msgid "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
@@ -1149,11 +1168,20 @@ msgstr "待处理消息的顺序没有改变。已刷新，请重试。"
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "上一个任务连接未能完全清理，后续状态可能受到影响。"
 
+#: src/features/threadFork/ThreadForkNotice.tsx:33
+msgid "The result is unknown. Check history before forking again; another click may create an additional conversation."
+msgstr "创建结果未知。请先检查历史记录；再次点击分叉可能会额外创建一个会话。"
+
+#. Temporary notification when a URL targets a turn absent from the complete conversation history
+#: src/features/committedTranscriptSurface/useTurnPositionScroll.ts:63
+msgid "The specified turn was not found."
+msgstr "未找到指定对话轮次。"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:437
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:453
+#: src/features/currentTask/CurrentTaskPage.tsx:456
 msgid "The task action could not be completed."
 msgstr "任务操作未能完成。"
 
@@ -1173,11 +1201,11 @@ msgstr "无法准备任务连接。"
 msgid "The task could not be activated."
 msgstr "无法激活任务。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:232
+#: src/features/currentTask/CurrentTaskPage.tsx:238
 msgid "The task could not be opened."
 msgstr "任务未能打开。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:234
+#: src/features/currentTask/CurrentTaskPage.tsx:240
 msgid "The task could not be removed."
 msgstr "任务未能移出列表。"
 
@@ -1185,7 +1213,7 @@ msgstr "任务未能移出列表。"
 msgid "The task could not be resumed."
 msgstr "无法恢复任务。"
 
-#: src/features/appShell/AppShell.tsx:88
+#: src/features/appShell/AppShell.tsx:92
 msgid "The task list could not be updated."
 msgstr "任务列表未能更新。"
 
@@ -1193,7 +1221,7 @@ msgstr "任务列表未能更新。"
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "任务已打开，但部分状态同步未完成。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:475
+#: src/features/currentTask/CurrentTaskPage.tsx:478
 msgid "The task recovery could not be completed."
 msgstr "任务恢复未能完成。"
 
@@ -1230,7 +1258,7 @@ msgstr "无法编辑这条待处理消息。"
 msgid "This task could not be restored. You can try again."
 msgstr "此任务恢复失败，可以再次尝试。"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:60
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:64
 msgid "This task has no messages."
 msgstr "此任务没有消息。"
 
@@ -1261,7 +1289,7 @@ msgid "Transcript context pages"
 msgstr "上下文分页"
 
 #. Accessible label for a transcript turn identified by its raw turn ID
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:209
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:210
 msgid "Turn {resolvedTurnId}"
 msgstr "轮次 {resolvedTurnId}"
 
@@ -1274,24 +1302,28 @@ msgstr "轮次 {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
+#: src/features/threadFork/ThreadForkNotice.tsx:29
+msgid "Unable to create fork"
+msgstr "无法创建分叉会话"
+
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:324
 msgid "Unable to load history"
 msgstr "无法加载历史记录"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:108
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:117
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:278
+#: src/features/currentTask/CurrentTaskPage.tsx:281
 #: src/features/currentTask/CurrentTaskPage.tsx:355
 msgid "Unable to load the current task"
 msgstr "无法加载当前任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:472
+#: src/features/currentTask/CurrentTaskPage.tsx:475
 msgid "Unable to recover the current task"
 msgstr "无法恢复当前任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:141
+#: src/features/currentTask/CurrentTaskPage.tsx:147
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "无法重试此任务。请检查当前状态后再试。"
 
@@ -1300,7 +1332,7 @@ msgstr "无法重试此任务。请检查当前状态后再试。"
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
-#: src/features/newSession/NewSessionPage.tsx:99
+#: src/features/newSession/NewSessionPage.tsx:89
 msgid "Unable to start the conversation"
 msgstr "无法开始对话"
 
@@ -1309,7 +1341,7 @@ msgstr "无法开始对话"
 msgid "Unable to switch tasks yet"
 msgstr "暂时无法切换任务"
 
-#: src/features/appShell/AppShell.tsx:85
+#: src/features/appShell/AppShell.tsx:89
 msgid "Unable to update the task list"
 msgstr "无法更新任务列表"
 
@@ -1322,7 +1354,7 @@ msgstr "状态未知"
 msgid "Unsaved pending message"
 msgstr "尚未保存的待发送消息"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:37
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:41
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:215
 msgid "Untitled task"
 msgstr "未命名任务"
@@ -1412,10 +1444,15 @@ msgstr "正在等待压缩请求结果。确认结果前，仍无法发送消息
 msgid "Will send first"
 msgstr "将优先发送"
 
-#. The fixed working directory of the single new-session draft; it does not follow later task switches
-#: src/features/newSession/NewSessionPage.tsx:45
-msgid "Working directory: {draftCwd}"
-msgstr "工作目录：{draftCwd}"
+#. Accessible name of the popover showing the new-session draft's full path
+#: src/features/newSession/NewSessionWorkingDirectory.tsx:29
+msgid "Working directory"
+msgstr "工作目录"
+
+#. Accessible name of the new-session directory button; opens the full path
+#: src/features/newSession/NewSessionWorkingDirectory.tsx:17
+msgid "Working directory: {directoryName}"
+msgstr "工作目录：{directoryName}"
 
 #. History date group: tasks last active on the previous local day
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:134
@@ -1430,7 +1467,7 @@ msgstr "修改未能保存。请先复制需要保留的内容，再丢弃修改
 msgid "Your changes have not been saved. Return to copy them, or discard them to continue."
 msgstr "修改尚未保存。可以返回复制内容，或丢弃修改后继续。"
 
-#: src/features/newSession/NewSessionPage.tsx:113
+#: src/features/newSession/NewSessionPage.tsx:103
 msgid "Your input is retained. Retry to continue."
 msgstr "输入内容已保留。重试以继续。"
 

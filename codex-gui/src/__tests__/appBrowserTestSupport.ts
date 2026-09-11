@@ -71,6 +71,9 @@ export const createGuiHostCommands = ({
   loadedThreadIds?: readonly string[];
   storedThreadIds?: readonly string[];
 } = {}): GuiHostCommands => ({
+  forkThread: vi
+    .fn<GuiHostCommands["forkThread"]>()
+    .mockRejectedValue(new Error("Unexpected thread/fork")),
   startThread: vi
     .fn<GuiHostCommands["startThread"]>()
     .mockRejectedValue(new Error("Unexpected thread/start")),

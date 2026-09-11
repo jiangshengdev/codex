@@ -13,6 +13,7 @@ import {
   NEW_TASK_ROUTE_PATH,
   isValidThreadId,
   validateEmptyRouteSearch,
+  validateTurnPositionSearch,
 } from "./features/browserLaunch/guiRouteTarget";
 import { CurrentTaskPage } from "./features/currentTask/CurrentTaskPage";
 import { DocumentTitleOwner } from "./features/documentTitle/DocumentTitleOwner";
@@ -24,7 +25,7 @@ import { AppRouteBoundary, RootRouteError } from "./routerComponents";
 const rootRoute = createRootRoute({
   errorComponent: RootRouteError,
   notFoundComponent: NotFoundPage,
-  validateSearch: validateEmptyRouteSearch,
+  validateSearch: validateTurnPositionSearch,
 });
 
 const appRoute = createRoute({
@@ -45,6 +46,7 @@ const historyRoute = createRoute({
   getParentRoute: () => appRoute,
   path: HISTORY_LIST_ROUTE_PATH,
   component: ThreadHistoryListPage,
+  validateSearch: validateEmptyRouteSearch,
 });
 
 const historyDetailRoute = createRoute({
@@ -58,6 +60,7 @@ const newTaskRoute = createRoute({
   getParentRoute: () => appRoute,
   path: NEW_TASK_ROUTE_PATH,
   component: NewSessionPage,
+  validateSearch: validateEmptyRouteSearch,
 });
 
 function parseThreadIdParams(params: Readonly<{ threadId: string }>): { threadId: string } {

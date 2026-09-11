@@ -1,10 +1,12 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 @import "streamdown/styles.css";
+@import "katex/dist/katex.min.css";
 
 @source "../node_modules/streamdown/dist/*.js";
 @source "../node_modules/@streamdown/code/dist/*.js";
 @source "../node_modules/@streamdown/cjk/dist/*.js";
+@source "../node_modules/@streamdown/math/dist/*.js";
 
 [data-app-shell-content-layout="reading"] {
   --app-shell-content-max-width: var(--container-3xl);
@@ -21,6 +23,24 @@
   padding-inline: var(--app-shell-content-gutter);
 }
 
+.task-page-layout {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 3);
+  padding-top: calc(var(--spacing) * 3);
+}
+
+.task-page {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: inherit;
+}
+
 .task-reading-boundary {
   margin-inline: auto;
   width: calc(100% - var(--app-shell-content-gutter) * 2);
@@ -32,15 +52,144 @@
 }
 
 @layer components {
-  .task-bottom-panel {
-    @apply rounded-3xl border bg-field p-2 text-field-foreground shadow-field;
+  .composer-frame {
+    @apply min-w-0 rounded-3xl p-1;
+  }
+
+  .task-bottom-panel,
+  .composer-field {
+    @apply border bg-field p-2 text-field-foreground shadow-field;
     border-color: var(--field-border);
     border-width: var(--border-width-field);
+  }
+
+  .task-bottom-panel {
+    @apply rounded-3xl;
+  }
+
+  .composer-field {
+    @apply relative min-w-0 transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none;
+    border-radius: calc(var(--radius) * 2.5);
+
+    &:has([contenteditable]:focus) {
+      @apply bg-field-focus status-focused-field;
+      border-color: var(--field-border-focus);
+    }
+
+    @media (hover: hover) {
+      &:hover:not([data-disabled="true"]):not([data-readonly="true"]):not(
+        :has([contenteditable]:focus)
+      ) {
+        @apply bg-field-hover;
+        border-color: var(--field-border-hover);
+      }
+    }
+
+    &[data-disabled="true"] {
+      @apply status-disabled;
+    }
+
+    &[data-readonly="true"] {
+      opacity: var(--disabled-opacity);
+      cursor: var(--cursor-disabled);
+    }
   }
 }
 
 .committed-transcript-entry-markdown p {
   white-space: pre-wrap;
+}
+
+/* Streamdown consumes HeroUI colors only at its document and portal boundaries. */
+:is(.committed-transcript-entry-markdown, [data-streamdown="table-fullscreen"]) {
+  [data-streamdown="table-header"],
+  [data-streamdown="inline-code"],
+  [data-streamdown="code-block"],
+  [data-streamdown="code-block-actions"],
+  [data-streamdown="table-wrapper"] {
+    background-color: var(--surface-secondary);
+  }
+
+  [data-streamdown="code-block-actions"] {
+    border-color: var(--border);
+  }
+
+  [data-streamdown="code-block-body"],
+  /* The default table scroll container has no separate data-streamdown marker. */
+  [data-streamdown="table-wrapper"] > div:has(> [data-streamdown="table"]) {
+    background-color: var(--surface);
+  }
+
+  [data-streamdown="code-block-header"],
+  [data-streamdown="blockquote"],
+  [data-streamdown="code-block-actions"] button,
+  [data-streamdown="table-wrapper"] > div:first-child button {
+    color: var(--muted);
+  }
+
+  [data-streamdown="blockquote"] {
+    border-color: var(--border);
+  }
+
+  [data-streamdown="code-block-actions"] button,
+  [data-streamdown="table-wrapper"] > div:first-child button {
+    &:hover:not(:disabled) {
+      color: var(--foreground);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+  }
+
+  /* Copy/download menus stay inside the first (toolbar) child of table-wrapper. */
+  [data-streamdown="table-wrapper"] > div:first-child > div > button + div {
+    background-color: var(--surface);
+    color: var(--foreground);
+
+    > button {
+      color: var(--foreground);
+
+      &:hover:not(:disabled) {
+        background-color: var(--surface-secondary);
+      }
+
+      &:focus-visible {
+        /* Keep the ring inside the default overflow-hidden menu. */
+        outline-offset: -2px;
+      }
+    }
+  }
+}
+
+/* The default fullscreen table is a body portal, outside the Markdown wrapper. */
+[data-streamdown="table-fullscreen"] {
+  background-color: var(--surface);
+  color: var(--foreground);
+
+  [data-streamdown="table-wrapper"] > div:first-child > button:hover:not(:disabled) {
+    background-color: var(--surface-secondary);
+  }
+}
+
+[data-assistant-math] .katex {
+  display: inline-grid;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+[data-assistant-math] .katex-display > .katex {
+  display: grid;
+}
+
+[data-assistant-math] .katex > .katex-html {
+  display: inline-block;
+  width: max-content;
+  min-width: 100%;
+  /* KaTeX's vlist alignment cell extends 2px beyond the formula's measured width. */
+  padding-inline-end: 2px;
 }
 
 .committed-transcript-entry-markdown [data-streamdown="code-block-body"] code > span {

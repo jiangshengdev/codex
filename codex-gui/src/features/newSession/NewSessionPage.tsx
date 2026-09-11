@@ -1,7 +1,7 @@
 import { Alert, Button, Surface } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
@@ -18,16 +18,15 @@ import {
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
 import { ComposerSkillMenuLayer } from "@/features/composerTurnControl/ComposerSkillMenuLayer";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
-import { SkillCatalogOwner } from "@/features/skillCatalog/skillCatalogOwner";
-import { useStrictModeSafeOwner } from "@/features/threadHistory/useStrictModeSafeOwner";
 import { errorText } from "@/text/errorText";
 import type { NewSessionSnapshot } from "./newSessionOwner";
+import { NewSessionWorkingDirectory } from "./NewSessionWorkingDirectory";
+import { useNewSessionSkillCatalog } from "./useNewSessionSkillCatalog";
 
 export function NewSessionPage() {
   const { newSessionOwner, commands } = useAppCapabilities();
   const snapshot = useNewSessionSnapshot();
   const cwd = useNewSessionCwd();
-  const draftCwd = snapshot?.cwd;
 
   useEffect(() => {
     newSessionOwner.open(cwd);
@@ -40,20 +39,10 @@ export function NewSessionPage() {
           <Trans>A working directory is required to start a session.</Trans>
         </p>
       ) : (
-        <>
-          <p className="min-w-0 text-sm wrap-anywhere text-muted">
-            <Trans comment="The fixed working directory of the single new-session draft; it does not follow later task switches">
-              Working directory: {draftCwd}
-            </Trans>
-          </p>
-          {commands == null ? (
-            <p className="text-muted">
-              <Trans>Connect to Codex to send this draft.</Trans>
-            </p>
-          ) : (
-            <NewSessionEditor commands={commands} snapshot={snapshot} />
-          )}
-        </>
+        <Surface className="composer-frame flex flex-col gap-1" variant="secondary">
+          <NewSessionWorkingDirectory cwd={snapshot.cwd} />
+          <NewSessionEditor commands={commands} snapshot={snapshot} />
+        </Surface>
       )}
     </main>
   );
@@ -63,22 +52,23 @@ function NewSessionEditor({
   commands,
   snapshot,
 }: Readonly<{
-  commands: GuiHostCommands;
+  commands: GuiHostCommands | null;
   snapshot: NonNullable<NewSessionSnapshot>;
 }>) {
   const { t } = useLingui();
   const navigate = useNavigate();
   const { newSessionOwner, activeThreadSession } = useAppCapabilities();
-  const controller = useRef<ComposerEditorController | null>(null);
-  const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
-  const catalogOwner = useMemo(
-    () => new SkillCatalogOwner({ cwd: snapshot.cwd, listSkills: commands.listSkills }),
-    [commands, snapshot.cwd],
+  const [controller, setController] = useState<ComposerEditorController | null>(null);
+  const draftText = useSyncExternalStore(
+    controller?.subscribe ?? subscribeUnavailableEditor,
+    () => controller?.getSnapshot().textContent ?? "",
   );
-  const skillCatalog = useStrictModeSafeOwner(catalogOwner);
+  const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
+  const { skillCatalog, retry } = useNewSessionSkillCatalog(snapshot.cwd, commands);
   const pending = snapshot.phase === "creating" || snapshot.phase === "activating";
   const unknownHandoff = snapshot.phase === "handoffUnknown";
   const submit = async (capture?: ComposerDraftCapture): Promise<void> => {
+    if (commands == null) return;
     const result = await newSessionOwner.submit(capture);
     if (result.type !== "accepted") return;
     try {
@@ -136,12 +126,15 @@ function NewSessionEditor({
           </FailureLayout>
         </Alert>
       )}
-      <Surface className="relative min-w-0 rounded-2xl border border-separator p-2">
+      <Surface
+        className="composer-field grid gap-2"
+        data-readonly={commands == null || snapshot.isInputLocked}
+      >
         <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
         <ComposerEditor
           ariaLabel={t`Message Codex`}
-          controllerRef={controller}
-          disabled={snapshot.isInputLocked}
+          onControllerChange={setController}
+          disabled={commands == null || snapshot.isInputLocked}
           guardCompositionEndEnter={
             navigator.vendor === "Apple Computer, Inc." &&
             navigator.platform === "MacIntel" &&
@@ -151,9 +144,7 @@ function NewSessionEditor({
           onDraftChange={(draft) => {
             newSessionOwner.saveDraft(draft);
           }}
-          onRetrySkillCatalog={() => {
-            catalogOwner.retry();
-          }}
+          onRetrySkillCatalog={retry}
           onSubmit={(capture) => {
             void submit(capture);
           }}
@@ -163,8 +154,10 @@ function NewSessionEditor({
         />
         <div className="flex justify-end">
           <RetryActionButton
-            variant="primary"
-            isDisabled={pending || unknownHandoff}
+            variant="outline"
+            isDisabled={
+              commands == null || pending || unknownHandoff || draftText.trim().length === 0
+            }
             isPending={pending}
             pendingChildren={
               <Trans comment="Pending state of Send while creating a session and handing off its first message">
@@ -172,7 +165,7 @@ function NewSessionEditor({
               </Trans>
             }
             onPress={() => {
-              void submit(snapshot.isInputLocked ? undefined : controller.current?.capture());
+              void submit(snapshot.isInputLocked ? undefined : controller?.capture());
             }}
           >
             <Trans>Send</Trans>
@@ -182,3 +175,5 @@ function NewSessionEditor({
     </>
   );
 }
+
+const subscribeUnavailableEditor = (): (() => void) => () => undefined;

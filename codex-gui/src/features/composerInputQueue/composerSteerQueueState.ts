@@ -83,6 +83,7 @@ export type RejectedSteer = Readonly<{
 type ClosedSteerTarget = Readonly<{
   reason: RejectedSteer["reason"];
   rejectionBatch: number;
+  disposition: "automatic" | "manualRecovery";
 }>;
 
 type RejectedSteerOrder = Readonly<{
@@ -170,7 +171,7 @@ export type ComposerSteerQueueEvent =
   | Readonly<{ type: "deliveryUnknown"; claim: SteerClaim }>
   | Readonly<{ type: "activeTurnNotSteerable"; claim: SteerClaim }>
   | Readonly<{ type: "definitelyNotAccepted"; claim: SteerClaim }>
-  | Readonly<{ type: "takeRejected" }>
+  | Readonly<{ type: "takeRejected"; messageIds?: readonly string[]; manualOnly?: boolean }>
   | Readonly<{ type: "restoreRejected"; transfer: RejectedSteerTransfer }>
   | Readonly<{ type: "releaseRejected"; transfer: RejectedSteerTransfer }>
   | Readonly<{ type: "restoreRecovery"; transfer: SteerRecoveryTransfer }>
@@ -180,7 +181,12 @@ export type ComposerSteerQueueEvent =
       turnId: TurnIdentity;
       clientUserMessageId: SteerClientIdentity;
     }>
-  | Readonly<{ type: "terminal"; threadId: ThreadIdentity; turnId: TurnIdentity }>;
+  | Readonly<{
+      type: "terminal";
+      threadId: ThreadIdentity;
+      turnId: TurnIdentity;
+      disposition?: ClosedSteerTarget["disposition"];
+    }>;
 
 export type ComposerSteerQueueResult =
   | Readonly<{ type: "enqueued"; messageId: string }>
@@ -524,6 +530,8 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
       const target = persistedRecord(value.target);
       if (target.reason !== "terminal" && target.reason !== "activeTurnNotSteerable")
         throw new Error("Invalid persisted closed target");
+      if (target.disposition !== "automatic" && target.disposition !== "manualRecovery")
+        throw new Error("Invalid persisted closed target disposition");
       let targets = candidate.closedTargets.get(threadId);
       if (targets == null) {
         targets = new Map();
@@ -533,6 +541,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
       targets.set(turnId, {
         reason: target.reason,
         rejectionBatch: persistedInteger(target.rejectionBatch),
+        disposition: target.disposition,
       });
     }
     for (const slot of candidate.steerQueue)
@@ -919,6 +928,14 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
       };
     }
     this.pendingSteers[index] = { claim, phase: "acceptedAwaitingCommit" };
+    const target = this.closedTargets.get(claim.intent.threadId)?.get(turnId);
+    if (target != null) {
+      this.pendingSteers.splice(index, 1);
+      this.insertRejectedByOrder(
+        this.createRejected(claim.intent, target.reason, target.rejectionBatch),
+      );
+      return { type: "rejected", reason: target.reason, messageIds: [claim.intent.message.id] };
+    }
     return { type: "accepted", messageId: claim.intent.message.id };
   }
 
@@ -1001,15 +1018,19 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     return { type: "committed", messageId: claim.intent.message.id };
   }
 
-  private terminal(threadId: ThreadIdentity, turnId: TurnIdentity): ComposerSteerQueueResult {
-    const closedTarget = this.closeTarget(threadId, turnId, "terminal");
+  private terminal(
+    threadId: ThreadIdentity,
+    turnId: TurnIdentity,
+    disposition?: ClosedSteerTarget["disposition"],
+  ): ComposerSteerQueueResult {
+    const closedTarget = this.closeTarget(threadId, turnId, "terminal", disposition);
     const reason = closedTarget.reason;
     const pending = this.removePendingTarget(threadId, turnId, true);
     const unsent = this.removeUnsentTarget(threadId, turnId);
     const intents = [...pending, ...unsent.intents];
-    this.rejectedSteersQueue.push(
-      ...intents.map((intent) => this.createRejected(intent, reason, closedTarget.rejectionBatch)),
-    );
+    for (const intent of intents) {
+      this.insertRejectedByOrder(this.createRejected(intent, reason, closedTarget.rejectionBatch));
+    }
     return {
       type: "terminal",
       messageIds: intents.map(({ message }) => message.id),
@@ -1021,17 +1042,24 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     threadId: ThreadIdentity,
     turnId: TurnIdentity,
     reason: RejectedSteer["reason"],
+    disposition?: ClosedSteerTarget["disposition"],
   ): ClosedSteerTarget {
     const closedTurns =
       this.closedTargets.get(threadId) ?? new Map<TurnIdentity, ClosedSteerTarget>();
     const existing = closedTurns.get(turnId);
     if (existing != null) {
+      if (disposition === "manualRecovery" && existing.disposition !== disposition) {
+        const updated = { ...existing, disposition };
+        closedTurns.set(turnId, updated);
+        return updated;
+      }
       return existing;
     }
     this.nextRejectionBatch += 1;
     const closedTarget: ClosedSteerTarget = {
       reason,
       rejectionBatch: this.nextRejectionBatch,
+      disposition: disposition ?? "automatic",
     };
     closedTurns.set(turnId, closedTarget);
     this.closedTargets.set(threadId, closedTurns);
@@ -1136,12 +1164,24 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     );
   }
 
-  private takeRejected(): ComposerSteerQueueResult {
+  private takeRejected(
+    messageIds?: readonly string[],
+    manualOnly = false,
+  ): ComposerSteerQueueResult {
     if (this.rejectedSteersQueue.length === 0) {
       return { type: "empty" };
     }
 
-    const entries = this.rejectedSteersQueue.splice(0);
+    const entries = this.rejectedSteersQueue.filter(
+      ({ intent }) =>
+        (messageIds == null || messageIds.includes(intent.message.id)) &&
+        (!manualOnly ||
+          this.closedTargets.get(intent.threadId)?.get(intent.expectedTurnId)?.disposition ===
+            "manualRecovery"),
+    );
+    if (entries.length === 0) return { type: "empty" };
+    const remaining = this.rejectedSteersQueue.filter((entry) => !entries.includes(entry));
+    this.rejectedSteersQueue.splice(0, this.rejectedSteersQueue.length, ...remaining);
     const token = {};
     this.outstandingRejectedTransfers.set(token, entries);
     return {
@@ -1286,7 +1326,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
       case "definitelyNotAccepted":
         return this.requireRecovery(event.claim);
       case "takeRejected":
-        return this.takeRejected();
+        return this.takeRejected(event.messageIds, event.manualOnly);
       case "restoreRejected":
         return this.restoreRejected(event.transfer);
       case "releaseRejected":
@@ -1296,7 +1336,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
       case "committed":
         return this.commit(event.threadId, event.turnId, event.clientUserMessageId);
       case "terminal":
-        return this.terminal(event.threadId, event.turnId);
+        return this.terminal(event.threadId, event.turnId, event.disposition);
     }
   };
 }

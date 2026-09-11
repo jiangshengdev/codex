@@ -1,4 +1,5 @@
-import { expect, test } from "vitest";
+import { assert, expect, test } from "vitest";
+import { page } from "vitest/browser";
 import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
   ActiveThreadProjectionAcceptedEvent,
@@ -13,6 +14,7 @@ import {
   inProgressTurn,
   itemCompleted,
   itemStarted,
+  reasoningItem,
   textInput,
   turnCompleted,
   turnStarted,
@@ -66,6 +68,167 @@ const quotaError = {
   additionalDetails: null,
   misalignment: null,
 } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
+
+test("scrolls only overflowing formulas without shrinking them across message lifecycles", async () => {
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  const expression = `${Array.from({ length: 16 }, (_, index) => String.raw`\frac{x_{${index + 1}}^2}{y_{${index + 1}}}`).join(" + ")} = z`;
+  const source = [
+    `Before $${expression}$ after.`,
+    `Before \\(${expression}\\) after.`,
+    `$$\n${expression}\n$$`,
+    `\\[\n${expression}\n\\]`,
+    "Short $x^2$ stays readable.",
+  ].join("\n\n");
+  const turnId = "turn-math-overflow";
+  const itemId = "agent-math-overflow";
+  try {
+    await page.viewport(1280, 900);
+    const { store } = await renderTranscriptWithProviders(
+      transcriptIdentity,
+      <CommittedTranscriptSurface identity={transcriptIdentity} />,
+    );
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "overflow-start",
+          turnId,
+          agentMessage(itemId, ""),
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [agentMessageDelta(eventAgentMessageDelta, turnId, itemId, source)],
+      }),
+    );
+    await expect.poll(() => document.querySelectorAll(".katex").length).toBe(5);
+    await document.fonts.ready;
+    const desktopFontSizes = Array.from(
+      document.querySelectorAll(".katex"),
+      (node) => getComputedStyle(node).fontSize,
+    );
+    await page.viewport(390, 844);
+
+    const verifyOverflow = async () => {
+      await expect.poll(() => document.querySelectorAll(".katex").length).toBe(5);
+      const formulas = Array.from(document.querySelectorAll<HTMLElement>(".katex"));
+      expect(formulas.map((node) => getComputedStyle(node).fontSize)).toEqual(desktopFontSizes);
+      expect(document.documentElement.scrollWidth).toBe(document.documentElement.clientWidth);
+      const paragraph = document.querySelector(".committed-transcript-entry-markdown p");
+      assert(paragraph, "Expected message prose beside the formulas");
+      const paragraphLeft = paragraph.getBoundingClientRect().left;
+      for (const formula of formulas.slice(0, 4)) {
+        let scroller: HTMLElement | null = formula;
+        while (scroller && !["auto", "scroll"].includes(getComputedStyle(scroller).overflowX)) {
+          scroller = scroller.parentElement;
+        }
+        assert(scroller, "Expected a horizontal scroll container for the formula");
+        const scrollContainer = scroller;
+        expect(scrollContainer.textContent).not.toContain("Before");
+        expect(scrollContainer.scrollWidth).toBeGreaterThan(scrollContainer.clientWidth);
+        scrollContainer.scrollTo({ left: scrollContainer.scrollWidth, behavior: "instant" });
+        await expect.poll(() => scrollContainer.scrollLeft).toBeGreaterThan(0);
+        expect(
+          Math.abs(
+            scrollContainer.scrollWidth - scrollContainer.clientWidth - scrollContainer.scrollLeft,
+          ),
+        ).toBeLessThanOrEqual(1);
+        expect(paragraph.getBoundingClientRect().left).toBe(paragraphLeft);
+        expect(document.documentElement.scrollLeft).toBe(0);
+        expect(formula.querySelector("math mfrac")).not.toBeNull();
+        expect(formula.querySelector("annotation")?.textContent.trim()).toBe(expression);
+      }
+      const shortFormula = formulas[4];
+      assert(shortFormula, "Expected the short formula after the four long formulas");
+      expect(shortFormula.scrollWidth).toBeLessThanOrEqual(shortFormula.clientWidth);
+    };
+
+    await verifyOverflow();
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "overflow-complete",
+          turnId,
+          agentMessage(itemId, source),
+        ),
+        replay: "live",
+      }),
+    );
+    await expect
+      .poll(() => document.querySelector(".committed-transcript-live-assistant-message"))
+      .toBeNull();
+    await verifyOverflow();
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [baseTurn(turnId, [agentMessage(itemId, source)])]),
+      ),
+    );
+    await verifyOverflow();
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
+test("preserves the original inline math baseline and full formula height", async () => {
+  const { store } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-math-baseline", [
+          agentMessage(
+            "agent-math-baseline",
+            String.raw`Before $x^2$ after.
+
+Before $x_2$ after.
+
+Before $\dfrac{1}{\dfrac{1}{x^2}}$ after.
+
+Before $\theta_1=\theta_2$ after.
+
+Before $\boxed{\alpha=\beta}$ after.`,
+          ),
+        ]),
+      ]),
+    ),
+  );
+  await expect.poll(() => document.querySelectorAll(".katex").length).toBe(5);
+  await document.fonts.ready;
+  const container = document.querySelector("[data-assistant-math]");
+  assert(container);
+  for (const formula of document.querySelectorAll<HTMLElement>(".katex")) {
+    expect(formula.scrollWidth).toBeLessThanOrEqual(formula.clientWidth);
+    const paragraph = formula.closest("p");
+    assert(paragraph?.firstChild);
+    const proseRange = document.createRange();
+    proseRange.selectNodeContents(paragraph.firstChild);
+    const mathBody = formula.querySelector<HTMLElement>(".katex-html > .base");
+    assert(mathBody);
+    const baselineOffset = () =>
+      mathBody.getBoundingClientRect().bottom - proseRange.getBoundingClientRect().bottom;
+    const offset = baselineOffset();
+    const height = mathBody.getBoundingClientRect().height;
+    expect(formula.clientHeight).toBeGreaterThanOrEqual(Math.floor(height));
+    expect(mathBody.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      formula.getBoundingClientRect().top - 1,
+    );
+    expect(mathBody.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      formula.getBoundingClientRect().bottom + 1,
+    );
+    container.removeAttribute("data-assistant-math");
+    const originalOffset = baselineOffset();
+    const originalHeight = mathBody.getBoundingClientRect().height;
+    container.setAttribute("data-assistant-math", "true");
+    expect(Math.abs(offset - originalOffset)).toBeLessThanOrEqual(1);
+    expect(height).toBe(originalHeight);
+  }
+});
 
 test("renders an empty committed transcript region", async () => {
   const screen = await renderTranscriptWithProviders(
@@ -318,6 +481,317 @@ test("renders assistant transcript markdown", async () => {
   expect(allowedLink?.textContent).toContain("Allowed link");
 });
 
+test("renders dollar math with semantic output and loaded fonts in assistant history", async () => {
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-math", [
+          userMessage("user-math", [textInput("Keep $x^2$ literal")]),
+          agentMessage("agent-math", "Inline $x^2$ and $$y^2$$.\n\n$$\n\\frac{1}{2}\n$$"),
+        ]),
+      ]),
+    ),
+  );
+  await expect.element(screen.getByText("Keep $x^2$ literal")).toBeVisible();
+  await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(3);
+  expect(document.querySelectorAll(".katex-display")).toHaveLength(1);
+  expect(document.querySelector("math mfrac")).not.toBeNull();
+  expect(document.querySelector("math msup")).not.toBeNull();
+  const fonts = await document.fonts.load("16px KaTeX_Main");
+  expect(fonts.length).toBeGreaterThan(0);
+  expect(fonts.every((font) => font.status === "loaded")).toBe(true);
+});
+
+test("renders backslash geometry and algebra alongside dollar math in assistant history", async () => {
+  const { store } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-backslash-math", [
+          agentMessage(
+            "agent-backslash-math",
+            String.raw`角度 \(\angle ABC = 90^\circ\)，且 \(AB \perp BC\)。前文 \[\frac{x_1^2}{2}\] 后文。
+
+$y^2$
+
+$$
+z^2
+$$`,
+          ),
+        ]),
+      ]),
+    ),
+  );
+  await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(5);
+  expect(document.querySelectorAll(".katex-display")).toHaveLength(2);
+  expect(document.querySelector(".katex-display math mfrac")).not.toBeNull();
+  expect(document.querySelector("math msubsup")).not.toBeNull();
+  expect(document.querySelector(".katex-error")).toBeNull();
+});
+
+test.each(["\n", "\r\n"])(
+  "renders backslash delimiters across live deltas, completion and history with %j",
+  async (lineEnding) => {
+    const { store } = await renderTranscriptWithProviders(
+      transcriptIdentity,
+      <CommittedTranscriptSurface identity={transcriptIdentity} />,
+    );
+    const turnId = "turn-live-backslash";
+    const itemId = "agent-live-backslash";
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "backslash-start",
+          turnId,
+          agentMessage(itemId, ""),
+        ),
+        replay: "live",
+      }),
+    );
+    const append = (delta: string) =>
+      store.dispatch(
+        threadRuntimeDeltasAccepted({
+          notifications: [
+            agentMessageDelta(
+              eventAgentMessageDelta,
+              turnId,
+              itemId,
+              delta.replaceAll("\n", lineEnding),
+            ),
+          ],
+        }),
+      );
+    append("# Opening\n\nFirst paragraph\n\nSecond paragraph\n\nInline \\");
+    await expect
+      .poll(
+        () => document.querySelector(".committed-transcript-live-assistant-message")?.textContent,
+      )
+      .toContain("Inline");
+    append("(x^2");
+    await expect
+      .poll(
+        () => document.querySelector(".committed-transcript-live-assistant-message")?.textContent,
+      )
+      .toContain("x^2");
+    expect(document.querySelector(".katex")).toBeNull();
+    append("\\");
+    append(")\n\n\\");
+    await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(1);
+    append("[\nx\n=\ny");
+    await expect
+      .poll(
+        () => document.querySelector(".committed-transcript-live-assistant-message")?.textContent,
+      )
+      .toContain("y");
+    expect(document.querySelectorAll(".katex math")).toHaveLength(1);
+    append("\n\\");
+    append("]\n\nDone");
+    await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(2);
+    expect(document.querySelectorAll(".katex-display")).toHaveLength(1);
+    const source =
+      "# Opening\n\nFirst paragraph\n\nSecond paragraph\n\nInline \\(x^2\\)\n\n\\[\nx\n=\ny\n\\]\n\nDone".replaceAll(
+        "\n",
+        lineEnding,
+      );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "backslash-complete",
+          turnId,
+          agentMessage(itemId, source),
+        ),
+        replay: "live",
+      }),
+    );
+    await expect
+      .poll(() => document.querySelector(".committed-transcript-live-assistant-message"))
+      .toBeNull();
+    await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(2);
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [baseTurn(turnId, [agentMessage(itemId, source)])]),
+      ),
+    );
+    await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(2);
+    expect(
+      document
+        .querySelector(".katex-display annotation")
+        ?.textContent.trim()
+        .replaceAll("\r\n", "\n"),
+    ).toBe("x\n=\ny");
+  },
+);
+
+test.each(["history", "live"] as const)(
+  "preserves code, escapes, links and non-assistant math in %s",
+  async (mode) => {
+    const { store, ...screen } = await renderTranscriptWithProviders(
+      transcriptIdentity,
+      <CommittedTranscriptSurface identity={transcriptIdentity} />,
+    );
+    const turnId = `turn-math-boundaries-${mode}`;
+    const source = [
+      String.raw`Valid \(z^2\). Ordinary (ordinary) and [ordinary]. Escaped \\(literal\\) and \\[literal\\].`,
+      "Use `\\(inline\\)` and ``\\[inline-block\\]``.",
+      "```text\n\\(fenced\\)\n\\[fenced-block\\]\n```",
+      "    \\[indented\\]",
+      String.raw`[target](https://example.com/\(path\) "\(title\)")`,
+      String.raw`[reference][math-link]
+
+[math-link]: https://example.com/\[reference\]`,
+      "| Value |\n| --- |\n| \\(t^2\\) |",
+    ].join("\n\n");
+    const userSource = String.raw`User \(x\) \[y\] $z$ $$w$$`;
+    const reasoningSource = String.raw`Reasoning \(x\) \[y\] $z$ $$w$$`;
+    const itemId = `agent-boundaries-${mode}`;
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn(turnId, [
+            userMessage(`user-${mode}`, [textInput(userSource)]),
+            reasoningItem(`reasoning-${mode}`, [reasoningSource]),
+            ...(mode === "history" ? [agentMessage(itemId, source)] : []),
+          ]),
+        ]),
+      ),
+    );
+    if (mode === "live") {
+      store.dispatch(
+        threadRuntimeEventBuffered({
+          notification: itemStarted(
+            eventItemStarted,
+            "boundaries-start",
+            turnId,
+            agentMessage(itemId, ""),
+          ),
+          replay: "live",
+        }),
+      );
+      store.dispatch(
+        threadRuntimeDeltasAccepted({
+          notifications: [agentMessageDelta(eventAgentMessageDelta, turnId, itemId, source)],
+        }),
+      );
+    }
+    await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(2);
+    expect(document.querySelector("table math msup")).not.toBeNull();
+    expect(document.querySelectorAll(".katex-display")).toHaveLength(0);
+    await expect
+      .element(screen.getByText(/Escaped/))
+      .toHaveTextContent(String.raw`Escaped \(literal\) and \[literal\].`);
+    await expect.element(screen.getByText("\\(inline\\)", { exact: true })).toBeVisible();
+    await expect.element(screen.getByText("\\[inline-block\\]", { exact: true })).toBeVisible();
+    await expect.element(screen.getByText("\\(fenced\\)", { exact: true })).toBeVisible();
+    await expect.element(screen.getByText("\\[fenced-block\\]", { exact: true })).toBeVisible();
+    expect(
+      Array.from(document.querySelectorAll("pre"))
+        .map((node) => node.textContent)
+        .join("\n"),
+    ).toContain("\\[indented\\]");
+    await expect
+      .element(screen.getByRole("link", { name: "target", exact: true }))
+      .toHaveAttribute("href", "https://example.com/(path)");
+    await expect
+      .element(screen.getByRole("link", { name: "target", exact: true }))
+      .toHaveAttribute("title", "(title)");
+    // Streamdown parses live blocks independently; this definition is in another block.
+    const reference = screen.getByText(
+      mode === "history" ? "reference" : "[reference][math-link]",
+      { exact: true },
+    );
+    await expect.element(reference).toBeVisible();
+    expect(reference.element().getAttribute("href")).toBe(
+      mode === "history" ? "https://example.com/%5Breference%5D" : null,
+    );
+    await expect.element(screen.getByText(userSource)).toBeVisible();
+    await screen.getByRole("button", { name: /Intermediate updates/ }).click();
+    await expect.element(screen.getByText("Reasoning (x) [y] $z$ $$w$$")).toBeVisible();
+    expect(document.querySelector(".committed-transcript-entry-reasoning .katex")).toBeNull();
+  },
+);
+
+test.each(["history", "live"] as const)(
+  "preserves multiline math containers and unfinished markdown in %s",
+  async (mode) => {
+    const { store, ...screen } = await renderTranscriptWithProviders(
+      transcriptIdentity,
+      <CommittedTranscriptSurface identity={transcriptIdentity} />,
+    );
+    const turnId = `turn-math-containers-${mode}`;
+    const itemId = `agent-math-containers-${mode}`;
+    const source = String.raw`> \[
+> \frac{1}{2}
+>
+> + x^2
+> \]
+
+- Explanation
+
+  \[
+  y_1^2
+  \] **After formula**
+
+Before invalid \(\frac{1}\) after invalid.
+
+\[
+unfinished
+
+**Still readable**`;
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(
+          attachBaseline,
+          mode === "history" ? [baseTurn(turnId, [agentMessage(itemId, source)])] : [],
+        ),
+      ),
+    );
+    if (mode === "live") {
+      store.dispatch(
+        threadRuntimeEventBuffered({
+          notification: itemStarted(
+            eventItemStarted,
+            "containers-start",
+            turnId,
+            agentMessage(itemId, ""),
+          ),
+          replay: "live",
+        }),
+      );
+      store.dispatch(
+        threadRuntimeDeltasAccepted({
+          notifications: [agentMessageDelta(eventAgentMessageDelta, turnId, itemId, source)],
+        }),
+      );
+    }
+    await expect.poll(() => document.querySelectorAll(".katex-display").length).toBe(2);
+    expect(document.querySelector("blockquote math mfrac")).not.toBeNull();
+    expect(document.querySelector("li math msubsup")).not.toBeNull();
+    const annotations = Array.from(document.querySelectorAll(".katex-display annotation")).map(
+      (node) => node.textContent.trim(),
+    );
+    expect(annotations).toEqual(["\\frac{1}{2}\n\n+ x^2", "y_1^2"]);
+    await expect.element(screen.getByText("After formula", { exact: true })).toBeVisible();
+    await expect
+      .element(screen.getByText("After formula", { exact: true }))
+      .toHaveAttribute("data-streamdown", "strong");
+    await expect.poll(() => document.querySelector(".katex-error")?.textContent).toBe("\\frac{1}");
+    await expect.element(screen.getByText("Still readable", { exact: true })).toBeVisible();
+    await expect
+      .element(screen.getByText("Still readable", { exact: true }))
+      .toHaveAttribute("data-streamdown", "strong");
+  },
+);
+
 test("keeps user markdown syntax as plain text", async () => {
   const { store, ...screen } = await renderTranscriptWithProviders(
     transcriptIdentity,
@@ -339,6 +813,92 @@ test("keeps user markdown syntax as plain text", async () => {
   await expect
     .element(screen.getByRole("heading", { name: "User heading" }))
     .not.toBeInTheDocument();
+});
+
+test("preserves default math completion while assistant deltas settle into history", async () => {
+  const { store } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
+  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  const turnId = "turn-streaming-math";
+  const itemId = "agent-streaming-math";
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemStarted(eventItemStarted, "math-start", turnId, agentMessage(itemId, "")),
+      replay: "live",
+    }),
+  );
+  const append = (delta: string) =>
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [agentMessageDelta(eventAgentMessageDelta, turnId, itemId, delta)],
+      }),
+    );
+  append("Single $x^2");
+  await expect
+    .poll(() => document.querySelector(".committed-transcript-live-assistant-message")?.textContent)
+    .toContain("$x^2");
+  expect(document.querySelector(".katex")).toBeNull();
+  append("$\n\n$$\ny^2");
+  await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(2);
+  expect(document.querySelectorAll(".katex-display")).toHaveLength(1);
+  append("\n$$\n\nDone");
+  await expect
+    .poll(() => document.querySelector(".committed-transcript-live-assistant-message")?.textContent)
+    .toContain("Done");
+  const source = "Single $x^2$\n\n$$\ny^2\n$$\n\nDone";
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "math-completed",
+        turnId,
+        agentMessage(itemId, source),
+      ),
+      replay: "live",
+    }),
+  );
+  await expect
+    .poll(() => document.querySelector(".committed-transcript-live-assistant-message"))
+    .toBeNull();
+  await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(2);
+  expect(document.querySelectorAll(".katex-display")).toHaveLength(1);
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [baseTurn(turnId, [agentMessage(itemId, source)])]),
+    ),
+  );
+  await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(2);
+});
+
+test("keeps reasoning and code literal and leaves invalid math readable", async () => {
+  const { store, ...screen } = await renderTranscriptWithProviders(
+    transcriptIdentity,
+    <CommittedTranscriptSurface identity={transcriptIdentity} />,
+  );
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-math-boundaries", [
+          reasoningItem("reasoning-math", ["Reasoning $x^2$ and $$y^2$$"]),
+          agentMessage(
+            "agent-math-boundaries",
+            "Use `$x^2$`.\n\n```text\n$$y^2$$\n```\n\nBefore $\\frac{1}$ after.\n\n| Value |\n| --- |\n| $z^2$ |",
+          ),
+        ]),
+      ]),
+    ),
+  );
+  await screen.getByRole("button", { name: /Intermediate updates/ }).click();
+  await expect.element(screen.getByText("Reasoning $x^2$ and $$y^2$$")).toBeVisible();
+  expect(document.querySelector(".committed-transcript-entry-reasoning .katex")).toBeNull();
+  await expect.poll(() => document.querySelector(".katex-error")?.textContent).toBe("\\frac{1}");
+  await expect.element(screen.getByText(/Before/)).toBeVisible();
+  await expect.element(screen.getByText(/after\./)).toBeVisible();
+  expect(document.querySelector("p code")?.textContent).toBe("$x^2$");
+  expect(document.querySelector("pre")?.textContent).toContain("$$y^2$$");
+  expect(document.querySelector("table math msup")).not.toBeNull();
 });
 
 test("keeps raw html and images inactive while allowing markdown links", async () => {

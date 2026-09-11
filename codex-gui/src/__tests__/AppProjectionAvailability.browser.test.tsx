@@ -1,4 +1,5 @@
 import { beforeEach, expect, test, vi } from "vitest";
+import { page } from "vitest/browser";
 import { useEffect } from "react";
 import {
   attachResponse,
@@ -311,6 +312,66 @@ test("App retains transcript and draft read-only after a normal host close", asy
   expect(startGuiHostConnectionMock).toHaveBeenCalledTimes(1);
   expect(commandHandle.startTurn).not.toHaveBeenCalled();
 });
+
+test.each([
+  [390, false],
+  [1280, false],
+  [390, true],
+  [1280, true],
+] as const)(
+  "App aligns retained task regions after host close at %s pixels with messages %s",
+  async (width, hasMessages) => {
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    try {
+      await page.viewport(width, 900);
+      const screen = await renderWithProviders(<App />);
+      const options = getHostOptions(startGuiHostConnectionMock);
+      initializeAppWithProjection(
+        options,
+        hasMessages ? attachWithCommittedMessages() : attachResponse,
+      );
+      await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
+      options.onCommandsUnavailable?.();
+      options.onStatus?.({ label: "closed" });
+
+      const connectionTitle = screen.getByText("Connection closed", { exact: true });
+      const taskTitle = screen.getByText("Task updates are paused", { exact: true });
+      await expect.element(connectionTitle).toBeVisible();
+      await expect.element(taskTitle).toBeVisible();
+      const connection = connectionTitle.element().closest('[role="status"], [role="alert"]');
+      const task = taskTitle.element().closest('[role="status"], [role="alert"]');
+      const panel = screen
+        .getByRole("region", { name: "Message composer" })
+        .element()
+        .querySelector(".composer-frame");
+      if (connection == null || task == null || panel == null) {
+        throw new Error("Expected both recovery notices and the composer frame");
+      }
+      const transcript = screen.getByRole("region", { name: "Committed transcript" }).element();
+      const boundary = transcript.getBoundingClientRect();
+      for (const element of [connection, task, panel]) {
+        const rect = element.getBoundingClientRect();
+        expect(Math.abs(rect.left - boundary.left)).toBeLessThanOrEqual(1);
+        expect(Math.abs(rect.right - boundary.right)).toBeLessThanOrEqual(1);
+      }
+      expect(
+        task.getBoundingClientRect().top - connection.getBoundingClientRect().bottom,
+      ).toBeCloseTo(12, 0);
+      expect(boundary.top - task.getBoundingClientRect().bottom).toBeCloseTo(12, 0);
+      const firstContent = transcript.firstElementChild;
+      if (firstContent == null) throw new Error("Expected visible transcript content");
+      expect(
+        firstContent.getBoundingClientRect().top - task.getBoundingClientRect().bottom,
+      ).toBeCloseTo(12, 0);
+      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width);
+      await expect
+        .element(screen.getByRole("button", { name: "Restore task", exact: true }))
+        .toBeDisabled();
+    } finally {
+      await page.viewport(viewport.width, viewport.height);
+    }
+  },
+);
 
 test("App retains projection failure diagnostics when the host connection closes", async () => {
   const { options, screen } = await renderReadyApp();

@@ -185,6 +185,7 @@ test("App issues steer inputs in the authoritative suffix order selected through
     readThread: 0,
     resumeThread: 1,
     startThread: 0,
+    forkThread: 0,
     detachThreadProjection: 0,
     startTurn: 0,
     steerTurn: 1,

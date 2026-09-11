@@ -62,6 +62,15 @@ Use `$codex-gui-toolchain` to select and run frontend formatters, package script
 - Prefer chunk-level selectors and chunk-level React components for transcript hot paths. Unchanged chunks should keep stable selector results and avoid re-rendering old entries when new entries append to later chunks.
 - Performance verification must target a measurable risk. Regression coverage should encode a stable constraint; the existence of a test or issue note does not by itself establish that the rendering path is performant.
 
+## Filtered Test Execution
+
+- Default to filtered frontend tests for local development and verification. Select test files from the changed behavior, its consumers, and relevant regression coverage; do not run the entire unit, Browser, E2E, or `ci` suite after every edit.
+- Pass explicit test file paths to the repository-owned scripts through the fnm environment defined by `$codex-gui-toolchain`. For focused diagnosis, additionally use Vitest `-t` to match the full test name (including `describe` names) with a regular expression. Before completing a behavior change, run the affected test files without the name filter so neighboring regressions remain covered.
+- From `codex-gui`, use `/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit <test-file>` for unit tests. For Browser tests, use `/opt/homebrew/bin/fnm exec --using-file pnpm run test:browser:parallel --run <test-file>` or `test:browser:sequential` for files under `src/__tests__/sequential/**`. Do not insert an extra `--` between the script name and its arguments. Do not pass filters to the aggregate `test:browser` script; select the applicable child script directly.
+- Check the actual collected files, executed test count, and skipped tests. Zero matching tests is not a pass; unexpected full-suite collection means the filter must be corrected before continuing. Report the scope actually verified.
+- Broaden testing only when the affected dependency or shared setup/configuration requires it, a failure or new evidence warrants it, or the user or an applicable mandatory gate explicitly requires it. Explain the reason and choose the smallest scope covering that impact. After the relevant checks pass, do not repeat or broaden them without new changes or unresolved evidence.
+- Filtering selects execution scope; it does not authorize deleting coverage, adding `.only` or `.skip`, weakening assertions, suppressing failures, reducing required browser coverage, or changing CI gates. Required type checks, lint, generation checks, and applicable GUI acceptance remain governed by their existing rules.
+
 ## Test Fixture Invariants
 
 - For legal projection protocol payloads in frontend tests, prefer the shared fixtures and builders in `src/features/projection/__tests__/projectionFixtures.ts` and `src/features/projection/__tests__/projectionTestBuilders.ts` over hand-written protocol objects.

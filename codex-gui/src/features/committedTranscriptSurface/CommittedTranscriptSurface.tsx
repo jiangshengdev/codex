@@ -5,26 +5,46 @@ import { CommittedTranscriptTurnFragment } from "./CommittedTranscriptTurnFragme
 import { CommittedTranscriptSurfaceRenderer } from "./CommittedTranscriptSurfaceRenderer";
 import { TranscriptReadProvider } from "./TranscriptReadProvider";
 import type { TranscriptReadTarget } from "./TranscriptReadContext";
+import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
+import { ThreadForkSourceContext } from "@/features/threadFork/ThreadForkContext";
 
 export const CommittedTranscriptSurface = ({
   identity,
-}: Readonly<{ identity: ActiveThreadSessionIdentity }>) => {
+  turnPosition = null,
+  positionCompleted = false,
+  onPositionComplete,
+}: Readonly<{
+  identity: ActiveThreadSessionIdentity;
+  turnPosition?: TurnPositionRequest | null;
+  positionCompleted?: boolean;
+  onPositionComplete?: (request: TurnPositionRequest) => void;
+}>) => {
   const target = useMemo<TranscriptReadTarget>(() => ({ kind: "live", identity }), [identity]);
   return (
-    <TranscriptReadProvider target={target}>
-      <CommittedTranscriptSurfaceRenderer
-        key={identity.instanceId}
-        subscriptionInterruptionHandled
-        turnFragmentRenderer={CommittedTranscriptTurnFragment}
-      />
-    </TranscriptReadProvider>
+    <ThreadForkSourceContext value={identity.threadId}>
+      <TranscriptReadProvider target={target}>
+        <CommittedTranscriptSurfaceRenderer
+          key={identity.instanceId}
+          turnPosition={turnPosition}
+          positionCompleted={positionCompleted}
+          onPositionComplete={onPositionComplete}
+          subscriptionInterruptionHandled
+          turnFragmentRenderer={CommittedTranscriptTurnFragment}
+        />
+      </TranscriptReadProvider>
+    </ThreadForkSourceContext>
   );
 };
 
 export const ReadOnlyCommittedTranscriptSurface = ({
   surfaceKey,
   transcriptState,
-}: Readonly<{ surfaceKey: string; transcriptState: TranscriptState }>) => {
+  turnPosition = null,
+}: Readonly<{
+  surfaceKey: string;
+  transcriptState: TranscriptState;
+  turnPosition?: TurnPositionRequest | null;
+}>) => {
   const target = useMemo<TranscriptReadTarget>(
     () => ({ kind: "fixed", transcriptState }),
     [transcriptState],
@@ -33,6 +53,7 @@ export const ReadOnlyCommittedTranscriptSurface = ({
     <TranscriptReadProvider target={target}>
       <CommittedTranscriptSurfaceRenderer
         key={surfaceKey}
+        turnPosition={turnPosition}
         subscriptionInterruptionHandled={false}
         turnFragmentRenderer={CommittedTranscriptTurnFragment}
       />

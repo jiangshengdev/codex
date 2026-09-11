@@ -190,100 +190,102 @@ export function ComposerTurnControl({
       className="composer-shell task-bottom-shell sticky bottom-0 z-10"
       ref={composerShellRef}
     >
-      <Surface
-        aria-disabled={!controlView.operationsEnabled}
-        className="composer-panel task-reading-boundary task-bottom-panel relative grid gap-2 transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none [&:has([contenteditable]:focus)]:bg-field-focus [&:has([contenteditable]:focus)]:status-focused-field [&:has([contenteditable]:focus)]:[border-color:var(--field-border-focus)] [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:bg-field-hover [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:[border-color:var(--field-border-hover)] data-[disabled=true]:status-disabled"
-        data-disabled={!controlView.operationsEnabled}
-        data-focus-visible={composerFocusVisible}
-        variant="default"
-      >
-        <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
-        <ComposerEditor
-          key={sessionSnapshot.identity.instanceId}
-          ariaLabel={t`Message Codex`}
-          disabled={!controlView.operationsEnabled}
-          guardCompositionEndEnter={guardCompositionEndEnter}
-          onControllerChange={setComposerEditorController}
-          initialDraft={initialDraft}
-          onDraftChange={saveDraft}
-          onRetrySkillCatalog={() => {
-            skillsRole.retrySkills(revision);
-          }}
-          onSubmit={submit}
-          placeholder={t`Message Codex`}
-          skillCatalog={skillCatalog}
-          skillMenuParent={skillMenuParent}
-          skillValidity={skillValidity}
-        />
-        <ComposerPersistenceStatus sessionSnapshot={sessionSnapshot} />
-        <ComposerPendingInputRegion
-          canRecover={controlView.recoverEnabled}
-          composerRole={composerRole}
-          guardCompositionEndEnter={guardCompositionEndEnter}
-          mutationsEnabled={controlView.operationsEnabled}
-          onFocusComposer={focusComposer}
-          onRecover={recover}
-          onRetrySkillCatalog={() => {
-            skillsRole.retrySkills(revision);
-          }}
-          recoveryDescriptionId={recoveryDescriptionId}
-          sessionRevision={revision}
-          skillCatalog={skillCatalog}
-          snapshot={queueSnapshot}
-          pendingInputSession={pendingInputSession}
-          pendingInputSnapshot={pendingInputSnapshot}
-          triggerRef={pendingTriggerRef}
-        />
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="composer-footer-left flex shrink-0 items-center gap-2">
-            <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
-            <CurrentThreadStatus status={sessionSnapshot.threadStatus} />
+      <Surface className="composer-frame" variant="secondary">
+        <Surface
+          aria-disabled={!controlView.operationsEnabled}
+          className="composer-panel task-bottom-panel composer-field grid gap-2"
+          data-disabled={!controlView.operationsEnabled}
+          data-focus-visible={composerFocusVisible}
+          variant="default"
+        >
+          <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
+          <ComposerEditor
+            key={sessionSnapshot.identity.instanceId}
+            ariaLabel={t`Message Codex`}
+            disabled={!controlView.operationsEnabled}
+            guardCompositionEndEnter={guardCompositionEndEnter}
+            onControllerChange={setComposerEditorController}
+            initialDraft={initialDraft}
+            onDraftChange={saveDraft}
+            onRetrySkillCatalog={() => {
+              skillsRole.retrySkills(revision);
+            }}
+            onSubmit={submit}
+            placeholder={t`Message Codex`}
+            skillCatalog={skillCatalog}
+            skillMenuParent={skillMenuParent}
+            skillValidity={skillValidity}
+          />
+          <ComposerPersistenceStatus sessionSnapshot={sessionSnapshot} />
+          <ComposerPendingInputRegion
+            canRecover={controlView.recoverEnabled}
+            composerRole={composerRole}
+            guardCompositionEndEnter={guardCompositionEndEnter}
+            mutationsEnabled={controlView.operationsEnabled}
+            onFocusComposer={focusComposer}
+            onRecover={recover}
+            onRetrySkillCatalog={() => {
+              skillsRole.retrySkills(revision);
+            }}
+            recoveryDescriptionId={recoveryDescriptionId}
+            sessionRevision={revision}
+            skillCatalog={skillCatalog}
+            snapshot={queueSnapshot}
+            pendingInputSession={pendingInputSession}
+            pendingInputSnapshot={pendingInputSnapshot}
+            triggerRef={pendingTriggerRef}
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="composer-footer-left flex shrink-0 items-center gap-2">
+              <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
+              <CurrentThreadStatus status={sessionSnapshot.threadStatus} />
+            </div>
+            <div className="flex items-center gap-2">
+              <ContextUsagePopover
+                compaction={compaction}
+                onRequestCompaction={requestCompaction}
+                usage={contextUsage}
+              />
+              {controlView.stop.failed ? (
+                <span className="text-sm text-danger" role="status">
+                  <Trans>Stop failed</Trans>
+                </span>
+              ) : null}
+              <Button
+                isDisabled={!controlView.stop.enabled}
+                isPending={controlView.stop.pending}
+                onPress={stop}
+                variant="danger-soft"
+              >
+                <Trans>Stop</Trans>
+              </Button>
+              {controlView.guide.visible ? (
+                <Tooltip delay={0}>
+                  <Button
+                    render={(props) => <button {...props} aria-keyshortcuts={guideShortcut.aria} />}
+                    isDisabled={!controlView.guide.buttonEnabled}
+                    onPress={() => {
+                      submit(undefined, "guide");
+                    }}
+                    variant="secondary"
+                  >
+                    <Trans>Guide</Trans>
+                  </Button>
+                  <Tooltip.Content>{guideShortcut.visible}</Tooltip.Content>
+                </Tooltip>
+              ) : null}
+              <Button
+                isDisabled={!controlView.sendEnabled}
+                onPress={() => {
+                  submit();
+                }}
+                variant="outline"
+              >
+                <Trans>Send</Trans>
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <ContextUsagePopover
-              compaction={compaction}
-              onRequestCompaction={requestCompaction}
-              usage={contextUsage}
-            />
-            {controlView.stop.failed ? (
-              <span className="text-sm text-danger" role="status">
-                <Trans>Stop failed</Trans>
-              </span>
-            ) : null}
-            <Button
-              isDisabled={!controlView.stop.enabled}
-              isPending={controlView.stop.pending}
-              onPress={stop}
-              variant="danger-soft"
-            >
-              <Trans>Stop</Trans>
-            </Button>
-            {controlView.guide.visible ? (
-              <Tooltip delay={0}>
-                <Button
-                  render={(props) => <button {...props} aria-keyshortcuts={guideShortcut.aria} />}
-                  isDisabled={!controlView.guide.buttonEnabled}
-                  onPress={() => {
-                    submit(undefined, "guide");
-                  }}
-                  variant="secondary"
-                >
-                  <Trans>Guide</Trans>
-                </Button>
-                <Tooltip.Content>{guideShortcut.visible}</Tooltip.Content>
-              </Tooltip>
-            ) : null}
-            <Button
-              isDisabled={!controlView.sendEnabled}
-              onPress={() => {
-                submit();
-              }}
-              variant="outline"
-            >
-              <Trans>Send</Trans>
-            </Button>
-          </div>
-        </div>
+        </Surface>
       </Surface>
     </section>
   );

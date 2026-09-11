@@ -212,7 +212,12 @@ function recoveryCount(batch: RecoveryBatch | null): number {
     case "steerDefinitelyNotAccepted":
       return batch.transfer.intents.length;
     case "userStopped":
-      return (batch.rejected?.entries.length ?? 0) + batch.messages.length;
+      return (
+        (batch.rejected?.entries.length ?? 0) +
+        batch.messages.length +
+        (batch.steerRecoveries?.reduce((count, transfer) => count + transfer.intents.length, 0) ??
+          0)
+      );
   }
 }
 
@@ -928,9 +933,10 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       switch (effect.type) {
         case "recover":
           if (this.recovery != null) {
-            throw new Error("Composer input queue produced a second recovery batch");
+            this.recovery = this.queue.mergeRecovery(this.recovery, effect.batch);
+          } else {
+            this.recovery = effect.batch;
           }
-          this.recovery = effect.batch;
           this.deferredEffects = [...effects.slice(index + 1), ...this.deferredEffects];
           return;
         case "performStart":
@@ -1063,10 +1069,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     turnId: Turn["id"],
     disposition: ComposerInterruptedDisposition,
   ): void {
-    if (this.recovery != null) {
-      if (this.recovery.reason !== "steerDefinitelyNotAccepted") {
-        throw new Error("Interrupted terminal conflicts with non-steer recovery");
-      }
+    if (this.recovery?.reason === "steerDefinitelyNotAccepted") {
       const restored = this.queue.restoreSteerRecovery(this.recovery.transfer);
       if (
         restored.result.type !== "applied" ||

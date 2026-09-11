@@ -10,6 +10,7 @@ pub fn is_allowed_client_request_method(method: &str) -> bool {
             | "thread/read"
             | "thread/resume"
             | "thread/start"
+            | "thread/fork"
             | "thread/loaded/list"
             | "turn/start"
             | "turn/steer"
@@ -46,6 +47,7 @@ mod tests {
         assert!(is_allowed_client_request_method("thread/read"));
         assert!(is_allowed_client_request_method("thread/resume"));
         assert!(is_allowed_client_request_method("thread/start"));
+        assert!(is_allowed_client_request_method("thread/fork"));
         assert!(is_allowed_client_request_method("thread/loaded/list"));
         assert!(is_allowed_client_request_method("turn/start"));
         assert!(is_allowed_client_request_method("turn/steer"));

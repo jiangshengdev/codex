@@ -195,6 +195,7 @@ export type UserStoppedRecoveryBatch = Readonly<{
   reason: "userStopped";
   rejected: RejectedSteerTransfer | null;
   messages: readonly ComposerQueueMessage[];
+  steerRecoveries?: readonly SteerRecoveryTransfer[];
 }>;
 
 export type RecoveryBatch =

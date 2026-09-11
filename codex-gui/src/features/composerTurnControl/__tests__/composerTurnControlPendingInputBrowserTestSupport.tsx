@@ -121,8 +121,7 @@ export const createQueueControllerHarness = (
       const sortableItems = laneItems.filter(({ management }) => management.type === "manageable");
       const items = laneItems
         .slice(offset, offset + request.limit)
-        .map(({ detailText, ...item }) => {
-          void detailText;
+        .map(({ detailText: _detailText, ...item }) => {
           const position = sortableItems.findIndex(({ key }) => key === item.key);
           return {
             ...item,

@@ -3,6 +3,7 @@ import type { PersistedComposerDraft } from "@/features/composerEditor/composerE
 
 import {
   createComposerInputQueue,
+  upgradeComposerInputQueueState,
   type ComposerInputQueuePersistedState,
 } from "./composerInputQueue";
 import {
@@ -40,7 +41,8 @@ export function decodeComposerCoordinatorRecord(
   }
 
   const queue = createComposerInputQueue({ threadId, activeTurnId: null });
-  queue.rehydrateState(record.queue);
+  const upgradedQueue = upgradeComposerInputQueueState(record.queue);
+  queue.rehydrateState(upgradedQueue);
   const interrupt = decodePersistedComposerInterruptState(record.interrupt);
   if (
     (interrupt.pending !== null && interrupt.pending.params.threadId !== threadId) ||
@@ -53,7 +55,7 @@ export function decodeComposerCoordinatorRecord(
     version: 1,
     // The owner validated the stored data above. Keep its original phases here:
     // issuing becomes unknown only on live recovery, not during commit validation.
-    queue: record.queue as ComposerInputQueuePersistedState,
+    queue: upgradedQueue as ComposerInputQueuePersistedState,
     draft: record.draft as PersistedComposerDraft | null,
     interrupt,
     failedInterruptTurnId: record.failedInterruptTurnId,

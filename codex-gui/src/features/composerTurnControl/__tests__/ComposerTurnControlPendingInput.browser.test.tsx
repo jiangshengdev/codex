@@ -632,6 +632,12 @@ test("edits and deletes an ordinary pending message in one Drawer without changi
     exact: true,
   });
   await expect.element(pendingEditor).toHaveTextContent("Original queued message");
+  const pendingField = pendingEditor.element().closest('[data-slot="surface"]');
+  if (!(pendingField instanceof HTMLElement)) throw new Error("pending editor must have a surface");
+  expect(getComputedStyle(pendingField).borderRadius).toBe("20px");
+  expect(getComputedStyle(pendingField).padding).toBe("8px");
+  expect(getComputedStyle(pendingField).borderWidth).toBe("0px");
+  expect(getComputedStyle(pendingEditor.element()).minHeight).toBe("96px");
   const firstReservation = reservations.at(0);
   if (firstReservation == null) throw new Error("first edit must begin");
   const firstCancel = vi.spyOn(firstReservation, "cancel");

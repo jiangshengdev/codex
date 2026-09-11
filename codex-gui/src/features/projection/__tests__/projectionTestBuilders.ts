@@ -164,6 +164,11 @@ export const failedTurn = (
   error,
 });
 
+export const interruptedTurn = (id: string, items: ThreadItem[] = []): Turn => ({
+  ...baseTurn(id, items),
+  status: "interrupted",
+});
+
 export const turnWithItems = (turn: Turn, items: ThreadItem[]): Turn => ({
   ...turn,
   items,

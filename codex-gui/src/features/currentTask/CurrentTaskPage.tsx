@@ -24,6 +24,10 @@ import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
 import { ProjectionRecoveryNotice } from "./ProjectionRecoveryNotice";
 import { ConnectionTaskRecoveryNotice } from "./ConnectionTaskRecoveryNotice";
+import {
+  useTurnPositionRequest,
+  type TurnPositionRequest,
+} from "@/features/browserLaunch/useTurnPositionRequest";
 
 function isMacAppleWebKitRuntime(): boolean {
   return (
@@ -40,6 +44,8 @@ export function CurrentTaskPage() {
   const { activeThreadSession, authorizationToken, routeTarget, status, connectionRecovery } =
     useAppCapabilities();
   const routeThreadId = routeTarget.type === "currentTask" ? routeTarget.threadId : null;
+  const turnPosition = useTurnPositionRequest(routeTarget);
+  const [completedPosition, setCompletedPosition] = useState<TurnPositionRequest | null>(null);
   const requestScope = useMemo(
     () => ({
       activeThreadSession,
@@ -265,10 +271,7 @@ export function CurrentTaskPage() {
         </RetryActionButton>
       ) : null;
     return (
-      <main
-        className="app-shell-content-boundary space-y-3 py-3"
-        data-gui-host-status={status.label}
-      >
+      <main className="task-page" data-gui-host-status={status.label}>
         {retryError != null ? (
           <Alert role="alert" status="danger">
             <Alert.Indicator />
@@ -295,12 +298,12 @@ export function CurrentTaskPage() {
   }
 
   if (activeThreadSession == null || sessionPhase === "empty" || sessionPhase === "disposed") {
-    return <main className="app-shell-content-boundary py-3" data-gui-host-status={status.label} />;
+    return <main className="task-page" data-gui-host-status={status.label} />;
   }
 
   if (routeTarget.type !== "currentTask" || snapshot.threadId !== routeTarget.threadId) {
     return (
-      <main className="app-shell-content-boundary py-3" data-gui-host-status={status.label}>
+      <main className="task-page" data-gui-host-status={status.label}>
         <CurrentTaskLoading />
       </main>
     );
@@ -308,7 +311,7 @@ export function CurrentTaskPage() {
   if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") {
     if (snapshot.phase === "loading" && snapshot.error == null && retryError == null) {
       return (
-        <main className="app-shell-content-boundary py-3" data-gui-host-status={status.label}>
+        <main className="task-page" data-gui-host-status={status.label}>
           <CurrentTaskLoading />
         </main>
       );
@@ -342,10 +345,7 @@ export function CurrentTaskPage() {
       </RetryActionButton>
     );
     return (
-      <main
-        className="app-shell-content-boundary space-y-3 py-3"
-        data-gui-host-status={status.label}
-      >
+      <main className="task-page" data-gui-host-status={status.label}>
         {snapshot.error != null || retryError != null ? (
           <Alert role="alert" status="danger">
             <Alert.Indicator />
@@ -416,6 +416,9 @@ export function CurrentTaskPage() {
 
   return (
     <CurrentTaskReady
+      turnPosition={turnPosition}
+      positionCompleted={turnPosition === completedPosition}
+      onPositionComplete={setCompletedPosition}
       key={snapshot.identity.instanceId}
       identity={snapshot.identity}
       authorizationToken={authorizationToken}
@@ -493,6 +496,9 @@ export function CurrentTaskPage() {
 }
 
 type CurrentTaskReadyProps = Readonly<{
+  turnPosition: TurnPositionRequest | null;
+  positionCompleted: boolean;
+  onPositionComplete: (request: TurnPositionRequest) => void;
   identity: ActiveThreadSessionIdentity;
   authorizationToken: AppCapabilities["authorizationToken"];
   guardCompositionEndEnter: boolean;
@@ -502,6 +508,9 @@ type CurrentTaskReadyProps = Readonly<{
 }>;
 
 function CurrentTaskReady({
+  turnPosition,
+  positionCompleted,
+  onPositionComplete,
   identity,
   authorizationToken,
   guardCompositionEndEnter,
@@ -509,16 +518,21 @@ function CurrentTaskReady({
   status,
   notices,
 }: CurrentTaskReadyProps) {
-  const transcriptBottomRef = useCommittedTranscriptStickyBottom(identity.threadId);
+  const transcriptBottomRef = useCommittedTranscriptStickyBottom(
+    identity.threadId,
+    turnPosition == null || positionCompleted,
+  );
 
   return (
-    <main className="flex min-h-0 w-full flex-1 flex-col gap-4" data-gui-host-status={status.label}>
+    <main className="task-page" data-gui-host-status={status.label}>
       {notices}
-      <Surface
-        className="task-reading-boundary grid min-w-0 flex-1 content-start"
-        variant="transparent"
-      >
-        <CommittedTranscriptSurface identity={identity} />
+      <Surface className="grid min-w-0 flex-1 content-start" variant="transparent">
+        <CommittedTranscriptSurface
+          identity={identity}
+          turnPosition={turnPosition}
+          positionCompleted={positionCompleted}
+          onPositionComplete={onPositionComplete}
+        />
       </Surface>
       <div
         aria-hidden="true"
