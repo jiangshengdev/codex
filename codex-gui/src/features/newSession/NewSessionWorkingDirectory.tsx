@@ -18,10 +18,10 @@ export function NewSessionWorkingDirectory({ cwd }: Readonly<{ cwd: string }>) {
             comment: "Accessible name of the new-session directory button; opens the full path",
             message: `Working directory: ${directoryName}`,
           })}
-          className="max-w-full min-w-0 justify-start"
+          className="h-auto max-w-full min-w-0 justify-start gap-1 rounded-xl px-2 py-1 text-xs md:h-auto"
           variant="ghost"
         >
-          <Folder aria-hidden="true" className="size-4 shrink-0" />
+          <Folder aria-hidden="true" className="m-0 size-3 shrink-0 sm:my-0 sm:size-3" />
           <span className="truncate">{directoryName}</span>
         </Button>
         <Popover.Content className="max-w-[min(32rem,calc(100vw-24px))]" placement="top start">
