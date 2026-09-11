@@ -66,7 +66,13 @@ const groupTranscriptEntries = (
   return groups;
 };
 
-const MessageEntryBody = ({ rendering }: { rendering: TranscriptMessageRendering }) => {
+const MessageEntryBody = ({
+  rendering,
+  enableMath,
+}: {
+  rendering: TranscriptMessageRendering;
+  enableMath: boolean;
+}) => {
   switch (rendering.mode) {
     case "plainText":
       return (
@@ -78,9 +84,9 @@ const MessageEntryBody = ({ rendering }: { rendering: TranscriptMessageRendering
         </Typography>
       );
     case "staticMarkdown":
-      return <MarkdownText source={rendering.source} />;
+      return <MarkdownText enableMath={enableMath} source={rendering.source} />;
     case "streamingMarkdown":
-      return <LiveMarkdownText source={rendering.source} />;
+      return <LiveMarkdownText enableMath={enableMath} source={rendering.source} />;
   }
 
   const exhaustiveRendering: never = rendering;
@@ -191,7 +197,7 @@ export const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView 
           variant={isStreaming ? undefined : entry.role === "user" ? "secondary" : "default"}
         >
           <Card.Content className="grid min-w-0 gap-2">
-            <MessageEntryBody rendering={entry.rendering} />
+            <MessageEntryBody enableMath={entry.role === "assistant"} rendering={entry.rendering} />
           </Card.Content>
         </Card>
       );

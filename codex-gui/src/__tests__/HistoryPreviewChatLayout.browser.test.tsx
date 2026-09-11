@@ -34,8 +34,8 @@ beforeEach(() => {
   resetAppBrowserTestSupport(guiHostClientMock.startGuiHostConnection);
 });
 
-function requirePanel(container: HTMLElement): HTMLElement {
-  const panel = container.querySelector(".task-bottom-panel");
+function requirePanel(container: HTMLElement, selector: string): HTMLElement {
+  const panel = container.querySelector(selector);
   if (!(panel instanceof HTMLElement)) throw new Error("Expected a bottom action panel");
   return panel;
 }
@@ -89,7 +89,7 @@ test.each([
     window.scrollTo({ top: 0 });
     await expect.poll(() => window.scrollY).toBe(0);
 
-    const previewPanel = requirePanel(screen.container);
+    const previewPanel = requirePanel(screen.container, ".task-bottom-panel");
     const previewBounds = transcript.element().getBoundingClientRect();
     const previewCardBounds = previewPanel.getBoundingClientRect();
     expectAligned(previewBounds, previewCardBounds);
@@ -132,7 +132,7 @@ test.each([
     await userEvent.unhover(document.body);
     window.scrollTo({ top: 0 });
     await expect.poll(() => window.scrollY).toBe(0);
-    const chatPanel = requirePanel(screen.container);
+    const chatPanel = requirePanel(screen.container, ".composer-frame");
     const chatBounds = transcript.element().getBoundingClientRect();
     const chatCardBounds = chatPanel.getBoundingClientRect();
     expectAligned(chatBounds, chatCardBounds);

@@ -12,11 +12,13 @@ export const NEW_TASK_ROUTE_PATH = `/${NEW_TASK_PATH_SEGMENT}` as const;
 
 const threadIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export type TurnPosition = Readonly<{ turnId: string; position: "end" }>;
+
 export type GuiRouteTarget =
-  | Readonly<{ type: "currentTask"; threadId: string }>
+  | Readonly<{ type: "currentTask"; threadId: string; turnPosition?: TurnPosition }>
   | Readonly<{ type: "historyList" }>
   | Readonly<{ type: "newTask" }>
-  | Readonly<{ type: "historyDetail"; threadId: string }>;
+  | Readonly<{ type: "historyDetail"; threadId: string; turnPosition?: TurnPosition }>;
 
 type GuiRouteMatch = MakeRouteMatchUnion;
 
@@ -42,7 +44,14 @@ export function selectGuiRouteTarget(matches: readonly GuiRouteMatch[]): GuiRout
   switch (match.fullPath) {
     case CURRENT_TASK_ROUTE_PATH: {
       const threadId = threadIdFromParams(match.params);
-      return threadId == null ? null : { type: "currentTask", threadId };
+      const search = match.search;
+      return threadId == null
+        ? null
+        : {
+            type: "currentTask",
+            threadId,
+            ...(search.turnId != null ? { turnPosition: search } : {}),
+          };
     }
     case HISTORY_LIST_ROUTE_PATH:
       return { type: "historyList" };
@@ -50,7 +59,14 @@ export function selectGuiRouteTarget(matches: readonly GuiRouteMatch[]): GuiRout
       return { type: "newTask" };
     case HISTORY_DETAIL_ROUTE_PATH: {
       const threadId = threadIdFromParams(match.params);
-      return threadId == null ? null : { type: "historyDetail", threadId };
+      const search = match.search;
+      return threadId == null
+        ? null
+        : {
+            type: "historyDetail",
+            threadId,
+            ...(search.turnId != null ? { turnPosition: search } : {}),
+          };
     }
     default:
       return null;
@@ -62,6 +78,27 @@ export function validateEmptyRouteSearch(search: Record<string, unknown>): Recor
     throw new Error("Query parameters are not supported");
   }
   return {};
+}
+
+export function validateTurnPositionSearch(
+  search: Record<string, unknown>,
+): TurnPosition | Readonly<{ turnId?: never; position?: never }> {
+  const keys = Object.keys(search);
+  if (keys.length === 0) return {};
+  if (keys.some((key) => key !== "turnId" && key !== "position")) {
+    return validateEmptyRouteSearch(search);
+  }
+  if (
+    keys.length !== 2 ||
+    !keys.includes("turnId") ||
+    !keys.includes("position") ||
+    typeof search.turnId !== "string" ||
+    search.turnId.trim().length === 0 ||
+    search.position !== "end"
+  ) {
+    throw new Error("Invalid turn positioning parameters");
+  }
+  return { turnId: search.turnId, position: "end" };
 }
 
 export function isValidThreadId(value: unknown): value is string {

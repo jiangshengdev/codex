@@ -5,14 +5,17 @@ import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
+import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
 import { ReadOnlyCommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
 import { HistoryDetailDocumentTitleFactPublisher } from "@/features/documentTitle/DocumentTitleOwner";
 import { errorText } from "@/text/errorText";
 import { ContinueTaskAction } from "./ContinueTaskAction";
 import type { ThreadHistoryDetailState } from "./threadHistoryDetailOwner";
 import { resolveThreadHistoryPresentation } from "./threadHistoryPresentation";
+import { ThreadForkSourceContext } from "@/features/threadFork/ThreadForkContext";
 
 type ThreadHistoryDetailContentProps = Readonly<{
+  turnPosition?: TurnPositionRequest | null;
   activateThread: ActiveThreadSession["activate"] | null;
   authorizationToken: string | null;
   retry: (() => boolean | undefined) | null;
@@ -22,6 +25,7 @@ type ThreadHistoryDetailContentProps = Readonly<{
 }>;
 
 export function ThreadHistoryDetailContent({
+  turnPosition = null,
   activateThread,
   authorizationToken,
   retry,
@@ -60,11 +64,16 @@ export function ThreadHistoryDetailContent({
           <Trans>This task has no messages.</Trans>
         </Typography>
       ) : null}
-      {state.type === "ready" && state.thread.turns.length > 0 ? (
-        <ReadOnlyCommittedTranscriptSurface
-          surfaceKey={state.thread.id}
-          transcriptState={state.transcriptState}
-        />
+      {state.type === "ready" && (state.thread.turns.length > 0 || turnPosition != null) ? (
+        <div className="pt-3">
+          <ThreadForkSourceContext value={state.thread.id}>
+            <ReadOnlyCommittedTranscriptSurface
+              surfaceKey={state.thread.id}
+              transcriptState={state.transcriptState}
+              turnPosition={turnPosition}
+            />
+          </ThreadForkSourceContext>
+        </div>
       ) : null}
       {state.type === "ready" ? (
         <ContinueTaskAction

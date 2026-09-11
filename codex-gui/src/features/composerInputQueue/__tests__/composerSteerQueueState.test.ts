@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
   createComposerSteerQueue,
@@ -44,7 +44,7 @@ function slotIntent(slot: SteerQueueSlot): SteerIntent {
   return slot.type === "intent" ? slot : slot.original;
 }
 
-function assertSteerInputIsDeepReadonly(input: SteerIntent["message"]["input"]): void {
+expectTypeOf((input: SteerIntent["message"]["input"]) => {
   // @ts-expect-error steer input array ownership is readonly
   input[0] = input[0];
   const item = input[0];
@@ -59,20 +59,15 @@ function assertSteerInputIsDeepReadonly(input: SteerIntent["message"]["input"]):
       textElement.byteRange.start = 1;
     }
   }
-}
+}).toBeFunction();
 
-void assertSteerInputIsDeepReadonly;
-
-function assertTransferCapabilitiesCannotBeForged(): void {
+expectTypeOf(() => {
   // @ts-expect-error rejected transfers require the state-private capability brand
   const rejected: RejectedSteerTransfer = { entries: [] };
   // @ts-expect-error recovery transfers require the state-private capability brand
   const recovery: SteerRecoveryTransfer = { intents: [] };
-  void rejected;
-  void recovery;
-}
-
-void assertTransferCapabilitiesCannotBeForged;
+  return { rejected, recovery };
+}).toBeFunction();
 
 describe("composer steer queue state", () => {
   it.each([

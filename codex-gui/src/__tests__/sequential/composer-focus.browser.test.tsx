@@ -116,7 +116,7 @@ const hasUnclippedFocusPaint = (
 test("supports pointer editing and visibly indicates keyboard focus", async () => {
   const screen = await renderComposerTurnControl();
   // The isolated component needs space for focus paint outside its border.
-  screen.container.style.paddingBlock = "1rem";
+  screen.container.style.padding = "1rem";
   const composerPanel = getComposerPanel(screen);
   const composer = screen.composer();
 

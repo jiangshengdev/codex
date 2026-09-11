@@ -16,6 +16,7 @@ import {
 import type { CommittedTranscriptTurnFragmentRendererProps } from "./CommittedTranscriptSurfaceRenderer";
 import { TranscriptEntryGroups, TranscriptEntryRenderer } from "./TranscriptEntryRenderer";
 import { useTranscriptSelector } from "./TranscriptReadContext";
+import { ThreadForkAction } from "@/features/threadFork/ThreadForkAction";
 
 const areTranscriptEntryArraysEqual = (
   previous: TranscriptEntryView[],
@@ -230,6 +231,9 @@ export const CommittedTranscriptTurnFragment = memo(
           <FinalAssistantMessages entryIds={fragment.finalAssistantEntryIds} />
           {!isLastFragment || turn.error == null ? null : <TurnErrorAlert error={turn.error} />}
         </div>
+        {isLastFragment && turn.status !== "inProgress" ? (
+          <ThreadForkAction turnId={turn.id} />
+        ) : null}
       </article>
     );
   },
