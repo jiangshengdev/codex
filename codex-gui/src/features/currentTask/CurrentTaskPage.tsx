@@ -24,6 +24,10 @@ import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
 import { ProjectionRecoveryNotice } from "./ProjectionRecoveryNotice";
 import { ConnectionTaskRecoveryNotice } from "./ConnectionTaskRecoveryNotice";
+import {
+  useTurnPositionRequest,
+  type TurnPositionRequest,
+} from "@/features/browserLaunch/useTurnPositionRequest";
 
 function isMacAppleWebKitRuntime(): boolean {
   return (
@@ -40,6 +44,8 @@ export function CurrentTaskPage() {
   const { activeThreadSession, authorizationToken, routeTarget, status, connectionRecovery } =
     useAppCapabilities();
   const routeThreadId = routeTarget.type === "currentTask" ? routeTarget.threadId : null;
+  const turnPosition = useTurnPositionRequest(routeTarget);
+  const [completedPosition, setCompletedPosition] = useState<TurnPositionRequest | null>(null);
   const requestScope = useMemo(
     () => ({
       activeThreadSession,
@@ -410,6 +416,9 @@ export function CurrentTaskPage() {
 
   return (
     <CurrentTaskReady
+      turnPosition={turnPosition}
+      positionCompleted={turnPosition === completedPosition}
+      onPositionComplete={setCompletedPosition}
       key={snapshot.identity.instanceId}
       identity={snapshot.identity}
       authorizationToken={authorizationToken}
@@ -487,6 +496,9 @@ export function CurrentTaskPage() {
 }
 
 type CurrentTaskReadyProps = Readonly<{
+  turnPosition: TurnPositionRequest | null;
+  positionCompleted: boolean;
+  onPositionComplete: (request: TurnPositionRequest) => void;
   identity: ActiveThreadSessionIdentity;
   authorizationToken: AppCapabilities["authorizationToken"];
   guardCompositionEndEnter: boolean;
@@ -496,6 +508,9 @@ type CurrentTaskReadyProps = Readonly<{
 }>;
 
 function CurrentTaskReady({
+  turnPosition,
+  positionCompleted,
+  onPositionComplete,
   identity,
   authorizationToken,
   guardCompositionEndEnter,
@@ -503,13 +518,21 @@ function CurrentTaskReady({
   status,
   notices,
 }: CurrentTaskReadyProps) {
-  const transcriptBottomRef = useCommittedTranscriptStickyBottom(identity.threadId);
+  const transcriptBottomRef = useCommittedTranscriptStickyBottom(
+    identity.threadId,
+    turnPosition == null || positionCompleted,
+  );
 
   return (
     <main className="task-page" data-gui-host-status={status.label}>
       {notices}
       <Surface className="grid min-w-0 flex-1 content-start" variant="transparent">
-        <CommittedTranscriptSurface identity={identity} />
+        <CommittedTranscriptSurface
+          identity={identity}
+          turnPosition={turnPosition}
+          positionCompleted={positionCompleted}
+          onPositionComplete={onPositionComplete}
+        />
       </Surface>
       <div
         aria-hidden="true"

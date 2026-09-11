@@ -5,10 +5,13 @@ import {
   agentMessage,
   attachWithTurns,
   baseTurn,
+  eventWithEnvelope,
+  itemCompleted,
   contextCompaction,
   textInput,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
+import { eventItemCompleted } from "@/features/projection/__tests__/projectionFixtures";
 import { createAppRouter } from "@/router";
 import { renderWithProviders } from "@/utils/test-utils";
 import {
@@ -17,6 +20,7 @@ import {
   createDeferred,
   getHostOptions,
   initializeHost,
+  emitProjectionEvent,
   launchThreadId,
   queueAttachProjectionResponse,
   resetAppBrowserTestSupport,
@@ -58,54 +62,122 @@ test("an existing empty turn is not reported as missing", async () => {
     .not.toBeInTheDocument();
 });
 
-test("history URL selects the target context page and aligns the turn end", async () => {
-  const url = `/history/${launchThreadId}?turnId=target&position=end`;
+test.each(["history", "task"] as const)(
+  "%s URL selects the target context page and aligns the turn end",
+  async (route) => {
+    const url = `/${route}/${launchThreadId}?turnId=target&position=end`;
+    window.history.replaceState({}, "", url);
+    seedBrowserAuthorizationSession({ token: "position-test-secret" });
+    const fixture = attachWithTurns(attachResponse, [
+      baseTurn("target", [
+        userMessage("prompt", [textInput("History line.\n".repeat(100))]),
+        agentMessage("answer", "Target end", "final_answer"),
+      ]),
+      baseTurn("latest", [
+        contextCompaction("compact"),
+        userMessage("latest-prompt", [textInput("Latest page")]),
+      ]),
+    ]);
+    const commands = createGuiHostCommands();
+    vi.mocked(commands.readThread).mockResolvedValue({ thread: fixture.snapshot.thread });
+    queueAttachProjectionResponse(commands, fixture);
+    const router = createAppRouter(createMemoryHistory({ initialEntries: [url] }));
+    const screen = await renderWithProviders(<RouterProvider router={router} />);
+    initializeHost(getHostOptions(guiHostClientMock.startGuiHostConnection), commands);
+    await expect.element(screen.getByText("Target end", { exact: true })).toBeVisible();
+    await expect.element(screen.getByText("Latest page", { exact: true })).not.toBeInTheDocument();
+    const turn = screen.getByRole("article", { name: "Turn target", exact: true });
+    await expect
+      .poll(() => {
+        const end = turn.element().getBoundingClientRect().bottom;
+        const panel = screen.container.querySelector(".task-bottom-shell");
+        if (!(panel instanceof HTMLElement)) throw new Error("Missing history action panel");
+        const bottom = Math.min(window.innerHeight, panel.getBoundingClientRect().top);
+        return end > 0 && end <= bottom && bottom - end < 32;
+      })
+      .toBe(true);
+    expect(router.state.location.search).toMatchObject({ turnId: "target", position: "end" });
+    window.scrollTo({ top: 0, behavior: "instant" });
+    await expect.poll(() => window.scrollY).toBe(0);
+    await router.navigate({
+      to: route === "history" ? "/history/$threadId" : "/task/$threadId",
+      params: { threadId: launchThreadId },
+      search: { turnId: "latest", position: "end" },
+    });
+    await expect.element(screen.getByText("Latest page", { exact: true })).toBeVisible();
+    router.history.back();
+    await expect.element(screen.getByText("Target end", { exact: true })).toBeVisible();
+    await expect.poll(() => window.scrollY).toBeGreaterThan(100);
+    window.scrollTo({ top: 0, behavior: "instant" });
+    await expect.poll(() => window.scrollY).toBe(0);
+    router.history.forward();
+    await expect.element(screen.getByText("Latest page", { exact: true })).toBeVisible();
+  },
+);
+
+test.each([
+  "turnId=target",
+  "position=end",
+  "turnId=&position=end",
+  "turnId=target&position=start",
+  "turnId=target&turnId=target&position=end",
+  "turnId=target&position=end&position=end",
+])("invalid positioning query uses the existing error page: %s", async (query) => {
+  const url = `/history/${launchThreadId}?${query}`;
+  const router = createAppRouter(createMemoryHistory({ initialEntries: [url] }));
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  await expect
+    .element(screen.getByRole("heading", { name: "Page not found", exact: true }))
+    .toBeVisible();
+});
+
+test("current task output does not repeat a completed URL positioning request", async () => {
+  const url = `/task/${launchThreadId}?turnId=target&position=end`;
   window.history.replaceState({}, "", url);
   seedBrowserAuthorizationSession({ token: "position-test-secret" });
   const fixture = attachWithTurns(attachResponse, [
     baseTurn("target", [
-      userMessage("prompt", [textInput("History line.\n".repeat(100))]),
-      agentMessage("answer", "Target end", "final_answer"),
-    ]),
-    baseTurn("latest", [
-      contextCompaction("compact"),
-      userMessage("latest-prompt", [textInput("Latest page")]),
+      agentMessage("initial-answer", "Existing output line.\n".repeat(100), "final_answer"),
     ]),
   ]);
   const commands = createGuiHostCommands();
-  vi.mocked(commands.readThread).mockResolvedValue({ thread: fixture.snapshot.thread });
   queueAttachProjectionResponse(commands, fixture);
   const router = createAppRouter(createMemoryHistory({ initialEntries: [url] }));
   const screen = await renderWithProviders(<RouterProvider router={router} />);
-  initializeHost(getHostOptions(guiHostClientMock.startGuiHostConnection), commands);
-  await expect.element(screen.getByText("Target end", { exact: true })).toBeVisible();
-  await expect.element(screen.getByText("Latest page", { exact: true })).not.toBeInTheDocument();
-  const turn = screen.getByRole("article", { name: "Turn target", exact: true });
-  await expect
-    .poll(() => {
-      const end = turn.element().getBoundingClientRect().bottom;
-      const panel = screen.container.querySelector(".task-bottom-shell");
-      if (!(panel instanceof HTMLElement)) throw new Error("Missing history action panel");
-      const bottom = Math.min(window.innerHeight, panel.getBoundingClientRect().top);
-      return end > 0 && end <= bottom && bottom - end < 32;
-    })
-    .toBe(true);
-  expect(router.state.location.search).toMatchObject({ turnId: "target", position: "end" });
-  window.scrollTo({ top: 0, behavior: "instant" });
-  await expect.poll(() => window.scrollY).toBe(0);
-  await router.navigate({
-    to: "/history/$threadId",
-    params: { threadId: launchThreadId },
-    search: { turnId: "latest", position: "end" },
-  });
-  await expect.element(screen.getByText("Latest page", { exact: true })).toBeVisible();
-  router.history.back();
-  await expect.element(screen.getByText("Target end", { exact: true })).toBeVisible();
+  const options = getHostOptions(guiHostClientMock.startGuiHostConnection);
+  initializeHost(options, commands);
   await expect.poll(() => window.scrollY).toBeGreaterThan(100);
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        resolve();
+      }),
+    ),
+  );
   window.scrollTo({ top: 0, behavior: "instant" });
-  await expect.poll(() => window.scrollY).toBe(0);
-  router.history.forward();
-  await expect.element(screen.getByText("Latest page", { exact: true })).toBeVisible();
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(
+      itemCompleted(
+        eventItemCompleted,
+        "position-output",
+        "target",
+        agentMessage("later-answer", "Output after positioning", "final_answer"),
+      ),
+      { parentCommitId: null },
+    ),
+  );
+  await expect
+    .element(screen.getByText("Output after positioning", { exact: true }))
+    .toBeInTheDocument();
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        resolve();
+      }),
+    ),
+  );
+  expect(window.scrollY).toBe(0);
 });
 
 test.each([false, true])(

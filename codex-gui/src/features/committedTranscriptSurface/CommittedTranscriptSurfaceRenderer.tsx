@@ -22,6 +22,7 @@ export type CommittedTranscriptTurnFragmentRendererProps = Readonly<{
 
 type CommittedTranscriptSurfaceRendererProps = Readonly<{
   turnPosition?: TurnPositionRequest | null;
+  positionCompleted?: boolean;
   onPositionComplete?: (request: TurnPositionRequest) => void;
   subscriptionInterruptionHandled: boolean;
   turnFragmentRenderer: ComponentType<CommittedTranscriptTurnFragmentRendererProps>;
@@ -29,6 +30,7 @@ type CommittedTranscriptSurfaceRendererProps = Readonly<{
 
 export const CommittedTranscriptSurfaceRenderer = ({
   turnPosition = null,
+  positionCompleted = false,
   onPositionComplete,
   subscriptionInterruptionHandled,
   turnFragmentRenderer: TurnFragmentRenderer,
@@ -73,7 +75,7 @@ export const CommittedTranscriptSurfaceRenderer = ({
         ),
   );
   const { surfaceRef, targetRef } = useTurnPositionScroll({
-    request: turnPosition,
+    request: positionCompleted ? null : turnPosition,
     targetFound,
     onComplete: onPositionComplete,
   });
@@ -82,8 +84,9 @@ export const CommittedTranscriptSurfaceRenderer = ({
     totalPages: number;
     request: TurnPositionRequest | null;
   }>(() => ({
-    page:
-      targetFound && targetPageIndex < 0
+    page: positionCompleted
+      ? null
+      : targetFound && targetPageIndex < 0
         ? 1
         : targetPageIndex < 0 || targetPageIndex === totalPages - 1
           ? null

@@ -5,3 +5,11 @@
 - T1 验证：路由单测 16 通过；定位与分页 Browser 三引擎共 30 通过；type-check 通过。Lingui 新增一条提示，中英文完整，其他 catalog 变化为来源行号元数据；重复提取 hash 稳定。
 - 广泛检查尚有未闭合失败：HistoryPreviewChatLayout 切换到当前聊天时左右相差 4px，12 个实例失败；全局 lint 在未修改的输入队列测试及 pending-input 测试支持文件发现 7 个 void 规则错误。本任务新文件的 lint 问题另行修正；没有豁免、删测试或修改这些失败断言。最终验证及审查继续判断影响归属。
 - 当前仅 D、T1 阶段；T2、最终验证与两轴审查待执行。没有真实 GUI URL，Level 2 尚未执行；Level 3 不适用。
+
+## T2
+
+- T1 独立提交：d284665a2。
+- 当前聊天接入定位；完成状态保留于页面，避免 projection identity 重建后重复定位。定位期间暂停贴底，完成时重新建立滚动基准。无参数行为保留。
+- 先验证 task URL 红灯（默认显示最新页而找不到 target），接入后通过。新增用例覆盖非法原始 query（含重复参数）、两类页面同页导航和前进后退、当前聊天后续输出不重复定位。
+- 定位 Browser 三引擎 36/36 通过；既有 AppProjectionScroll 24/24 通过；type-check 和本次修改范围 ESLint 通过。T2 catalog 只更新 source references，无新增文案或翻译变化。
+- 真实 GUI 完整 URL 已向用户请求，独立于本地验证继续等待。接下来执行全量 unit/Browser/E2E 各一次及两轴审查，不把尚未运行的检查记为通过。

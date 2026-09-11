@@ -166,7 +166,7 @@ msgid "Collapse pending message: {previewText}"
 msgstr "Collapse pending message: {previewText}"
 
 #. Accessible name for the region containing committed transcript turns
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:141
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:144
 msgid "Committed transcript"
 msgstr "Committed transcript"
 
@@ -211,7 +211,7 @@ msgstr "Compression request result unknown"
 msgid "Connection closed"
 msgstr "Connection closed"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:162
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:165
 msgid "Connection interrupted. Reconnect required."
 msgstr "Connection interrupted. Reconnect required."
 
@@ -512,9 +512,9 @@ msgstr "Load history"
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:264
-#: src/features/currentTask/CurrentTaskPage.tsx:337
-#: src/features/currentTask/CurrentTaskPage.tsx:404
+#: src/features/currentTask/CurrentTaskPage.tsx:270
+#: src/features/currentTask/CurrentTaskPage.tsx:343
+#: src/features/currentTask/CurrentTaskPage.tsx:410
 msgid "Load task"
 msgstr "Load task"
 
@@ -544,10 +544,10 @@ msgstr "Loading skills…"
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:257
-#: src/features/currentTask/CurrentTaskPage.tsx:323
-#: src/features/currentTask/CurrentTaskPage.tsx:384
-#: src/features/currentTask/CurrentTaskPage.tsx:536
+#: src/features/currentTask/CurrentTaskPage.tsx:263
+#: src/features/currentTask/CurrentTaskPage.tsx:329
+#: src/features/currentTask/CurrentTaskPage.tsx:390
+#: src/features/currentTask/CurrentTaskPage.tsx:559
 msgid "Loading task…"
 msgstr "Loading task…"
 
@@ -656,7 +656,7 @@ msgstr "Next context page"
 msgid "No agents completed yet"
 msgstr "No agents completed yet"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:174
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:177
 msgid "No committed messages yet."
 msgstr "No committed messages yet."
 
@@ -696,11 +696,11 @@ msgstr "Open current task"
 msgid "Open session"
 msgstr "Open session"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:221
+#: src/features/currentTask/CurrentTaskPage.tsx:227
 msgid "Open task"
 msgstr "Open task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:207
+#: src/features/currentTask/CurrentTaskPage.tsx:213
 msgid "Opening task…"
 msgstr "Opening task…"
 
@@ -807,7 +807,7 @@ msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
 
 #. Reload the current task's runtime status
-#: src/features/currentTask/CurrentTaskPage.tsx:406
+#: src/features/currentTask/CurrentTaskPage.tsx:412
 msgid "Refresh status"
 msgstr "Refresh status"
 
@@ -815,7 +815,7 @@ msgstr "Refresh status"
 msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:386
+#: src/features/currentTask/CurrentTaskPage.tsx:392
 msgid "Refreshing status…"
 msgstr "Refreshing status…"
 
@@ -847,18 +847,18 @@ msgstr "Remove or replace invalid skills before saving."
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
-#: src/features/currentTask/CurrentTaskPage.tsx:217
-#: src/features/currentTask/CurrentTaskPage.tsx:333
-#: src/features/currentTask/CurrentTaskPage.tsx:400
+#: src/features/currentTask/CurrentTaskPage.tsx:223
+#: src/features/currentTask/CurrentTaskPage.tsx:339
+#: src/features/currentTask/CurrentTaskPage.tsx:406
 msgid "Remove task"
 msgstr "Remove task"
 
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
-#: src/features/currentTask/CurrentTaskPage.tsx:203
-#: src/features/currentTask/CurrentTaskPage.tsx:319
-#: src/features/currentTask/CurrentTaskPage.tsx:380
+#: src/features/currentTask/CurrentTaskPage.tsx:209
+#: src/features/currentTask/CurrentTaskPage.tsx:325
+#: src/features/currentTask/CurrentTaskPage.tsx:386
 msgid "Removing task…"
 msgstr "Removing task…"
 
@@ -1063,8 +1063,8 @@ msgstr "System"
 msgid "System error"
 msgstr "System error"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:228
-#: src/features/currentTask/CurrentTaskPage.tsx:444
+#: src/features/currentTask/CurrentTaskPage.tsx:234
+#: src/features/currentTask/CurrentTaskPage.tsx:453
 msgid "Task action failed"
 msgstr "Task action failed"
 
@@ -1124,8 +1124,8 @@ msgstr "The conversation shown here may be out of date. Restore sync to get the 
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "The creation result is unknown. Retrying may leave an extra empty session."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:278
-#: src/features/currentTask/CurrentTaskPage.tsx:352
+#: src/features/currentTask/CurrentTaskPage.tsx:284
+#: src/features/currentTask/CurrentTaskPage.tsx:358
 msgid "The current task could not be loaded."
 msgstr "The current task could not be loaded."
 
@@ -1158,7 +1158,7 @@ msgstr "The specified turn was not found."
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:447
+#: src/features/currentTask/CurrentTaskPage.tsx:456
 msgid "The task action could not be completed."
 msgstr "The task action could not be completed."
 
@@ -1178,11 +1178,11 @@ msgstr "The task connection could not be prepared."
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:232
+#: src/features/currentTask/CurrentTaskPage.tsx:238
 msgid "The task could not be opened."
 msgstr "The task could not be opened."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:234
+#: src/features/currentTask/CurrentTaskPage.tsx:240
 msgid "The task could not be removed."
 msgstr "The task could not be removed."
 
@@ -1198,7 +1198,7 @@ msgstr "The task list could not be updated."
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:469
+#: src/features/currentTask/CurrentTaskPage.tsx:478
 msgid "The task recovery could not be completed."
 msgstr "The task recovery could not be completed."
 
@@ -1287,16 +1287,16 @@ msgstr "Unable to load history"
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:275
-#: src/features/currentTask/CurrentTaskPage.tsx:349
+#: src/features/currentTask/CurrentTaskPage.tsx:281
+#: src/features/currentTask/CurrentTaskPage.tsx:355
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:466
+#: src/features/currentTask/CurrentTaskPage.tsx:475
 msgid "Unable to recover the current task"
 msgstr "Unable to recover the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:141
+#: src/features/currentTask/CurrentTaskPage.tsx:147
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "Unable to retry this task. Review its current state and try again."
 

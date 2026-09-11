@@ -166,7 +166,7 @@ msgid "Collapse pending message: {previewText}"
 msgstr "收起待处理消息：{previewText}"
 
 #. Accessible name for the region containing committed transcript turns
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:141
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:144
 msgid "Committed transcript"
 msgstr "已提交的对话记录"
 
@@ -211,7 +211,7 @@ msgstr "压缩请求结果不明"
 msgid "Connection closed"
 msgstr "连接已关闭"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:162
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:165
 msgid "Connection interrupted. Reconnect required."
 msgstr "连接已中断，需要重新连接。"
 
@@ -512,9 +512,9 @@ msgstr "加载历史记录"
 msgid "Load more"
 msgstr "加载更多"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:264
-#: src/features/currentTask/CurrentTaskPage.tsx:337
-#: src/features/currentTask/CurrentTaskPage.tsx:404
+#: src/features/currentTask/CurrentTaskPage.tsx:270
+#: src/features/currentTask/CurrentTaskPage.tsx:343
+#: src/features/currentTask/CurrentTaskPage.tsx:410
 msgid "Load task"
 msgstr "加载任务"
 
@@ -544,10 +544,10 @@ msgstr "正在加载技能…"
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:257
-#: src/features/currentTask/CurrentTaskPage.tsx:323
-#: src/features/currentTask/CurrentTaskPage.tsx:384
-#: src/features/currentTask/CurrentTaskPage.tsx:536
+#: src/features/currentTask/CurrentTaskPage.tsx:263
+#: src/features/currentTask/CurrentTaskPage.tsx:329
+#: src/features/currentTask/CurrentTaskPage.tsx:390
+#: src/features/currentTask/CurrentTaskPage.tsx:559
 msgid "Loading task…"
 msgstr "正在加载任务…"
 
@@ -656,7 +656,7 @@ msgstr "下一上下文页"
 msgid "No agents completed yet"
 msgstr "尚无智能体完成任务"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:174
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:177
 msgid "No committed messages yet."
 msgstr "暂无已提交的消息。"
 
@@ -696,11 +696,11 @@ msgstr "打开当前任务"
 msgid "Open session"
 msgstr "打开会话"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:221
+#: src/features/currentTask/CurrentTaskPage.tsx:227
 msgid "Open task"
 msgstr "打开任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:207
+#: src/features/currentTask/CurrentTaskPage.tsx:213
 msgid "Opening task…"
 msgstr "正在打开任务…"
 
@@ -807,7 +807,7 @@ msgid "Refresh complete. Try the action again."
 msgstr "已刷新，请重试此操作。"
 
 #. Reload the current task's runtime status
-#: src/features/currentTask/CurrentTaskPage.tsx:406
+#: src/features/currentTask/CurrentTaskPage.tsx:412
 msgid "Refresh status"
 msgstr "刷新状态"
 
@@ -815,7 +815,7 @@ msgstr "刷新状态"
 msgid "Refreshing skills…"
 msgstr "正在刷新技能…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:386
+#: src/features/currentTask/CurrentTaskPage.tsx:392
 msgid "Refreshing status…"
 msgstr "正在刷新状态…"
 
@@ -847,18 +847,18 @@ msgstr "保存前请移除或替换无效技能。"
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
-#: src/features/currentTask/CurrentTaskPage.tsx:217
-#: src/features/currentTask/CurrentTaskPage.tsx:333
-#: src/features/currentTask/CurrentTaskPage.tsx:400
+#: src/features/currentTask/CurrentTaskPage.tsx:223
+#: src/features/currentTask/CurrentTaskPage.tsx:339
+#: src/features/currentTask/CurrentTaskPage.tsx:406
 msgid "Remove task"
 msgstr "移出任务列表"
 
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
-#: src/features/currentTask/CurrentTaskPage.tsx:203
-#: src/features/currentTask/CurrentTaskPage.tsx:319
-#: src/features/currentTask/CurrentTaskPage.tsx:380
+#: src/features/currentTask/CurrentTaskPage.tsx:209
+#: src/features/currentTask/CurrentTaskPage.tsx:325
+#: src/features/currentTask/CurrentTaskPage.tsx:386
 msgid "Removing task…"
 msgstr "正在移出任务列表…"
 
@@ -1063,8 +1063,8 @@ msgstr "系统"
 msgid "System error"
 msgstr "系统错误"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:228
-#: src/features/currentTask/CurrentTaskPage.tsx:444
+#: src/features/currentTask/CurrentTaskPage.tsx:234
+#: src/features/currentTask/CurrentTaskPage.tsx:453
 msgid "Task action failed"
 msgstr "任务操作失败"
 
@@ -1124,8 +1124,8 @@ msgstr "当前显示的对话可能不是最新内容。恢复同步可获取最
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "创建结果未知。重试可能留下额外的空会话。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:278
-#: src/features/currentTask/CurrentTaskPage.tsx:352
+#: src/features/currentTask/CurrentTaskPage.tsx:284
+#: src/features/currentTask/CurrentTaskPage.tsx:358
 msgid "The current task could not be loaded."
 msgstr "当前任务未能加载。"
 
@@ -1158,7 +1158,7 @@ msgstr "未找到指定对话轮次。"
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:447
+#: src/features/currentTask/CurrentTaskPage.tsx:456
 msgid "The task action could not be completed."
 msgstr "任务操作未能完成。"
 
@@ -1178,11 +1178,11 @@ msgstr "无法准备任务连接。"
 msgid "The task could not be activated."
 msgstr "无法激活任务。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:232
+#: src/features/currentTask/CurrentTaskPage.tsx:238
 msgid "The task could not be opened."
 msgstr "任务未能打开。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:234
+#: src/features/currentTask/CurrentTaskPage.tsx:240
 msgid "The task could not be removed."
 msgstr "任务未能移出列表。"
 
@@ -1198,7 +1198,7 @@ msgstr "任务列表未能更新。"
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "任务已打开，但部分状态同步未完成。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:469
+#: src/features/currentTask/CurrentTaskPage.tsx:478
 msgid "The task recovery could not be completed."
 msgstr "任务恢复未能完成。"
 
@@ -1287,16 +1287,16 @@ msgstr "无法加载历史记录"
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:275
-#: src/features/currentTask/CurrentTaskPage.tsx:349
+#: src/features/currentTask/CurrentTaskPage.tsx:281
+#: src/features/currentTask/CurrentTaskPage.tsx:355
 msgid "Unable to load the current task"
 msgstr "无法加载当前任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:466
+#: src/features/currentTask/CurrentTaskPage.tsx:475
 msgid "Unable to recover the current task"
 msgstr "无法恢复当前任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:141
+#: src/features/currentTask/CurrentTaskPage.tsx:147
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "无法重试此任务。请检查当前状态后再试。"
 

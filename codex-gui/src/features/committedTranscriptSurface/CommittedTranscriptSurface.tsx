@@ -9,12 +9,23 @@ import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositi
 
 export const CommittedTranscriptSurface = ({
   identity,
-}: Readonly<{ identity: ActiveThreadSessionIdentity }>) => {
+  turnPosition = null,
+  positionCompleted = false,
+  onPositionComplete,
+}: Readonly<{
+  identity: ActiveThreadSessionIdentity;
+  turnPosition?: TurnPositionRequest | null;
+  positionCompleted?: boolean;
+  onPositionComplete?: (request: TurnPositionRequest) => void;
+}>) => {
   const target = useMemo<TranscriptReadTarget>(() => ({ kind: "live", identity }), [identity]);
   return (
     <TranscriptReadProvider target={target}>
       <CommittedTranscriptSurfaceRenderer
         key={identity.instanceId}
+        turnPosition={turnPosition}
+        positionCompleted={positionCompleted}
+        onPositionComplete={onPositionComplete}
         subscriptionInterruptionHandled
         turnFragmentRenderer={CommittedTranscriptTurnFragment}
       />
