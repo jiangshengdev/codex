@@ -13,6 +13,7 @@ import {
   baseTurn,
   inProgressTurn,
   failedTurn,
+  interruptedTurn,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createAppRouter } from "@/router";
 import { renderWithProviders } from "@/utils/test-utils";
@@ -215,10 +216,7 @@ test("interrupted and failed displayed turns have actions while the running turn
   const commands = createGuiHostCommands({ loadedThreadIds: [launchThreadId, forkId] });
   vi.mocked(commands.attachThreadProjection).mockResolvedValue(
     attachWithTurns(attachResponse, [
-      {
-        ...baseTurn("interrupted", [agentMessage("partial", "Partial answer")]),
-        status: "interrupted",
-      },
+      interruptedTurn("interrupted", [agentMessage("partial", "Partial answer")]),
       failedTurn("failed", {
         message: "Turn failed",
         codexErrorInfo: null,
