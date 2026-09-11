@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
   createComposerInterruptState,
@@ -32,7 +32,7 @@ function terminal(
   };
 }
 
-function assertInterruptClaimCannotBeForged(): void {
+expectTypeOf(() => {
   // @ts-expect-error interrupt claims require the state-private capability brand
   const claim: InterruptClaim = {
     type: "interrupt",
@@ -40,10 +40,8 @@ function assertInterruptClaimCannotBeForged(): void {
     generation: 1,
     requestId: "forged",
   };
-  void claim;
-}
-
-void assertInterruptClaimCannotBeForged;
+  return claim;
+}).toBeFunction();
 
 describe("composer interrupt state", () => {
   it("classifies an unmatched terminal once and blocks a second issuing claim", () => {
