@@ -7,6 +7,7 @@ import {
   defaultRemarkPlugins,
   defaultRehypePlugins,
   type AllowElement,
+  type Components,
   type ControlsConfig,
   type StreamdownProps,
 } from "streamdown";
@@ -90,6 +91,22 @@ export const streamdownRehypePlugins = [
 
 export const allowMarkdownElement: AllowElement = ({ tagName }) => tagName !== "img";
 
+export const streamdownComponents: Components = {
+  inlineCode: ({ children, className, node: _node, ...props }) => (
+    <code
+      className={[
+        "rounded border border-border bg-default px-1 py-0.5 font-mono text-sm text-default-700 wrap-break-word",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      {...props}
+    >
+      {children}
+    </code>
+  ),
+};
+
 export const markdownContainerClassName =
   "committed-transcript-entry-markdown committed-transcript-entry-source grid min-w-0 gap-2 wrap-break-word leading-6";
 
@@ -99,6 +116,7 @@ export const streamdownCommonProps: Pick<
   StreamdownProps,
   | "allowElement"
   | "className"
+  | "components"
   | "controls"
   | "linkSafety"
   | "lineNumbers"
@@ -109,6 +127,7 @@ export const streamdownCommonProps: Pick<
 > = {
   allowElement: allowMarkdownElement,
   className: markdownStreamdownClassName,
+  components: streamdownComponents,
   controls: streamdownControls,
   linkSafety: { enabled: false },
   lineNumbers: false,

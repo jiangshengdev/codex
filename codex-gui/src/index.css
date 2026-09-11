@@ -8,22 +8,6 @@
 @source "../node_modules/@streamdown/cjk/dist/*.js";
 @source "../node_modules/@streamdown/math/dist/*.js";
 
-@theme inline {
-  --color-background: var(--streamdown-background, var(--background));
-  --color-muted: var(--streamdown-muted, var(--muted));
-  --color-muted-foreground: var(--muted);
-  --color-sidebar: var(--streamdown-sidebar);
-}
-
-/* Streamdown uses muted for surfaces; HeroUI uses it for secondary text.
-   Keep HeroUI's variables intact, including in the body-mounted table portal. */
-.committed-transcript-entry-markdown,
-[data-streamdown="table-fullscreen"] {
-  --streamdown-background: var(--surface);
-  --streamdown-muted: var(--surface-secondary);
-  --streamdown-sidebar: var(--surface-secondary);
-}
-
 [data-app-shell-content-layout="reading"] {
   --app-shell-content-max-width: var(--container-3xl);
 }
