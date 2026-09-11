@@ -343,9 +343,9 @@ test.each([
       const panel = screen
         .getByRole("region", { name: "Message composer" })
         .element()
-        .querySelector(".composer-panel");
+        .querySelector(".composer-frame");
       if (connection == null || task == null || panel == null) {
-        throw new Error("Expected both recovery notices and the composer panel");
+        throw new Error("Expected both recovery notices and the composer frame");
       }
       const transcript = screen.getByRole("region", { name: "Committed transcript" }).element();
       const boundary = transcript.getBoundingClientRect();
