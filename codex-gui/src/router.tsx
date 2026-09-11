@@ -25,6 +25,7 @@ import { AppRouteBoundary, RootRouteError } from "./routerComponents";
 const rootRoute = createRootRoute({
   errorComponent: RootRouteError,
   notFoundComponent: NotFoundPage,
+  validateSearch: validateTurnPositionSearch,
 });
 
 const appRoute = createRoute({
@@ -38,7 +39,6 @@ const currentTaskRoute = createRoute({
   getParentRoute: () => appRoute,
   path: CURRENT_TASK_ROUTE_PATH,
   component: CurrentTaskPage,
-  validateSearch: validateTurnPositionSearch,
   params: { parse: parseThreadIdParams },
 });
 
@@ -53,7 +53,6 @@ const historyDetailRoute = createRoute({
   getParentRoute: () => appRoute,
   path: HISTORY_DETAIL_ROUTE_PATH,
   component: ThreadHistoryDetailPage,
-  validateSearch: validateTurnPositionSearch,
   params: { parse: parseThreadIdParams },
 });
 

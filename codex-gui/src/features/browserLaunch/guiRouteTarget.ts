@@ -44,7 +44,7 @@ export function selectGuiRouteTarget(matches: readonly GuiRouteMatch[]): GuiRout
   switch (match.fullPath) {
     case CURRENT_TASK_ROUTE_PATH: {
       const threadId = threadIdFromParams(match.params);
-      const search = validateTurnPositionSearch(match.search);
+      const search = match.search;
       return threadId == null
         ? null
         : {
@@ -59,7 +59,7 @@ export function selectGuiRouteTarget(matches: readonly GuiRouteMatch[]): GuiRout
       return { type: "newTask" };
     case HISTORY_DETAIL_ROUTE_PATH: {
       const threadId = threadIdFromParams(match.params);
-      const search = validateTurnPositionSearch(match.search);
+      const search = match.search;
       return threadId == null
         ? null
         : {
@@ -85,6 +85,9 @@ export function validateTurnPositionSearch(
 ): TurnPosition | Readonly<{ turnId?: never; position?: never }> {
   const keys = Object.keys(search);
   if (keys.length === 0) return {};
+  if (keys.some((key) => key !== "turnId" && key !== "position")) {
+    return validateEmptyRouteSearch(search);
+  }
   if (
     keys.length !== 2 ||
     !keys.includes("turnId") ||

@@ -105,9 +105,13 @@ describe("validateTurnPositionSearch", () => {
     { turnId: "turn-1", position: "start" },
     { turnId: ["first", "second"], position: "end" },
     { turnId: "turn-1", position: ["end", "end"] },
-    { turnId: "turn-1", position: "end", extra: "value" },
   ])("rejects invalid positioning %j", (search) => {
     expect(() => validateTurnPositionSearch(search)).toThrow("Invalid turn positioning parameters");
+  });
+  it("preserves rejection of unrelated query parameters", () => {
+    expect(() =>
+      validateTurnPositionSearch({ turnId: "turn-1", position: "end", extra: "value" }),
+    ).toThrow("Query parameters are not supported");
   });
 });
 
