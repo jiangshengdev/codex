@@ -67,3 +67,18 @@ HeroUI border 工具类已有正确语义；无需复制所有边框映射。普
 - 未立即启动的 ready 节点：后续 Browser/顺序/E2E 等待同一 checkout 的 Browser runner 资源释放，释放后按序启动；源码修正等待所有审查/验证消费者返回，避免 mutable diff；没有其他无理由延迟。S1/C1、V2 尚未 ready，分别缺通过证据和当前 URL。
 
 全部当前可执行验证已收齐，按计划“记录提交可保存限制”形成独立记录提交；它不解锁 S1/C1 或 FINAL。代码保持可审查的工作树 diff，仅两份产品源码和一份新增测试。下一步需要用户明确选择是否在保留范围外失败记录的前提下提交该实现，并提供当前完整 GUI URL；未取得这两项输入前，不声称计划完成。
+
+## 2026-09-11 后续提交与真实 GUI 部分验收
+
+- 用户随后明确要求提交，实现已形成独立提交 `262a050f3`；本次开始时 HEAD 为该提交，工作区干净。以上提交前门禁描述保留为历史事实，范围外检查失败仍未修复或豁免。
+- 用户本轮提供完整任务 URL 后，使用专用 `streamdown-acceptance` 会话访问该原始地址；会话明确 `headed=false`、`persistent=false`，未打开可见窗口。记录不保存访问 token。
+- 页面标题为“查找前端测试过滤支持”，显示已完成轮次、代码块和表格。运行时样式表包含本次 Markdown/table-fullscreen 局部规则，默认 inline-code 标记存在；此证据确认相关实现已加载，不代表运行时提供了完整 Git 身份证明。
+- 浅深主题分别检查 1440px 和 390px 宽度：页面 scrollWidth 与 viewport 一致；表头及默认 inline-code 为 surface-secondary，代码正文为 surface。浅色表头为 `oklch(0.9524 0.0013 286.37)`，深色为 `oklch(0.257 0.0037 286.14)`。无行号，inline-code 的 white-space 为 pre-wrap；块代码保持默认 pre。
+- 390px 深色场景，代码容器 clientWidth=306、scrollWidth=1077，真实鼠标横向滚动后 scrollLeft=300，document scrollLeft=0。现有表格宽度为 306，未发生横向溢出，因此不计为宽表格实际滚动证据。
+- 代码下载产生 file.sh（415 bytes）；CSV 菜单经 Enter 激活产生 table.csv，检查文件具有当前表格标题和数据行。产物仅保存在系统临时目录。
+- 浅深主题菜单背景为 surface，悬停项为 surface-secondary；等待颜色过渡完成后读取最终值。CSV 键盘焦点可见，outline 为 2px，offset=-2px。全屏退出按钮在键盘模式下焦点可见，Enter 能关闭。部分目标由原生 focus 指定，不宣称完整 Tab 遍历顺序已验证。
+- 浅深主题 × 两种宽度均打开、关闭表格全屏：portal 根背景为 surface，表头为 surface-secondary，宽度匹配 viewport；真实输入区的文字和背景计算值在全屏前、期间、关闭后相同。这是输入区隔离证据，不泛化为所有外部 HeroUI 组件或工具类均已在 Level 2 验证。
+- 当前页面 isSecureContext=false，navigator.clipboard 不存在，复制按钮未显示。仅验证能力受限环境；可用剪贴板的复制成功场景未执行。
+- 控制台 0 errors、1 warning：WebSocket 在连接建立前关闭。页面已呈现真实记录和空闲输入区，但本轮没有发送消息或验证实时传输，不能据此判定该 warning 对实时场景无影响。
+- 未执行：真实流式到静态、公式滚动、溢出宽表格滚动、全部角色和完成思考样式矩阵、可用剪贴板复制、所有外部组件及全局工具类的完整隔离矩阵。页面缺少相应内容或运行状态；没有发送未经授权的业务消息，没有用 fixtures 替代真实内容。
+- Level 2 结论为部分通过，整个计划尚未完全验收。Level 3 不适用。此次仅追加执行记录，不修改产品代码，不重复全套测试。
