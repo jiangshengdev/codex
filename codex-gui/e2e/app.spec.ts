@@ -282,7 +282,7 @@ test("fits committed transcript and composer in a narrow mobile viewport", async
       }
       return elements[0];
     };
-    const appSurface = requireElement("main > .surface.task-reading-boundary");
+    const appSurface = requireElement("main > .surface:has(> .committed-transcript-surface)");
     const transcriptSurface = requireElement(".committed-transcript-surface");
     const composer = requireElement('[aria-label="Message composer"]');
     const composerStatus = requireElement(".current-thread-status");
