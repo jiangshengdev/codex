@@ -461,7 +461,7 @@ msgstr "历史记录上下文不可用"
 
 #: src/features/appShell/AppShellTopBar.tsx:59
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:39
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
 msgid "History detail"
 msgstr "历史详情"
 
@@ -533,7 +533,7 @@ msgid "Load task"
 msgstr "加载任务"
 
 #. Button to read the selected task's historical messages
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:105
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:108
 msgid "Load task history"
 msgstr "加载任务历史"
 
@@ -553,8 +553,8 @@ msgstr "正在加载更多…"
 msgid "Loading skills…"
 msgstr "正在加载技能…"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:49
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:103
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:106
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
@@ -1262,7 +1262,7 @@ msgstr "无法编辑这条待处理消息。"
 msgid "This task could not be restored. You can try again."
 msgstr "此任务恢复失败，可以再次尝试。"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:63
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:64
 msgid "This task has no messages."
 msgstr "此任务没有消息。"
 
@@ -1314,7 +1314,7 @@ msgstr "无法创建分叉会话"
 msgid "Unable to load history"
 msgstr "无法加载历史记录"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:114
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:117
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
@@ -1358,7 +1358,7 @@ msgstr "状态未知"
 msgid "Unsaved pending message"
 msgstr "尚未保存的待发送消息"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:41
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:215
 msgid "Untitled task"
 msgstr "未命名任务"

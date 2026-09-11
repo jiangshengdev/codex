@@ -12,6 +12,7 @@ import { errorText } from "@/text/errorText";
 import { ContinueTaskAction } from "./ContinueTaskAction";
 import type { ThreadHistoryDetailState } from "./threadHistoryDetailOwner";
 import { resolveThreadHistoryPresentation } from "./threadHistoryPresentation";
+import { ThreadForkSourceContext } from "@/features/threadFork/ThreadForkContext";
 
 type ThreadHistoryDetailContentProps = Readonly<{
   turnPosition?: TurnPositionRequest | null;
@@ -65,11 +66,13 @@ export function ThreadHistoryDetailContent({
       ) : null}
       {state.type === "ready" && (state.thread.turns.length > 0 || turnPosition != null) ? (
         <div className="pt-3">
-          <ReadOnlyCommittedTranscriptSurface
-            surfaceKey={state.thread.id}
-            transcriptState={state.transcriptState}
-            turnPosition={turnPosition}
-          />
+          <ThreadForkSourceContext value={state.thread.id}>
+            <ReadOnlyCommittedTranscriptSurface
+              surfaceKey={state.thread.id}
+              transcriptState={state.transcriptState}
+              turnPosition={turnPosition}
+            />
+          </ThreadForkSourceContext>
         </div>
       ) : null}
       {state.type === "ready" ? (
