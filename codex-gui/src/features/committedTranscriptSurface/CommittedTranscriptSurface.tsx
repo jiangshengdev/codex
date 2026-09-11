@@ -6,6 +6,7 @@ import { CommittedTranscriptSurfaceRenderer } from "./CommittedTranscriptSurface
 import { TranscriptReadProvider } from "./TranscriptReadProvider";
 import type { TranscriptReadTarget } from "./TranscriptReadContext";
 import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
+import { ThreadForkSourceContext } from "@/features/threadFork/ThreadForkContext";
 
 export const CommittedTranscriptSurface = ({
   identity,
@@ -20,16 +21,18 @@ export const CommittedTranscriptSurface = ({
 }>) => {
   const target = useMemo<TranscriptReadTarget>(() => ({ kind: "live", identity }), [identity]);
   return (
-    <TranscriptReadProvider target={target}>
-      <CommittedTranscriptSurfaceRenderer
-        key={identity.instanceId}
-        turnPosition={turnPosition}
-        positionCompleted={positionCompleted}
-        onPositionComplete={onPositionComplete}
-        subscriptionInterruptionHandled
-        turnFragmentRenderer={CommittedTranscriptTurnFragment}
-      />
-    </TranscriptReadProvider>
+    <ThreadForkSourceContext value={identity.threadId}>
+      <TranscriptReadProvider target={target}>
+        <CommittedTranscriptSurfaceRenderer
+          key={identity.instanceId}
+          turnPosition={turnPosition}
+          positionCompleted={positionCompleted}
+          onPositionComplete={onPositionComplete}
+          subscriptionInterruptionHandled
+          turnFragmentRenderer={CommittedTranscriptTurnFragment}
+        />
+      </TranscriptReadProvider>
+    </ThreadForkSourceContext>
   );
 };
 

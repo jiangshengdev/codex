@@ -22,6 +22,9 @@ export declare const validateV2SkillsListResponse: ProtocolValidator<
 export declare const validateV2ThreadCompactStartResponse: ProtocolValidator<
   RequestResponse<"thread/compact/start">
 >;
+export declare const validateV2ThreadForkResponse: ProtocolValidator<
+  RequestResponse<"thread/fork">
+>;
 export declare const validateV2ThreadListResponse: ProtocolValidator<
   RequestResponse<"thread/list">
 >;

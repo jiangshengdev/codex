@@ -53,7 +53,7 @@ msgid "{0} skill details, {1}"
 msgstr "{0} skill details, {1}"
 
 #. Disclosure label showing how many intermediate transcript updates it contains
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:94
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:95
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 
@@ -172,7 +172,7 @@ msgstr "Committed transcript"
 
 #. Status chip for a completed turn
 #. Status of a collaborating agent that completed its work
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:183
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:184
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:97
 msgid "Completed"
 msgstr "Completed"
@@ -353,6 +353,11 @@ msgstr "Discard changes"
 msgid "Discard unsaved changes?"
 msgstr "Discard unsaved changes?"
 
+#. Dismiss the fork creation error notice
+#: src/features/threadFork/ThreadForkNotice.tsx:41
+msgid "Dismiss"
+msgstr "Dismiss"
+
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:364
 msgid "Edit"
 msgstr "Edit"
@@ -398,7 +403,7 @@ msgid "Expand pending message: {previewText}"
 msgstr "Expand pending message: {previewText}"
 
 #. Status chip for a failed turn
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:193
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:194
 msgid "Failed"
 msgstr "Failed"
 
@@ -410,6 +415,15 @@ msgstr "Failed."
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:237
 msgid "Finished waiting"
 msgstr "Finished waiting"
+
+#: src/features/threadFork/ThreadForkNotice.tsx:51
+msgid "Fork created"
+msgstr "Fork created"
+
+#. Button at the end of a chat turn; creates a new conversation including history through this turn
+#: src/features/threadFork/ThreadForkAction.tsx:36
+msgid "Fork from here"
+msgstr "Fork from here"
 
 #: src/NotFoundPage.tsx:17
 msgid "Go back home"
@@ -459,7 +473,7 @@ msgstr "Idle"
 
 #. Short in-progress label for the current task beside the composer QR button
 #. Status chip for a turn that is still in progress
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:198
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:199
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:39
 msgid "In progress"
 msgstr "In progress"
@@ -476,7 +490,7 @@ msgstr "Interacted with <0/> <1/>"
 
 #. Status chip for an interrupted turn
 #. Status of a collaborating agent whose work was interrupted
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:188
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:189
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:88
 msgid "Interrupted"
 msgstr "Interrupted"
@@ -692,6 +706,11 @@ msgstr "Open an active task in this browser tab before viewing its history."
 msgid "Open current task"
 msgstr "Open current task"
 
+#. Resume opening an already created fork without creating it again
+#: src/features/threadFork/ThreadForkNotice.tsx:69
+msgid "Open fork"
+msgstr "Open fork"
+
 #: src/features/newSession/NewSessionPage.tsx:122
 msgid "Open session"
 msgstr "Open session"
@@ -869,7 +888,7 @@ msgstr "Removing task…"
 msgid "Repository"
 msgstr "Repository"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:146
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:147
 msgid "Request failed"
 msgstr "Request failed"
 
@@ -1137,6 +1156,10 @@ msgstr "The current task still has queued or unresolved messages. Return to it b
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "The message was moved, but repeated queue changes prevented the updated order from loading."
 
+#: src/features/threadFork/ThreadForkNotice.tsx:54
+msgid "The new conversation is saved. Continue opening it without creating another fork."
+msgstr "The new conversation is saved. Continue opening it without creating another fork."
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:427
 msgid "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
 msgstr "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
@@ -1148,6 +1171,10 @@ msgstr "The pending-message order did not change. Refresh complete; try again."
 #: src/features/threadHistory/ContinueTaskAction.tsx:62
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "The previous task connection could not be fully cleaned up. Later state may be affected."
+
+#: src/features/threadFork/ThreadForkNotice.tsx:33
+msgid "The result is unknown. Check history before forking again; another click may create an additional conversation."
+msgstr "The result is unknown. Check history before forking again; another click may create an additional conversation."
 
 #. Temporary notification when a URL targets a turn absent from the complete conversation history
 #: src/features/committedTranscriptSurface/useTurnPositionScroll.ts:63
@@ -1266,7 +1293,7 @@ msgid "Transcript context pages"
 msgstr "Transcript context pages"
 
 #. Accessible label for a transcript turn identified by its raw turn ID
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:209
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:210
 msgid "Turn {resolvedTurnId}"
 msgstr "Turn {resolvedTurnId}"
 
@@ -1278,6 +1305,10 @@ msgstr "Turn {resolvedTurnId}"
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:230
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
+
+#: src/features/threadFork/ThreadForkNotice.tsx:29
+msgid "Unable to create fork"
+msgstr "Unable to create fork"
 
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:324
 msgid "Unable to load history"

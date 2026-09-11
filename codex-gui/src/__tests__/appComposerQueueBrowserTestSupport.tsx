@@ -153,6 +153,7 @@ export const steerTurnParamsAt = (
 export const readGuiHostCommandCallCounts = (
   commands: GuiHostCommands,
 ): Record<keyof GuiHostCommands, number> => ({
+  forkThread: vi.mocked(commands.forkThread).mock.calls.length,
   startThread: vi.mocked(commands.startThread).mock.calls.length,
   compactThread: vi.mocked(commands.compactThread).mock.calls.length,
   attachThreadProjection: vi.mocked(commands.attachThreadProjection).mock.calls.length,
