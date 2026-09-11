@@ -100,6 +100,79 @@
   white-space: pre-wrap;
 }
 
+/* Streamdown consumes HeroUI colors only at its document and portal boundaries. */
+:is(.committed-transcript-entry-markdown, [data-streamdown="table-fullscreen"]) {
+  [data-streamdown="table-header"],
+  [data-streamdown="inline-code"],
+  [data-streamdown="code-block"],
+  [data-streamdown="code-block-actions"],
+  [data-streamdown="table-wrapper"] {
+    background-color: var(--surface-secondary);
+  }
+
+  [data-streamdown="code-block-actions"] {
+    border-color: var(--border);
+  }
+
+  [data-streamdown="code-block-body"],
+  /* The default table scroll container has no separate data-streamdown marker. */
+  [data-streamdown="table-wrapper"] > div:has(> [data-streamdown="table"]) {
+    background-color: var(--surface);
+  }
+
+  [data-streamdown="code-block-header"],
+  [data-streamdown="blockquote"],
+  [data-streamdown="code-block-actions"] button,
+  [data-streamdown="table-wrapper"] > div:first-child button {
+    color: var(--muted);
+  }
+
+  [data-streamdown="blockquote"] {
+    border-color: var(--border);
+  }
+
+  [data-streamdown="code-block-actions"] button,
+  [data-streamdown="table-wrapper"] > div:first-child button {
+    &:hover:not(:disabled) {
+      color: var(--foreground);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+  }
+
+  /* Copy/download menus stay inside the first (toolbar) child of table-wrapper. */
+  [data-streamdown="table-wrapper"] > div:first-child > div > button + div {
+    background-color: var(--surface);
+    color: var(--foreground);
+
+    > button {
+      color: var(--foreground);
+
+      &:hover:not(:disabled) {
+        background-color: var(--surface-secondary);
+      }
+
+      &:focus-visible {
+        /* Keep the ring inside the default overflow-hidden menu. */
+        outline-offset: -2px;
+      }
+    }
+  }
+}
+
+/* The default fullscreen table is a body portal, outside the Markdown wrapper. */
+[data-streamdown="table-fullscreen"] {
+  background-color: var(--surface);
+  color: var(--foreground);
+
+  [data-streamdown="table-wrapper"] > div:first-child > button:hover:not(:disabled) {
+    background-color: var(--surface-secondary);
+  }
+}
+
 [data-assistant-math] .katex {
   display: inline-grid;
   max-width: 100%;
