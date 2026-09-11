@@ -202,10 +202,6 @@ msgstr "Compressing"
 msgid "Compression request result unknown"
 msgstr "Compression request result unknown"
 
-#: src/features/newSession/NewSessionPage.tsx:47
-#~ msgid "Connect to Codex to send this draft."
-#~ msgstr "Connect to Codex to send this draft."
-
 #. GUI connection ended; retained conversations remain read-only
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:41
 msgid "Connection closed"
@@ -1457,11 +1453,6 @@ msgstr "Working directory"
 #: src/features/newSession/NewSessionWorkingDirectory.tsx:17
 msgid "Working directory: {directoryName}"
 msgstr "Working directory: {directoryName}"
-
-#. The fixed working directory of the single new-session draft; it does not follow later task switches
-#: src/features/newSession/NewSessionPage.tsx:45
-#~ msgid "Working directory: {draftCwd}"
-#~ msgstr "Working directory: {draftCwd}"
 
 #. History date group: tasks last active on the previous local day
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:134
