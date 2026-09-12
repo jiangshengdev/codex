@@ -56,29 +56,33 @@ export function ComposerPersistenceStatus({
       {persistence.restoredPaused ? (
         <Alert status="warning" role="status">
           <Alert.Indicator />
-          <Alert.Content className="grid min-w-0 flex-1 grid-cols-1 gap-x-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <Alert.Title>
-              <Trans>Restored messages are paused</Trans>
-            </Alert.Title>
-            <Alert.Description className="col-start-1">
-              <Trans>
-                Check the queue, other open pages, and conversation history before continuing.
-                Messages with an unknown sending result remain blocked.
-              </Trans>
-            </Alert.Description>
-            <Button
-              className="mt-2 justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0"
-              variant="primary"
-              isDisabled={!enabled || persistence.error != null}
-              onPress={() => {
-                composerRole.resumeRestored(revision, persistence.revision);
-              }}
-            >
-              <Trans comment="Resumes sending this page's restored queue; does not open the queue">
-                Continue sending
-              </Trans>
-            </Button>
-          </Alert.Content>
+          <FailureLayout
+            actions={
+              <Button
+                variant="primary"
+                isDisabled={!enabled || persistence.error != null}
+                onPress={() => {
+                  composerRole.resumeRestored(revision, persistence.revision);
+                }}
+              >
+                <Trans comment="Resumes sending this page's restored queue; does not open the queue">
+                  Continue sending
+                </Trans>
+              </Button>
+            }
+          >
+            <Alert.Content>
+              <Alert.Title>
+                <Trans>Restored messages are paused</Trans>
+              </Alert.Title>
+              <Alert.Description>
+                <Trans>
+                  Check the queue, other open pages, and conversation history before continuing.
+                  Messages with an unknown sending result remain blocked.
+                </Trans>
+              </Alert.Description>
+            </Alert.Content>
+          </FailureLayout>
         </Alert>
       ) : null}
       {persistence.unknownMessages.length > 0 ? (
