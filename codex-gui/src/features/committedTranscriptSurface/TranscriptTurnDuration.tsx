@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLingui } from "@lingui/react/macro";
 import type { TranscriptTurn } from "@/features/transcriptState/transcriptStateModel";
+import { Separator, Typography } from "@heroui/react";
 
 export const TranscriptTurnDuration = ({
   startedAt,
@@ -47,20 +48,27 @@ export const TranscriptTurnDuration = ({
         : t({ comment: "Turn duration in whole seconds", message: `${totalSeconds}s` });
 
   return (
-    <time
-      className="committed-transcript-turn-duration text-muted text-xs tabular-nums"
-      dateTime={`PT${totalSeconds}S`}
-    >
-      {running
-        ? t({
-            comment:
-              "Elapsed wall time below the first user input of a running turn, including waits",
-            message: `Elapsed ${duration}`,
-          })
-        : t({
-            comment: "Final authoritative duration below the first user input of a finished turn",
-            message: `Duration ${duration}`,
-          })}
-    </time>
+    <>
+      <Typography
+        type="body-xs"
+        color="muted"
+        className="committed-transcript-turn-duration tabular-nums"
+      >
+        <time dateTime={`PT${totalSeconds}S`}>
+          {running
+            ? t({
+                comment:
+                  "Elapsed wall time below the first user input of a running turn, including waits",
+                message: `Elapsed ${duration}`,
+              })
+            : t({
+                comment:
+                  "Final authoritative duration below the first user input of a finished turn",
+                message: `Duration ${duration}`,
+              })}
+        </time>
+      </Typography>
+      <Separator orientation="horizontal" variant="tertiary" />
+    </>
   );
 };

@@ -151,6 +151,19 @@ test("keeps timing on the original fragment across context pages and preserves n
       .element()
       .getBoundingClientRect();
     expect(duration.top).toBeGreaterThanOrEqual(prompt.bottom);
+    const label = screen.getByText("Today 09:37", { exact: true }).element();
+    const range = document.createRange();
+    range.selectNodeContents(label);
+    const textRect = range.getBoundingClientRect();
+    const article = label.closest("article");
+    expect(article).not.toBeNull();
+    const turnRect = article?.getBoundingClientRect();
+    if (!turnRect) throw new Error("Missing turn bounds");
+    expect(
+      Math.abs((textRect.left + textRect.right) / 2 - (turnRect.left + turnRect.right) / 2),
+    ).toBeLessThan(1);
+    const separator = screen.getByRole("separator").element().getBoundingClientRect();
+    expect(separator.top).toBeGreaterThanOrEqual(duration.bottom);
     await screen.getByRole("button", { name: "Next context page" }).click();
     await expect.element(screen.getByText("Next prompt", { exact: true })).toBeVisible();
     expect(document.querySelectorAll(".committed-transcript-time-label")).toHaveLength(0);

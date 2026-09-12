@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLingui } from "@lingui/react/macro";
+import { Typography } from "@heroui/react";
 
 export const TranscriptTimeLabel = ({ startedAt }: { startedAt: number }) => {
   const { t, i18n } = useLingui();
@@ -42,11 +43,13 @@ export const TranscriptTimeLabel = ({ startedAt }: { startedAt: number }) => {
           })
         : `${fullDate} ${time}`;
   return (
-    <time
-      className="committed-transcript-time-label text-muted text-xs tabular-nums"
-      dateTime={date.toISOString()}
+    <Typography
+      type="body-xs"
+      color="muted"
+      align="center"
+      className="committed-transcript-time-label tabular-nums"
     >
-      {label}
-    </time>
+      <time dateTime={date.toISOString()}>{label}</time>
+    </Typography>
   );
 };

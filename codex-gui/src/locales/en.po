@@ -53,7 +53,7 @@ msgid "{0} skill details, {1}"
 msgstr "{0} skill details, {1}"
 
 #. Turn duration; subordinate minutes and seconds have two digits
-#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:38
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:39
 msgid "{hours}h {paddedMinutes}m {seconds}s"
 msgstr "{hours}h {paddedMinutes}m {seconds}s"
 
@@ -63,7 +63,7 @@ msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {In
 msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 
 #. Turn duration; seconds have two digits
-#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:43
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:44
 msgid "{minutes}m {seconds}s"
 msgstr "{minutes}m {seconds}s"
 
@@ -81,7 +81,7 @@ msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
 
 #. Turn duration in whole seconds
-#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:47
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:48
 msgid "{totalSeconds}s"
 msgstr "{totalSeconds}s"
 
@@ -370,7 +370,7 @@ msgid "Dismiss"
 msgstr "Dismiss"
 
 #. Final authoritative duration below the first user input of a finished turn
-#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:60
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:64
 msgid "Duration {duration}"
 msgstr "Duration {duration}"
 
@@ -385,7 +385,7 @@ msgid "Edit pending message"
 msgstr "Edit pending message"
 
 #. Elapsed wall time below the first user input of a running turn, including waits
-#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:55
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:59
 msgid "Elapsed {duration}"
 msgstr "Elapsed {duration}"
 
@@ -1309,7 +1309,7 @@ msgid "Today"
 msgstr "Today"
 
 #. Transcript time label using today's actual local turn start time
-#: src/features/committedTranscriptSurface/TranscriptTimeLabel.tsx:34
+#: src/features/committedTranscriptSurface/TranscriptTimeLabel.tsx:35
 msgid "Today {time}"
 msgstr "Today {time}"
 
@@ -1490,7 +1490,7 @@ msgid "Yesterday"
 msgstr "Yesterday"
 
 #. Transcript time label using yesterday's actual local turn start time
-#: src/features/committedTranscriptSurface/TranscriptTimeLabel.tsx:39
+#: src/features/committedTranscriptSurface/TranscriptTimeLabel.tsx:40
 msgid "Yesterday {time}"
 msgstr "Yesterday {time}"
 
