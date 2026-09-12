@@ -101,7 +101,7 @@ function HistoryDetailError({
           retry == null ? null : (
             <RetryActionButton
               onPress={retry}
-              variant="tertiary"
+              variant="primary"
               isPending={isPending}
               pendingChildren={<Trans>Loading task history…</Trans>}
             >

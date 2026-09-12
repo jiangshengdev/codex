@@ -296,7 +296,7 @@ function HistoryError(props: HistoryErrorProps) {
           props.retry == null ? null : (
             <RetryActionButton
               onPress={props.retry}
-              variant="tertiary"
+              variant="primary"
               isPending={props.isPending === true}
               pendingChildren={
                 props.append ? (

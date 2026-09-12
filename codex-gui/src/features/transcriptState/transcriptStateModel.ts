@@ -13,7 +13,7 @@ export type TranscriptEntryId = string & {
 export const transcriptEntryIdFor = (turnId: string, itemId: string): TranscriptEntryId =>
   JSON.stringify([turnId, itemId]) as TranscriptEntryId;
 
-export type TranscriptTurn = {
+export type TranscriptTurn = Pick<Turn, "startedAt" | "completedAt" | "durationMs"> & {
   id: string;
   status: Turn["status"];
   error?: NonNullable<Turn["error"]>;

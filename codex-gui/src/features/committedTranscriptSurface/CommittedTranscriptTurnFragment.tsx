@@ -17,6 +17,10 @@ import type { CommittedTranscriptTurnFragmentRendererProps } from "./CommittedTr
 import { TranscriptEntryGroups, TranscriptEntryRenderer } from "./TranscriptEntryRenderer";
 import { useTranscriptSelector } from "./TranscriptReadContext";
 import { ThreadForkAction } from "@/features/threadFork/ThreadForkAction";
+import { TranscriptTurnDuration } from "./TranscriptTurnDuration";
+import { TranscriptTimeLabel } from "./TranscriptTimeLabel";
+import { selectTranscriptTimeLabelsFromTranscriptState } from "@/features/transcriptState/transcriptTimeSelectors";
+import { TranscriptCompletionTime } from "./TranscriptCompletionTime";
 
 const areTranscriptEntryArraysEqual = (
   previous: TranscriptEntryView[],
@@ -156,6 +160,9 @@ const TurnErrorAlert = ({ error }: { error: NonNullable<TranscriptTurn["error"]>
 export const CommittedTranscriptTurnFragment = memo(
   ({ fragmentId, lastFragmentIdsByTurnId }: CommittedTranscriptTurnFragmentRendererProps) => {
     const { t } = useLingui();
+    const labelTime = useTranscriptSelector(
+      (state) => selectTranscriptTimeLabelsFromTranscriptState(state)[fragmentId],
+    );
     const fragment = useTranscriptSelector((state) =>
       selectTranscriptTurnFragmentFromTranscriptState(state, fragmentId),
     );
@@ -214,6 +221,7 @@ export const CommittedTranscriptTurnFragment = memo(
 
     return (
       <article aria-label={turnLabel} className="committed-transcript-turn grid min-w-0 gap-3">
+        {labelTime == null ? null : <TranscriptTimeLabel startedAt={labelTime} />}
         {isLastFragment ? (
           <div className="committed-transcript-turn-metadata flex min-w-0 flex-wrap items-center gap-2">
             <Chip className="committed-transcript-turn-status" color="default" size="sm">
@@ -223,6 +231,13 @@ export const CommittedTranscriptTurnFragment = memo(
         ) : null}
         <div className="committed-transcript-chunk grid min-w-0 gap-3">
           <LeadingPromptEntry entryId={fragment.leadingPromptEntryId} />
+          {fragment.leadingPromptEntryId != null ? (
+            <TranscriptTurnDuration
+              startedAt={turn.startedAt}
+              durationMs={turn.durationMs}
+              status={turn.status}
+            />
+          ) : null}
           <MiddleTranscriptModule
             chunkIds={fragment.middleChunkIds}
             hasFinalAnswer={fragment.finalAssistantEntryIds.length > 0}
@@ -232,7 +247,10 @@ export const CommittedTranscriptTurnFragment = memo(
           {!isLastFragment || turn.error == null ? null : <TurnErrorAlert error={turn.error} />}
         </div>
         {isLastFragment && turn.status !== "inProgress" ? (
-          <ThreadForkAction turnId={turn.id} />
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <ThreadForkAction turnId={turn.id} />
+            <TranscriptCompletionTime completedAt={turn.completedAt} />
+          </div>
         ) : null}
       </article>
     );
