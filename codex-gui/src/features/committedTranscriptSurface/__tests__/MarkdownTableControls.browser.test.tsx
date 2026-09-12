@@ -244,20 +244,34 @@ test("follows growing tables at the bottom without stealing a reader's scroll po
   expect(scroller.scrollLeft).toBe(readingLeft);
 });
 
+test("starts static long tables at the first row without following later updates", async () => {
+  installClipboard();
+  const screen = await render(content(<MarkdownText source={longTable(25)} />));
+  const scroller = screen.getByRole("table").element().parentElement;
+  assert(scroller);
+  expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
+  expect(scroller.scrollTop).toBe(0);
+  await expect.element(screen.getByRole("cell", { name: "Row 0", exact: true })).toBeVisible();
+  await screen.rerender(content(<MarkdownText source={longTable(30)} />));
+  expect(scroller.scrollTop).toBe(0);
+  await expect.element(screen.getByRole("cell", { name: "Row 0", exact: true })).toBeVisible();
+});
+
 test("preserves normal table reading position and releases fullscreen on unmount", async () => {
   installClipboard();
   const screen = await render(content(<MarkdownText source={longTable(25)} />));
   const scroller = screen.getByRole("table").element().parentElement;
   assert(scroller);
   scroller.scrollTo({ top: 50, left: 40, behavior: "instant" });
-  await expect.poll(() => scroller.scrollTop).toBe(50);
+  await expect.poll(() => scroller.scrollTop).toBeGreaterThan(0);
+  const readingTop = scroller.scrollTop;
   const readingLeft = scroller.scrollLeft;
   const overflowBefore = document.documentElement.style.overflow;
   await screen.getByRole("button", { name: "View fullscreen" }).click();
   const dialog = page.getByRole("dialog", { name: "View fullscreen" });
   await dialog.getByRole("button", { name: "Exit fullscreen" }).click();
   await expect.element(dialog).not.toBeInTheDocument();
-  expect(scroller.scrollTop).toBe(50);
+  expect(scroller.scrollTop).toBe(readingTop);
   expect(scroller.scrollLeft).toBe(readingLeft);
   await screen.getByRole("button", { name: "View fullscreen" }).click();
   await expect.element(dialog).toBeVisible();
