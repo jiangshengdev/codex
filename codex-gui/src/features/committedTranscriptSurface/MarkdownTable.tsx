@@ -11,7 +11,7 @@ type MarkdownTableProps = ComponentProps<Exclude<NonNullable<Components["table"]
 export function MarkdownTable({ children, node: _node, className, ...props }: MarkdownTableProps) {
   const { t } = useLingui();
   const { isAnimating } = use(StreamdownContext);
-  const { tableRef, scrollRef, onScroll } = useMarkdownTableScroll();
+  const { tableRef, scrollRef, onScroll } = useMarkdownTableScroll(isAnimating);
   const fullscreenTableRef = useRef<HTMLTableElement>(null);
   const tableClassName = `w-full border-collapse text-sm ${className ?? ""}`;
   return (

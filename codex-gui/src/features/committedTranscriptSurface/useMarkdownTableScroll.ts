@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 
 // Track the reader's position before content grows. The one-pixel allowance
 // covers the integer rounding of scrollHeight/clientHeight versus scrollTop.
-export function useMarkdownTableScroll() {
+export function useMarkdownTableScroll(isAnimating: boolean) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const following = useRef(true);
@@ -13,7 +13,7 @@ export function useMarkdownTableScroll() {
   useLayoutEffect(() => {
     const viewport = scrollRef.current;
     const table = tableRef.current;
-    if (!viewport || !table) return;
+    if (!isAnimating || !viewport || !table) return;
     const followContent = () => {
       // scrollTop changes immediately, but its scroll event may arrive after
       // this render. Respect that user movement before applying content growth.
