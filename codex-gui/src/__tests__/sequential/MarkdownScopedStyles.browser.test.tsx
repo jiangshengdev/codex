@@ -17,8 +17,11 @@ import {
   itemStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { disableMotionForTest } from "@/utils/test-utils";
-import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
-import { transcriptIdentity, renderTranscriptWithProviders } from "./transcriptSurfaceFixtures";
+import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
+import {
+  transcriptIdentity,
+  renderTranscriptWithProviders,
+} from "@/features/committedTranscriptSurface/__tests__/transcriptSurfaceFixtures";
 
 vi.hoisted(() => {
   vi.stubGlobal("isSecureContext", true);
