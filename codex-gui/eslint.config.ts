@@ -1,21 +1,19 @@
-// For more info, see https://github.com/storybookjs/eslint-plugin-storybook#configuration-flat-config-format
-import storybook from "eslint-plugin-storybook";
-
 import path from "node:path";
 import js from "@eslint/js";
-import globals from "globals";
 import vitestPlugin from "@vitest/eslint-plugin";
+import { defineConfig, globalIgnores, includeIgnoreFile } from "eslint/config";
+import skipFormatting from "eslint-config-prettier/flat";
 import linguiPlugin from "eslint-plugin-lingui";
+import pluginOxlint from "eslint-plugin-oxlint";
 import playwrightPlugin from "eslint-plugin-playwright";
 import reactPlugin from "eslint-plugin-react";
 import reactDom from "eslint-plugin-react-dom";
 import reactHooks from "eslint-plugin-react-hooks";
-import reactX from "eslint-plugin-react-x";
 import reactRefresh from "eslint-plugin-react-refresh";
-import pluginOxlint from "eslint-plugin-oxlint";
-import skipFormatting from "eslint-config-prettier/flat";
+import reactX from "eslint-plugin-react-x";
+import storybook from "eslint-plugin-storybook";
+import globals from "globals";
 import { configs } from "typescript-eslint";
-import { defineConfig, globalIgnores, includeIgnoreFile } from "eslint/config";
 
 const gitignorePath = path.resolve(import.meta.dirname, ".gitignore");
 
