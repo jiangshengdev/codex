@@ -122,8 +122,7 @@
 
   [data-streamdown="code-block-header"],
   [data-streamdown="blockquote"],
-  [data-streamdown="code-block-actions"] button,
-  [data-streamdown="table-wrapper"] > div:first-child button {
+  [data-streamdown="code-block-actions"] button {
     color: var(--muted);
   }
 
@@ -131,8 +130,7 @@
     border-color: var(--border);
   }
 
-  [data-streamdown="code-block-actions"] button,
-  [data-streamdown="table-wrapper"] > div:first-child button {
+  [data-streamdown="code-block-actions"] button {
     &:hover:not(:disabled) {
       color: var(--foreground);
     }
@@ -142,35 +140,12 @@
       outline-offset: 2px;
     }
   }
-
-  /* Copy/download menus stay inside the first (toolbar) child of table-wrapper. */
-  [data-streamdown="table-wrapper"] > div:first-child > div > button + div {
-    background-color: var(--surface);
-    color: var(--foreground);
-
-    > button {
-      color: var(--foreground);
-
-      &:hover:not(:disabled) {
-        background-color: var(--surface-secondary);
-      }
-
-      &:focus-visible {
-        /* Keep the ring inside the default overflow-hidden menu. */
-        outline-offset: -2px;
-      }
-    }
-  }
 }
 
-/* The default fullscreen table is a body portal, outside the Markdown wrapper. */
+/* The HeroUI fullscreen table is a body portal, outside the Markdown wrapper. */
 [data-streamdown="table-fullscreen"] {
   background-color: var(--surface);
   color: var(--foreground);
-
-  [data-streamdown="table-wrapper"] > div:first-child > button:hover:not(:disabled) {
-    background-color: var(--surface-secondary);
-  }
 }
 
 [data-assistant-math] .katex {

@@ -293,6 +293,16 @@ msgstr "复制修改内容"
 msgid "Copy failed. Select the text and copy it manually."
 msgstr "复制失败。请选中文字并手动复制。"
 
+#. Opens the Markdown table copy format menu.
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:67
+msgid "Copy table"
+msgstr "复制表格"
+
+#. Table clipboard write failed; the copy menu remains available for retry.
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:122
+msgid "Could not copy table. Try again."
+msgstr "无法复制表格。请重试。"
+
 #: src/features/appShell/AppShellTopBar.tsx:57
 #: src/features/appShell/AppShellTopBar.tsx:195
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
@@ -414,6 +424,11 @@ msgstr "错误 - 智能体出错"
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:248
 msgid "Error - Agent resume failed"
 msgstr "错误 - 恢复智能体失败"
+
+#. Close the fullscreen Markdown table dialog.
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:38
+msgid "Exit fullscreen"
+msgstr "退出全屏"
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:243
 msgid "Expand"
@@ -1103,6 +1118,11 @@ msgstr "系统"
 msgid "System error"
 msgstr "系统错误"
 
+#. Table clipboard write succeeded.
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:115
+msgid "Table copied"
+msgstr "表格已复制"
+
 #: src/features/currentTask/CurrentTaskPage.tsx:234
 #: src/features/currentTask/CurrentTaskPage.tsx:453
 msgid "Task action failed"
@@ -1408,6 +1428,13 @@ msgstr "查看"
 #: src/feedback/FailureDiagnosticModal.tsx:19
 msgid "View diagnostic information"
 msgstr "查看诊断信息"
+
+#. Open the Markdown table in a fullscreen dialog.
+#. Open the Markdown table in a fullscreen dialog.
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:27
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:45
+msgid "View fullscreen"
+msgstr "全屏查看"
 
 #: src/features/appShell/activeThreadCollectionMessages.ts:14
 msgid "Wait for context compaction to finish."
