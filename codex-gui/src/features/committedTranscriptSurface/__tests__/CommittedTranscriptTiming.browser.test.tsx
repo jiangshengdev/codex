@@ -88,6 +88,7 @@ test("counts waits from the server start across reattach and freezes the final d
     }),
   );
   await expect.element(page.getByText("已用时 8秒", { exact: true })).toBeVisible();
+  await expect.element(page.getByRole("separator")).toBeVisible();
   vi.setSystemTime(new Date(2026, 8, 12, 9, 2, 5));
   await expect.element(page.getByText("已用时 2分钟 05秒", { exact: true })).toBeVisible();
   const finished = turnWithTiming(interruptedTurn(turn.id, turn.items), {
@@ -111,6 +112,7 @@ test("counts waits from the server start across reattach and freezes the final d
     }),
   );
   await expect.element(page.getByText("用时 1小时 03分钟 09秒", { exact: true })).toBeVisible();
+  await expect.element(page.getByText("10:03", { exact: true })).toBeVisible();
   vi.setSystemTime(new Date(2026, 8, 13));
   await expect.element(page.getByText("用时 1小时 03分钟 09秒", { exact: true })).toBeVisible();
   expect(document.querySelectorAll(".committed-transcript-turn-status")).toHaveLength(1);
@@ -152,4 +154,5 @@ test("omits missing durations and never starts a clock from mount time", async (
   );
   await expect.element(page.getByText("No duration", { exact: true })).toBeVisible();
   expect(document.querySelectorAll(".committed-transcript-turn-duration")).toHaveLength(0);
+  await expect.element(page.getByRole("separator")).not.toBeInTheDocument();
 });

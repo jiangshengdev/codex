@@ -74,7 +74,13 @@ test("offers fork at the end of a displayed completed turn", async () => {
 });
 
 const forkId = "00000000-0000-0000-0000-000000000003";
-const prefix = [baseTurn("fork-point", [agentMessage("answer", "Keep this answer")])];
+const prefix = [
+  turnWithTiming(baseTurn("fork-point", [agentMessage("answer", "Keep this answer")]), {
+    startedAt: null,
+    completedAt: new Date(2026, 8, 12, 9, 39).getTime() / 1000,
+    durationMs: null,
+  }),
+];
 const forkProjection = attachWithThreadId(attachWithTurns(attachResponse, prefix), forkId);
 function forkResponse(): Awaited<ReturnType<GuiHostCommands["forkThread"]>> {
   return {
@@ -144,6 +150,10 @@ test("retains a created ID after leaving the source and opens it without another
   const pending = createDeferred<Awaited<ReturnType<GuiHostCommands["forkThread"]>>>();
   vi.mocked(commands.forkThread).mockReturnValueOnce(pending.promise);
   await page.getByRole("button", { name: "Fork from here", exact: true }).click();
+  await expect
+    .element(page.getByRole("button", { name: "Fork from here", exact: true }))
+    .toBeDisabled();
+  await expect.element(page.getByText("09:39", { exact: true })).toBeVisible();
   await expect
     .element(page.getByRole("button", { name: "Fork from here", exact: true }))
     .toBeDisabled();
