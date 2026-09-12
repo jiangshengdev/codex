@@ -83,7 +83,25 @@ function NewSessionEditor({
       {snapshot.failure == null ? null : (
         <Alert role="alert" status="danger">
           <Alert.Indicator />
-          <FailureLayout>
+          <FailureLayout
+            actions={
+              unknownHandoff && snapshot.threadId != null ? (
+                <Button
+                  variant="primary"
+                  onPress={() => {
+                    const threadId = snapshot.threadId;
+                    if (threadId == null) return;
+                    void navigate({ to: CURRENT_TASK_ROUTE_PATH, params: { threadId } }).catch(
+                      (error: unknown) =>
+                        activeThreadSession?.setOperationError(threadId, "navigation", error),
+                    );
+                  }}
+                >
+                  <Trans>Open session</Trans>
+                </Button>
+              ) : null
+            }
+          >
             <Alert.Content>
               <Alert.Title>
                 <Trans>Unable to start the conversation</Trans>
@@ -106,22 +124,6 @@ function NewSessionEditor({
               <FailureDiagnosticModal triggerClassName="mt-2 self-start">
                 {errorText(snapshot.failure.error)}
               </FailureDiagnosticModal>
-              {unknownHandoff && snapshot.threadId != null ? (
-                <Button
-                  className="mt-2 self-start"
-                  variant="secondary"
-                  onPress={() => {
-                    const threadId = snapshot.threadId;
-                    if (threadId == null) return;
-                    void navigate({ to: CURRENT_TASK_ROUTE_PATH, params: { threadId } }).catch(
-                      (error: unknown) =>
-                        activeThreadSession?.setOperationError(threadId, "navigation", error),
-                    );
-                  }}
-                >
-                  <Trans>Open session</Trans>
-                </Button>
-              ) : null}
             </Alert.Content>
           </FailureLayout>
         </Alert>
