@@ -14,6 +14,7 @@ import {
   inProgressTurn,
   failedTurn,
   interruptedTurn,
+  turnWithTiming,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createAppRouter } from "@/router";
 import { renderWithProviders } from "@/utils/test-utils";
@@ -47,7 +48,11 @@ test("offers fork at the end of a displayed completed turn", async () => {
   const commands = createGuiHostCommands({ loadedThreadIds: [launchThreadId] });
   vi.mocked(commands.attachThreadProjection).mockResolvedValue(
     attachWithTurns(attachResponse, [
-      baseTurn("fork-point", [agentMessage("answer", "Keep this answer")]),
+      turnWithTiming(baseTurn("fork-point", [agentMessage("answer", "Keep this answer")]), {
+        startedAt: null,
+        completedAt: new Date(2026, 8, 12, 9, 39).getTime() / 1000,
+        durationMs: null,
+      }),
     ]),
   );
   initializeHost(getHostOptions(host.startGuiHostConnection), commands);
@@ -55,6 +60,17 @@ test("offers fork at the end of a displayed completed turn", async () => {
   await expect
     .element(page.getByRole("button", { name: "Fork from here", exact: true }))
     .toBeEnabled();
+  const time = page.getByText("09:39", { exact: true });
+  await expect.element(time).toBeVisible();
+  const fork = page.getByRole("button", { name: "Fork from here", exact: true });
+  const buttonBounds = fork.element().getBoundingClientRect();
+  const timeBounds = time.element().getBoundingClientRect();
+  expect(timeBounds.left).toBeGreaterThanOrEqual(buttonBounds.right);
+  expect(timeBounds.top).toBeGreaterThanOrEqual(buttonBounds.top);
+  expect(timeBounds.bottom).toBeLessThanOrEqual(buttonBounds.bottom);
+  await time.hover();
+  expect(time.element().closest("[title], [tabindex], button, a")).toBeNull();
+  await expect.element(page.getByRole("tooltip")).not.toBeInTheDocument();
 });
 
 const forkId = "00000000-0000-0000-0000-000000000003";

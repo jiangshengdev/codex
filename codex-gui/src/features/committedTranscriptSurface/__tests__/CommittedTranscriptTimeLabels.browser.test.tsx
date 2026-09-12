@@ -135,10 +135,13 @@ test("keeps timing on the original fragment across context pages and preserves n
       />,
     );
     await expect.element(screen.getByText("Final answer", { exact: true })).toBeVisible();
+    await expect.element(screen.getByText("09:37", { exact: true })).toBeVisible();
+    await expect.element(screen.getByText("09:38", { exact: true })).toBeVisible();
     expect(document.querySelectorAll(".committed-transcript-time-label")).toHaveLength(0);
     expect(document.querySelectorAll(".committed-transcript-turn-duration")).toHaveLength(1);
     await screen.getByRole("button", { name: "Previous context page" }).click();
     await expect.element(screen.getByText("Today 09:37", { exact: true })).toBeVisible();
+    await expect.element(screen.getByText("09:37", { exact: true })).not.toBeInTheDocument();
     expect(document.querySelectorAll(".committed-transcript-time-label")).toHaveLength(1);
     expect(document.querySelectorAll(".committed-transcript-turn-duration")).toHaveLength(1);
     expect(document.documentElement.scrollWidth).toBe(document.documentElement.clientWidth);

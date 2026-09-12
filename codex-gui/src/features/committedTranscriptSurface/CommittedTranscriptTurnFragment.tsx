@@ -20,6 +20,7 @@ import { ThreadForkAction } from "@/features/threadFork/ThreadForkAction";
 import { TranscriptTurnDuration } from "./TranscriptTurnDuration";
 import { TranscriptTimeLabel } from "./TranscriptTimeLabel";
 import { selectTranscriptTimeLabelsFromTranscriptState } from "@/features/transcriptState/transcriptTimeSelectors";
+import { TranscriptCompletionTime } from "./TranscriptCompletionTime";
 
 const areTranscriptEntryArraysEqual = (
   previous: TranscriptEntryView[],
@@ -246,7 +247,10 @@ export const CommittedTranscriptTurnFragment = memo(
           {!isLastFragment || turn.error == null ? null : <TurnErrorAlert error={turn.error} />}
         </div>
         {isLastFragment && turn.status !== "inProgress" ? (
-          <ThreadForkAction turnId={turn.id} />
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <ThreadForkAction turnId={turn.id} />
+            <TranscriptCompletionTime completedAt={turn.completedAt} />
+          </div>
         ) : null}
       </article>
     );
