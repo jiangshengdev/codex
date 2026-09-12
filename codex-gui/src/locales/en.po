@@ -148,7 +148,7 @@ msgstr "Changes copied"
 msgid "Changes could not be saved"
 msgstr "Changes could not be saved"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:64
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:79
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 
@@ -277,7 +277,7 @@ msgstr "Context usage details, {usedTokensLabel} tokens used, context window cap
 
 #. Resumes sending this page's restored queue; does not open the queue
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:128
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:77
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:68
 msgid "Continue sending"
 msgstr "Continue sending"
 
@@ -306,7 +306,7 @@ msgstr "Copy failed. Select the text and copy it manually."
 #. Opens the Markdown table copy format menu.
 #. Opens the Markdown table copy format menu.
 #: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:69
-#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:84
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:89
 msgid "Copy table"
 msgstr "Copy table"
 
@@ -315,7 +315,7 @@ msgid "Could not copy code. Try again."
 msgstr "Could not copy code. Try again."
 
 #. Table clipboard write failed; the copy menu remains available for retry.
-#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:128
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:133
 msgid "Could not copy table. Try again."
 msgstr "Could not copy table. Try again."
 
@@ -391,7 +391,7 @@ msgid "Discard unsaved changes?"
 msgstr "Discard unsaved changes?"
 
 #. Dismiss the fork creation error notice
-#: src/features/threadFork/ThreadForkNotice.tsx:41
+#: src/features/threadFork/ThreadForkNotice.tsx:31
 msgid "Dismiss"
 msgstr "Dismiss"
 
@@ -468,7 +468,7 @@ msgstr "Failed."
 msgid "Finished waiting"
 msgstr "Finished waiting"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:51
+#: src/features/threadFork/ThreadForkNotice.tsx:72
 msgid "Fork created"
 msgstr "Fork created"
 
@@ -531,7 +531,7 @@ msgid "In progress"
 msgstr "In progress"
 
 #. Input may already belong to the existing task queue; do not offer another send
-#: src/features/newSession/NewSessionPage.tsx:93
+#: src/features/newSession/NewSessionPage.tsx:111
 msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 msgstr "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 
@@ -631,8 +631,8 @@ msgstr "Message cannot be empty"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:204
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:214
-#: src/features/newSession/NewSessionPage.tsx:135
-#: src/features/newSession/NewSessionPage.tsx:151
+#: src/features/newSession/NewSessionPage.tsx:137
+#: src/features/newSession/NewSessionPage.tsx:153
 msgid "Message Codex"
 msgstr "Message Codex"
 
@@ -759,11 +759,11 @@ msgid "Open current task"
 msgstr "Open current task"
 
 #. Resume opening an already created fork without creating it again
-#: src/features/threadFork/ThreadForkNotice.tsx:69
+#: src/features/threadFork/ThreadForkNotice.tsx:64
 msgid "Open fork"
 msgstr "Open fork"
 
-#: src/features/newSession/NewSessionPage.tsx:122
+#: src/features/newSession/NewSessionPage.tsx:100
 msgid "Open session"
 msgstr "Open session"
 
@@ -907,7 +907,7 @@ msgid "Remove from list"
 msgstr "Remove from list"
 
 #. Drops only this local unknown-send record, without retracting server work
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:108
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:113
 msgid "Remove local record"
 msgstr "Remove local record"
 
@@ -958,7 +958,7 @@ msgstr "Restore sync"
 msgid "Restore task"
 msgstr "Restore task"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:61
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:76
 msgid "Restored messages are paused"
 msgstr "Restored messages are paused"
 
@@ -1029,16 +1029,16 @@ msgid "Scan with phone"
 msgstr "Scan with phone"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:284
-#: src/features/newSession/NewSessionPage.tsx:171
+#: src/features/newSession/NewSessionPage.tsx:173
 msgid "Send"
 msgstr "Send"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:163
+#: src/features/newSession/NewSessionPage.tsx:165
 msgid "Sending"
 msgstr "Sending"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:89
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:93
 msgid "Sending result unknown"
 msgstr "Sending result unknown"
 
@@ -1135,7 +1135,7 @@ msgid "System error"
 msgstr "System error"
 
 #. Table clipboard write succeeded.
-#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:121
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:126
 msgid "Table copied"
 msgstr "Table copied"
 
@@ -1196,7 +1196,7 @@ msgid "The conversation shown here may be out of date. Restore sync to get the l
 msgstr "The conversation shown here may be out of date. Restore sync to get the latest content."
 
 #. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
-#: src/features/newSession/NewSessionPage.tsx:99
+#: src/features/newSession/NewSessionPage.tsx:117
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "The creation result is unknown. Retrying may leave an extra empty session."
 
@@ -1213,7 +1213,7 @@ msgstr "The current task still has queued or unresolved messages. Return to it b
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "The message was moved, but repeated queue changes prevented the updated order from loading."
 
-#: src/features/threadFork/ThreadForkNotice.tsx:54
+#: src/features/threadFork/ThreadForkNotice.tsx:75
 msgid "The new conversation is saved. Continue opening it without creating another fork."
 msgstr "The new conversation is saved. Continue opening it without creating another fork."
 
@@ -1229,7 +1229,7 @@ msgstr "The pending-message order did not change. Refresh complete; try again."
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "The previous task connection could not be fully cleaned up. Later state may be affected."
 
-#: src/features/threadFork/ThreadForkNotice.tsx:33
+#: src/features/threadFork/ThreadForkNotice.tsx:41
 msgid "The result is unknown. Check history before forking again; another click may create an additional conversation."
 msgstr "The result is unknown. Check history before forking again; another click may create an additional conversation."
 
@@ -1290,7 +1290,7 @@ msgstr "The task recovery could not be completed."
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:92
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:96
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 
@@ -1368,7 +1368,7 @@ msgstr "Turn {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:29
+#: src/features/threadFork/ThreadForkNotice.tsx:37
 msgid "Unable to create fork"
 msgstr "Unable to create fork"
 
@@ -1398,7 +1398,7 @@ msgstr "Unable to retry this task. Review its current state and try again."
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
-#: src/features/newSession/NewSessionPage.tsx:89
+#: src/features/newSession/NewSessionPage.tsx:107
 msgid "Unable to start the conversation"
 msgstr "Unable to start the conversation"
 
@@ -1547,7 +1547,7 @@ msgstr "Your changes could not be saved. Copy them before discarding."
 msgid "Your changes have not been saved. Return to copy them, or discard them to continue."
 msgstr "Your changes have not been saved. Return to copy them, or discard them to continue."
 
-#: src/features/newSession/NewSessionPage.tsx:103
+#: src/features/newSession/NewSessionPage.tsx:121
 msgid "Your input is retained. Retry to continue."
 msgstr "Your input is retained. Retry to continue."
 

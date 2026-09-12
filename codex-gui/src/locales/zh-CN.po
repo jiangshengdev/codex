@@ -148,7 +148,7 @@ msgstr "已复制修改内容"
 msgid "Changes could not be saved"
 msgstr "无法保存更改"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:64
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:79
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "继续前，请检查队列、其他打开的页面和会话历史。发送结果未知的消息仍会阻塞后续发送。"
 
@@ -277,7 +277,7 @@ msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗�
 
 #. Resumes sending this page's restored queue; does not open the queue
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:128
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:77
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:68
 msgid "Continue sending"
 msgstr "继续发送"
 
@@ -306,7 +306,7 @@ msgstr "复制失败。请选中文字并手动复制。"
 #. Opens the Markdown table copy format menu.
 #. Opens the Markdown table copy format menu.
 #: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:69
-#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:84
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:89
 msgid "Copy table"
 msgstr "复制表格"
 
@@ -315,7 +315,7 @@ msgid "Could not copy code. Try again."
 msgstr "无法复制代码，请重试。"
 
 #. Table clipboard write failed; the copy menu remains available for retry.
-#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:128
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:133
 msgid "Could not copy table. Try again."
 msgstr "无法复制表格。请重试。"
 
@@ -391,7 +391,7 @@ msgid "Discard unsaved changes?"
 msgstr "丢弃尚未保存的修改？"
 
 #. Dismiss the fork creation error notice
-#: src/features/threadFork/ThreadForkNotice.tsx:41
+#: src/features/threadFork/ThreadForkNotice.tsx:31
 msgid "Dismiss"
 msgstr "关闭提示"
 
@@ -468,7 +468,7 @@ msgstr "失败。"
 msgid "Finished waiting"
 msgstr "等待结束"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:51
+#: src/features/threadFork/ThreadForkNotice.tsx:72
 msgid "Fork created"
 msgstr "分叉会话已创建"
 
@@ -531,7 +531,7 @@ msgid "In progress"
 msgstr "进行中"
 
 #. Input may already belong to the existing task queue; do not offer another send
-#: src/features/newSession/NewSessionPage.tsx:93
+#: src/features/newSession/NewSessionPage.tsx:111
 msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 msgstr "无法确认消息是否已加入队列。请打开会话，检查队列后再继续。"
 
@@ -631,8 +631,8 @@ msgstr "消息不能为空"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:204
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:214
-#: src/features/newSession/NewSessionPage.tsx:135
-#: src/features/newSession/NewSessionPage.tsx:151
+#: src/features/newSession/NewSessionPage.tsx:137
+#: src/features/newSession/NewSessionPage.tsx:153
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
@@ -759,11 +759,11 @@ msgid "Open current task"
 msgstr "打开当前任务"
 
 #. Resume opening an already created fork without creating it again
-#: src/features/threadFork/ThreadForkNotice.tsx:69
+#: src/features/threadFork/ThreadForkNotice.tsx:64
 msgid "Open fork"
 msgstr "打开分叉会话"
 
-#: src/features/newSession/NewSessionPage.tsx:122
+#: src/features/newSession/NewSessionPage.tsx:100
 msgid "Open session"
 msgstr "打开会话"
 
@@ -907,7 +907,7 @@ msgid "Remove from list"
 msgstr "移出列表"
 
 #. Drops only this local unknown-send record, without retracting server work
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:108
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:113
 msgid "Remove local record"
 msgstr "移除本地记录"
 
@@ -958,7 +958,7 @@ msgstr "恢复同步"
 msgid "Restore task"
 msgstr "恢复任务"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:61
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:76
 msgid "Restored messages are paused"
 msgstr "恢复的消息已暂停发送"
 
@@ -1029,16 +1029,16 @@ msgid "Scan with phone"
 msgstr "使用手机扫描"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:284
-#: src/features/newSession/NewSessionPage.tsx:171
+#: src/features/newSession/NewSessionPage.tsx:173
 msgid "Send"
 msgstr "发送"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:163
+#: src/features/newSession/NewSessionPage.tsx:165
 msgid "Sending"
 msgstr "正在发送"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:89
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:93
 msgid "Sending result unknown"
 msgstr "发送结果未知"
 
@@ -1135,7 +1135,7 @@ msgid "System error"
 msgstr "系统错误"
 
 #. Table clipboard write succeeded.
-#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:121
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:126
 msgid "Table copied"
 msgstr "表格已复制"
 
@@ -1196,7 +1196,7 @@ msgid "The conversation shown here may be out of date. Restore sync to get the l
 msgstr "当前显示的对话可能不是最新内容。恢复同步可获取最新内容。"
 
 #. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
-#: src/features/newSession/NewSessionPage.tsx:99
+#: src/features/newSession/NewSessionPage.tsx:117
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "创建结果未知。重试可能留下额外的空会话。"
 
@@ -1213,7 +1213,7 @@ msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "消息已移动，但队列反复变化，无法加载更新后的顺序。"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:54
+#: src/features/threadFork/ThreadForkNotice.tsx:75
 msgid "The new conversation is saved. Continue opening it without creating another fork."
 msgstr "新会话已保存。继续打开该会话，不会重复创建分叉。"
 
@@ -1229,7 +1229,7 @@ msgstr "待处理消息的顺序没有改变。已刷新，请重试。"
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "上一个任务连接未能完全清理，后续状态可能受到影响。"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:33
+#: src/features/threadFork/ThreadForkNotice.tsx:41
 msgid "The result is unknown. Check history before forking again; another click may create an additional conversation."
 msgstr "创建结果未知。请先检查历史记录；再次点击分叉可能会额外创建一个会话。"
 
@@ -1290,7 +1290,7 @@ msgstr "任务恢复未能完成。"
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "任务切换已提交，但连接已中断。重新连接后请确认当前任务。"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:92
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:96
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "这些消息不会自动重发。移除本地记录不会取消或撤回服务端的消息。"
 
@@ -1368,7 +1368,7 @@ msgstr "轮次 {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:29
+#: src/features/threadFork/ThreadForkNotice.tsx:37
 msgid "Unable to create fork"
 msgstr "无法创建分叉会话"
 
@@ -1398,7 +1398,7 @@ msgstr "无法重试此任务。请检查当前状态后再试。"
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
-#: src/features/newSession/NewSessionPage.tsx:89
+#: src/features/newSession/NewSessionPage.tsx:107
 msgid "Unable to start the conversation"
 msgstr "无法开始对话"
 
@@ -1547,7 +1547,7 @@ msgstr "修改未能保存。请先复制需要保留的内容，再丢弃修改
 msgid "Your changes have not been saved. Return to copy them, or discard them to continue."
 msgstr "修改尚未保存。可以返回复制内容，或丢弃修改后继续。"
 
-#: src/features/newSession/NewSessionPage.tsx:103
+#: src/features/newSession/NewSessionPage.tsx:121
 msgid "Your input is retained. Retry to continue."
 msgstr "输入内容已保留。重试以继续。"
 
