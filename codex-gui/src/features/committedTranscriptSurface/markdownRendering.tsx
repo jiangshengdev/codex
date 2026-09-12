@@ -15,7 +15,7 @@ import { remarkBackslashMath } from "./remarkBackslashMath";
 import { MarkdownCode } from "./MarkdownCode";
 import { MarkdownTable } from "./MarkdownTable";
 
-const isAbsolutePath = isAbsolute as (path: string) => boolean;
+const isAbsolutePath = isAbsolute;
 
 const isProtocolLessFileTarget = (target: string) =>
   isAbsolutePath(target) || parseUri(target).scheme === undefined;
