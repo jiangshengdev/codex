@@ -22,9 +22,11 @@
     "noUncheckedSideEffectImports": true
   },
   "include": [
+    ".storybook/main.ts",
     "vite.config.*",
     "vitest.config.*",
     "vitest.*.config.*",
+    "vitest.shims.d.ts",
     "playwright.config.*",
     "lingui.config.*",
     "eslint.config.*",
