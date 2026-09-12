@@ -1,10 +1,6 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": [
-    "src/generated/appServerProtocol/*Validators.raw.js",
-    "src/generated/appServerProtocol/*Validators.js",
-    "src/generated/guiHostContract/standaloneValidators*.js"
-  ],
+  "ignorePatterns": ["src/generated/**", ".playwright-cli/**"],
   "printWidth": 100,
   "singleQuote": false,
   "trailingComma": "all"
