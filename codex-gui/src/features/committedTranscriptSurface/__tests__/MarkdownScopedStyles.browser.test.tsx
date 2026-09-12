@@ -80,6 +80,9 @@ test.for(["light", "dark"])(
           <Button variant="secondary" data-testid="outside-button">
             Outside action
           </Button>
+          <Button variant="ghost" size="sm" data-testid="copy-reference">
+            Copy reference
+          </Button>
           <div data-testid="outside-colors" className="bg-muted text-muted border border-border" />
           <div data-testid="surface" className="bg-surface text-foreground border-border" />
           <div data-testid="secondary" className="bg-surface-secondary text-muted" />
@@ -201,21 +204,27 @@ test.for(["light", "dark"])(
         .toBeNull();
       await verifyRichText();
 
-      const codeDownload = page.elementLocator(
-        element(`${markdown} [data-streamdown="code-block-download-button"]`),
-      );
-      expect(style(codeDownload.element()).color).toBe(secondary.color);
-      await codeDownload.hover();
-      await expect.poll(() => style(codeDownload.element()).color).toBe(surface.color);
-      // Enter keyboard modality, then focus the native control. WebKit's Tab policy skips
-      // native buttons by default; that platform preference is not a rich-text contract.
-      await userEvent.tab();
-      codeDownload.element().focus();
-      await expect.element(codeDownload).toHaveFocus();
+      expect(
+        document.querySelector(`${markdown} [data-streamdown="code-block-download-button"]`),
+      ).toBeNull();
+      const codeCopy = screen.getByRole("button", { name: "Copy code", exact: true });
+      expect(style(codeCopy.element()).color).toBe(reference("copy-reference").color);
+      await codeCopy.hover();
       await expect
-        .poll(() => getComputedStyle(codeDownload.element()).outlineColor)
-        .toBe(reference("focus").color);
-      expect(getComputedStyle(codeDownload.element()).outlineStyle).toBe("solid");
+        .poll(() => style(codeCopy.element()).color)
+        .toBe(reference("copy-reference").color);
+      await userEvent.tab();
+      await expect.element(screen.getByTestId("outside-button")).toHaveFocus();
+      await userEvent.tab();
+      await expect.element(screen.getByTestId("copy-reference")).toHaveFocus();
+      const copyFocusRing = getComputedStyle(
+        screen.getByTestId("copy-reference").element(),
+      ).boxShadow;
+      expect(copyFocusRing).not.toBe("none");
+      expect(copyFocusRing).toContain(reference("focus").color);
+      await userEvent.tab();
+      await expect.element(codeCopy).toHaveFocus();
+      await expect.poll(() => getComputedStyle(codeCopy.element()).boxShadow).toBe(copyFocusRing);
 
       const verifyMenu = async (root: typeof screen | ReturnType<typeof page.getByRole>) => {
         const download = root.getByRole("button", { name: "Download table", exact: true });

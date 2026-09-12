@@ -167,6 +167,11 @@ msgstr "Close diagnostics"
 msgid "Closed {receiver}"
 msgstr "Closed {receiver}"
 
+#. Success label on a Markdown code block copy button.
+#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:57
+msgid "Code copied"
+msgstr "Code copied"
+
 #: src/features/appShell/AppShell.tsx:29
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:54
 msgid "Codex GUI could not be started."
@@ -289,9 +294,18 @@ msgstr "Continuing this task…"
 msgid "Copy changes"
 msgstr "Copy changes"
 
+#. Copy the entire Markdown code block to the clipboard.
+#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:61
+msgid "Copy code"
+msgstr "Copy code"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:262
 msgid "Copy failed. Select the text and copy it manually."
 msgstr "Copy failed. Select the text and copy it manually."
+
+#: src/features/committedTranscriptSurface/MarkdownCode.tsx:71
+msgid "Could not copy code. Try again."
+msgstr "Could not copy code. Try again."
 
 #: src/features/appShell/AppShellTopBar.tsx:57
 #: src/features/appShell/AppShellTopBar.tsx:195
