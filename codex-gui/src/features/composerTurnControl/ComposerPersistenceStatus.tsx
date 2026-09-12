@@ -88,7 +88,7 @@ export function ComposerPersistenceStatus({
       {persistence.unknownMessages.length > 0 ? (
         <Alert status="warning" role="status">
           <Alert.Indicator />
-          <Alert.Content>
+          <Alert.Content className="min-w-0 flex-1">
             <Alert.Title>
               <Trans>Sending result unknown</Trans>
             </Alert.Title>
@@ -98,21 +98,26 @@ export function ComposerPersistenceStatus({
                 not cancel or retract a message on the server.
               </Trans>
             </Alert.Description>
-            <ul className="grid gap-2">
+            <ul className="grid w-full min-w-0 gap-2">
               {persistence.unknownMessages.map((message) => (
-                <li key={message.id} className="grid min-w-0 gap-1">
-                  <p className="whitespace-pre-wrap wrap-anywhere">{message.text}</p>
-                  <Button
-                    variant="danger"
-                    isDisabled={!enabled || persistence.error != null}
-                    onPress={() => {
-                      composerRole.discardUnknown(revision, message.id, persistence.revision);
-                    }}
+                <li key={message.id} className="min-w-0">
+                  <FailureLayout
+                    actions={
+                      <Button
+                        variant="danger"
+                        isDisabled={!enabled || persistence.error != null}
+                        onPress={() => {
+                          composerRole.discardUnknown(revision, message.id, persistence.revision);
+                        }}
+                      >
+                        <Trans comment="Drops only this local unknown-send record, without retracting server work">
+                          Remove local record
+                        </Trans>
+                      </Button>
+                    }
                   >
-                    <Trans comment="Drops only this local unknown-send record, without retracting server work">
-                      Remove local record
-                    </Trans>
-                  </Button>
+                    <p className="whitespace-pre-wrap wrap-anywhere">{message.text}</p>
+                  </FailureLayout>
                 </li>
               ))}
             </ul>
