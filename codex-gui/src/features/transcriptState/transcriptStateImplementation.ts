@@ -132,6 +132,9 @@ const chunkIdForIndex = (turnId: string, index: number): string =>
 const createTranscriptTurn = (id: string, status: TranscriptTurn["status"]): TranscriptTurn => ({
   id,
   status,
+  startedAt: null,
+  completedAt: null,
+  durationMs: null,
   originalFirstItemId: null,
   leadingPromptEntryId: null,
   middleChunkIds: [],
@@ -164,6 +167,9 @@ const recordOriginalFirstTranscriptItem = (
 export const upsertTranscriptTurn = (state: TranscriptState, turn: Turn): void => {
   const transcriptTurn = ensureTranscriptTurn(state, turn.id);
   transcriptTurn.status = turn.status;
+  transcriptTurn.startedAt = turn.startedAt;
+  transcriptTurn.completedAt = turn.completedAt;
+  transcriptTurn.durationMs = turn.durationMs;
   if (turn.error == null) {
     Reflect.deleteProperty(transcriptTurn, "error");
   } else {

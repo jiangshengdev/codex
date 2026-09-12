@@ -8,6 +8,11 @@
 @source "../node_modules/@streamdown/cjk/dist/*.js";
 @source "../node_modules/@streamdown/math/dist/*.js";
 
+:root {
+  --tooltip-delay: 0ms;
+  --tooltip-close-delay: 500ms;
+}
+
 [data-app-shell-content-layout="reading"] {
   --app-shell-content-max-width: var(--container-3xl);
 }
@@ -105,13 +110,32 @@
   [data-streamdown="table-header"],
   [data-streamdown="inline-code"],
   [data-streamdown="code-block"],
-  [data-streamdown="code-block-actions"],
   [data-streamdown="table-wrapper"] {
     background-color: var(--surface-secondary);
   }
 
   [data-streamdown="code-block-actions"] {
-    border-color: var(--border);
+    background: transparent;
+    border: 0;
+    padding: 0;
+    backdrop-filter: none;
+  }
+
+  [data-markdown-action] {
+    --button-fg: var(--foreground);
+    --button-bg-hover: var(--default-hover);
+    --button-bg-pressed: var(--default-hover);
+    border: 0;
+
+    &[data-focus-visible="true"] {
+      background-color: var(--button-bg-hover);
+    }
+
+    & svg {
+      width: 1rem;
+      height: 1rem;
+      margin: 0;
+    }
   }
 
   [data-streamdown="code-block-body"],
@@ -121,56 +145,19 @@
   }
 
   [data-streamdown="code-block-header"],
-  [data-streamdown="blockquote"],
-  [data-streamdown="code-block-actions"] button,
-  [data-streamdown="table-wrapper"] > div:first-child button {
+  [data-streamdown="blockquote"] {
     color: var(--muted);
   }
 
   [data-streamdown="blockquote"] {
     border-color: var(--border);
   }
-
-  [data-streamdown="code-block-actions"] button,
-  [data-streamdown="table-wrapper"] > div:first-child button {
-    &:hover:not(:disabled) {
-      color: var(--foreground);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--focus);
-      outline-offset: 2px;
-    }
-  }
-
-  /* Copy/download menus stay inside the first (toolbar) child of table-wrapper. */
-  [data-streamdown="table-wrapper"] > div:first-child > div > button + div {
-    background-color: var(--surface);
-    color: var(--foreground);
-
-    > button {
-      color: var(--foreground);
-
-      &:hover:not(:disabled) {
-        background-color: var(--surface-secondary);
-      }
-
-      &:focus-visible {
-        /* Keep the ring inside the default overflow-hidden menu. */
-        outline-offset: -2px;
-      }
-    }
-  }
 }
 
-/* The default fullscreen table is a body portal, outside the Markdown wrapper. */
+/* The HeroUI fullscreen table is a body portal, outside the Markdown wrapper. */
 [data-streamdown="table-fullscreen"] {
   background-color: var(--surface);
   color: var(--foreground);
-
-  [data-streamdown="table-wrapper"] > div:first-child > button:hover:not(:disabled) {
-    background-color: var(--surface-secondary);
-  }
 }
 
 [data-assistant-math] .katex {

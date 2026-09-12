@@ -154,6 +154,11 @@ export const inProgressTurn = (id: string, items: ThreadItem[] = []): Turn => ({
   durationMs: null,
 });
 
+export const turnWithTiming = (
+  turn: Turn,
+  timing: Pick<Turn, "startedAt" | "completedAt" | "durationMs">,
+): Turn => ({ ...turn, ...timing });
+
 export const failedTurn = (
   id: string,
   error: NonNullable<Turn["error"]>,

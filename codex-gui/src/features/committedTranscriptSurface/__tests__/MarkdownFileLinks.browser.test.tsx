@@ -1,4 +1,4 @@
-import { render } from "vitest-browser-react";
+import { renderWithProviders as render } from "@/utils/test-utils";
 import { expect, test } from "vitest";
 import { LiveMarkdownText } from "../LiveMarkdownText";
 import { MarkdownText } from "../MarkdownText";

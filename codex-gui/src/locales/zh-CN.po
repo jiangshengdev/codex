@@ -52,10 +52,20 @@ msgstr "{0} 技能详情"
 msgid "{0} skill details, {1}"
 msgstr "{0} 技能详情，{1}"
 
+#. Turn duration; subordinate minutes and seconds have two digits
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:39
+msgid "{hours}h {paddedMinutes}m {seconds}s"
+msgstr "{hours}小时 {paddedMinutes}分钟 {seconds}秒"
+
 #. Disclosure label showing how many intermediate transcript updates it contains
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:95
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:99
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {中间更新 · # 项} other {中间更新 · # 项}}"
+
+#. Turn duration; seconds have two digits
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:44
+msgid "{minutes}m {seconds}s"
+msgstr "{minutes}分钟 {seconds}秒"
 
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:367
 msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
@@ -69,6 +79,11 @@ msgstr "{percentageLabel} 已用"
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:154
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}：{agentState}"
+
+#. Turn duration in whole seconds
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:48
+msgid "{totalSeconds}s"
+msgstr "{totalSeconds}秒"
 
 #: src/features/composerTurnControl/ContextUsagePopover.tsx:90
 msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
@@ -133,7 +148,7 @@ msgstr "已复制修改内容"
 msgid "Changes could not be saved"
 msgstr "无法保存更改"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:64
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:79
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "继续前，请检查队列、其他打开的页面和会话历史。发送结果未知的消息仍会阻塞后续发送。"
 
@@ -151,6 +166,11 @@ msgstr "关闭诊断信息"
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:240
 msgid "Closed {receiver}"
 msgstr "已关闭 {receiver}"
+
+#. Success label on a Markdown code block copy button.
+#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:49
+msgid "Code copied"
+msgstr "代码已复制"
 
 #: src/features/appShell/AppShell.tsx:29
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:54
@@ -172,7 +192,7 @@ msgstr "已提交的对话记录"
 
 #. Status chip for a completed turn
 #. Status of a collaborating agent that completed its work
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:184
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:191
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:97
 msgid "Completed"
 msgstr "已完成"
@@ -257,7 +277,7 @@ msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗�
 
 #. Resumes sending this page's restored queue; does not open the queue
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:128
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:77
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:68
 msgid "Continue sending"
 msgstr "继续发送"
 
@@ -274,9 +294,30 @@ msgstr "正在继续此任务…"
 msgid "Copy changes"
 msgstr "复制修改内容"
 
+#. Copy the entire Markdown code block to the clipboard.
+#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:53
+msgid "Copy code"
+msgstr "复制代码"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:262
 msgid "Copy failed. Select the text and copy it manually."
 msgstr "复制失败。请选中文字并手动复制。"
+
+#. Opens the Markdown table copy format menu.
+#. Opens the Markdown table copy format menu.
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:69
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:89
+msgid "Copy table"
+msgstr "复制表格"
+
+#: src/features/committedTranscriptSurface/MarkdownCode.tsx:71
+msgid "Could not copy code. Try again."
+msgstr "无法复制代码，请重试。"
+
+#. Table clipboard write failed; the copy menu remains available for retry.
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:133
+msgid "Could not copy table. Try again."
+msgstr "无法复制表格。请重试。"
 
 #: src/features/appShell/AppShellTopBar.tsx:57
 #: src/features/appShell/AppShellTopBar.tsx:195
@@ -350,9 +391,14 @@ msgid "Discard unsaved changes?"
 msgstr "丢弃尚未保存的修改？"
 
 #. Dismiss the fork creation error notice
-#: src/features/threadFork/ThreadForkNotice.tsx:41
+#: src/features/threadFork/ThreadForkNotice.tsx:31
 msgid "Dismiss"
 msgstr "关闭提示"
+
+#. Final authoritative duration below the first user input of a finished turn
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:64
+msgid "Duration {duration}"
+msgstr "用时 {duration}"
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:364
 msgid "Edit"
@@ -363,6 +409,11 @@ msgstr "编辑"
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:76
 msgid "Edit pending message"
 msgstr "编辑待处理消息"
+
+#. Elapsed wall time below the first user input of a running turn, including waits
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:59
+msgid "Elapsed {duration}"
+msgstr "已用时 {duration}"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:443
 msgid "Enter a message before saving."
@@ -390,6 +441,11 @@ msgstr "错误 - 智能体出错"
 msgid "Error - Agent resume failed"
 msgstr "错误 - 恢复智能体失败"
 
+#. Close the fullscreen Markdown table dialog.
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:47
+msgid "Exit fullscreen"
+msgstr "退出全屏"
+
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:243
 msgid "Expand"
 msgstr "展开"
@@ -399,7 +455,7 @@ msgid "Expand pending message: {previewText}"
 msgstr "展开待处理消息：{previewText}"
 
 #. Status chip for a failed turn
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:194
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:201
 msgid "Failed"
 msgstr "失败"
 
@@ -412,7 +468,7 @@ msgstr "失败。"
 msgid "Finished waiting"
 msgstr "等待结束"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:51
+#: src/features/threadFork/ThreadForkNotice.tsx:72
 msgid "Fork created"
 msgstr "分叉会话已创建"
 
@@ -469,13 +525,13 @@ msgstr "空闲"
 
 #. Short in-progress label for the current task beside the composer QR button
 #. Status chip for a turn that is still in progress
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:199
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:206
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:39
 msgid "In progress"
 msgstr "进行中"
 
 #. Input may already belong to the existing task queue; do not offer another send
-#: src/features/newSession/NewSessionPage.tsx:93
+#: src/features/newSession/NewSessionPage.tsx:111
 msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 msgstr "无法确认消息是否已加入队列。请打开会话，检查队列后再继续。"
 
@@ -486,7 +542,7 @@ msgstr "已与 <0/> <1/>交互"
 
 #. Status chip for an interrupted turn
 #. Status of a collaborating agent whose work was interrupted
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:189
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:196
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:88
 msgid "Interrupted"
 msgstr "已中断"
@@ -575,8 +631,8 @@ msgstr "消息不能为空"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:204
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:214
-#: src/features/newSession/NewSessionPage.tsx:135
-#: src/features/newSession/NewSessionPage.tsx:151
+#: src/features/newSession/NewSessionPage.tsx:137
+#: src/features/newSession/NewSessionPage.tsx:153
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
@@ -703,11 +759,11 @@ msgid "Open current task"
 msgstr "打开当前任务"
 
 #. Resume opening an already created fork without creating it again
-#: src/features/threadFork/ThreadForkNotice.tsx:69
+#: src/features/threadFork/ThreadForkNotice.tsx:64
 msgid "Open fork"
 msgstr "打开分叉会话"
 
-#: src/features/newSession/NewSessionPage.tsx:122
+#: src/features/newSession/NewSessionPage.tsx:100
 msgid "Open session"
 msgstr "打开会话"
 
@@ -851,7 +907,7 @@ msgid "Remove from list"
 msgstr "移出列表"
 
 #. Drops only this local unknown-send record, without retracting server work
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:108
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:113
 msgid "Remove local record"
 msgstr "移除本地记录"
 
@@ -884,7 +940,7 @@ msgstr "正在移出任务列表…"
 msgid "Repository"
 msgstr "仓库"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:147
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:151
 msgid "Request failed"
 msgstr "请求失败"
 
@@ -902,7 +958,7 @@ msgstr "恢复同步"
 msgid "Restore task"
 msgstr "恢复任务"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:61
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:76
 msgid "Restored messages are paused"
 msgstr "恢复的消息已暂停发送"
 
@@ -973,16 +1029,16 @@ msgid "Scan with phone"
 msgstr "使用手机扫描"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:284
-#: src/features/newSession/NewSessionPage.tsx:171
+#: src/features/newSession/NewSessionPage.tsx:173
 msgid "Send"
 msgstr "发送"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:163
+#: src/features/newSession/NewSessionPage.tsx:165
 msgid "Sending"
 msgstr "正在发送"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:89
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:93
 msgid "Sending result unknown"
 msgstr "发送结果未知"
 
@@ -1078,6 +1134,11 @@ msgstr "系统"
 msgid "System error"
 msgstr "系统错误"
 
+#. Table clipboard write succeeded.
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:126
+msgid "Table copied"
+msgstr "表格已复制"
+
 #: src/features/currentTask/CurrentTaskPage.tsx:234
 #: src/features/currentTask/CurrentTaskPage.tsx:453
 msgid "Task action failed"
@@ -1135,7 +1196,7 @@ msgid "The conversation shown here may be out of date. Restore sync to get the l
 msgstr "当前显示的对话可能不是最新内容。恢复同步可获取最新内容。"
 
 #. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
-#: src/features/newSession/NewSessionPage.tsx:99
+#: src/features/newSession/NewSessionPage.tsx:117
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "创建结果未知。重试可能留下额外的空会话。"
 
@@ -1152,7 +1213,7 @@ msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "消息已移动，但队列反复变化，无法加载更新后的顺序。"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:54
+#: src/features/threadFork/ThreadForkNotice.tsx:75
 msgid "The new conversation is saved. Continue opening it without creating another fork."
 msgstr "新会话已保存。继续打开该会话，不会重复创建分叉。"
 
@@ -1168,7 +1229,7 @@ msgstr "待处理消息的顺序没有改变。已刷新，请重试。"
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "上一个任务连接未能完全清理，后续状态可能受到影响。"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:33
+#: src/features/threadFork/ThreadForkNotice.tsx:41
 msgid "The result is unknown. Check history before forking again; another click may create an additional conversation."
 msgstr "创建结果未知。请先检查历史记录；再次点击分叉可能会额外创建一个会话。"
 
@@ -1229,7 +1290,7 @@ msgstr "任务恢复未能完成。"
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "任务切换已提交，但连接已中断。重新连接后请确认当前任务。"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:92
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:96
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "这些消息不会自动重发。移除本地记录不会取消或撤回服务端的消息。"
 
@@ -1283,13 +1344,18 @@ msgstr "此任务仍有排队消息。"
 msgid "Today"
 msgstr "今天"
 
+#. Transcript time label using today's actual local turn start time
+#: src/features/committedTranscriptSurface/TranscriptTimeLabel.tsx:35
+msgid "Today {time}"
+msgstr "今天 {time}"
+
 #. Accessible name for pagination between transcript context generations
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:47
 msgid "Transcript context pages"
 msgstr "上下文分页"
 
 #. Accessible label for a transcript turn identified by its raw turn ID
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:210
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:217
 msgid "Turn {resolvedTurnId}"
 msgstr "轮次 {resolvedTurnId}"
 
@@ -1302,7 +1368,7 @@ msgstr "轮次 {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:29
+#: src/features/threadFork/ThreadForkNotice.tsx:37
 msgid "Unable to create fork"
 msgstr "无法创建分叉会话"
 
@@ -1332,7 +1398,7 @@ msgstr "无法重试此任务。请检查当前状态后再试。"
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
-#: src/features/newSession/NewSessionPage.tsx:89
+#: src/features/newSession/NewSessionPage.tsx:107
 msgid "Unable to start the conversation"
 msgstr "无法开始对话"
 
@@ -1378,6 +1444,15 @@ msgstr "查看"
 #: src/feedback/FailureDiagnosticModal.tsx:19
 msgid "View diagnostic information"
 msgstr "查看诊断信息"
+
+#. Open the Markdown table in a fullscreen dialog.
+#. Open the Markdown table in a fullscreen dialog.
+#. Open the Markdown table in a fullscreen dialog.
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:29
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:37
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:54
+msgid "View fullscreen"
+msgstr "全屏查看"
 
 #: src/features/appShell/activeThreadCollectionMessages.ts:14
 msgid "Wait for context compaction to finish."
@@ -1459,6 +1534,11 @@ msgstr "工作目录：{directoryName}"
 msgid "Yesterday"
 msgstr "昨天"
 
+#. Transcript time label using yesterday's actual local turn start time
+#: src/features/committedTranscriptSurface/TranscriptTimeLabel.tsx:40
+msgid "Yesterday {time}"
+msgstr "昨天 {time}"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:248
 msgid "Your changes could not be saved. Copy them before discarding."
 msgstr "修改未能保存。请先复制需要保留的内容，再丢弃修改。"
@@ -1467,7 +1547,7 @@ msgstr "修改未能保存。请先复制需要保留的内容，再丢弃修改
 msgid "Your changes have not been saved. Return to copy them, or discard them to continue."
 msgstr "修改尚未保存。可以返回复制内容，或丢弃修改后继续。"
 
-#: src/features/newSession/NewSessionPage.tsx:103
+#: src/features/newSession/NewSessionPage.tsx:121
 msgid "Your input is retained. Retry to continue."
 msgstr "输入内容已保留。重试以继续。"
 
