@@ -18,6 +18,8 @@ import { TranscriptEntryGroups, TranscriptEntryRenderer } from "./TranscriptEntr
 import { useTranscriptSelector } from "./TranscriptReadContext";
 import { ThreadForkAction } from "@/features/threadFork/ThreadForkAction";
 import { TranscriptTurnDuration } from "./TranscriptTurnDuration";
+import { TranscriptTimeLabel } from "./TranscriptTimeLabel";
+import { selectTranscriptTimeLabelsFromTranscriptState } from "@/features/transcriptState/transcriptTimeSelectors";
 
 const areTranscriptEntryArraysEqual = (
   previous: TranscriptEntryView[],
@@ -157,6 +159,9 @@ const TurnErrorAlert = ({ error }: { error: NonNullable<TranscriptTurn["error"]>
 export const CommittedTranscriptTurnFragment = memo(
   ({ fragmentId, lastFragmentIdsByTurnId }: CommittedTranscriptTurnFragmentRendererProps) => {
     const { t } = useLingui();
+    const labelTime = useTranscriptSelector(
+      (state) => selectTranscriptTimeLabelsFromTranscriptState(state)[fragmentId],
+    );
     const fragment = useTranscriptSelector((state) =>
       selectTranscriptTurnFragmentFromTranscriptState(state, fragmentId),
     );
@@ -215,6 +220,7 @@ export const CommittedTranscriptTurnFragment = memo(
 
     return (
       <article aria-label={turnLabel} className="committed-transcript-turn grid min-w-0 gap-3">
+        {labelTime == null ? null : <TranscriptTimeLabel startedAt={labelTime} />}
         {isLastFragment ? (
           <div className="committed-transcript-turn-metadata flex min-w-0 flex-wrap items-center gap-2">
             <Chip className="committed-transcript-turn-status" color="default" size="sm">

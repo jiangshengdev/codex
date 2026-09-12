@@ -58,7 +58,7 @@ msgid "{hours}h {paddedMinutes}m {seconds}s"
 msgstr "{hours}小时 {paddedMinutes}分钟 {seconds}秒"
 
 #. Disclosure label showing how many intermediate transcript updates it contains
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:96
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:98
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {中间更新 · # 项} other {中间更新 · # 项}}"
 
@@ -187,7 +187,7 @@ msgstr "已提交的对话记录"
 
 #. Status chip for a completed turn
 #. Status of a collaborating agent that completed its work
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:185
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:190
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:97
 msgid "Completed"
 msgstr "已完成"
@@ -424,7 +424,7 @@ msgid "Expand pending message: {previewText}"
 msgstr "展开待处理消息：{previewText}"
 
 #. Status chip for a failed turn
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:195
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:200
 msgid "Failed"
 msgstr "失败"
 
@@ -494,7 +494,7 @@ msgstr "空闲"
 
 #. Short in-progress label for the current task beside the composer QR button
 #. Status chip for a turn that is still in progress
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:200
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:205
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:39
 msgid "In progress"
 msgstr "进行中"
@@ -511,7 +511,7 @@ msgstr "已与 <0/> <1/>交互"
 
 #. Status chip for an interrupted turn
 #. Status of a collaborating agent whose work was interrupted
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:190
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:195
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:88
 msgid "Interrupted"
 msgstr "已中断"
@@ -909,7 +909,7 @@ msgstr "正在移出任务列表…"
 msgid "Repository"
 msgstr "仓库"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:148
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:150
 msgid "Request failed"
 msgstr "请求失败"
 
@@ -1308,13 +1308,18 @@ msgstr "此任务仍有排队消息。"
 msgid "Today"
 msgstr "今天"
 
+#. Transcript time label using today's actual local turn start time
+#: src/features/committedTranscriptSurface/TranscriptTimeLabel.tsx:34
+msgid "Today {time}"
+msgstr "今天 {time}"
+
 #. Accessible name for pagination between transcript context generations
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:47
 msgid "Transcript context pages"
 msgstr "上下文分页"
 
 #. Accessible label for a transcript turn identified by its raw turn ID
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:211
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:216
 msgid "Turn {resolvedTurnId}"
 msgstr "轮次 {resolvedTurnId}"
 
@@ -1483,6 +1488,11 @@ msgstr "工作目录：{directoryName}"
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:134
 msgid "Yesterday"
 msgstr "昨天"
+
+#. Transcript time label using yesterday's actual local turn start time
+#: src/features/committedTranscriptSurface/TranscriptTimeLabel.tsx:39
+msgid "Yesterday {time}"
+msgstr "昨天 {time}"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:248
 msgid "Your changes could not be saved. Copy them before discarding."
