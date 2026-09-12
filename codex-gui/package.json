@@ -31,7 +31,9 @@
     "messages:extract": "lingui extract",
     "messages:extract:clean": "lingui extract --clean",
     "analyze:large-files": "tsx scripts/large-files/cli.ts",
-    "clean:test-artifacts": "tsx scripts/clean-test-artifacts/cli.ts"
+    "clean:test-artifacts": "tsx scripts/clean-test-artifacts/cli.ts",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@heroui/react": "^3.2.4",
@@ -101,7 +103,17 @@
     "unified": "11.0.5",
     "vite": "^8.2.2",
     "vitest": "^4.1.11",
-    "vitest-browser-react": "^2.2.0"
+    "vitest-browser-react": "^2.2.0",
+    "storybook": "^10.6.0",
+    "@storybook/tanstack-react": "^10.6.0",
+    "@chromatic-com/storybook": "latest",
+    "@storybook/addon-vitest": "^10.6.0",
+    "@storybook/addon-a11y": "^10.6.0",
+    "@storybook/addon-docs": "^10.6.0",
+    "@storybook/addon-mcp": "^10.6.0",
+    "@tanstack/react-query": "latest",
+    "eslint-plugin-storybook": "^10.6.0",
+    "playwright": "latest"
   },
   "engines": {
     "node": "^22.18.0 || >=24.12.0"
