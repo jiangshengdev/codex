@@ -52,10 +52,20 @@ msgstr "{0} skill details"
 msgid "{0} skill details, {1}"
 msgstr "{0} skill details, {1}"
 
+#. Turn duration; subordinate minutes and seconds have two digits
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:38
+msgid "{hours}h {paddedMinutes}m {seconds}s"
+msgstr "{hours}h {paddedMinutes}m {seconds}s"
+
 #. Disclosure label showing how many intermediate transcript updates it contains
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:95
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:96
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
+
+#. Turn duration; seconds have two digits
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:43
+msgid "{minutes}m {seconds}s"
+msgstr "{minutes}m {seconds}s"
 
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:367
 msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
@@ -69,6 +79,11 @@ msgstr "{percentageLabel} used"
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:154
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
+
+#. Turn duration in whole seconds
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:47
+msgid "{totalSeconds}s"
+msgstr "{totalSeconds}s"
 
 #: src/features/composerTurnControl/ContextUsagePopover.tsx:90
 msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
@@ -172,7 +187,7 @@ msgstr "Committed transcript"
 
 #. Status chip for a completed turn
 #. Status of a collaborating agent that completed its work
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:184
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:185
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:97
 msgid "Completed"
 msgstr "Completed"
@@ -354,6 +369,11 @@ msgstr "Discard unsaved changes?"
 msgid "Dismiss"
 msgstr "Dismiss"
 
+#. Final authoritative duration below the first user input of a finished turn
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:60
+msgid "Duration {duration}"
+msgstr "Duration {duration}"
+
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:364
 msgid "Edit"
 msgstr "Edit"
@@ -363,6 +383,11 @@ msgstr "Edit"
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:76
 msgid "Edit pending message"
 msgstr "Edit pending message"
+
+#. Elapsed wall time below the first user input of a running turn, including waits
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:55
+msgid "Elapsed {duration}"
+msgstr "Elapsed {duration}"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:443
 msgid "Enter a message before saving."
@@ -399,7 +424,7 @@ msgid "Expand pending message: {previewText}"
 msgstr "Expand pending message: {previewText}"
 
 #. Status chip for a failed turn
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:194
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:195
 msgid "Failed"
 msgstr "Failed"
 
@@ -469,7 +494,7 @@ msgstr "Idle"
 
 #. Short in-progress label for the current task beside the composer QR button
 #. Status chip for a turn that is still in progress
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:199
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:200
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:39
 msgid "In progress"
 msgstr "In progress"
@@ -486,7 +511,7 @@ msgstr "Interacted with <0/> <1/>"
 
 #. Status chip for an interrupted turn
 #. Status of a collaborating agent whose work was interrupted
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:189
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:190
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:88
 msgid "Interrupted"
 msgstr "Interrupted"
@@ -884,7 +909,7 @@ msgstr "Removing task…"
 msgid "Repository"
 msgstr "Repository"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:147
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:148
 msgid "Request failed"
 msgstr "Request failed"
 
@@ -1289,7 +1314,7 @@ msgid "Transcript context pages"
 msgstr "Transcript context pages"
 
 #. Accessible label for a transcript turn identified by its raw turn ID
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:210
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:211
 msgid "Turn {resolvedTurnId}"
 msgstr "Turn {resolvedTurnId}"
 

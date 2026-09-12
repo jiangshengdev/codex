@@ -17,6 +17,7 @@ import type { CommittedTranscriptTurnFragmentRendererProps } from "./CommittedTr
 import { TranscriptEntryGroups, TranscriptEntryRenderer } from "./TranscriptEntryRenderer";
 import { useTranscriptSelector } from "./TranscriptReadContext";
 import { ThreadForkAction } from "@/features/threadFork/ThreadForkAction";
+import { TranscriptTurnDuration } from "./TranscriptTurnDuration";
 
 const areTranscriptEntryArraysEqual = (
   previous: TranscriptEntryView[],
@@ -223,6 +224,13 @@ export const CommittedTranscriptTurnFragment = memo(
         ) : null}
         <div className="committed-transcript-chunk grid min-w-0 gap-3">
           <LeadingPromptEntry entryId={fragment.leadingPromptEntryId} />
+          {fragment.leadingPromptEntryId != null ? (
+            <TranscriptTurnDuration
+              startedAt={turn.startedAt}
+              durationMs={turn.durationMs}
+              status={turn.status}
+            />
+          ) : null}
           <MiddleTranscriptModule
             chunkIds={fragment.middleChunkIds}
             hasFinalAnswer={fragment.finalAssistantEntryIds.length > 0}
