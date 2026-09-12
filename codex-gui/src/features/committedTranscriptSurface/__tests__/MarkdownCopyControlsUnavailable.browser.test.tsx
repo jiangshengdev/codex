@@ -31,7 +31,7 @@ test("keeps copy controls unavailable when the module initializes in an insecure
     .poll(
       () =>
         committed.container.querySelector('[data-streamdown="code-block-body"]') !== null &&
-        committed.container.querySelector('button[title="Download table"]') !== null,
+        committed.container.querySelector("table") !== null,
     )
     .toBe(true);
   expect(
@@ -41,7 +41,12 @@ test("keeps copy controls unavailable when the module initializes in an insecure
   expect(
     committed.container.querySelector('[data-streamdown="code-block-copy-button"]'),
   ).toBeNull();
-  expect(committed.container.querySelector('button[title="Copy table"]')).toBeNull();
+  await expect
+    .element(committed.getByRole("button", { name: "Copy table" }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(committed.getByRole("button", { name: "Download table" }))
+    .not.toBeInTheDocument();
 
   vi.stubGlobal("isSecureContext", true);
   const live = await render(<LiveMarkdownText source={markdown} />);
@@ -52,5 +57,8 @@ test("keeps copy controls unavailable when the module initializes in an insecure
   expect(live.container.querySelector('[data-streamdown="code-block-download-button"]')).toBeNull();
 
   expect(live.container.querySelector('[data-streamdown="code-block-copy-button"]')).toBeNull();
-  expect(live.container.querySelector('button[title="Copy table"]')).toBeNull();
+  await expect.element(live.getByRole("button", { name: "Copy table" })).not.toBeInTheDocument();
+  await expect
+    .element(live.getByRole("button", { name: "Download table" }))
+    .not.toBeInTheDocument();
 });

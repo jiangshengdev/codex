@@ -303,9 +303,19 @@ msgstr "Copy code"
 msgid "Copy failed. Select the text and copy it manually."
 msgstr "Copy failed. Select the text and copy it manually."
 
+#. Opens the Markdown table copy format menu.
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:67
+msgid "Copy table"
+msgstr "Copy table"
+
 #: src/features/committedTranscriptSurface/MarkdownCode.tsx:71
 msgid "Could not copy code. Try again."
 msgstr "Could not copy code. Try again."
+
+#. Table clipboard write failed; the copy menu remains available for retry.
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:122
+msgid "Could not copy table. Try again."
+msgstr "Could not copy table. Try again."
 
 #: src/features/appShell/AppShellTopBar.tsx:57
 #: src/features/appShell/AppShellTopBar.tsx:195
@@ -428,6 +438,11 @@ msgstr "Error - Agent errored"
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:248
 msgid "Error - Agent resume failed"
 msgstr "Error - Agent resume failed"
+
+#. Close the fullscreen Markdown table dialog.
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:38
+msgid "Exit fullscreen"
+msgstr "Exit fullscreen"
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:243
 msgid "Expand"
@@ -1117,6 +1132,11 @@ msgstr "System"
 msgid "System error"
 msgstr "System error"
 
+#. Table clipboard write succeeded.
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:115
+msgid "Table copied"
+msgstr "Table copied"
+
 #: src/features/currentTask/CurrentTaskPage.tsx:234
 #: src/features/currentTask/CurrentTaskPage.tsx:453
 msgid "Task action failed"
@@ -1422,6 +1442,13 @@ msgstr "View"
 #: src/feedback/FailureDiagnosticModal.tsx:19
 msgid "View diagnostic information"
 msgstr "View diagnostic information"
+
+#. Open the Markdown table in a fullscreen dialog.
+#. Open the Markdown table in a fullscreen dialog.
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:27
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:45
+msgid "View fullscreen"
+msgstr "View fullscreen"
 
 #: src/features/appShell/activeThreadCollectionMessages.ts:14
 msgid "Wait for context compaction to finish."
