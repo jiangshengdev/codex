@@ -122,7 +122,6 @@
 
   [data-streamdown="code-block-header"],
   [data-streamdown="blockquote"],
-  [data-streamdown="code-block-actions"] button,
   [data-streamdown="table-wrapper"] > div:first-child button {
     color: var(--muted);
   }
@@ -131,7 +130,6 @@
     border-color: var(--border);
   }
 
-  [data-streamdown="code-block-actions"] button,
   [data-streamdown="table-wrapper"] > div:first-child button {
     &:hover:not(:disabled) {
       color: var(--foreground);

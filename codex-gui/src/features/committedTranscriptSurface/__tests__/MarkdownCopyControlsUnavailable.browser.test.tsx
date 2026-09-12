@@ -1,4 +1,4 @@
-import { render } from "vitest-browser-react";
+import { renderWithProviders as render } from "@/utils/test-utils";
 import { expect, test, vi } from "vitest";
 
 vi.hoisted(() => {
@@ -30,10 +30,13 @@ test("keeps copy controls unavailable when the module initializes in an insecure
   await expect
     .poll(
       () =>
-        committed.container.querySelector('[data-streamdown="code-block-download-button"]') !==
-          null && committed.container.querySelector('button[title="Download table"]') !== null,
+        committed.container.querySelector('[data-streamdown="code-block-body"]') !== null &&
+        committed.container.querySelector('button[title="Download table"]') !== null,
     )
     .toBe(true);
+  expect(
+    committed.container.querySelector('[data-streamdown="code-block-download-button"]'),
+  ).toBeNull();
 
   expect(
     committed.container.querySelector('[data-streamdown="code-block-copy-button"]'),
@@ -44,10 +47,9 @@ test("keeps copy controls unavailable when the module initializes in an insecure
   const live = await render(<LiveMarkdownText source={markdown} />);
 
   await expect
-    .poll(
-      () => live.container.querySelector('[data-streamdown="code-block-download-button"]') !== null,
-    )
+    .poll(() => live.container.querySelector('[data-streamdown="code-block-body"]') !== null)
     .toBe(true);
+  expect(live.container.querySelector('[data-streamdown="code-block-download-button"]')).toBeNull();
 
   expect(live.container.querySelector('[data-streamdown="code-block-copy-button"]')).toBeNull();
   expect(live.container.querySelector('button[title="Copy table"]')).toBeNull();

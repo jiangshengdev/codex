@@ -1,4 +1,4 @@
-import { render } from "vitest-browser-react";
+import { renderWithProviders as render } from "@/utils/test-utils";
 import { expect, test, vi } from "vitest";
 
 vi.hoisted(() => {

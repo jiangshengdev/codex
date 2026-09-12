@@ -167,6 +167,11 @@ msgstr "关闭诊断信息"
 msgid "Closed {receiver}"
 msgstr "已关闭 {receiver}"
 
+#. Success label on a Markdown code block copy button.
+#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:57
+msgid "Code copied"
+msgstr "代码已复制"
+
 #: src/features/appShell/AppShell.tsx:29
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:54
 msgid "Codex GUI could not be started."
@@ -289,9 +294,18 @@ msgstr "正在继续此任务…"
 msgid "Copy changes"
 msgstr "复制修改内容"
 
+#. Copy the entire Markdown code block to the clipboard.
+#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:61
+msgid "Copy code"
+msgstr "复制代码"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:262
 msgid "Copy failed. Select the text and copy it manually."
 msgstr "复制失败。请选中文字并手动复制。"
+
+#: src/features/committedTranscriptSurface/MarkdownCode.tsx:71
+msgid "Could not copy code. Try again."
+msgstr "无法复制代码，请重试。"
 
 #: src/features/appShell/AppShellTopBar.tsx:57
 #: src/features/appShell/AppShellTopBar.tsx:195

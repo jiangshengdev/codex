@@ -12,6 +12,7 @@ import {
 } from "streamdown";
 import { parse as parseUri } from "uri-js";
 import { remarkBackslashMath } from "./remarkBackslashMath";
+import { MarkdownCode } from "./MarkdownCode";
 
 const isAbsolutePath = isAbsolute as (path: string) => boolean;
 
@@ -76,9 +77,9 @@ const clipboardWriteAvailable =
   typeof (navigator as Partial<Pick<Navigator, "clipboard">>).clipboard?.writeText === "function";
 
 export const streamdownControls: ControlsConfig = clipboardWriteAvailable
-  ? true
+  ? { code: false }
   : {
-      code: { copy: false },
+      code: false,
       mermaid: { copy: false },
       table: { copy: false },
     };
@@ -99,6 +100,7 @@ export const streamdownCommonProps: Pick<
   StreamdownProps,
   | "allowElement"
   | "className"
+  | "components"
   | "controls"
   | "linkSafety"
   | "lineNumbers"
@@ -109,6 +111,7 @@ export const streamdownCommonProps: Pick<
 > = {
   allowElement: allowMarkdownElement,
   className: markdownStreamdownClassName,
+  components: { code: MarkdownCode },
   controls: streamdownControls,
   linkSafety: { enabled: false },
   lineNumbers: false,
