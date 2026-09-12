@@ -168,7 +168,7 @@ msgid "Closed {receiver}"
 msgstr "Closed {receiver}"
 
 #. Success label on a Markdown code block copy button.
-#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:57
+#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:49
 msgid "Code copied"
 msgstr "Code copied"
 
@@ -295,7 +295,7 @@ msgid "Copy changes"
 msgstr "Copy changes"
 
 #. Copy the entire Markdown code block to the clipboard.
-#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:61
+#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:53
 msgid "Copy code"
 msgstr "Copy code"
 
@@ -304,7 +304,9 @@ msgid "Copy failed. Select the text and copy it manually."
 msgstr "Copy failed. Select the text and copy it manually."
 
 #. Opens the Markdown table copy format menu.
-#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:67
+#. Opens the Markdown table copy format menu.
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:69
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:84
 msgid "Copy table"
 msgstr "Copy table"
 
@@ -313,7 +315,7 @@ msgid "Could not copy code. Try again."
 msgstr "Could not copy code. Try again."
 
 #. Table clipboard write failed; the copy menu remains available for retry.
-#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:122
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:128
 msgid "Could not copy table. Try again."
 msgstr "Could not copy table. Try again."
 
@@ -440,7 +442,7 @@ msgid "Error - Agent resume failed"
 msgstr "Error - Agent resume failed"
 
 #. Close the fullscreen Markdown table dialog.
-#: src/features/committedTranscriptSurface/MarkdownTable.tsx:38
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:47
 msgid "Exit fullscreen"
 msgstr "Exit fullscreen"
 
@@ -1133,7 +1135,7 @@ msgid "System error"
 msgstr "System error"
 
 #. Table clipboard write succeeded.
-#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:115
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:121
 msgid "Table copied"
 msgstr "Table copied"
 
@@ -1445,8 +1447,10 @@ msgstr "View diagnostic information"
 
 #. Open the Markdown table in a fullscreen dialog.
 #. Open the Markdown table in a fullscreen dialog.
-#: src/features/committedTranscriptSurface/MarkdownTable.tsx:27
-#: src/features/committedTranscriptSurface/MarkdownTable.tsx:45
+#. Open the Markdown table in a fullscreen dialog.
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:29
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:37
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:54
 msgid "View fullscreen"
 msgstr "View fullscreen"
 

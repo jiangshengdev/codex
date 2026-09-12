@@ -1,4 +1,4 @@
-import { Button, Modal } from "@heroui/react";
+import { Button, Modal, Tooltip } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { Maximize2 } from "lucide-react";
 import { use, useRef, type ComponentProps } from "react";
@@ -19,18 +19,27 @@ export function MarkdownTable({ children, node: _node, className, ...props }: Ma
       <div className="flex items-start justify-end gap-1 pb-1">
         <MarkdownTableCopyMenu tableRef={tableRef} />
         <Modal>
-          <Button
-            variant="ghost"
-            size="sm"
-            isIconOnly
-            isDisabled={isAnimating}
-            aria-label={t({
-              message: "View fullscreen",
-              comment: "Open the Markdown table in a fullscreen dialog.",
-            })}
-          >
-            <Maximize2 size={16} aria-hidden="true" />
-          </Button>
+          <Tooltip>
+            <Button
+              data-markdown-action
+              variant="ghost"
+              size="sm"
+              isIconOnly
+              isDisabled={isAnimating}
+              aria-label={t({
+                message: "View fullscreen",
+                comment: "Open the Markdown table in a fullscreen dialog.",
+              })}
+            >
+              <Maximize2 size={16} aria-hidden="true" />
+            </Button>
+            <Tooltip.Content>
+              {t({
+                message: "View fullscreen",
+                comment: "Open the Markdown table in a fullscreen dialog.",
+              })}
+            </Tooltip.Content>
+          </Tooltip>
           <Modal.Backdrop>
             <Modal.Container size="full" scroll="inside">
               <Modal.Dialog data-streamdown="table-fullscreen">

@@ -260,7 +260,7 @@ export function ComposerTurnControl({
                 <Trans>Stop</Trans>
               </Button>
               {controlView.guide.visible ? (
-                <Tooltip delay={0}>
+                <Tooltip>
                   <Button
                     render={(props) => <button {...props} aria-keyshortcuts={guideShortcut.aria} />}
                     isDisabled={!controlView.guide.buttonEnabled}

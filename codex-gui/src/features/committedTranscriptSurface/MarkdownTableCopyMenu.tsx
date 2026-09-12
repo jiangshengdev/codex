@@ -1,4 +1,4 @@
-import { Alert, Dropdown, buttonVariants } from "@heroui/react";
+import { Alert, Dropdown, Tooltip, buttonVariants } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { Check, Copy } from "lucide-react";
 import { use, useEffect, useRef, useState, type RefObject } from "react";
@@ -63,21 +63,32 @@ export function MarkdownTableCopyMenu({
   return (
     <div className="flex min-w-0 flex-col items-end gap-1">
       <Dropdown>
-        <Dropdown.Trigger
-          aria-label={t({
-            message: "Copy table",
-            comment: "Opens the Markdown table copy format menu.",
-          })}
-          className={buttonVariants({ variant: "ghost", size: "sm", isIconOnly: true })}
-          isDisabled={isAnimating}
-          isPending={result === "pending"}
-        >
-          {result === "copied" ? (
-            <Check size={16} aria-hidden="true" />
-          ) : (
-            <Copy size={16} aria-hidden="true" />
-          )}
-        </Dropdown.Trigger>
+        <Tooltip>
+          <Dropdown.Trigger
+            data-markdown-action
+            aria-label={t({
+              message: "Copy table",
+              comment: "Opens the Markdown table copy format menu.",
+            })}
+            className={buttonVariants({
+              variant: "ghost",
+              size: "sm",
+              isIconOnly: true,
+              className: "flex",
+            })}
+            isDisabled={isAnimating}
+            isPending={result === "pending"}
+          >
+            {result === "copied" ? (
+              <Check size={16} aria-hidden="true" />
+            ) : (
+              <Copy size={16} aria-hidden="true" />
+            )}
+          </Dropdown.Trigger>
+          <Tooltip.Content>
+            {t({ message: "Copy table", comment: "Opens the Markdown table copy format menu." })}
+          </Tooltip.Content>
+        </Tooltip>
         <Dropdown.Popover placement="bottom end">
           <Dropdown.Menu>
             <Dropdown.Item

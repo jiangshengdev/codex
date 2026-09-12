@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 import { renderWithProviders as render } from "@/utils/test-utils";
 import { MarkdownText } from "../MarkdownText";
 import { LiveMarkdownText } from "../LiveMarkdownText";
@@ -22,6 +23,9 @@ test("code blocks offer copying without a download action", async () => {
   expect(
     screen.container.querySelector('[data-streamdown="code-block-download-button"]'),
   ).toBeNull();
+  await userEvent.unhover(document.body);
+  await screen.getByRole("button", { name: "Copy code", exact: true }).hover();
+  await expect.element(page.getByRole("tooltip")).toHaveTextContent("Copy code");
   await screen.getByRole("button", { name: "Copy code", exact: true }).click();
   expect(writeText).toHaveBeenCalledWith("const answer = 42;\n");
   await expect

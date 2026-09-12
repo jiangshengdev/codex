@@ -1,5 +1,6 @@
-import { Button } from "@heroui/react";
+import { Button, Tooltip } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
+import { Check, Copy } from "lucide-react";
 import { use, useEffect, useRef, useState } from "react";
 import { StreamdownContext } from "streamdown";
 
@@ -43,25 +44,38 @@ export const MarkdownCodeCopyButton = ({
     }
   };
 
+  const label =
+    status === "copied"
+      ? t({
+          message: "Code copied",
+          comment: "Success label on a Markdown code block copy button.",
+        })
+      : t({
+          message: "Copy code",
+          comment: "Copy the entire Markdown code block to the clipboard.",
+        });
+
   return (
-    <Button
-      data-streamdown="code-block-copy-button"
-      variant="ghost"
-      size="sm"
-      isDisabled={isAnimating || status === "pending"}
-      onPress={() => {
-        void copy();
-      }}
-    >
-      {status === "copied"
-        ? t({
-            message: "Code copied",
-            comment: "Success label on a Markdown code block copy button.",
-          })
-        : t({
-            message: "Copy code",
-            comment: "Copy the entire Markdown code block to the clipboard.",
-          })}
-    </Button>
+    <Tooltip>
+      <Button
+        data-streamdown="code-block-copy-button"
+        data-markdown-action
+        variant="ghost"
+        size="sm"
+        isIconOnly
+        aria-label={label}
+        isDisabled={isAnimating || status === "pending"}
+        onPress={() => {
+          void copy();
+        }}
+      >
+        {status === "copied" ? (
+          <Check size={16} aria-hidden="true" />
+        ) : (
+          <Copy size={16} aria-hidden="true" />
+        )}
+      </Button>
+      <Tooltip.Content>{label}</Tooltip.Content>
+    </Tooltip>
   );
 };

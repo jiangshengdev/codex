@@ -175,11 +175,14 @@ test.for(["light", "dark"])(
         expect(getComputedStyle(inline).borderTopWidth).toBe("0px");
         expect(getComputedStyle(element(`${markdown} p`)).whiteSpace).toBe("pre-wrap");
         expect(style(element(`${markdown} blockquote`)).color).toBe(secondary.color);
-        for (const name of ["code-block", "code-block-actions", "table-wrapper"]) {
+        for (const name of ["code-block", "table-wrapper"]) {
           expect(style(element(`${markdown} [data-streamdown="${name}"]`)).background).toBe(
             secondary.background,
           );
         }
+        expect(
+          style(element(`${markdown} [data-streamdown="code-block-actions"]`)).background,
+        ).toBe("rgba(0, 0, 0, 0)");
         expect(style(element(`${markdown} [data-streamdown="code-block-header"]`)).color).toBe(
           secondary.color,
         );
@@ -226,11 +229,46 @@ test.for(["light", "dark"])(
         document.querySelector(`${markdown} [data-streamdown="code-block-download-button"]`),
       ).toBeNull();
       const codeCopy = screen.getByRole("button", { name: "Copy code", exact: true });
-      expect(style(codeCopy.element()).color).toBe(reference("copy-reference").color);
+      const actions = [
+        codeCopy,
+        screen.getByRole("button", { name: "Copy table", exact: true }),
+        screen.getByRole("button", { name: "View fullscreen", exact: true }),
+      ];
+      for (const action of actions) {
+        const button = action.element();
+        const css = getComputedStyle(button);
+        expect(button.textContent).toBe("");
+        expect(css.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+        expect(css.borderWidth).toBe("0px");
+        expect(css.color).toBe(surface.color);
+        expect(css.color).not.toBe(secondary.background);
+        expect(button.getBoundingClientRect().width).toBe(
+          codeCopy.element().getBoundingClientRect().width,
+        );
+        expect(button.getBoundingClientRect().height).toBe(
+          codeCopy.element().getBoundingClientRect().height,
+        );
+        const icon = button.querySelector("svg");
+        assert(icon);
+        expect(getComputedStyle(icon).width).toBe("16px");
+        expect(getComputedStyle(icon).height).toBe("16px");
+        expect(getComputedStyle(icon).margin).toBe("0px");
+        const buttonRect = button.getBoundingClientRect();
+        const iconRect = icon.getBoundingClientRect();
+        expect(iconRect.left + iconRect.width / 2).toBe(buttonRect.left + buttonRect.width / 2);
+        expect(iconRect.top + iconRect.height / 2).toBe(buttonRect.top + buttonRect.height / 2);
+      }
+      const codeActions = element('[data-streamdown="code-block-actions"]');
+      expect(getComputedStyle(codeActions).borderWidth).toBe("0px");
+      expect(style(codeActions).background).toBe("rgba(0, 0, 0, 0)");
+      expect(getComputedStyle(element('[data-streamdown="code-block"]')).borderWidth).toBe("1px");
+      await userEvent.unhover(document.body);
       await codeCopy.hover();
+      await expect.element(page.getByRole("tooltip")).toHaveTextContent("Copy code");
+      await expect.poll(() => style(codeCopy.element()).color).toBe(surface.color);
       await expect
-        .poll(() => style(codeCopy.element()).color)
-        .toBe(reference("copy-reference").color);
+        .poll(() => style(codeCopy.element()).background)
+        .toBe(reference("table-close-hover").background);
       await userEvent.tab();
       await expect.element(screen.getByTestId("outside-button")).toHaveFocus();
       await userEvent.tab();
@@ -243,20 +281,41 @@ test.for(["light", "dark"])(
       await userEvent.tab();
       await expect.element(codeCopy).toHaveFocus();
       await expect.poll(() => getComputedStyle(codeCopy.element()).boxShadow).toBe(copyFocusRing);
+      await expect.element(page.getByRole("tooltip")).toHaveTextContent("Copy code");
+      await expect
+        .poll(() => style(codeCopy.element()).background)
+        .toBe(reference("table-close-hover").background);
 
       const verifyMenu = async (root: typeof screen | ReturnType<typeof page.getByRole>) => {
         await expect
           .element(root.getByRole("button", { name: "Download table", exact: true }))
           .not.toBeInTheDocument();
         const copy = root.getByRole("button", { name: "Copy table", exact: true });
-        expect(style(copy.element()).color).toBe(reference("table-control").color);
+        const centeredIcon = () => {
+          const button = copy.element();
+          const icon = button.querySelector("svg");
+          assert(icon);
+          const buttonRect = button.getBoundingClientRect();
+          const iconRect = icon.getBoundingClientRect();
+          return {
+            x: iconRect.left + iconRect.width / 2 - (buttonRect.left + buttonRect.width / 2),
+            y: iconRect.top + iconRect.height / 2 - (buttonRect.top + buttonRect.height / 2),
+          };
+        };
+        expect(centeredIcon()).toEqual({ x: 0, y: 0 });
+        expect(style(copy.element()).color).toBe(surface.color);
+        await userEvent.unhover(document.body);
         await copy.hover();
+        await expect.element(page.getByRole("tooltip")).toHaveTextContent("Copy table");
         await expect
           .poll(() => style(copy.element()).background)
-          .toBe(reference("table-control").background);
+          .toBe(reference("table-close-hover").background);
         await copy.click();
         const csv = page.getByRole("menuitem", { name: "CSV", exact: true });
         await expect.element(csv).toBeVisible();
+        // Firefox rounds transformed DOMRects to float32 while the trigger is scaled.
+        expect(centeredIcon().x).toBeCloseTo(0, 4);
+        expect(centeredIcon().y).toBeCloseTo(0, 4);
         const menu = page.getByRole("menu", { name: "Copy table", exact: true });
         const popover = menu.element().closest('[data-slot="dropdown-popover"]');
         assert(popover);
@@ -276,6 +335,9 @@ test.for(["light", "dark"])(
         await expect.element(copy).toHaveFocus();
       };
       await verifyMenu(screen);
+      await userEvent.unhover(document.body);
+      await screen.getByRole("button", { name: "View fullscreen" }).hover();
+      await expect.element(page.getByRole("tooltip")).toHaveTextContent("View fullscreen");
       await screen.getByRole("button", { name: "View fullscreen" }).click();
       const dialog = page.getByRole("dialog", { name: "View fullscreen" });
       await expect.element(dialog).toBeVisible();
