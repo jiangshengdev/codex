@@ -319,6 +319,11 @@ msgstr "无法复制代码，请重试。"
 msgid "Could not copy table. Try again."
 msgstr "无法复制表格。请重试。"
 
+#. Storybook test action: creates an empty local Redux read-model slot without connecting to a backend.
+#: src/storybook/Stateful.stories.tsx:36
+msgid "Create read-model slot"
+msgstr "创建读取模型槽位"
+
 #: src/features/appShell/AppShellTopBar.tsx:57
 #: src/features/appShell/AppShellTopBar.tsx:195
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
@@ -362,7 +367,7 @@ msgid "Currently unable to guide; added to queue"
 msgstr "当前无法引导，已加入队列"
 
 #. Accessible name of the explicit dark appearance option
-#: src/app/ThemePreferenceControl.tsx:11
+#: src/app/ThemePreferenceControl.tsx:21
 msgid "Dark theme"
 msgstr "深色主题"
 
@@ -573,7 +578,7 @@ msgid "Keep"
 msgstr "保留"
 
 #. Accessible name of the explicit light appearance option
-#: src/app/ThemePreferenceControl.tsx:10
+#: src/app/ThemePreferenceControl.tsx:13
 msgid "Light theme"
 msgstr "浅色主题"
 
@@ -707,6 +712,11 @@ msgstr "上移"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:302
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
+
+#. Storybook test action: navigates only the isolated in-memory preview router.
+#: src/storybook/Stateful.stories.tsx:49
+msgid "Navigate to details"
+msgstr "前往详情"
 
 #: src/features/appShell/AppShellTopBar.tsx:123
 msgid "Navigation"
@@ -882,6 +892,11 @@ msgstr "正在重新连接…"
 #: src/features/appShell/activeThreadCollectionMessages.ts:16
 msgid "Recover this task's connection before removing it."
 msgstr "请先恢复此任务的连接，再将其移出列表。"
+
+#. Storybook environment check: count is the number of Redux read-model slots; pathname is an isolated preview route.
+#: src/storybook/Stateful.stories.tsx:22
+msgid "Redux slots: {count}; route: {pathname}"
+msgstr "Redux 槽位：{count}；路由：{pathname}"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:447
 msgid "Refresh complete. Try the action again."
@@ -1145,7 +1160,7 @@ msgid "System error"
 msgstr "系统错误"
 
 #. Theme preference that follows operating system appearance
-#: src/app/ThemePreferenceControl.tsx:12
+#: src/app/ThemePreferenceControl.tsx:29
 msgid "System theme"
 msgstr "跟随系统主题"
 
@@ -1306,7 +1321,7 @@ msgid "The task switch was committed, but the connection was interrupted. Reconn
 msgstr "任务切换已提交，但连接已中断。重新连接后请确认当前任务。"
 
 #. Accessible name of the single choice theme control
-#: src/app/ThemePreferenceControl.tsx:16
+#: src/app/ThemePreferenceControl.tsx:37
 msgid "Theme preference"
 msgstr "主题偏好"
 

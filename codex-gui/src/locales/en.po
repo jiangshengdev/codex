@@ -319,6 +319,11 @@ msgstr "Could not copy code. Try again."
 msgid "Could not copy table. Try again."
 msgstr "Could not copy table. Try again."
 
+#. Storybook test action: creates an empty local Redux read-model slot without connecting to a backend.
+#: src/storybook/Stateful.stories.tsx:36
+msgid "Create read-model slot"
+msgstr "Create read-model slot"
+
 #: src/features/appShell/AppShellTopBar.tsx:57
 #: src/features/appShell/AppShellTopBar.tsx:195
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
@@ -362,7 +367,7 @@ msgid "Currently unable to guide; added to queue"
 msgstr "Currently unable to guide; added to queue"
 
 #. Accessible name of the explicit dark appearance option
-#: src/app/ThemePreferenceControl.tsx:11
+#: src/app/ThemePreferenceControl.tsx:21
 msgid "Dark theme"
 msgstr "Dark theme"
 
@@ -573,7 +578,7 @@ msgid "Keep"
 msgstr "Keep"
 
 #. Accessible name of the explicit light appearance option
-#: src/app/ThemePreferenceControl.tsx:10
+#: src/app/ThemePreferenceControl.tsx:13
 msgid "Light theme"
 msgstr "Light theme"
 
@@ -707,6 +712,11 @@ msgstr "Move up"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:302
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
+
+#. Storybook test action: navigates only the isolated in-memory preview router.
+#: src/storybook/Stateful.stories.tsx:49
+msgid "Navigate to details"
+msgstr "Navigate to details"
 
 #: src/features/appShell/AppShellTopBar.tsx:123
 msgid "Navigation"
@@ -882,6 +892,11 @@ msgstr "Reconnecting…"
 #: src/features/appShell/activeThreadCollectionMessages.ts:16
 msgid "Recover this task's connection before removing it."
 msgstr "Recover this task's connection before removing it."
+
+#. Storybook environment check: count is the number of Redux read-model slots; pathname is an isolated preview route.
+#: src/storybook/Stateful.stories.tsx:22
+msgid "Redux slots: {count}; route: {pathname}"
+msgstr "Redux slots: {count}; route: {pathname}"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:447
 msgid "Refresh complete. Try the action again."
@@ -1145,7 +1160,7 @@ msgid "System error"
 msgstr "System error"
 
 #. Theme preference that follows operating system appearance
-#: src/app/ThemePreferenceControl.tsx:12
+#: src/app/ThemePreferenceControl.tsx:29
 msgid "System theme"
 msgstr "System theme"
 
@@ -1306,7 +1321,7 @@ msgid "The task switch was committed, but the connection was interrupted. Reconn
 msgstr "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 
 #. Accessible name of the single choice theme control
-#: src/app/ThemePreferenceControl.tsx:16
+#: src/app/ThemePreferenceControl.tsx:37
 msgid "Theme preference"
 msgstr "Theme preference"
 
