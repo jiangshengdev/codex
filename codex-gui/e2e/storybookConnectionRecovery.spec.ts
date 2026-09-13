@@ -2,6 +2,63 @@ import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
 
+test("documents real props and renders recovery presets", async ({ page }) => {
+  await page.goto("http://localhost:6006/?path=/docs/feedback-connection-recovery-states--docs");
+  const docs = page.frameLocator("#storybook-preview-iframe");
+  const preview = docs.locator("#story--feedback-connection-recovery-states--playground--primary");
+  await expect(preview.getByRole("status")).toContainText("Connection closed");
+  await expect(docs.getByRole("heading", { name: "Usage", exact: true })).toBeVisible();
+  await expect(docs.getByText("handleReconnect", { exact: false })).toBeVisible();
+  await docs.locator('label[aria-label="hasRetainedSession"]').click();
+  await expect(preview.getByRole("status")).toContainText("Unable to start Codex GUI");
+  const recovery = docs.getByRole("combobox");
+  await recovery.selectOption("Failed");
+  await expect(preview.getByRole("alert")).toContainText("The connection could not be restored.");
+  await preview.getByRole("button", { name: "View diagnostic information" }).click();
+  await expect(docs.getByRole("dialog")).toContainText("Simulated reconnect failure");
+  await page.keyboard.press("Escape");
+  await recovery.selectOption("Pending");
+  await expect(preview.getByRole("button", { name: "Reconnecting…", exact: true })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+  await recovery.selectOption("Unavailable");
+  await expect(preview.getByRole("button")).toHaveCount(0);
+  await recovery.selectOption("Ready");
+  await expect(preview.getByRole("button", { name: "Reconnect", exact: true })).toBeEnabled();
+  await expect(docs.getByRole("link", { name: "Success", exact: true })).toHaveAttribute(
+    "href",
+    "/?path=/story/feedback-connection-recovery-interactions--success",
+  );
+  await expect(docs.getByRole("link", { name: "Failure", exact: true })).toHaveAttribute(
+    "href",
+    "/?path=/story/feedback-connection-recovery-interactions--failure",
+  );
+  await docs.getByRole("link", { name: "Success", exact: true }).click();
+  await expect(page).toHaveURL(
+    "http://localhost:6006/?path=/story/feedback-connection-recovery-interactions--success",
+  );
+  await expect(
+    page
+      .frameLocator("#storybook-preview-iframe")
+      .getByRole("button", { name: "Restart simulation" }),
+  ).toBeVisible();
+});
+
+test("records the real reconnect callback in Actions", async ({ page }) => {
+  await page.goto(
+    "http://localhost:6006/?path=/story/feedback-connection-recovery-states--playground",
+  );
+  await page
+    .frameLocator("#storybook-preview-iframe")
+    .getByRole("button", { name: "Reconnect", exact: true })
+    .click();
+  await page.getByRole("tab", { name: "Actions 1", exact: true }).click();
+  await expect(page.getByRole("tabpanel", { name: "Actions 1", exact: true })).toContainText(
+    "reconnect",
+  );
+});
+
 test("shows the retained-session connection failure with real diagnostics", async ({ page }) => {
   await page.goto(
     "http://localhost:6006/iframe.html?id=feedback-connection-recovery-states--reconnect-failed",
