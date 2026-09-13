@@ -2,6 +2,42 @@ import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
 
+test("preserves JSX source line breaks and indentation", async ({ page }) => {
+  await page.goto("http://localhost:6006/?path=/docs/feedback-connection-recovery-states--docs");
+  const docs = page.frameLocator("#storybook-preview-iframe");
+  await expect(
+    docs
+      .locator("#story--feedback-connection-recovery-states--playground--primary")
+      .getByRole("status"),
+  ).toContainText("Connection closed");
+  await docs.getByRole("switch", { name: "Show code", exact: true }).first().click();
+  const source = docs.locator(".prismjs").first();
+  const component = source.getByText("ConnectionRecoveryNotice", { exact: true });
+  const prop = source.getByText("hasRetainedSession", { exact: true });
+  await expect(component).toBeVisible();
+  await expect(prop).toBeVisible();
+  await expect
+    .poll(async () => {
+      const componentBox = await component.boundingBox();
+      const propBox = await prop.boundingBox();
+      return componentBox != null && propBox != null && propBox.y > componentBox.y;
+    })
+    .toBe(true);
+  await expect
+    .poll(() =>
+      source.evaluate((element) => {
+        const indentation = [...element.querySelectorAll("span")].find(
+          (span) => span.textContent === "  ",
+        );
+        if (indentation == null) return 0;
+        const range = document.createRange();
+        range.selectNodeContents(indentation);
+        return range.getBoundingClientRect().width;
+      }),
+    )
+    .toBeGreaterThan(0);
+});
+
 test("documents real props and renders recovery presets", async ({ page }) => {
   await page.goto("http://localhost:6006/?path=/docs/feedback-connection-recovery-states--docs");
   const docs = page.frameLocator("#storybook-preview-iframe");
