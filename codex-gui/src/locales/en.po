@@ -361,6 +361,11 @@ msgstr "Current task status is unknown"
 msgid "Currently unable to guide; added to queue"
 msgstr "Currently unable to guide; added to queue"
 
+#. Accessible name of the explicit dark appearance option
+#: src/app/ThemePreferenceControl.tsx:11
+msgid "Dark theme"
+msgstr "Dark theme"
+
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:294
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:374
 msgid "Delete"
@@ -566,6 +571,11 @@ msgstr "Invalid skill"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:284
 msgid "Keep"
 msgstr "Keep"
+
+#. Accessible name of the explicit light appearance option
+#: src/app/ThemePreferenceControl.tsx:10
+msgid "Light theme"
+msgstr "Light theme"
 
 #. Button to load the historical task list
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:316
@@ -1134,6 +1144,11 @@ msgstr "System"
 msgid "System error"
 msgstr "System error"
 
+#. Theme preference that follows operating system appearance
+#: src/app/ThemePreferenceControl.tsx:12
+msgid "System theme"
+msgstr "System theme"
+
 #. Table clipboard write succeeded.
 #: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:126
 msgid "Table copied"
@@ -1289,6 +1304,11 @@ msgstr "The task recovery could not be completed."
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:205
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
+
+#. Accessible name of the single choice theme control
+#: src/app/ThemePreferenceControl.tsx:16
+msgid "Theme preference"
+msgstr "Theme preference"
 
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:96
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."

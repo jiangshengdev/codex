@@ -1,5 +1,6 @@
 import type { JSX, ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { createThemePreferenceStore, ThemeContext } from "./themePreference";
 
 const applyTheme = (isDark: boolean): void => {
   const root = document.documentElement;
@@ -10,14 +11,23 @@ const applyTheme = (isDark: boolean): void => {
   root.dataset.theme = theme;
 };
 
-export const ThemeProvider = ({ children }: { children: ReactNode }): JSX.Element => {
+export const ThemeProvider = ({
+  children,
+  preferenceStore,
+}: {
+  children: ReactNode;
+  preferenceStore?: ReturnType<typeof createThemePreferenceStore>;
+}): JSX.Element => {
+  const [defaultStore] = useState(createThemePreferenceStore);
+  const store = preferenceStore ?? defaultStore;
+  const preference = useSyncExternalStore(store.subscribe, store.getSnapshot);
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
-    applyTheme(mediaQuery.matches);
+    applyTheme(preference === "system" ? mediaQuery.matches : preference === "dark");
 
     const handleChange = (event: MediaQueryListEvent) => {
-      applyTheme(event.matches);
+      if (preference === "system") applyTheme(event.matches);
     };
 
     mediaQuery.addEventListener("change", handleChange);
@@ -25,7 +35,11 @@ export const ThemeProvider = ({ children }: { children: ReactNode }): JSX.Elemen
     return () => {
       mediaQuery.removeEventListener("change", handleChange);
     };
-  }, []);
+  }, [preference]);
 
-  return <>{children}</>;
+  return (
+    <ThemeContext value={{ preference, setPreference: store.setPreference }}>
+      {children}
+    </ThemeContext>
+  );
 };
