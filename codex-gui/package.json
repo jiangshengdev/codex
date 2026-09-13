@@ -24,7 +24,7 @@
     "test:browser:parallel": "vitest --config=vitest.browser.parallel.config.ts",
     "test:browser:sequential": "vitest --config=vitest.browser.sequential.config.ts",
     "test:browser:smoke": "vitest --config=vitest.browser.smoke.config.ts",
-    "test:e2e": "playwright test",
+    "test:e2e": "node node_modules/@playwright/test/cli.js test",
     "test:e2e:headed": "playwright test --headed",
     "protocol:check-validators": "tsx scripts/protocolValidators/cli.ts --check",
     "protocol:generate-validators": "tsx scripts/protocolValidators/cli.ts --write",

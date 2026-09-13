@@ -1,6 +1,15 @@
 import type { Preview } from "@storybook/tanstack-react";
+import { StorybookEnvironment } from "../src/storybook/StorybookEnvironment";
+import "../src/index.css";
 
 const preview: Preview = {
+  decorators: [
+    (Story) => (
+      <StorybookEnvironment>
+        <Story />
+      </StorybookEnvironment>
+    ),
+  ],
   parameters: {
     controls: {
       matchers: {
