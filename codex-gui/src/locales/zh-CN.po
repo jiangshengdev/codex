@@ -973,6 +973,11 @@ msgstr "请求失败"
 msgid "Resolve the task list error above, then try again."
 msgstr "请先处理上方的任务列表错误，然后重试。"
 
+#. Storybook control that resets the local connection recovery demo
+#: src/storybook/ConnectionRecoverySimulation.tsx:39
+msgid "Restart simulation"
+msgstr "重新开始演示"
+
 #. Button to restore this task's message synchronization; same label after failure
 #: src/features/currentTask/ProjectionRecoveryNotice.tsx:47
 msgid "Restore sync"
