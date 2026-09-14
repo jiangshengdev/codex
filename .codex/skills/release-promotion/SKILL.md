@@ -1,13 +1,13 @@
 ---
 name: release-promotion
-description: Promote local codex branches from dev to test without docs/superpowers, merge test to release, and bump the release cdx version using repo-local Bash scripts.
+description: Promote local codex branches from dev to test, merge test to release, and bump the release cdx version using repo-local Bash scripts.
 ---
 
 # Release Promotion
 
 Promote local Codex branches with the bundled scripts:
 
-1. Merge `dev` into `test` while excluding `docs/superpowers/**`.
+1. Merge `dev` into `test`, including committed document removals.
 2. Merge `test` into `release` while preserving the release branch version in `codex-rs/Cargo.toml`.
 3. Bump `release` from `X.Y.Z-cdx.N` to `X.Y.Z-cdx.N+1`.
 
@@ -18,7 +18,9 @@ Promote local Codex branches with the bundled scripts:
 - They do not run `git fetch`, `git pull`, `git push`, or `git remote`.
 - They do not tag releases.
 - They do not run tests, formatters, installs, or publish commands.
-- If a non-excluded merge conflict occurs, they stop in the conflict state for manual resolution.
+- If a merge conflict occurs, they stop in the conflict state for manual resolution.
+- `dev` and `test` must have workspace version `0.0.0`; the dev-to-test phase also checks the staged version before committing.
+- No document path is specially excluded or restored. Switches and merges use `--no-overwrite-ignore`; before merging, incoming paths are also checked against ignored local data because merge strategies may still overwrite it. A collision stops promotion. Preserve those files and resolve the collision before retrying.
 - They never run `git reset --hard`.
 
 ## Commands
@@ -40,7 +42,7 @@ Continue the wrapper after manual conflict resolution:
 
 Run one phase:
 ```bash
-.codex/skills/release-promotion/scripts/merge-dev-to-test-without-superpowers.sh
+.codex/skills/release-promotion/scripts/merge-dev-to-test.sh
 .codex/skills/release-promotion/scripts/merge-test-to-release.sh
 .codex/skills/release-promotion/scripts/bump-release-cdx-version.sh
 ```
@@ -52,4 +54,13 @@ If a phase stops with conflicts, leave it in the conflict state and use `$resolv
 For example:
 ```bash
 .codex/skills/release-promotion/scripts/merge-test-to-release.sh --continue
+```
+
+## Verification
+
+Run isolated entrypoint tests and the existing staged-diff regression without promoting this checkout's branches:
+
+```bash
+node --test .codex/skills/release-promotion/tests/promotion.test.mjs
+bash .codex/skills/release-promotion/tests/staged-diff-check.sh
 ```

@@ -7,7 +7,7 @@ source "$script_dir/lib-release-promotion.sh"
 
 dev_branch="dev"
 test_branch="test"
-message="merge(test): sync dev without superpowers"
+message="merge(test): sync dev"
 dry_run=false
 continue_mode=false
 
@@ -46,15 +46,15 @@ done
 rp_cd_repo_root
 rp_require_local_branch "$dev_branch"
 rp_require_local_branch "$test_branch"
+rp_require_development_version "$dev_branch"
+rp_require_development_version "$test_branch"
 
 if [[ "$dry_run" == true ]]; then
   rp_log preflight "dry-run only; no branch switch, merge, stage, or commit"
   rp_log preflight "dev=$dev_branch $(rp_git rev-parse --short "$dev_branch")"
   rp_log preflight "test=$test_branch $(rp_git rev-parse --short "$test_branch")"
-  rp_log merge-dev-to-test "non-superpowers diff:"
-  rp_git diff --name-status "$test_branch..$dev_branch" -- . ':(exclude)docs/superpowers/**' || true
-  rp_log exclude-superpowers "excluded docs/superpowers diff:"
-  rp_git diff --name-status "$test_branch..$dev_branch" -- docs/superpowers || true
+  rp_log merge-dev-to-test "diff:"
+  rp_git diff --name-status "$test_branch..$dev_branch"
   exit 0
 fi
 
@@ -140,51 +140,23 @@ else
   rp_require_continue_merge_state
 fi
 
-exclude_superpowers_from_merge() {
-  local unmerged
-  unmerged="$(rp_git diff --name-only --diff-filter=U -- docs/superpowers || true)"
-  if [[ -n "$unmerged" ]]; then
-    while IFS= read -r path; do
-      [[ -n "$path" ]] || continue
-      rp_log exclude-superpowers "removing unmerged docs/superpowers path: $path"
-      rp_git rm --ignore-unmatch "$path" >/dev/null
-    done <<< "$unmerged"
-  fi
-
-  if rp_git ls-tree -d --name-only HEAD -- docs/superpowers >/dev/null 2>&1; then
-    local restore_error
-    if ! restore_error="$(rp_git restore --source=HEAD --staged --worktree -- docs/superpowers 2>&1)"; then
-      rp_log exclude-superpowers "restore from HEAD for docs/superpowers failed; staged-docs check will validate exclusion"
-      printf '%s\n' "$restore_error" >&2
-    fi
-  else
-    rp_log exclude-superpowers "HEAD has no docs/superpowers tree; skipping restore from HEAD"
-  fi
-
-  local staged_docs
-  staged_docs="$(rp_git diff --cached --name-only -- docs/superpowers || true)"
-  if [[ -n "$staged_docs" ]]; then
-    while IFS= read -r path; do
-      [[ -n "$path" ]] || continue
-      rp_log exclude-superpowers "unstaging excluded docs/superpowers path: $path"
-      rp_git restore --staged -- "$path" || true
-      rm -rf -- "$path"
-    done <<< "$staged_docs"
-  fi
-}
-
 if [[ "$continue_mode" == true ]]; then
   rp_log merge-dev-to-test "continuing existing merge"
 else
   rp_log merge-dev-to-test "switching to $test_branch"
-  rp_git switch "$test_branch"
+  rp_git switch --no-overwrite-ignore "$test_branch"
+  rp_require_no_ignored_merge_collisions "$dev_branch"
   rp_log merge-dev-to-test "merging $dev_branch into $test_branch without committing"
-  if ! rp_git merge --no-ff --no-commit "$dev_branch"; then
-    rp_log merge-dev-to-test "merge reported conflicts; applying docs/superpowers exclusion"
+  if ! rp_git merge --no-overwrite-ignore --no-ff --no-commit "$dev_branch"; then
+    if [[ -e "$(rp_git_dir)/MERGE_HEAD" ]]; then
+      rp_unmerged_paths >&2
+      rp_print_conflict_guidance "$0"
+    else
+      rp_log error "merge did not start; resolve the reported blocker, then rerun this phase without --continue"
+    fi
+    exit 1
   fi
 fi
-
-exclude_superpowers_from_merge
 
 if rp_has_unmerged_paths; then
   rp_unmerged_paths >&2
@@ -192,10 +164,9 @@ if rp_has_unmerged_paths; then
   exit 1
 fi
 
-rp_require_no_staged_superpowers_diff
-
 rp_log verify "checking staged diff"
 rp_require_staged_diff_check_for_merge
+rp_require_staged_development_version
 
 rp_log verify "checking MERGE_HEAD matches $dev_branch"
 rp_require_merge_head_matches_dev
@@ -205,5 +176,4 @@ rp_git commit -m "$message"
 
 rp_log verify "checking HEAD merge parent includes $dev_branch"
 rp_require_head_merge_parent_matches_dev
-rp_require_head_superpowers_diff_empty
 rp_log verify "dev-to-test merge complete: $(rp_git rev-parse --short HEAD)"
