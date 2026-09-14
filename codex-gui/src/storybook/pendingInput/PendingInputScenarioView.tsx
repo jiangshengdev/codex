@@ -94,12 +94,14 @@ export function PendingInputScenarioView({
   );
 }
 
-export function PendingInputPreview({
+export function PendingInputPreview<Scenario extends PendingInputScenario>({
   createScenario,
   children,
+  renderDrawerControls,
 }: Readonly<{
-  createScenario: () => PendingInputScenario;
-  children: (scenario: PendingInputScenario) => ReactNode;
+  createScenario: () => Scenario;
+  children: (scenario: Scenario) => ReactNode;
+  renderDrawerControls?: (scenario: Scenario) => ReactNode;
 }>) {
   const [generation, setGeneration] = useState(0);
   return (
@@ -113,19 +115,25 @@ export function PendingInputPreview({
           Restart simulation
         </Trans>
       </Button>
-      <PendingInputPreviewInstance key={generation} createScenario={createScenario}>
+      <PendingInputPreviewInstance
+        key={generation}
+        createScenario={createScenario}
+        renderDrawerControls={renderDrawerControls}
+      >
         {children}
       </PendingInputPreviewInstance>
     </div>
   );
 }
 
-function PendingInputPreviewInstance({
+function PendingInputPreviewInstance<Scenario extends PendingInputScenario>({
   createScenario,
   children,
+  renderDrawerControls,
 }: Readonly<{
-  createScenario: () => PendingInputScenario;
-  children: (scenario: PendingInputScenario) => ReactNode;
+  createScenario: () => Scenario;
+  children: (scenario: Scenario) => ReactNode;
+  renderDrawerControls?: (scenario: Scenario) => ReactNode;
 }>) {
   const [scenario] = useState(createScenario);
   const lifecycle = useRef({ generation: 0 });
@@ -138,7 +146,15 @@ function PendingInputPreviewInstance({
       });
     };
   }, [scenario]);
-  return <ComposerPendingInputProvider>{children(scenario)}</ComposerPendingInputProvider>;
+  return (
+    <ComposerPendingInputProvider
+      renderConnectionRecovery={
+        renderDrawerControls == null ? undefined : () => renderDrawerControls(scenario)
+      }
+    >
+      {children(scenario)}
+    </ComposerPendingInputProvider>
+  );
 }
 
 function SendingControls({ scenario }: Readonly<{ scenario: PendingInputScenario }>) {
