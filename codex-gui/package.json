@@ -30,6 +30,7 @@
     "protocol:generate-validators": "tsx scripts/protocolValidators/cli.ts --write",
     "messages:extract": "tsx scripts/storybookIsolation/messages.ts",
     "messages:extract:clean": "tsx scripts/storybookIsolation/messages.ts --clean",
+    "verify:storybook-isolation": "tsx scripts/storybookIsolation/artifacts.ts",
     "analyze:large-files": "tsx scripts/large-files/cli.ts",
     "clean:test-artifacts": "tsx scripts/clean-test-artifacts/cli.ts",
     "storybook": "storybook dev -p 6006",
