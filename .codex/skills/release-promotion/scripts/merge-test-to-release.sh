@@ -42,6 +42,7 @@ done
 rp_cd_repo_root
 rp_require_local_branch "$test_branch"
 rp_require_local_branch "$release_branch"
+rp_require_development_version "$test_branch"
 
 release_version="$(rp_version_from_branch "$release_branch")"
 if [[ -z "$release_version" ]]; then
@@ -155,11 +156,16 @@ if [[ "$continue_mode" == true ]]; then
   rp_log merge-test-to-release "continuing existing merge"
 else
   rp_log merge-test-to-release "switching to $release_branch"
-  rp_git switch "$release_branch"
+  rp_git switch --no-overwrite-ignore "$release_branch"
+  rp_require_no_ignored_merge_collisions "$test_branch"
   rp_log merge-test-to-release "merging $test_branch into $release_branch without committing"
-  if ! rp_git merge --no-ff --no-commit "$test_branch"; then
-    rp_unmerged_paths >&2
-    rp_print_conflict_guidance "$0"
+  if ! rp_git merge --no-overwrite-ignore --no-ff --no-commit "$test_branch"; then
+    if [[ -e "$(rp_git_dir)/MERGE_HEAD" ]]; then
+      rp_unmerged_paths >&2
+      rp_print_conflict_guidance "$0"
+    else
+      rp_log error "merge did not start; resolve the reported blocker, then rerun this phase without --continue"
+    fi
     exit 1
   fi
 fi

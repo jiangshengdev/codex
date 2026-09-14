@@ -23,7 +23,7 @@
       "source": "lingui/skills",
       "sourceType": "github",
       "skillPath": "skills/lingui-framework-setup/SKILL.md",
-      "computedHash": "49f3ba8f38a678081c082f0e819f9a6146238f38a2a3f9f4594d3021c37fa0fa"
+      "computedHash": "6786f2dd8708fa286eadda73df52a2a824352d321d6f1dde21266882a8224cfe"
     },
     "migrate-i18next-to-lingui": {
       "source": "lingui/skills",
@@ -35,19 +35,19 @@
       "source": "microsoft/playwright-cli",
       "sourceType": "github",
       "skillPath": "skills/playwright-cli/SKILL.md",
-      "computedHash": "f602822b51bcb6d033749c60731b8f1e80f308222fcb2e4af551905a817c6e08"
+      "computedHash": "19b6942c9cbcf9b9e3000fc497f8f156b8251d66055de806017e4aaa651e0c7b"
     },
     "streamdown": {
       "source": "vercel/streamdown",
       "sourceType": "github",
       "skillPath": "skills/streamdown/SKILL.md",
-      "computedHash": "2f8292ddf03ef22a271acb22c852f06ea9105d05d000adbbf2d21b4bd71c7447"
+      "computedHash": "a07109311d93aaa453f2c34767d4ce70c723535de670d74f76f89892415e6159"
     },
     "swc-plugin-compatibility": {
       "source": "lingui/skills",
       "sourceType": "github",
       "skillPath": "skills/swc-plugin-compatibility/SKILL.md",
-      "computedHash": "efb4366f616bd230f12dd75fc3c530cdb54546aa3ef4a5f1403ce88f57db4d05"
+      "computedHash": "5ecf87404f4b22de5e68a4358a45298183c279f9c173bf8e971b22d0bbc7ace8"
     }
   }
 }

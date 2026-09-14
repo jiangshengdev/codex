@@ -5,6 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { lingui, linguiTransformerBabelPreset } from "@lingui/vite-plugin";
 import compression from "@polka/compression";
 import babel from "@rolldown/plugin-babel";
+import { storybookIsolationReport } from "./scripts/storybookIsolation/buildReport.ts";
 
 const viteHost = process.env.CODEX_GUI_VITE_HOST ?? "0.0.0.0";
 const vitePort = Number(process.env.CODEX_GUI_VITE_PORT ?? "5173");
@@ -47,6 +48,7 @@ export default defineConfig({
       presets: [linguiTransformerBabelPreset()],
     }),
     tailwindcss(),
+    storybookIsolationReport(),
   ],
   resolve: {
     alias: {

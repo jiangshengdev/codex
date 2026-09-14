@@ -1,6 +1,7 @@
 # Ignore artifacts:
 build
 coverage
+.playwright-cli/
 
 # Ignore lockfiles:
 pnpm-lock.yaml
@@ -8,6 +9,5 @@ pnpm-lock.yaml
 # Rust-generated projection fixtures:
 src/features/projection/__fixtures__/
 
-# Protocol validator artifacts:
-src/generated/appServerProtocol/
-src/generated/guiHostContract/
+# Generated artifacts:
+src/generated/

@@ -1,5 +1,6 @@
+import { toast } from "@heroui/react";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import {
@@ -38,6 +39,10 @@ vi.mock("@/features/guiHost/guiHostClient", () => ({
 
 beforeEach(() => {
   resetAppBrowserTestSupport(guiHostClientMock.startGuiHostConnection);
+});
+
+afterEach(() => {
+  toast.clear();
 });
 
 test("an existing empty turn is not reported as missing", async () => {

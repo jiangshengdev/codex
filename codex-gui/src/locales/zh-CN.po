@@ -361,6 +361,11 @@ msgstr "当前任务状态未知"
 msgid "Currently unable to guide; added to queue"
 msgstr "当前无法引导，已加入队列"
 
+#. Accessible name of the explicit dark appearance option
+#: src/app/ThemePreferenceControl.tsx:21
+msgid "Dark theme"
+msgstr "深色主题"
+
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:294
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:374
 msgid "Delete"
@@ -566,6 +571,11 @@ msgstr "无效技能"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:284
 msgid "Keep"
 msgstr "保留"
+
+#. Accessible name of the explicit light appearance option
+#: src/app/ThemePreferenceControl.tsx:13
+msgid "Light theme"
+msgstr "浅色主题"
 
 #. Button to load the historical task list
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:316
@@ -1134,6 +1144,11 @@ msgstr "系统"
 msgid "System error"
 msgstr "系统错误"
 
+#. Theme preference that follows operating system appearance
+#: src/app/ThemePreferenceControl.tsx:29
+msgid "System theme"
+msgstr "跟随系统主题"
+
 #. Table clipboard write succeeded.
 #: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:126
 msgid "Table copied"
@@ -1289,6 +1304,11 @@ msgstr "任务恢复未能完成。"
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:205
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "任务切换已提交，但连接已中断。重新连接后请确认当前任务。"
+
+#. Accessible name of the single choice theme control
+#: src/app/ThemePreferenceControl.tsx:37
+msgid "Theme preference"
+msgstr "主题偏好"
 
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:96
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
