@@ -319,11 +319,6 @@ msgstr "Could not copy code. Try again."
 msgid "Could not copy table. Try again."
 msgstr "Could not copy table. Try again."
 
-#. Storybook test action: creates an empty local Redux read-model slot without connecting to a backend.
-#: src/storybook/Stateful.stories.tsx:36
-msgid "Create read-model slot"
-msgstr "Create read-model slot"
-
 #: src/features/appShell/AppShellTopBar.tsx:57
 #: src/features/appShell/AppShellTopBar.tsx:195
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
@@ -362,11 +357,6 @@ msgstr "Current task is waiting for input"
 msgid "Current task status is unknown"
 msgstr "Current task status is unknown"
 
-#. A simulated assistant turn blocks automatic dispatch of ordinary queued messages
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:237
-msgid "Current turn is running"
-msgstr "Current turn is running"
-
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:89
 msgid "Currently unable to guide; added to queue"
 msgstr "Currently unable to guide; added to queue"
@@ -378,7 +368,6 @@ msgstr "Dark theme"
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:294
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:374
-#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:23
 msgid "Delete"
 msgstr "Delete"
 
@@ -546,16 +535,6 @@ msgstr "Idle"
 msgid "In progress"
 msgstr "In progress"
 
-#. Explains that only post-move page reads are injected in this Story
-#: src/storybook/pendingInput/reordering/PendingInputReorderingPreview.tsx:85
-msgid "Injected feedback: the first move changes the real queue, then its refreshed list cannot load. Close and reopen the queue to read the updated order."
-msgstr "Injected feedback: the first move changes the real queue, then its refreshed list cannot load. Close and reopen the queue to read the updated order."
-
-#. Explains the bounded role-interface failure in the queue sorting Story
-#: src/storybook/pendingInput/reordering/PendingInputReorderingPreview.tsx:80
-msgid "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
-msgstr "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
-
 #. Input may already belong to the existing task queue; do not offer another send
 #: src/features/newSession/NewSessionPage.tsx:111
 msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
@@ -648,15 +627,6 @@ msgstr "Loading task history…"
 msgid "Loading task…"
 msgstr "Loading task…"
 
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:74
-msgid "Local simulation. Requests and runtime events advance only when you use the simulation controls."
-msgstr "Local simulation. Requests and runtime events advance only when you use the simulation controls."
-
-#. Accessible name for the separate main composer draft in the pending-input Storybook simulation
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:81
-msgid "Main draft"
-msgstr "Main draft"
-
 #: src/features/appShell/AppShellTopBar.tsx:127
 msgid "Main navigation"
 msgstr "Main navigation"
@@ -737,11 +707,6 @@ msgstr "Move up"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:302
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
-
-#. Storybook test action: navigates only the isolated in-memory preview router.
-#: src/storybook/Stateful.stories.tsx:49
-msgid "Navigate to details"
-msgstr "Navigate to details"
 
 #: src/features/appShell/AppShellTopBar.tsx:123
 msgid "Navigation"
@@ -918,11 +883,6 @@ msgstr "Reconnecting…"
 msgid "Recover this task's connection before removing it."
 msgstr "Recover this task's connection before removing it."
 
-#. Storybook environment check: count is the number of Redux read-model slots; pathname is an isolated preview route.
-#: src/storybook/Stateful.stories.tsx:22
-msgid "Redux slots: {count}; route: {pathname}"
-msgstr "Redux slots: {count}; route: {pathname}"
-
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:447
 msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
@@ -939,11 +899,6 @@ msgstr "Refreshing skills…"
 #: src/features/currentTask/CurrentTaskPage.tsx:392
 msgid "Refreshing status…"
 msgstr "Refreshing status…"
-
-#. Stop freezing the captured recovery notification and show live coordinator state
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:86
-msgid "Release recovery display"
-msgstr "Release recovery display"
 
 #. Button that retries loading the available skill catalog
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:421
@@ -1002,18 +957,6 @@ msgstr "Request failed"
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:98
 msgid "Resolve the task list error above, then try again."
 msgstr "Resolve the task list error above, then try again."
-
-#. The request succeeded but the simulated runtime acceptance event has not been injected
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:229
-msgid "Response received; waiting for runtime confirmation"
-msgstr "Response received; waiting for runtime confirmation"
-
-#. Reset the local pending-input Storybook scenario to its initial state
-#. Storybook control that resets the local connection recovery demo
-#: src/storybook/ConnectionRecoverySimulation.tsx:39
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:123
-msgid "Restart simulation"
-msgstr "Restart simulation"
 
 #. Button to restore this task's message synchronization; same label after failure
 #: src/features/currentTask/ProjectionRecoveryNotice.tsx:47
@@ -1086,11 +1029,6 @@ msgstr "Review unresolved messages in this task before removing it."
 msgid "Running"
 msgstr "Running"
 
-#. The preview injected the runtime acceptance event for the queued message
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:233
-msgid "Runtime confirmation received"
-msgstr "Runtime confirmation received"
-
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:287
 msgid "Save"
 msgstr "Save"
@@ -1139,67 +1077,6 @@ msgstr "Showing saved skills because refresh failed"
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:131
 msgid "Shutdown"
 msgstr "Shutdown"
-
-#. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
-#. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:189
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:103
-msgid "Simulate current turn completed"
-msgstr "Simulate current turn completed"
-
-#. Inject a failed save in the local pending-message editor simulation
-#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:109
-msgid "Simulate editing session lost"
-msgstr "Simulate editing session lost"
-
-#. Reject guidance because the simulated active turn cannot be steered
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:41
-msgid "Simulate guide refusal"
-msgstr "Simulate guide refusal"
-
-#. Inject the runtime user-message event confirming accepted guide delivery
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:32
-msgid "Simulate guide runtime confirmation"
-msgstr "Simulate guide runtime confirmation"
-
-#. Resolve the local guide request as accepted by the active turn
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:23
-msgid "Simulate guide success"
-msgstr "Simulate guide success"
-
-#. Leave delivery of the local guide request uncertain
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:50
-msgid "Simulate guide unknown"
-msgstr "Simulate guide unknown"
-
-#. Inject the runtime turn-started event that confirms the simulated queued message was accepted
-#. Inject the runtime turn-started event that confirms the simulated queued message was accepted
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:219
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:139
-msgid "Simulate runtime confirmation"
-msgstr "Simulate runtime confirmation"
-
-#. Reject the simulated sending request with definite non-delivery
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:125
-msgid "Simulate send failure"
-msgstr "Simulate send failure"
-
-#. Resolve the local start-turn request without injecting a runtime event
-#. Resolve the pending local start-turn request without injecting a runtime event
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:204
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:116
-msgid "Simulate send response"
-msgstr "Simulate send response"
-
-#. Complete the simulated target turn while its guiding message is being edited
-#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:121
-msgid "Simulate target turn closed"
-msgstr "Simulate target turn closed"
-
-#. No simulated assistant turn or start-turn request remains active
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:241
-msgid "Simulation is idle"
-msgstr "Simulation is idle"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:446
 msgid "Skills could not be loaded"
@@ -1437,17 +1314,9 @@ msgstr "Theme preference"
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 
-#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:94
-msgid "This control injects a lost editing-session result for previewing content protection."
-msgstr "This control injects a lost editing-session result for previewing content protection."
-
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:445
 msgid "This editing session is no longer available."
 msgstr "This editing session is no longer available."
-
-#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:89
-msgid "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
-msgstr "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:439
 msgid "This message has entered the sending process and can no longer be managed."
@@ -1464,10 +1333,6 @@ msgstr "This message is being edited."
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:423
 msgid "This pending message cannot be edited."
 msgstr "This pending message cannot be edited."
-
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:76
-msgid "This preview freezes the brief recovery notification. Release it to inspect the pending send request."
-msgstr "This preview freezes the brief recovery notification. Release it to inspect the pending send request."
 
 #. One task failed to restore; the shared connection remains healthy
 #: src/features/currentTask/ConnectionTaskRecoveryNotice.tsx:59
@@ -1664,11 +1529,6 @@ msgstr "Waiting for approval"
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:55
 msgid "Waiting for input"
 msgstr "Waiting for input"
-
-#. The local start-turn request remains unresolved until the preview response control is used
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:225
-msgid "Waiting for send response"
-msgstr "Waiting for send response"
 
 #. Explains why sending stays blocked after requesting context compression
 #: src/features/composerTurnControl/ContextUsagePopover.tsx:116

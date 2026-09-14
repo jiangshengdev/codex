@@ -1,0 +1,153 @@
+msgid ""
+msgstr ""
+"POT-Creation-Date: 2026-09-14 10:22+0800\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: @lingui/cli\n"
+"Language: en\n"
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Plural-Forms: \n"
+
+#. Storybook test action: creates an empty local Redux read-model slot without connecting to a backend.
+#: src/storybook/Stateful.stories.tsx:36
+msgid "Create read-model slot"
+msgstr "Create read-model slot"
+
+#. A simulated assistant turn blocks automatic dispatch of ordinary queued messages
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:237
+msgid "Current turn is running"
+msgstr "Current turn is running"
+
+#. Explains that only post-move page reads are injected in this Story
+#: src/storybook/pendingInput/reordering/PendingInputReorderingPreview.tsx:85
+msgid "Injected feedback: the first move changes the real queue, then its refreshed list cannot load. Close and reopen the queue to read the updated order."
+msgstr "Injected feedback: the first move changes the real queue, then its refreshed list cannot load. Close and reopen the queue to read the updated order."
+
+#. Explains the bounded role-interface failure in the queue sorting Story
+#: src/storybook/pendingInput/reordering/PendingInputReorderingPreview.tsx:80
+msgid "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
+msgstr "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
+
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:74
+msgid "Local simulation. Requests and runtime events advance only when you use the simulation controls."
+msgstr "Local simulation. Requests and runtime events advance only when you use the simulation controls."
+
+#. Accessible name for the separate main composer draft in the pending-input Storybook simulation
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:81
+msgid "Main draft"
+msgstr "Main draft"
+
+#. Storybook test action: navigates only the isolated in-memory preview router.
+#: src/storybook/Stateful.stories.tsx:49
+msgid "Navigate to details"
+msgstr "Navigate to details"
+
+#. Storybook environment check: count is the number of Redux read-model slots; pathname is an isolated preview route.
+#: src/storybook/Stateful.stories.tsx:22
+msgid "Redux slots: {count}; route: {pathname}"
+msgstr "Redux slots: {count}; route: {pathname}"
+
+#. Stop freezing the captured recovery notification and show live coordinator state
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:86
+msgid "Release recovery display"
+msgstr "Release recovery display"
+
+#. The request succeeded but the simulated runtime acceptance event has not been injected
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:229
+msgid "Response received; waiting for runtime confirmation"
+msgstr "Response received; waiting for runtime confirmation"
+
+#. Reset the local pending-input Storybook scenario to its initial state
+#. Storybook control that resets the local connection recovery demo
+#: src/storybook/ConnectionRecoverySimulation.tsx:39
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:123
+msgid "Restart simulation"
+msgstr "Restart simulation"
+
+#. The preview injected the runtime acceptance event for the queued message
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:233
+msgid "Runtime confirmation received"
+msgstr "Runtime confirmation received"
+
+#. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
+#. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:189
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:103
+msgid "Simulate current turn completed"
+msgstr "Simulate current turn completed"
+
+#. Inject a failed save in the local pending-message editor simulation
+#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:109
+msgid "Simulate editing session lost"
+msgstr "Simulate editing session lost"
+
+#. Reject guidance because the simulated active turn cannot be steered
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:41
+msgid "Simulate guide refusal"
+msgstr "Simulate guide refusal"
+
+#. Inject the runtime user-message event confirming accepted guide delivery
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:32
+msgid "Simulate guide runtime confirmation"
+msgstr "Simulate guide runtime confirmation"
+
+#. Resolve the local guide request as accepted by the active turn
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:23
+msgid "Simulate guide success"
+msgstr "Simulate guide success"
+
+#. Leave delivery of the local guide request uncertain
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:50
+msgid "Simulate guide unknown"
+msgstr "Simulate guide unknown"
+
+#. Inject the runtime turn-started event that confirms the simulated queued message was accepted
+#. Inject the runtime turn-started event that confirms the simulated queued message was accepted
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:219
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:139
+msgid "Simulate runtime confirmation"
+msgstr "Simulate runtime confirmation"
+
+#. Reject the simulated sending request with definite non-delivery
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:125
+msgid "Simulate send failure"
+msgstr "Simulate send failure"
+
+#. Resolve the local start-turn request without injecting a runtime event
+#. Resolve the pending local start-turn request without injecting a runtime event
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:204
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:116
+msgid "Simulate send response"
+msgstr "Simulate send response"
+
+#. Complete the simulated target turn while its guiding message is being edited
+#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:121
+msgid "Simulate target turn closed"
+msgstr "Simulate target turn closed"
+
+#. No simulated assistant turn or start-turn request remains active
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:241
+msgid "Simulation is idle"
+msgstr "Simulation is idle"
+
+#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:94
+msgid "This control injects a lost editing-session result for previewing content protection."
+msgstr "This control injects a lost editing-session result for previewing content protection."
+
+#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:89
+msgid "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
+msgstr "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
+
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:76
+msgid "This preview freezes the brief recovery notification. Release it to inspect the pending send request."
+msgstr "This preview freezes the brief recovery notification. Release it to inspect the pending send request."
+
+#. The local start-turn request remains unresolved until the preview response control is used
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:225
+msgid "Waiting for send response"
+msgstr "Waiting for send response"

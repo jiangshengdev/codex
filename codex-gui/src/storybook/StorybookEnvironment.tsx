@@ -4,12 +4,13 @@ import { Suspense, use, type PropsWithChildren } from "react";
 import { ThemeProvider } from "@/app/ThemeProvider";
 import { ThemePreferenceControl } from "@/app/ThemePreferenceControl";
 import { createThemePreferenceStore } from "@/app/themePreference";
-import { loadCatalog, resolveBrowserLocale } from "@/i18n";
+import { resolveBrowserLocale } from "@/i18n";
+import { loadPreviewCatalog } from "./loadPreviewCatalog";
 
 const language = (async () => {
   const i18n = setupI18n();
   const locales = navigator.languages.length > 0 ? navigator.languages : [navigator.language];
-  await loadCatalog(resolveBrowserLocale(locales), i18n);
+  await loadPreviewCatalog(resolveBrowserLocale(locales), i18n);
   return i18n;
 })();
 
