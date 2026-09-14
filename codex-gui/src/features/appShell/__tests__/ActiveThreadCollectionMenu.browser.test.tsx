@@ -263,6 +263,11 @@ test("a thrown remove error survives closing the drawer and clears after success
   await expect
     .element(screen.getByRole("menuitem", { name: "Remove from list", exact: true }))
     .not.toBeInTheDocument();
+  await expect
+    .element(
+      screen.getByRole("button", { name: `More options for ${backgroundThreadId}`, exact: true }),
+    )
+    .toHaveFocus();
   await userEvent.keyboard("{Escape}");
   await expect.element(screen.getByRole("dialog", { name: "Navigation" })).not.toBeInTheDocument();
   const menu = screen.getByRole("button", { name: "Menu", exact: true });
