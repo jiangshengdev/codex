@@ -76,6 +76,7 @@ coverage/
 .playwright-cli/
 
 # personal files
+.scratch/
 personal/
 docs/superpowers/
 output/
