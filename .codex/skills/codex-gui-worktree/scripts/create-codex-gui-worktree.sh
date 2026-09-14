@@ -12,7 +12,7 @@ DEFAULT_SPARSE_PATHS=(
   "codex-rs/app-server-protocol/schema/json"
   "codex-rs/gui-host/schema/typescript"
   "codex-rs/gui-host/schema/json"
-  "docs/superpowers"
+  "docs/agents"
 )
 
 usage() {
@@ -188,6 +188,11 @@ ACTUAL_ROOT="$(git rev-parse --show-toplevel)"
 [[ "$ACTUAL_ROOT" == "$REPO_ROOT" ]] || die "unexpected repo root: $ACTUAL_ROOT"
 BASE_COMMIT="$(git rev-parse --verify "${BASE}^{commit}" 2>/dev/null)" || die "base does not resolve to a commit: $BASE"
 
+# Domain decisions are optional, but must be readable when the base has them.
+if git cat-file -e "$BASE_COMMIT:docs/adr" 2>/dev/null; then
+  SPARSE_PATHS+=("docs/adr")
+fi
+
 case "$WORKTREE_ROOT/" in
   "$REPO_ROOT"/*)
     git check-ignore -q "$WORKTREE_ROOT" || die "$WORKTREE_ROOT is not ignored by git"
@@ -237,7 +242,9 @@ ensure_symlink "$VITEST_ROOT" "$WORKTREE_ROOT/vitest"
 test -f "$WORKTREE_PATH/AGENTS.md"
 test -f "$WORKTREE_PATH/.codex/skills/codex-gui-toolchain/SKILL.md"
 test -f "$WORKTREE_PATH/.agents/skills/lingui-best-practices/SKILL.md"
-test -d "$WORKTREE_PATH/docs/superpowers"
+test -f "$WORKTREE_PATH/docs/agents/issue-tracker.md"
+test -f "$WORKTREE_PATH/docs/agents/triage-labels.md"
+test -f "$WORKTREE_PATH/docs/agents/domain.md"
 test -f "$WORKTREE_PATH/codex-gui/AGENTS.md"
 test -f "$WORKTREE_PATH/codex-rs/app-server-protocol/schema/typescript/index.ts"
 test -d "$WORKTREE_PATH/codex-rs/app-server-protocol/schema/json"
