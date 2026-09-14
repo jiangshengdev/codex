@@ -11,7 +11,8 @@
 ### Issue tracker
 
 Use CNB Issues for this repository. Read `docs/agents/issue-tracker.md`
-before tracker operations.
+before starting task work or tracker operations, including when CNB is
+unavailable.
 
 ### Triage labels
 

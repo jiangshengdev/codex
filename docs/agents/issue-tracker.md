@@ -1,9 +1,46 @@
 # Issue tracker: CNB
 
-Use CNB Issues in `jiangshengdev/codex` for specs and implementation tickets.
+Use CNB Issues in `jiangshengdev/codex` for specs, implementation tickets,
+formal research conclusions, acceptance results, and completion notes.
+Keep conclusions and evidence with the relevant issue. CNB is the source
+of truth for formal task records and status.
 
 Repository: https://cnb.cool/jiangshengdev/codex
 Documentation: https://docs.cnb.cool/zh/
+
+## Record boundaries
+
+- Keep drafts, logs, and pending updates as local temporary material, not a
+  second task tracker. Do not introduce automatic synchronization.
+- Existing `docs/superpowers/` files are local historical references only.
+  Do not create new task records there, migrate old content, synchronize it
+  to CNB, or delete it as part of the workflow transition. Keep it ignored.
+- Shared domain terms and durable architectural decisions retain the layout
+  in `domain.md`, covering both the GUI and Rust backend.
+
+## When CNB is unavailable
+
+Continue already authorized local implementation and verification only when
+the task's requirements, acceptance criteria, and relevant dependency
+information are available and sufficient. If key information is missing,
+pause the affected work and identify the missing information. An outage does
+not authorize a new claim or establish that blockers have completed.
+
+Keep results awaiting publication in local temporary material with the issue
+reference, evidence, and intended update. Report local progress separately
+from CNB status; do not claim a remote update succeeded until readback verifies
+it. This is a pending handoff, not a second task status system or sync service.
+
+After recovery, check authentication and re-read the full issue, comments,
+labels, and relevant blockers before any authorized update. Reconcile newer
+requirements or conflicting changes before proceeding; pause affected work
+when they invalidate its assumptions. Apply pending updates without replacing
+newer contributions, then verify them by readback. Do not retry an uncertain
+write blindly: first check whether it already took effect to avoid duplicates.
+
+These rules preserve existing authorization boundaries for local changes,
+external writes, commits, and releases. Continuing locally does not grant
+permission for later tracker writes.
 
 ## CLI and authentication
 
@@ -117,8 +154,3 @@ The test issue is closed/completed with no assignees. The temporary label was
 deleted, and the follow-up tests added no comments.
 Native Issue relationships are temporarily unsupported through the public API;
 they were not write-tested.
-
-## Existing local documents
-
-Keep existing `docs/superpowers/issues/` documents under their existing rules.
-This setup does not migrate them or establish automatic synchronization.

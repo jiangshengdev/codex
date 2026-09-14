@@ -10,7 +10,7 @@
 
 ### 问题追踪器
 
-本仓库使用 CNB Issues。操作问题追踪器前，先阅读 `docs/agents/issue-tracker.md`。
+本仓库使用 CNB Issues。开始任务工作或操作问题追踪器前，先阅读 `docs/agents/issue-tracker.md`；CNB 不可用时也遵循其中的工作规则。
 
 ### Triage 标签
 
