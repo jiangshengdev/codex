@@ -1,6 +1,6 @@
 import type { Preview } from "@storybook/tanstack-react";
 import { StorybookEnvironment } from "../src/storybook/StorybookEnvironment";
-import "../src/index.css";
+import "./storybook.css";
 import "./preview.css";
 
 const preview: Preview = {
