@@ -204,6 +204,68 @@ rp_version_from_branch() {
   rp_workspace_package_version_from_stdin "$branch:codex-rs/Cargo.toml" <<<"$content"
 }
 
+rp_require_development_version() {
+  local branch="$1"
+  local version
+  version="$(rp_version_from_branch "$branch")"
+  if [[ "$version" != "0.0.0" ]]; then
+    rp_die "$branch workspace version must be 0.0.0, got: $version"
+  fi
+}
+
+rp_require_staged_development_version() {
+  local content
+  content="$(rp_git show :codex-rs/Cargo.toml)"
+  local version
+  version="$(rp_workspace_package_version_from_stdin index:codex-rs/Cargo.toml <<<"$content")"
+  if [[ "$version" != "0.0.0" ]]; then
+    rp_die "staged workspace version must be 0.0.0, got: $version"
+  fi
+}
+
+rp_require_no_ignored_merge_collisions() {
+  local source="$1"
+  local path probe paths ignored status collision=""
+  paths="$(mktemp)"
+  if ! ignored="$(mktemp)"; then
+    rm -f "$paths"
+    rp_die "could not prepare ignored-path check"
+  fi
+  if ! rp_git ls-tree -r -z --name-only "$source" >"$paths"; then
+    rm -f "$paths" "$ignored"
+    rp_die "could not read incoming paths"
+  fi
+  if rp_git check-ignore --stdin -z <"$paths" >"$ignored"; then
+    status=0
+  else
+    status=$?
+  fi
+  if ((status > 1)); then
+    rm -f "$paths" "$ignored"
+    rp_die "could not check incoming paths against local ignore rules"
+  fi
+  # check-ignore omits paths already tracked here. Inspect the incoming tree
+  # because some merge strategies overwrite ignored files despite the flag.
+  while IFS= read -r -d '' path; do
+    if [[ -e "$path" || -L "$path" ]]; then
+      collision="$path"
+      break
+    fi
+    probe="$path"
+    while [[ "$probe" == */* ]]; do
+      probe="${probe%/*}"
+      if [[ -e "$probe" && ! -d "$probe" || -L "$probe" ]]; then
+        collision="$probe"
+        break 2
+      fi
+    done
+  done <"$ignored"
+  rm -f "$paths" "$ignored"
+  if [[ -n "$collision" ]]; then
+    rp_die "incoming path would overwrite ignored local data: $collision; preserve it before retrying"
+  fi
+}
+
 rp_next_cdx_version() {
   local version="$1"
   if [[ ! "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)-cdx\.([0-9]+)$ ]]; then
@@ -231,24 +293,6 @@ rp_print_conflict_guidance() {
   rp_log error "merge stopped with conflicts."
   rp_log error "Resolve conflicts manually, stage the resolved files, then run:"
   rp_log error "  $script --continue"
-}
-
-rp_require_no_staged_superpowers_diff() {
-  local diff
-  diff="$(rp_git diff --cached --name-status -- docs/superpowers)"
-  if [[ -n "$diff" ]]; then
-    printf '%s\n' "$diff" >&2
-    rp_die "docs/superpowers must not be staged in the dev-to-test merge"
-  fi
-}
-
-rp_require_head_superpowers_diff_empty() {
-  local diff
-  diff="$(rp_git diff --name-status HEAD^1..HEAD -- docs/superpowers)"
-  if [[ -n "$diff" ]]; then
-    printf '%s\n' "$diff" >&2
-    rp_die "merge commit contains docs/superpowers changes"
-  fi
 }
 
 rp_require_staged_diff_check_for_merge() {

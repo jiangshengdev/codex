@@ -51,3 +51,6 @@ playwright-report/
 
 # redux-toolkit-agents-md
 .redux-toolkit-docs/
+
+*storybook.log
+storybook-static

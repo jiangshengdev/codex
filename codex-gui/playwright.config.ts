@@ -97,14 +97,22 @@ export default defineConfig({
   // outputDir: 'test-results/',
 
   /* Run your local dev server before starting the tests */
-  webServer: {
-    /**
-     * Use the dev server by default for faster feedback loop.
-     * Use the preview server on CI for more realistic testing.
-     * Playwright will re-use the local server if there is already a dev-server running.
-     */
-    command: process.env.CI ? "pnpm run preview" : "pnpm run dev",
-    port: process.env.CI ? 4173 : 5173,
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: [
+    {
+      /**
+       * Use the dev server by default for faster feedback loop.
+       * Use the preview server on CI for more realistic testing.
+       * Playwright will re-use the local server if there is already a dev-server running.
+       */
+      command: process.env.CI ? "pnpm run preview" : "pnpm run dev",
+      port: process.env.CI ? 4173 : 5173,
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command:
+        "pnpm run storybook --ci --no-open --exact-port --disable-telemetry --no-version-updates",
+      port: 6006,
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
 });

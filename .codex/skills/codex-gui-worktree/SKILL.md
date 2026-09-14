@@ -35,7 +35,7 @@ Default sparse checkout paths:
 ```text
 .codex/skills
 .agents/skills
-docs/superpowers
+docs/agents
 codex-gui
 codex-rs/app-server-protocol/schema/typescript
 codex-rs/app-server-protocol/schema/json
@@ -43,7 +43,9 @@ codex-rs/gui-host/schema/typescript
 codex-rs/gui-host/schema/json
 ```
 
-These paths keep the GUI worktree's skills, work documents, sources, and schemas independent of another checkout. The schemas feed GUI type-checking, Vite, and protocol validators.
+These paths keep the GUI worktree's skills, CNB workflow configuration, sources, and schemas independent of another checkout. The schemas feed GUI type-checking, Vite, and protocol validators.
+
+Root files, including `AGENTS.md` and an existing `CONTEXT.md`, are included by cone-mode sparse checkout. If the selected base contains `docs/adr`, the script includes it too. Domain documents remain optional. The script does not require or copy ignored local historical documents.
 
 Use `--include` only for task-specific source or tool paths outside this fixed set, as in the script example below.
 
@@ -105,9 +107,17 @@ After running the script, report:
 - branch
 - sparse checkout list
 - readability of the fixed task control plane, including its key skill
-  entrypoints, applicable `AGENTS.md` files, project work documents, and
-  protocol schemas
+  entrypoints, applicable `AGENTS.md` files, CNB tracker, triage and domain
+  configuration, existing domain documents, and protocol schemas
 - linked resources
 - `git status --short --branch`
 
 If verification fails, report the failing command and do not continue to implementation work.
+
+Run the script-entrypoint regression tests with:
+
+```bash
+node --test .codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.test.mjs
+```
+
+The tests use isolated Git repositories and fixture resources in the system temporary directory. They verify creation, readable inputs, preservation of local historical documents, and rejection of missing inputs and existing targets. They do not establish readiness of the real checkout's dependencies or create a real project worktree.

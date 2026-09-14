@@ -66,7 +66,7 @@ fi
 rp_require_no_in_progress_operation
 rp_require_clean_worktree
 
-rp_git switch "$release_branch"
+rp_git switch --no-overwrite-ignore "$release_branch"
 
 created_commit=false
 worktree_version="$(rp_version_from_file codex-rs/Cargo.toml)"
