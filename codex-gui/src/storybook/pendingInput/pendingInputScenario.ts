@@ -27,8 +27,8 @@ export function manualRequests<Params, Result>() {
   }>[] = [];
   return {
     getSnapshot: () => requests,
-    subscribe: listeners.subscribe,
-    issue(params: Params): Promise<Result> {
+    subscribe: (listener: () => void) => listeners.subscribe(listener),
+    issue: (params: Params): Promise<Result> => {
       return new Promise((resolve, reject) => {
         const settle = () => {
           requests = requests.filter((item) => item !== request);
@@ -116,33 +116,35 @@ export function createPendingInputScenario({
   for (let index = 1; index <= ordinaryCount; index++) {
     coordinator.submit(
       composerDraftCapture(
-        `Ordinary message ${index}${longText && index === 1 ? " — " + "Fictional queue content. ".repeat(80) + "END OF LONG MESSAGE" : ""}`,
+        `Ordinary message ${String(index)}${longText && index === 1 ? " — " + "Fictional queue content. ".repeat(80) + "END OF LONG MESSAGE" : ""}`,
       ),
     );
   }
   for (let index = 1; index <= guidingCount; index++)
-    coordinator.submitSteer(composerDraftCapture(`Guide message ${index}`));
+    coordinator.submitSteer(composerDraftCapture(`Guide message ${String(index)}`));
   let eventId = 0;
   const owner = { threadId: "thread-1", subscriptionId: "preview-subscription" };
-  const completeTurn = (id = "preview-active") =>
+  const completeTurn = (id = "preview-active") => {
     coordinator.observeAcceptedEvent({
       replay: "live",
       notification: eventForThreadOwner(
-        turnCompleted(eventTurnCompleted, `preview-completed-${++eventId}`, baseTurn(id)),
+        turnCompleted(eventTurnCompleted, `preview-completed-${String(++eventId)}`, baseTurn(id)),
         owner,
       ),
     });
-  const acceptTurn = (id: string) =>
+  };
+  const acceptTurn = (id: string) => {
     coordinator.observeAcceptedEvent({
       replay: "live",
       notification: eventForThreadOwner(
-        turnStarted(eventTurnStarted, `preview-started-${++eventId}`, {
+        turnStarted(eventTurnStarted, `preview-started-${String(++eventId)}`, {
           ...baseTurn(id),
           status: "inProgress",
         }),
         owner,
       ),
     });
+  };
   if (startSending) completeTurn();
   return {
     coordinator,
@@ -152,7 +154,9 @@ export function createPendingInputScenario({
     interrupts,
     completeTurn,
     acceptTurn,
-    dispose: () => coordinator.dispose(),
+    dispose: () => {
+      coordinator.dispose();
+    },
   };
 }
 

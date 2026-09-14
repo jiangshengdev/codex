@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
+import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import { ComposerPendingInputProvider } from "@/features/composerTurnControl/ComposerPendingInputProvider";
 import { ComposerPendingInputRegion } from "@/features/composerTurnControl/ComposerPendingInputRegion";
 import {
@@ -25,24 +26,30 @@ import {
 } from "./pendingInputScenario";
 
 const skills: SkillCatalogState = { type: "ready", candidates: [], partialErrorCount: 0 };
-const noop = () => {};
+const noop = () => {
+  // The preview's fixed empty skill catalog has no external retry operation.
+};
 
 export function PendingInputScenarioView({
   scenario,
   role = scenario.role,
   mutationsEnabled = true,
+  displaySnapshot,
   children,
 }: Readonly<{
   scenario: PendingInputScenario;
   role?: ActiveThreadComposerRole;
   mutationsEnabled?: boolean;
+  /** A labeled, captured transient state for fixed previews; normal flows use the live owner. */
+  displaySnapshot?: ComposerInputQueueCoordinatorSnapshot;
   children?: ReactNode;
 }>) {
   const { t } = useLingui();
-  const snapshot = useSyncExternalStore(
+  const liveSnapshot = useSyncExternalStore(
     scenario.coordinator.subscribe,
     scenario.coordinator.getSnapshot,
   );
+  const snapshot = displaySnapshot ?? liveSnapshot;
   const host = useComposerPendingInput();
   const pending = useSyncExternalStore(host.subscribe, host.getSnapshot);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -109,7 +116,9 @@ export function PendingInputPreview<Scenario extends PendingInputScenario>({
       <Button
         className="justify-self-start"
         variant="secondary"
-        onPress={() => setGeneration((value) => value + 1)}
+        onPress={() => {
+          setGeneration((value) => value + 1);
+        }}
       >
         <Trans comment="Reset the local pending-input Storybook scenario to its initial state">
           Restart simulation
@@ -187,7 +196,7 @@ function SendingControls({ scenario }: Readonly<{ scenario: PendingInputScenario
         onPress={() => {
           const request = requests[0];
           if (request == null) return;
-          const id = `preview-next-${++nextTurn.current}`;
+          const id = `preview-next-${String(++nextTurn.current)}`;
           request.resolve({ turn: { ...baseTurn(id), status: "inProgress" } });
           setResponseTurnId(id);
         }}
