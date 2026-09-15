@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -30,13 +31,12 @@ test("DEV badges stay on their borders in both themes and on narrow screens", as
         await expect(badge).toBeVisible();
         const frame = await region.boundingBox();
         const label = await badge.boundingBox();
-        expect(frame).not.toBeNull();
-        expect(label).not.toBeNull();
-        expect(label!.x).toBeGreaterThan(frame!.x);
-        expect(label!.x + label!.width).toBeLessThan(frame!.x + frame!.width);
-        expect(label!.y).toBeLessThan(frame!.y);
-        expect(label!.y + label!.height).toBeGreaterThan(frame!.y);
-        expect(frame!.x + frame!.width).toBeLessThanOrEqual(width);
+        assert(frame != null && label != null, "DEV boundary must have visible geometry");
+        expect(label.x).toBeGreaterThan(frame.x);
+        expect(label.x + label.width).toBeLessThan(frame.x + frame.width);
+        expect(label.y).toBeLessThan(frame.y);
+        expect(label.y + label.height).toBeGreaterThan(frame.y);
+        expect(frame.x + frame.width).toBeLessThanOrEqual(width);
         await expect(region).toHaveCSS("border-top-left-radius", "0px");
       }
     }
