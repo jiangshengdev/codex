@@ -72,7 +72,7 @@ export function PendingInputScenarioView({
   };
   useComposerPendingInputBinding(binding);
   return (
-    <Surface className="mx-auto grid w-full max-w-2xl gap-4 p-4">
+    <Surface className="mx-auto grid w-full max-w-2xl gap-4 rounded-3xl p-4">
       <p className="text-sm text-muted">
         <Trans>
           Local simulation. Requests and runtime events advance only when you use the simulation

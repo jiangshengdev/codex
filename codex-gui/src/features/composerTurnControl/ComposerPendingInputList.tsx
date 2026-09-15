@@ -260,7 +260,7 @@ function PendingInputItem({
   return (
     <div
       aria-label={previewText}
-      className="grid min-w-0 gap-2 rounded-medium border border-separator p-3 outline-none"
+      className="grid min-w-0 gap-2 rounded-xl border border-separator p-3 outline-none"
       ref={(element) => {
         registerItemFocusTarget(item.key, element);
       }}
