@@ -24,6 +24,7 @@ import {
   type PendingInputScenario,
   type PendingInputScenarioOptions,
 } from "./pendingInputScenario";
+import { DevOnly } from "../DevOnly";
 
 const skills: SkillCatalogState = { type: "ready", candidates: [], partialErrorCount: 0 };
 const noop = () => {
@@ -73,21 +74,23 @@ export function PendingInputScenarioView({
   useComposerPendingInputBinding(binding);
   return (
     <Surface className="mx-auto grid w-full max-w-2xl gap-4 rounded-3xl p-4">
-      <p className="text-sm text-muted">
-        <Trans>
-          Local simulation. Requests and runtime events advance only when you use the simulation
-          controls.
-        </Trans>
-      </p>
-      <TextArea
-        ref={composerRef}
-        aria-label={t({
-          message: "Main draft",
-          comment:
-            "Accessible name for the separate main composer draft in the pending-input Storybook simulation",
-        })}
-        defaultValue="Separate main draft"
-      />
+      <DevOnly>
+        <p className="text-sm text-muted">
+          <Trans>
+            Local simulation. Requests and runtime events advance only when you use the simulation
+            controls.
+          </Trans>
+        </p>
+        <TextArea
+          ref={composerRef}
+          aria-label={t({
+            message: "Main draft",
+            comment:
+              "Accessible name for the separate main composer draft in the pending-input Storybook simulation",
+          })}
+          defaultValue="Separate main draft"
+        />
+      </DevOnly>
       <ComposerPendingInputRegion
         {...binding}
         canRecover={mutationsEnabled && !snapshot.isRecovering}
@@ -116,17 +119,19 @@ export function PendingInputPreview<Scenario extends PendingInputScenario>({
   const [generation, setGeneration] = useState(0);
   return (
     <div className="grid gap-3">
-      <Button
-        className="justify-self-start"
-        variant="secondary"
-        onPress={() => {
-          setGeneration((value) => value + 1);
-        }}
-      >
-        <Trans comment="Reset the local pending-input Storybook scenario to its initial state">
-          Restart simulation
-        </Trans>
-      </Button>
+      <DevOnly>
+        <Button
+          className="justify-self-start"
+          variant="secondary"
+          onPress={() => {
+            setGeneration((value) => value + 1);
+          }}
+        >
+          <Trans comment="Reset the local pending-input Storybook scenario to its initial state">
+            Restart simulation
+          </Trans>
+        </Button>
+      </DevOnly>
       <PendingInputPreviewInstance
         key={generation}
         createScenario={createScenario}
@@ -178,7 +183,7 @@ function SendingControls({ scenario }: Readonly<{ scenario: PendingInputScenario
   const nextTurn = useRef(0);
   const [confirmed, setConfirmed] = useState(false);
   return (
-    <div className="grid gap-2">
+    <DevOnly>
       <Button
         variant="secondary"
         isDisabled={activeTurnId == null || requests.length > 0 || responseTurnId != null}
@@ -246,7 +251,7 @@ function SendingControls({ scenario }: Readonly<{ scenario: PendingInputScenario
           </Trans>
         )}
       </p>
-    </div>
+    </DevOnly>
   );
 }
 
