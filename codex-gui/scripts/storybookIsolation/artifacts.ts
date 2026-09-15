@@ -85,6 +85,23 @@ export async function verifyArtifacts(cwd = process.cwd()) {
         .sort();
     const productIds = ids(p);
     const demoIds = ids(d);
+    // Match the same authoritative catalog resolution used by the Vite plugin,
+    // including retained obsolete translations and configured fallbacks.
+    const compilationOptions = {
+      sourceLocale: config.sourceLocale,
+      fallbackLocales: config.fallbackLocales,
+    };
+    const productCompiledIds = Object.keys(
+      (await product.getTranslations(locale, compilationOptions)).messages,
+    ).sort();
+    const demoCompiledIds = Object.keys(
+      (await preview.getTranslations(locale, compilationOptions)).messages,
+    ).sort();
+    const productCompiledSet = new Set(productCompiledIds);
+    assert(
+      demoCompiledIds.every((id) => !productCompiledSet.has(id)),
+      "compiled preview translations overlap production",
+    );
     assert(productIds.length > 0 && demoIds.length > 0, "empty catalog boundary");
     assert(
       demoIds.every((id) => !(id in p)),
@@ -100,19 +117,19 @@ export async function verifyArtifacts(cwd = process.cwd()) {
       Object.keys(
         await readMessages(productRoot, productReport, product.getFilename(locale)),
       ).sort(),
-      productIds,
+      productCompiledIds,
     );
     assert.deepEqual(
       Object.keys(
         await readMessages(previewRoot, previewReport, product.getFilename(locale)),
       ).sort(),
-      productIds,
+      productCompiledIds,
     );
     assert.deepEqual(
       Object.keys(
         await readMessages(previewRoot, previewReport, preview.getFilename(locale)),
       ).sort(),
-      demoIds,
+      demoCompiledIds,
     );
     console.log(locale, { product: productIds.length, demo: demoIds.length, isolated: true });
   }
