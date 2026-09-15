@@ -6,6 +6,7 @@ import { ThemePreferenceControl } from "@/app/ThemePreferenceControl";
 import { createThemePreferenceStore } from "@/app/themePreference";
 import { resolveBrowserLocale } from "@/i18n";
 import { loadPreviewCatalog } from "./loadPreviewCatalog";
+import { DevOnly } from "./DevOnly";
 
 const language = (async () => {
   const i18n = setupI18n();
@@ -22,7 +23,9 @@ function LocalizedPreview({ children }: PropsWithChildren) {
   return (
     <I18nProvider i18n={i18n}>
       <div className="mb-4 flex justify-end">
-        <ThemePreferenceControl />
+        <DevOnly>
+          <ThemePreferenceControl />
+        </DevOnly>
       </div>
       {children}
     </I18nProvider>

@@ -9,6 +9,7 @@ import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession
 import { HISTORY_DETAIL_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
 import { StorybookStatefulEnvironment } from "./StorybookStatefulEnvironment";
 import { statefulPreviewRouteTree, type StatefulPreviewRouter } from "./statefulPreviewRouter";
+import { DevOnly } from "./DevOnly";
 
 function StatefulPreview() {
   const dispatch = useAppDispatch();
@@ -17,7 +18,7 @@ function StatefulPreview() {
   const router = useRouter<StatefulPreviewRouter>();
 
   return (
-    <section className="flex flex-col items-start gap-3">
+    <DevOnly>
       <p role="status">
         <Trans comment="Storybook environment check: count is the number of Redux read-model slots; pathname is an isolated preview route.">
           Redux slots: {count}; route: {pathname}
@@ -50,7 +51,7 @@ function StatefulPreview() {
           Navigate to details
         </Trans>
       </Button>
-    </section>
+    </DevOnly>
   );
 }
 
