@@ -1,4 +1,4 @@
-import { Alert, AlertDialog, Button, Chip, Drawer, TextArea } from "@heroui/react";
+import { Alert, AlertDialog, Button, ButtonGroup, Chip, Drawer, TextArea } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useCallback, useEffect, useRef, useState, type Ref, type ReactNode } from "react";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
@@ -376,26 +376,35 @@ export function ComposerPendingInputTrigger({
         ? t`Pending: Guide ${guidingCount}`
         : t`Pending: Queued ${ordinaryQueuedCount}`;
   return (
-    <Button
-      ref={triggerRef}
-      aria-label={triggerLabel}
-      onPress={() => {
-        session.open(facts);
-      }}
-      variant="secondary"
-    >
-      <Trans>Pending</Trans>
+    <ButtonGroup aria-label={triggerLabel} className="justify-self-start" variant="tertiary">
       {guidingCount > 0 ? (
-        <Chip size="sm" variant="secondary">
-          <Trans>Guide {guidingCount}</Trans>
-        </Chip>
+        <Button
+          ref={triggerRef}
+          onPress={() => {
+            session.open(facts);
+          }}
+        >
+          <Trans>Guide</Trans>
+          <Chip color="accent" size="sm" variant="soft">
+            {guidingCount}
+          </Chip>
+        </Button>
       ) : null}
       {ordinaryQueuedCount > 0 ? (
-        <Chip size="sm" variant="tertiary">
-          <Trans>Queued {ordinaryQueuedCount}</Trans>
-        </Chip>
+        <Button
+          ref={guidingCount > 0 ? undefined : triggerRef}
+          onPress={() => {
+            session.open(facts);
+          }}
+        >
+          {guidingCount > 0 ? <ButtonGroup.Separator /> : null}
+          <Trans>Queued</Trans>
+          <Chip color="accent" size="sm" variant="soft">
+            {ordinaryQueuedCount}
+          </Chip>
+        </Button>
       ) : null}
-    </Button>
+    </ButtonGroup>
   );
 }
 

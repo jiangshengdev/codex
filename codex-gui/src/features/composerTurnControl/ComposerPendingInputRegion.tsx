@@ -135,7 +135,7 @@ export function ComposerPendingInputRegion({
 
   return (
     <section aria-label={t`Pending messages`}>
-      <Surface className="grid min-w-0 gap-3 rounded-xl p-3" variant="secondary">
+      <Surface className="grid min-w-0 gap-3" variant="transparent">
         {groups.map((group, index) => (
           <Fragment key={group.key}>
             {index === 0 ? null : <Separator variant="tertiary" />}
