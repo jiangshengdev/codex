@@ -19,7 +19,7 @@ msgid "Create read-model slot"
 msgstr "创建读取模型槽位"
 
 #. A simulated assistant turn blocks automatic dispatch of ordinary queued messages
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:237
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:240
 msgid "Current turn is running"
 msgstr "当前轮次正在运行"
 
@@ -33,12 +33,12 @@ msgstr "注入反馈：首次移动会改变真实队列，但刷新后的列表
 msgid "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
 msgstr "注入反馈：首次移动被拒绝，队列保持不变。后续移动使用真实队列。"
 
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:74
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:77
 msgid "Local simulation. Requests and runtime events advance only when you use the simulation controls."
 msgstr "本地演示。只有操作模拟控件时，请求和运行时事件才会推进。"
 
 #. Accessible name for the separate main composer draft in the pending-input Storybook simulation
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:81
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:84
 msgid "Main draft"
 msgstr "主输入草稿"
 
@@ -58,25 +58,25 @@ msgid "Release recovery display"
 msgstr "结束恢复状态展示"
 
 #. The request succeeded but the simulated runtime acceptance event has not been injected
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:229
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:232
 msgid "Response received; waiting for runtime confirmation"
 msgstr "已收到响应，等待运行时确认"
 
 #. Reset the local pending-input Storybook scenario to its initial state
 #. Storybook control that resets the local connection recovery demo
 #: src/storybook/ConnectionRecoverySimulation.tsx:39
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:123
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:126
 msgid "Restart simulation"
 msgstr "重新开始演示"
 
 #. The preview injected the runtime acceptance event for the queued message
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:233
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:236
 msgid "Runtime confirmation received"
 msgstr "已收到运行时确认"
 
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:189
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:192
 #: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:103
 msgid "Simulate current turn completed"
 msgstr "模拟当前轮次完成"
@@ -108,7 +108,7 @@ msgstr "模拟引导状态未知"
 
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:219
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:222
 #: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:139
 msgid "Simulate runtime confirmation"
 msgstr "模拟运行时确认"
@@ -120,7 +120,7 @@ msgstr "模拟发送失败"
 
 #. Resolve the local start-turn request without injecting a runtime event
 #. Resolve the pending local start-turn request without injecting a runtime event
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:204
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:207
 #: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:116
 msgid "Simulate send response"
 msgstr "模拟发送响应"
@@ -131,7 +131,7 @@ msgid "Simulate target turn closed"
 msgstr "模拟目标轮次关闭"
 
 #. No simulated assistant turn or start-turn request remains active
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:241
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:244
 msgid "Simulation is idle"
 msgstr "演示处于空闲状态"
 
@@ -148,6 +148,6 @@ msgid "This preview freezes the brief recovery notification. Release it to inspe
 msgstr "此预览暂停展示短暂的恢复状态。结束展示后，可检查等待中的发送请求。"
 
 #. The local start-turn request remains unresolved until the preview response control is used
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:225
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:228
 msgid "Waiting for send response"
 msgstr "等待发送响应"
