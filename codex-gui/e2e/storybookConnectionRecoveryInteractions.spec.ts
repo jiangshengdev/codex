@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { installPausedClock } from "./pausedClock";
 
 test.use({ locale: "en" });
 
@@ -7,8 +8,7 @@ test("successful reconnection waits before removing the recovery notice", async 
     "http://localhost:6006/iframe.html?id=feedback-connection-recovery-interactions--success&viewMode=story",
   );
   await expect(page.getByText("Connection closed", { exact: true })).toBeVisible();
-  await page.clock.install();
-  await page.clock.pauseAt(new Date());
+  await installPausedClock(page);
   await page.getByRole("button", { name: "Reconnect", exact: true }).click();
   await expect(page.getByRole("button", { name: "Reconnecting…", exact: true })).toBeVisible();
   await page.clock.runFor(2_000);
@@ -20,8 +20,7 @@ test("failed reconnection exposes diagnostics and can be retried", async ({ page
     "http://localhost:6006/iframe.html?id=feedback-connection-recovery-interactions--failure&viewMode=story",
   );
   await expect(page.getByText("Connection closed", { exact: true })).toBeVisible();
-  await page.clock.install();
-  await page.clock.pauseAt(new Date());
+  await installPausedClock(page);
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await page.getByRole("button", { name: "Reconnect", exact: true }).click();
     const pending = page.getByRole("button", { name: "Reconnecting…", exact: true });
@@ -47,8 +46,7 @@ test("restart cancels pending recovery and restores the successful demo", async 
   );
   const reconnect = page.getByRole("button", { name: "Reconnect", exact: true });
   await expect(reconnect).toBeVisible();
-  await page.clock.install();
-  await page.clock.pauseAt(new Date());
+  await installPausedClock(page);
   await reconnect.click();
   await expect(page.getByRole("button", { name: "Reconnecting…", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Restart simulation" }).click();
