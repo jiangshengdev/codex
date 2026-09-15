@@ -45,10 +45,7 @@ export function ComposerPendingInputRegion({
   const groups: { key: string; node: ReactNode }[] = [];
   const hasNormalPending = snapshot.guidingCount > 0 || snapshot.ordinaryQueuedCount > 0;
 
-  if (
-    pendingInputSnapshot.phase !== "closing" &&
-    (hasNormalPending || pendingInputSnapshot.phase === "open")
-  ) {
+  if (hasNormalPending || pendingInputSnapshot.phase === "open") {
     groups.push({
       key: "normal",
       node: (

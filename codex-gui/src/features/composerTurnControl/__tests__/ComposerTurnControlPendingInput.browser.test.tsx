@@ -27,8 +27,10 @@ import {
 } from "./composerTurnControlBrowserTestSupport";
 import {
   createQueueControllerHarness,
+  observePendingDrawerExit,
   pendingInputItem,
   queueSnapshot,
+  waitForPendingDrawerOpen,
 } from "./composerTurnControlPendingInputBrowserTestSupport";
 
 const attachResponse = attachBaseline;
@@ -1026,6 +1028,126 @@ test("uses one pending trigger for either lane and hides it when both lanes are 
   await expect.element(region).not.toBeInTheDocument();
 });
 
+test.each(
+  (["ordinary", "steer"] as const).flatMap((lane) =>
+    ["close", "escape", "backdrop"].map((method) => ({ lane, method })),
+  ),
+)(
+  "keeps the pending panel mounted and visible throughout $lane $method exit",
+  async ({ lane, method }) => {
+    const item = pendingInputItem("pending", lane, {
+      type: "text",
+      text: "Queued message",
+      truncated: false,
+    });
+    const harness = createQueueControllerHarness(
+      queueSnapshot({
+        ordinaryQueuedCount: lane === "ordinary" ? 1 : 0,
+        guidingCount: lane === "steer" ? 1 : 0,
+        detailRevision: 1,
+        canStop: true,
+      }),
+      { ordinary: lane === "ordinary" ? [item] : [], steer: lane === "steer" ? [item] : [] },
+    );
+    const screen = await renderComposerTurnControl({
+      scenario: { type: "activeFixture" },
+      queue: { type: "provided", controller: harness.controller },
+    });
+    await screen.composer().fill("Separate main draft");
+    const trigger = screen.getByRole("button", {
+      name: lane === "ordinary" ? "Pending: Queued 1" : "Pending: Guide 1",
+      exact: true,
+    });
+    const entry = trigger.element();
+    const panel = screen.getByRole("region", { name: "Pending messages", exact: true }).element();
+    await trigger.click();
+    const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+    await expect.element(dialog).toBeVisible();
+    await waitForPendingDrawerOpen();
+    const height = panel.getBoundingClientRect().height;
+    const samples: boolean[] = [];
+    let sawExit = false;
+    let removed = false;
+    const sample = () => {
+      sawExit ||= document.querySelector('[data-slot="drawer-backdrop"][data-exiting]') != null;
+      samples.push(
+        entry.isConnected &&
+          entry.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) &&
+          panel.getBoundingClientRect().height === height,
+      );
+    };
+    const observer = new MutationObserver((records) => {
+      removed ||= records.some((record) =>
+        Array.from(record.removedNodes).some((node) => node === entry || node.contains(entry)),
+      );
+      sample();
+    });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    let frame: number;
+    const sampleFrame = () => {
+      sample();
+      frame = requestAnimationFrame(sampleFrame);
+    };
+    frame = requestAnimationFrame(sampleFrame);
+    try {
+      if (method === "close")
+        await dialog.getByRole("button", { name: "Close", exact: true }).click();
+      else if (method === "escape") await screen.user.keyboard("{Escape}");
+      else {
+        const backdrop = document.querySelector('[data-slot="drawer-backdrop"]');
+        if (!(backdrop instanceof HTMLElement)) throw new Error("Expected drawer backdrop");
+        await screen.user.click(backdrop, { position: { x: 2, y: backdrop.clientHeight / 2 } });
+      }
+      await expect.element(dialog).not.toBeInTheDocument();
+      await expect.element(trigger).toHaveFocus();
+    } finally {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    }
+    expect(sawExit).toBe(true);
+    expect(removed).toBe(false);
+    expect(samples.length).toBeGreaterThan(0);
+    expect(samples.every(Boolean)).toBe(true);
+    expect(trigger.element()).toBe(entry);
+    await expect.element(screen.composer()).toHaveTextContent("Separate main draft");
+    await trigger.click();
+    await expect.element(dialog.getByText("Queued message", { exact: true })).toBeVisible();
+  },
+);
+
+test("returns to the Composer when the queue empties during the exit animation", async () => {
+  const harness = createQueueControllerHarness(
+    queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1, canStop: true }),
+    {
+      ordinary: [
+        pendingInputItem("queued", "ordinary", { type: "text", text: "Queued", truncated: false }),
+      ],
+      steer: [],
+    },
+  );
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
+  await screen.composer().fill("Main draft");
+  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await waitForPendingDrawerOpen();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  const exit = observePendingDrawerExit(() => {
+    harness.publish(queueSnapshot({ detailRevision: 2, canStop: true }));
+  });
+  try {
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await expect.element(dialog).not.toBeInTheDocument();
+    expect(exit.didRun()).toBe(true);
+    await expect.element(screen.getByRole("button", { name: /^Pending:/ })).not.toBeInTheDocument();
+    await expect.element(screen.composer()).toHaveFocus();
+    await expect.element(screen.composer()).toHaveTextContent("Main draft");
+  } finally {
+    exit.disconnect();
+  }
+});
+
 test("closes and clears pending details when counts become empty", async () => {
   const harness = createQueueControllerHarness(
     queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1, canStop: true }),
@@ -1089,19 +1211,27 @@ test("does not reopen a closing Drawer when new pending input arrives before pre
     .element(closingDialog.getByText("Closing pending detail", { exact: true }))
     .toBeVisible();
 
-  harness.publish(queueSnapshot({ detailRevision: 2, canStop: true }));
-  await expect.element(closingDialog).not.toBeInTheDocument();
-  harness.replaceDetails({
-    ordinary: [
-      pendingInputItem("ordinary-new", "ordinary", {
-        type: "text",
-        text: "New pending detail",
-        truncated: false,
-      }),
-    ],
-    steer: [],
+  await waitForPendingDrawerOpen();
+  const exit = observePendingDrawerExit(() => {
+    harness.replaceDetails({
+      ordinary: [
+        pendingInputItem("ordinary-new", "ordinary", {
+          type: "text",
+          text: "New pending detail",
+          truncated: false,
+        }),
+      ],
+      steer: [],
+    });
+    harness.publish(queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 3, canStop: true }));
   });
-  harness.publish(queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 3, canStop: true }));
+  try {
+    harness.publish(queueSnapshot({ detailRevision: 2, canStop: true }));
+    await expect.element(closingDialog).not.toBeInTheDocument();
+    expect(exit.didRun()).toBe(true);
+  } finally {
+    exit.disconnect();
+  }
 
   const nextTrigger = screen.getByRole("button", { name: "Pending: Queued 1", exact: true });
   await expect.element(nextTrigger).toBeVisible();

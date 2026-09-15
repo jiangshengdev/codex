@@ -55,7 +55,10 @@ export function PendingInputScenarioView({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const onFocusComposer = useCallback(() => composerRef.current?.focus(), []);
-  const onFocusTrigger = useCallback(() => triggerRef.current?.focus(), []);
+  const onFocusTrigger = useCallback(() => {
+    if (triggerRef.current != null) triggerRef.current.focus();
+    else onFocusComposer();
+  }, [onFocusComposer]);
   const binding = {
     composerRole: role,
     snapshot,
