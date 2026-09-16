@@ -203,7 +203,7 @@ export function ComposerPendingInputDrawer({
                 )}
               </Drawer.Heading>
             </Drawer.Header>
-            <Drawer.Body>
+            <Drawer.Body className="grid content-start gap-3">
               {recoveryNotice}
               {pendingInputSnapshot.alert == null ? null : (
                 <PendingManagementAlert alert={pendingInputSnapshot.alert} />
@@ -244,9 +244,17 @@ export function ComposerPendingInputDrawer({
               ) : null}
               {edit?.phase === "retained" ? (
                 <div className="grid gap-3">
-                  <p>
-                    <Trans>Your changes could not be saved. Copy them before discarding.</Trans>
-                  </p>
+                  <Alert status="default">
+                    <Alert.Indicator />
+                    <Alert.Content>
+                      <Alert.Description>
+                        <Trans>
+                          Your edits are retained below. Copy anything you want to keep before
+                          discarding.
+                        </Trans>
+                      </Alert.Description>
+                    </Alert.Content>
+                  </Alert>
                   <TextArea
                     ref={retainedRef}
                     aria-label={t`Unsaved pending message`}
