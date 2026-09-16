@@ -195,10 +195,10 @@ test.describe("Chinese narrow preview", () => {
     await page.keyboard.press("Enter");
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("heading", { name: "待处理详情", exact: true })).toBeVisible();
-    // The drawer initially receives focus; Tab enters its close control and lane heading.
-    await expect(dialog).toBeFocused();
-    await page.keyboard.press("Tab");
-    await expect(dialog.getByRole("button").first()).toBeFocused();
+    // The heading receives initial focus; the close control precedes it in tab order.
+    await expect(dialog.getByRole("heading", { name: "待处理详情", exact: true })).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(dialog.getByRole("button", { name: "引导中 23", exact: true })).toBeFocused();
     const viewFull = dialog
