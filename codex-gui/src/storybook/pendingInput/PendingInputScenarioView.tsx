@@ -55,6 +55,7 @@ export function PendingInputScenarioView({
   const pending = useSyncExternalStore(host.subscribe, host.getSnapshot);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const [mainDraft, setMainDraft] = useState("Separate main draft");
   const onFocusComposer = useCallback(() => composerRef.current?.focus(), []);
   const onFocusTrigger = useCallback(() => {
     if (triggerRef.current != null) triggerRef.current.focus();
@@ -88,7 +89,10 @@ export function PendingInputScenarioView({
             comment:
               "Accessible name for the separate main composer draft in the pending-input Storybook simulation",
           })}
-          defaultValue="Separate main draft"
+          value={mainDraft}
+          onChange={(event) => {
+            setMainDraft(event.target.value);
+          }}
         />
       </DevOnly>
       <ComposerPendingInputRegion
