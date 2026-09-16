@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -155,5 +156,22 @@ export async function verifyArtifacts(cwd = process.cwd()) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  const cwd = process.cwd();
+  for (const [script, report] of [
+    ["build", "production"],
+    ["build-storybook", "preview"],
+  ]) {
+    execFileSync("pnpm", ["run", script], {
+      cwd,
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        CODEX_GUI_STORYBOOK_ISOLATION_REPORT: path.join(
+          cwd,
+          `node_modules/.tmp/storybook-isolation-${report}.json`,
+        ),
+      },
+    });
+  }
   await verifyArtifacts();
 }
