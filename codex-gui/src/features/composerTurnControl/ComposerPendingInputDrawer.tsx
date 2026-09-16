@@ -60,6 +60,12 @@ export function ComposerPendingInputDrawer({
     result: "copied" | "failed";
   } | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const onHeadingMount = useCallback((heading: HTMLHeadingElement | null): void => {
+    headingRef.current = heading;
+    // Set initial focus before useDialog's effect so its delayed fallback cannot
+    // steal focus while a nested menu is restoring its trigger (CNB #17).
+    heading?.focus();
+  }, []);
   const editorControllerRef = useRef<Readonly<{
     preparationToken: number;
     controller: ComposerEditorController;
@@ -195,7 +201,7 @@ export function ComposerPendingInputDrawer({
             <span ref={onDrawerPresenceRef} aria-hidden="true" hidden />
             <Drawer.CloseTrigger />
             <Drawer.Header>
-              <Drawer.Heading ref={headingRef} tabIndex={-1}>
+              <Drawer.Heading ref={onHeadingMount} tabIndex={-1}>
                 {edit == null || edit.phase === "preparing" ? (
                   <Trans>Pending details</Trans>
                 ) : (
