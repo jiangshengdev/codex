@@ -110,7 +110,10 @@ test("App drains ordinary inputs in the authoritative order selected through Pen
   const steerOrderBeforeMove = readPendingTextPreviews(queueCoordinator, "steer");
   expect(steerOrderBeforeMove).toEqual(["Steer lane A", "Steer lane B"]);
 
-  await screen.getByRole("button", { name: "Pending: Guide 2, Queued 3", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Guide 2, Queued 3", exact: true })
+    .getByRole("button", { name: "Queued 3", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await dialog
     .getByRole("group", { name: "Ordinary order C", exact: true })
@@ -280,7 +283,10 @@ test("App keeps a middle ordinary edit in place after deleting its predecessor",
   await screen.getByRole("button", { name: "Send", exact: true }).click();
   await composer.fill("Ordinary successor stays last");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await screen.getByRole("button", { name: "Pending: Queued 3", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 3", exact: true })
+    .getByRole("button", { name: "Queued 3", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   const editableItem = dialog.getByRole("group", {
     name: "Ordinary middle to edit",
@@ -427,7 +433,10 @@ test("App saves ordinary edits during recovery and sends the edited successor be
   await screen.getByRole("button", { name: "Send", exact: true }).click();
   await composer.fill("Second ordinary successor keeps recovery order");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await screen.getByRole("button", { name: "Pending: Queued 3", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 3", exact: true })
+    .getByRole("button", { name: "Queued 3", exact: true })
+    .click();
   const listDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await listDialog
     .getByRole("group", { name: "Ordinary successor under edit", exact: true })

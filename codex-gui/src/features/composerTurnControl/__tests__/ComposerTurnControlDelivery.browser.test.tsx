@@ -100,7 +100,11 @@ test("active turn allows queuing and enables Stop", async () => {
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   await screen.getByRole("button", { name: "Send", exact: true }).click();
   await expect
-    .element(screen.getByRole("button", { name: "Pending: Queued 1", exact: true }))
+    .element(
+      screen
+        .getByRole("group", { name: "Pending: Queued 1", exact: true })
+        .getByRole("button", { name: "Queued 1", exact: true }),
+    )
     .toBeVisible();
   expect(commandHandle.startTurn).not.toHaveBeenCalled();
   const stopButton = screen.getByRole("button", { name: "Stop" });

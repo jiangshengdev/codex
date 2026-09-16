@@ -444,7 +444,10 @@ test("App releases an edited owner only after its marker settles and drains", as
     throw new Error("old owner must expose its ordinary page");
   }
   const oldDetailKey = oldPage.items[0].key;
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   const oldDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await oldDialog.getByRole("button", { name: "Edit", exact: true }).click();
   const oldEditor = screen.getByRole("combobox", {

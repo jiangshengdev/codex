@@ -17,7 +17,9 @@ test.each(["unmount", "replace"])(
     const screen = await renderComposerTurnControl({ scenario: { type: "activeFixture" } });
     await screen.composer().fill("Queued message");
     await screen.getByRole("button", { name: "Send", exact: true }).click();
-    const trigger = screen.getByRole("button", { name: "Pending: Queued 1", exact: true });
+    const trigger = screen
+      .getByRole("group", { name: "Pending: Queued 1", exact: true })
+      .getByRole("button", { name: "Queued 1", exact: true });
     const oldEntry = trigger.element();
     const oldComposer = screen.composer().element();
     await trigger.click();
@@ -75,7 +77,10 @@ test("keeps unsaved edits after the Composer unmounts and returns from discard c
   await screen.composer().fill("Original queued message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
   await screen.composer().fill("Separate main draft");
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   await screen.getByRole("button", { name: "Edit", exact: true }).click();
   await screen
     .getByRole("combobox", { name: "Edit pending message", exact: true })
@@ -132,7 +137,10 @@ test.each(["close", "escape", "backdrop"])(
     await screen.composer().fill("Original");
     await screen.getByRole("button", { name: "Send", exact: true }).click();
     await screen.composer().fill("Main draft");
-    await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+    await screen
+      .getByRole("group", { name: "Pending: Queued 1", exact: true })
+      .getByRole("button", { name: "Queued 1", exact: true })
+      .click();
     await screen.getByRole("button", { name: "Edit", exact: true }).click();
     const editor = screen.getByRole("combobox", { name: "Edit pending message", exact: true });
     await editor.fill("Changed");

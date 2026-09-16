@@ -15,7 +15,10 @@ test.each(["button", "selection"])(
     const screen = await renderComposerTurnControl({ scenario: { type: "activeFixture" } });
     await screen.composer().fill("Original");
     await screen.getByRole("button", { name: "Send", exact: true }).click();
-    await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+    await screen
+      .getByRole("group", { name: "Pending: Queued 1", exact: true })
+      .getByRole("button", { name: "Queued 1", exact: true })
+      .click();
     await screen.getByRole("button", { name: "Edit", exact: true }).click();
     await screen
       .getByRole("combobox", { name: "Edit pending message", exact: true })

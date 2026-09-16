@@ -128,7 +128,10 @@ test("uses the existing Pending drawer independently from continuing the restore
     queue: { type: "provided", controller: harness.controller },
   });
 
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   const drawer = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect.element(drawer.getByText("Restored queued message", { exact: true })).toBeVisible();
   expect(harness.controller.resumeRestored).not.toHaveBeenCalled();
