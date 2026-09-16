@@ -74,11 +74,11 @@ export function ComposerPendingInputRegion({
       key: "rejected",
       node: (
         <div className="grid min-w-0 gap-2">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <h3 className="text-sm font-medium">
               <Trans>Will send first</Trans>
             </h3>
-            <Chip size="sm" variant="tertiary">
+            <Chip color="accent" size="sm" variant="soft">
               {snapshot.rejectedSteers.length}
             </Chip>
           </div>
