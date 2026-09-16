@@ -10,6 +10,7 @@ import {
   type RecoveryPreset,
   type RecoveryScenario,
 } from "./recoveryScenario";
+import { DevOnly } from "../../DevOnly";
 
 function GuideControls({ scenario }: Readonly<{ scenario: RecoveryScenario }>) {
   const requests = useSyncExternalStore(scenario.steers.subscribe, scenario.steers.getSnapshot);
@@ -18,7 +19,7 @@ function GuideControls({ scenario }: Readonly<{ scenario: RecoveryScenario }>) {
     scenario.guideReceipts.getSnapshot,
   );
   return (
-    <div className="grid gap-2">
+    <DevOnly>
       <Button variant="secondary" isDisabled={requests.length === 0} onPress={scenario.acceptGuide}>
         <Trans comment="Resolve the local guide request as accepted by the active turn">
           Simulate guide success
@@ -51,7 +52,7 @@ function GuideControls({ scenario }: Readonly<{ scenario: RecoveryScenario }>) {
           Simulate guide unknown
         </Trans>
       </Button>
-    </div>
+    </DevOnly>
   );
 }
 
@@ -69,7 +70,7 @@ function RecoveryControls({
   );
   const sequence = useRef(0);
   return (
-    <div className="grid gap-2">
+    <DevOnly>
       {snapshot.isRecovering && (
         <>
           <p className="text-sm text-muted">
@@ -140,7 +141,7 @@ function RecoveryControls({
           Simulate runtime confirmation
         </Trans>
       </Button>
-    </div>
+    </DevOnly>
   );
 }
 

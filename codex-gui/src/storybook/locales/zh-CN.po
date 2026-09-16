@@ -14,140 +14,140 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. Storybook test action: creates an empty local Redux read-model slot without connecting to a backend.
-#: src/storybook/Stateful.stories.tsx:36
+#: src/storybook/Stateful.stories.tsx:37
 msgid "Create read-model slot"
 msgstr "创建读取模型槽位"
 
 #. A simulated assistant turn blocks automatic dispatch of ordinary queued messages
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:237
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:249
 msgid "Current turn is running"
 msgstr "当前轮次正在运行"
 
 #. Explains that only post-move page reads are injected in this Story
-#: src/storybook/pendingInput/reordering/PendingInputReorderingPreview.tsx:85
+#: src/storybook/pendingInput/reordering/PendingInputReorderingPreview.tsx:87
 msgid "Injected feedback: the first move changes the real queue, then its refreshed list cannot load. Close and reopen the queue to read the updated order."
 msgstr "注入反馈：首次移动会改变真实队列，但刷新后的列表无法加载。关闭并重新打开队列可查看更新后的顺序。"
 
 #. Explains the bounded role-interface failure in the queue sorting Story
-#: src/storybook/pendingInput/reordering/PendingInputReorderingPreview.tsx:80
+#: src/storybook/pendingInput/reordering/PendingInputReorderingPreview.tsx:82
 msgid "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
 msgstr "注入反馈：首次移动被拒绝，队列保持不变。后续移动使用真实队列。"
 
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:74
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:80
 msgid "Local simulation. Requests and runtime events advance only when you use the simulation controls."
 msgstr "本地演示。只有操作模拟控件时，请求和运行时事件才会推进。"
 
 #. Accessible name for the separate main composer draft in the pending-input Storybook simulation
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:81
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:87
 msgid "Main draft"
 msgstr "主输入草稿"
 
 #. Storybook test action: navigates only the isolated in-memory preview router.
-#: src/storybook/Stateful.stories.tsx:49
+#: src/storybook/Stateful.stories.tsx:50
 msgid "Navigate to details"
 msgstr "前往详情"
 
 #. Storybook environment check: count is the number of Redux read-model slots; pathname is an isolated preview route.
-#: src/storybook/Stateful.stories.tsx:22
+#: src/storybook/Stateful.stories.tsx:23
 msgid "Redux slots: {count}; route: {pathname}"
 msgstr "Redux 槽位：{count}；路由：{pathname}"
 
 #. Stop freezing the captured recovery notification and show live coordinator state
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:86
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:87
 msgid "Release recovery display"
 msgstr "结束恢复状态展示"
 
 #. The request succeeded but the simulated runtime acceptance event has not been injected
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:229
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:241
 msgid "Response received; waiting for runtime confirmation"
 msgstr "已收到响应，等待运行时确认"
 
 #. Reset the local pending-input Storybook scenario to its initial state
 #. Storybook control that resets the local connection recovery demo
-#: src/storybook/ConnectionRecoverySimulation.tsx:39
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:123
+#: src/storybook/ConnectionRecoverySimulation.tsx:41
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:134
 msgid "Restart simulation"
 msgstr "重新开始演示"
 
 #. The preview injected the runtime acceptance event for the queued message
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:233
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:245
 msgid "Runtime confirmation received"
 msgstr "已收到运行时确认"
 
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:189
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:103
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:201
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:104
 msgid "Simulate current turn completed"
 msgstr "模拟当前轮次完成"
 
 #. Inject a failed save in the local pending-message editor simulation
-#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:109
+#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:110
 msgid "Simulate editing session lost"
 msgstr "模拟编辑会话失效"
 
 #. Reject guidance because the simulated active turn cannot be steered
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:41
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:42
 msgid "Simulate guide refusal"
 msgstr "模拟引导被拒绝"
 
 #. Inject the runtime user-message event confirming accepted guide delivery
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:32
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:33
 msgid "Simulate guide runtime confirmation"
 msgstr "模拟引导的运行时确认"
 
 #. Resolve the local guide request as accepted by the active turn
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:23
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:24
 msgid "Simulate guide success"
 msgstr "模拟引导成功"
 
 #. Leave delivery of the local guide request uncertain
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:50
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:51
 msgid "Simulate guide unknown"
 msgstr "模拟引导状态未知"
 
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:219
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:139
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:231
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:140
 msgid "Simulate runtime confirmation"
 msgstr "模拟运行时确认"
 
 #. Reject the simulated sending request with definite non-delivery
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:125
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:126
 msgid "Simulate send failure"
 msgstr "模拟发送失败"
 
 #. Resolve the local start-turn request without injecting a runtime event
 #. Resolve the pending local start-turn request without injecting a runtime event
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:204
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:116
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:216
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:117
 msgid "Simulate send response"
 msgstr "模拟发送响应"
 
 #. Complete the simulated target turn while its guiding message is being edited
-#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:121
+#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:122
 msgid "Simulate target turn closed"
 msgstr "模拟目标轮次关闭"
 
 #. No simulated assistant turn or start-turn request remains active
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:241
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:253
 msgid "Simulation is idle"
 msgstr "演示处于空闲状态"
 
-#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:94
+#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:95
 msgid "This control injects a lost editing-session result for previewing content protection."
 msgstr "此控件注入编辑会话失效的结果，用于预览内容保护。"
 
-#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:89
+#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:90
 msgid "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
 msgstr "此场景在请求编辑时注入发送冲突结果，不模拟队列调度。"
 
-#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:76
+#: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:77
 msgid "This preview freezes the brief recovery notification. Release it to inspect the pending send request."
 msgstr "此预览暂停展示短暂的恢复状态。结束展示后，可检查等待中的发送请求。"
 
 #. The local start-turn request remains unresolved until the preview response control is used
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:225
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:237
 msgid "Waiting for send response"
 msgstr "等待发送响应"

@@ -45,10 +45,7 @@ export function ComposerPendingInputRegion({
   const groups: { key: string; node: ReactNode }[] = [];
   const hasNormalPending = snapshot.guidingCount > 0 || snapshot.ordinaryQueuedCount > 0;
 
-  if (
-    pendingInputSnapshot.phase !== "closing" &&
-    (hasNormalPending || pendingInputSnapshot.phase === "open")
-  ) {
+  if (hasNormalPending || pendingInputSnapshot.phase === "open") {
     groups.push({
       key: "normal",
       node: (
@@ -77,11 +74,11 @@ export function ComposerPendingInputRegion({
       key: "rejected",
       node: (
         <div className="grid min-w-0 gap-2">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <h3 className="text-sm font-medium">
               <Trans>Will send first</Trans>
             </h3>
-            <Chip size="sm" variant="tertiary">
+            <Chip color="accent" size="sm" variant="soft">
               {snapshot.rejectedSteers.length}
             </Chip>
           </div>
@@ -138,7 +135,7 @@ export function ComposerPendingInputRegion({
 
   return (
     <section aria-label={t`Pending messages`}>
-      <Surface className="grid min-w-0 gap-3 p-3" variant="secondary">
+      <Surface className="grid min-w-0 gap-3" variant="transparent">
         {groups.map((group, index) => (
           <Fragment key={group.key}>
             {index === 0 ? null : <Separator variant="tertiary" />}

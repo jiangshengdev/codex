@@ -10,7 +10,9 @@ test("preserves edits and order across priority delivery and ordinary recovery",
   page,
 }) => {
   await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-recovery--combined");
-  const openQueue = page.getByRole("button", { name: "Pending: Queued 3", exact: true });
+  const openQueue = page
+    .getByRole("group", { name: "Pending: Queued 3", exact: true })
+    .getByRole("button", { name: "Queued 3", exact: true });
   await openQueue.click();
   const dialog = page.getByRole("dialog");
   await dialog
@@ -51,7 +53,10 @@ test("preserves edits and order across priority delivery and ordinary recovery",
   await complete.click();
   await page.getByRole("button", { name: "Simulate send failure", exact: true }).click();
   await expect(page.getByText("1 message has not been sent", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   await expect(dialog.getByRole("listitem")).toHaveCount(1);
   await expect(dialog.getByRole("listitem").first()).toContainText("Ordinary message 2");
   await expect(dialog).not.toContainText("Revised third message");
@@ -63,7 +68,10 @@ test("preserves edits and order across priority delivery and ordinary recovery",
   await response.click();
   await confirm.click();
   await expect(page.getByText("1 message has not been sent", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Queued 2", exact: true })
+    .getByRole("button", { name: "Queued 2", exact: true })
+    .click();
   await expect(dialog.getByRole("listitem")).toHaveCount(2);
   await expect(dialog.getByRole("listitem").first()).toContainText("Ordinary message 2");
   await expect(dialog.getByRole("listitem").nth(1)).toContainText("Revised third message");
@@ -180,40 +188,44 @@ test.describe("Chinese narrow preview", () => {
     );
     await page.getByRole("radio", { name: "深色主题", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-    const trigger = page.getByRole("button", { name: "待处理：引导 23，排队 23", exact: true });
+    const trigger = page
+      .getByRole("group", { name: "待处理：引导 23，排队 23", exact: true })
+      .getByRole("button", { name: "引导 23", exact: true });
     await trigger.focus();
     await page.keyboard.press("Enter");
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("heading", { name: "待处理详情", exact: true })).toBeVisible();
-    // The modal initially receives focus; Tab enters its close control and then the list.
+    // The drawer initially receives focus; Tab enters its close control and lane heading.
     await expect(dialog).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(dialog.getByRole("button").first()).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(
-      dialog.getByRole("button", { name: "下移待处理消息：Guide message 2", exact: true }),
-    ).toBeFocused();
-    const expand = dialog.getByRole("button", { name: /^展开待处理消息：Ordinary message 1/ });
-    await expand.focus();
+    await expect(dialog.getByRole("button", { name: "引导中 23", exact: true })).toBeFocused();
+    const viewFull = dialog
+      .getByRole("group", { name: /^Ordinary message 1 / })
+      .getByRole("button", { name: "查看全文", exact: true });
+    await viewFull.focus();
     await page.keyboard.press("Enter");
-    const ending = dialog.getByText(/END OF LONG MESSAGE/);
+    const detail = page.getByRole("dialog", { name: "待处理详情", exact: true }).last();
+    const ending = detail.getByText(/END OF LONG MESSAGE/);
     await expect(ending).toBeVisible();
     await ending.scrollIntoViewIfNeeded();
     await expect(ending).toBeInViewport();
     expect(
-      await dialog.evaluate((element) => {
+      await detail.evaluate((element) => {
         return [element, ...element.querySelectorAll("*")].some((child) => child.scrollTop > 0);
       }),
     ).toBe(true);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
-    const bounds = await dialog.boundingBox();
+    const bounds = await detail.boundingBox();
     expect(bounds).not.toBeNull();
     expect(bounds?.x).toBeGreaterThanOrEqual(0);
     expect((bounds?.x ?? 0) + (bounds?.width ?? 0)).toBeLessThanOrEqual(390);
-    await dialog.getByRole("button", { name: /^收起待处理消息：Ordinary message 1/ }).click();
-    await expect(ending).toBeHidden();
+    await detail.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(page.getByText(/END OF LONG MESSAGE/)).toBeHidden();
+    await expect(viewFull).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     await expect(trigger).toBeFocused();

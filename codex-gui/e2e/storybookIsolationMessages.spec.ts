@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { installPausedClock } from "./pausedClock";
 
 for (const locale of ["en", "zh-CN"] as const) {
   test.describe(locale, () => {
@@ -22,8 +23,7 @@ for (const locale of ["en", "zh-CN"] as const) {
       });
       await expect(reconnect).toBeVisible();
       await expect(restart).toBeVisible();
-      await page.clock.install();
-      await page.clock.pauseAt(new Date());
+      await installPausedClock(page);
       await reconnect.click();
       await page.clock.runFor(2_000);
       await expect(reconnect).toHaveCount(0);

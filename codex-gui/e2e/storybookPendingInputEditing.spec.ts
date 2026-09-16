@@ -6,7 +6,10 @@ test("edits queued text without replacing the main draft", async ({ page }) => {
   await page.goto(
     "http://localhost:6006/iframe.html?id=composer-pending-input-editing--interactive",
   );
-  await page.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   const editor = page.getByRole("combobox", { name: "Edit pending message", exact: true });
   await editor.fill("");
@@ -26,7 +29,10 @@ test("retains failed edits, reports clipboard results, and confirms discard", as
   await page.goto(
     "http://localhost:6006/iframe.html?id=composer-pending-input-editing--interactive",
   );
-  await page.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page
     .getByRole("combobox", { name: "Edit pending message", exact: true })
@@ -85,7 +91,10 @@ test("retains failed edits, reports clipboard results, and confirms discard", as
   await expect(page.getByRole("textbox", { name: "Main draft", exact: true })).toHaveValue(
     "Separate main draft",
   );
-  await page.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   await expect(page.getByRole("dialog")).toContainText("Ordinary message 1");
   await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeEnabled();
 });
@@ -94,7 +103,10 @@ test("cancels edits and keeps or deletes the final queued message", async ({ pag
   await page.goto(
     "http://localhost:6006/iframe.html?id=composer-pending-input-editing--interactive",
   );
-  await page.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page
     .getByRole("combobox", { name: "Edit pending message", exact: true })
@@ -124,14 +136,17 @@ test("cancels edits and keeps or deletes the final queued message", async ({ pag
   await expect(page.getByRole("dialog")).toContainText("No pending messages");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("textbox", { name: "Main draft", exact: true })).toBeFocused();
-  await expect(page.getByRole("button", { name: /^Pending:/ })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: /^Pending:/ })).toHaveCount(0);
 });
 
 test("preserves a guiding edit when its target turn closes", async ({ page }) => {
   await page.goto(
     "http://localhost:6006/iframe.html?id=composer-pending-input-editing--guiding-target",
   );
-  await page.getByRole("button", { name: "Pending: Guide 2", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Guide 2", exact: true })
+    .getByRole("button", { name: "Guide 2", exact: true })
+    .click();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page
     .getByRole("combobox", { name: "Edit pending message", exact: true })
@@ -152,7 +167,10 @@ test("preserves a guiding edit when its target turn closes", async ({ page }) =>
     .getByRole("button", { name: "Discard changes", exact: true })
     .click();
   await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await page.getByRole("button", { name: "Pending: Guide 2", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Guide 2", exact: true })
+    .getByRole("button", { name: "Guide 2", exact: true })
+    .click();
   await expect(page.getByRole("dialog")).toContainText("Guide message 2");
   await expect(
     page.getByRole("textbox", { name: "Unsaved pending message", exact: true }),
@@ -163,7 +181,10 @@ test("shows the injected sending conflict without entering an editor", async ({ 
   await page.goto(
     "http://localhost:6006/iframe.html?id=composer-pending-input-editing--sending-conflict",
   );
-  await page.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText(
     "This message has entered the sending process and can no longer be managed.",

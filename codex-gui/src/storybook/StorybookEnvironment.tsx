@@ -6,6 +6,8 @@ import { ThemePreferenceControl } from "@/app/ThemePreferenceControl";
 import { createThemePreferenceStore } from "@/app/themePreference";
 import { resolveBrowserLocale } from "@/i18n";
 import { loadPreviewCatalog } from "./loadPreviewCatalog";
+import { DevOnly } from "./DevOnly";
+import { DevVisibilityProvider } from "./DevVisibilityProvider";
 
 const language = (async () => {
   const i18n = setupI18n();
@@ -21,9 +23,9 @@ function LocalizedPreview({ children }: PropsWithChildren) {
   const i18n = use(language);
   return (
     <I18nProvider i18n={i18n}>
-      <div className="mb-4 flex justify-end">
+      <DevOnly className="mb-4 w-fit justify-self-end ml-auto">
         <ThemePreferenceControl />
-      </div>
+      </DevOnly>
       {children}
     </I18nProvider>
   );
@@ -33,7 +35,9 @@ export function StorybookEnvironment({ children }: PropsWithChildren) {
   return (
     <ThemeProvider preferenceStore={themePreference}>
       <Suspense>
-        <LocalizedPreview>{children}</LocalizedPreview>
+        <DevVisibilityProvider>
+          <LocalizedPreview>{children}</LocalizedPreview>
+        </DevVisibilityProvider>
       </Suspense>
     </ThemeProvider>
   );

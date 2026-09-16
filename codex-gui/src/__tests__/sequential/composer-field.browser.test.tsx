@@ -93,7 +93,10 @@ test("pending-message field shows hover and focus feedback", async () => {
   });
   await screen.composer().fill("Queued message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   await screen
     .getByRole("dialog", { name: "Pending details", exact: true })
     .getByRole("button", { name: "Edit", exact: true })

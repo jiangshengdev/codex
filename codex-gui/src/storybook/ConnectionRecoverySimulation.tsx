@@ -2,6 +2,7 @@ import { Button } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { useEffect, useState, type ComponentProps } from "react";
 import { ConnectionRecoveryNotice } from "@/features/appShell/ConnectionRecoveryNotice";
+import { DevOnly } from "./DevOnly";
 
 export function ConnectionRecoverySimulation({
   outcome,
@@ -29,17 +30,19 @@ export function ConnectionRecoverySimulation({
   return (
     <div className="flex flex-col gap-4">
       {phase !== "succeeded" && <ConnectionRecoveryNotice hasRetainedSession recovery={recovery} />}
-      <Button
-        className="self-start"
-        variant="secondary"
-        onPress={() => {
-          setPhase("ready");
-        }}
-      >
-        <Trans comment="Storybook control that resets the local connection recovery demo">
-          Restart simulation
-        </Trans>
-      </Button>
+      <DevOnly>
+        <Button
+          className="justify-self-start"
+          variant="secondary"
+          onPress={() => {
+            setPhase("ready");
+          }}
+        >
+          <Trans comment="Storybook control that resets the local connection recovery demo">
+            Restart simulation
+          </Trans>
+        </Button>
+      </DevOnly>
     </div>
   );
 }
