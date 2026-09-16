@@ -76,7 +76,10 @@ test("App edits only an unsent steer and preserves its place behind the issuing 
   dispatchGuideShortcut(composer.element());
   await expect.poll(() => queueCoordinator.getSnapshot().guidingCount).toBe(2);
 
-  await screen.getByRole("button", { name: "Pending: Guide 2", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Guide 2", exact: true })
+    .getByRole("button", { name: "Guide 2", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect
     .element(dialog.getByText("This message has entered the sending process.", { exact: true }))
@@ -165,7 +168,10 @@ test("App issues steer inputs in the authoritative suffix order selected through
   dispatchGuideShortcut(composer.element());
   await expect.poll(() => queueCoordinator.getSnapshot().guidingCount).toBe(3);
 
-  await screen.getByRole("button", { name: "Pending: Guide 3, Queued 2", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Guide 3, Queued 2", exact: true })
+    .getByRole("button", { name: "Guide 3", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await dialog
     .getByRole("group", { name: "Steer suffix B", exact: true })
@@ -270,7 +276,10 @@ test("App saves steer edits during recovery and retries the failed identity befo
   const failedParams = steerTurnParamsAt(steerTurn, 0);
   await composer.fill("Steer successor under edit");
   dispatchGuideShortcut(composer.element());
-  await screen.getByRole("button", { name: "Pending: Guide 2", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Guide 2", exact: true })
+    .getByRole("button", { name: "Guide 2", exact: true })
+    .click();
   const listDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await listDialog.getByRole("button", { name: "Edit", exact: true }).click();
   const pendingEditor = screen.getByRole("combobox", {
@@ -406,7 +415,11 @@ test("App guides explicit input ahead of ordinary FIFO and commits accepted iden
   expect(queueCoordinator.getSnapshot().ordinaryQueuedCount).toBe(1);
   expect(startTurn).not.toHaveBeenCalled();
   await expect
-    .element(screen.getByRole("button", { name: "Pending: Queued 1", exact: true }))
+    .element(
+      screen
+        .getByRole("group", { name: "Pending: Queued 1", exact: true })
+        .getByRole("button", { name: "Queued 1", exact: true }),
+    )
     .toBeVisible();
   await expect.element(screen.getByText("Ordinary B", { exact: true })).not.toBeInTheDocument();
 });
@@ -465,7 +478,11 @@ test("App batch rejects a non-steerable target and restores a failed merged star
   });
   expect(readAllPendingItems(queueCoordinator, "steer")).toEqual([]);
   await expect
-    .element(screen.getByRole("button", { name: "Pending: Queued 1", exact: true }))
+    .element(
+      screen
+        .getByRole("group", { name: "Pending: Queued 1", exact: true })
+        .getByRole("button", { name: "Queued 1", exact: true }),
+    )
     .toBeVisible();
 
   const terminal = eventWithEnvelope(

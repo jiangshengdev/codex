@@ -370,12 +370,17 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
     }
 
     const pendingRegion = screen.getByRole("region", { name: "Pending messages", exact: true });
-    const trigger = pendingRegion.getByRole("button", {
+    const triggerGroup = pendingRegion.getByRole("group", {
       name: "Pending: Guide 2, Queued 21",
       exact: true,
     });
+    const trigger = triggerGroup.getByRole("button", { name: "Guide 2", exact: true });
     await expect.element(pendingRegion).toBeVisible();
+    await expect.element(triggerGroup).toBeVisible();
     await expect.element(trigger).toBeVisible();
+    await expect
+      .element(triggerGroup.getByRole("button", { name: "Queued 21", exact: true }))
+      .toBeVisible();
     await expect.element(threadStatus).toBeVisible();
     await expect.element(threadStatus).toHaveTextContent("Idle");
     expect(qrButton.element().parentElement).toBe(footerLeft);
@@ -392,7 +397,7 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
         statusVisible: true,
       });
     const pendingRegionElement = pendingRegion.element();
-    const triggerElement = trigger.element();
+    const triggerElement = triggerGroup.element();
     await expect
       .element(pendingRegion.getByText(longToken, { exact: true }))
       .not.toBeInTheDocument();
@@ -401,18 +406,41 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
     const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
     await expect.element(dialog).toBeVisible();
     await expect
-      .element(dialog.getByRole("heading", { name: "Guiding", exact: true }))
+      .element(dialog.getByRole("heading", { name: "Guiding 2", exact: true }))
       .toBeVisible();
     await expect
-      .element(dialog.getByRole("heading", { name: "Queued", exact: true }))
+      .element(dialog.getByRole("heading", { name: "Queued 21", exact: true }))
       .toBeVisible();
-    const expandLongToken = dialog.getByRole("button", { name: /Expand pending message:/ }).first();
-    await expandLongToken.click();
-    const longDetail = dialog.getByText(longToken, { exact: true });
+    const viewFullMessage = dialog
+      .getByRole("button", { name: "View full message", exact: true })
+      .first();
+    await viewFullMessage.click();
+    const detailDialog = screen
+      .getByRole("dialog", { name: "Pending details", exact: true })
+      .last();
+    const longDetail = detailDialog.getByText(longToken, { exact: true });
     await expect.element(longDetail).toBeVisible();
+    const detailDialogElement = detailDialog.element();
     await expect
-      .poll(() => longDetail.element().scrollWidth <= longDetail.element().clientWidth + 1)
-      .toBe(true);
+      .poll(() => {
+        const bounds = detailDialogElement.getBoundingClientRect();
+        return {
+          textHorizontallyClosed:
+            longDetail.element().scrollWidth <= longDetail.element().clientWidth + 1,
+          dialogHorizontallyClosed:
+            detailDialogElement.scrollWidth <= detailDialogElement.clientWidth + 1,
+          dialogWithinViewport: bounds.left >= -1 && bounds.right <= window.innerWidth + 1,
+        };
+      })
+      .toEqual({
+        textHorizontallyClosed: true,
+        dialogHorizontallyClosed: true,
+        dialogWithinViewport: true,
+      });
+    await detailDialog.getByRole("button", { name: "Close", exact: true }).click();
+    await expect.element(detailDialogElement).not.toBeInTheDocument();
+    await expect.element(dialog).toBeVisible();
+    await expect.element(viewFullMessage).toHaveFocus();
 
     const editButtons = dialog.getByRole("button", { name: "Edit", exact: true }).all();
     expect(editButtons.length).toBe(21);

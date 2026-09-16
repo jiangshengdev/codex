@@ -8,7 +8,9 @@ test("moves queued messages immediately with all four actions and preserves boun
   await page.goto(
     "http://localhost:6006/iframe.html?id=composer-pending-input-reordering--interactive",
   );
-  const trigger = page.getByRole("button", { name: "Pending: Queued 3", exact: true });
+  const trigger = page
+    .getByRole("group", { name: "Pending: Queued 3", exact: true })
+    .getByRole("button", { name: "Queued 3", exact: true });
   await trigger.click();
   const dialog = page.getByRole("dialog");
   const rows = dialog.getByRole("listitem");
@@ -93,7 +95,9 @@ test("preserves lane membership and loaded pages when moving across a page bound
   await page.goto(
     "http://localhost:6006/iframe.html?id=composer-pending-input-reordering--paged-lanes",
   );
-  const trigger = page.getByRole("button", { name: "Pending: Guide 3, Queued 23", exact: true });
+  const trigger = page
+    .getByRole("group", { name: "Pending: Guide 3, Queued 23", exact: true })
+    .getByRole("button", { name: "Guide 3", exact: true });
   await trigger.click();
   const dialog = page.getByRole("dialog");
   const queued = dialog.getByRole("group", { name: /^Ordinary message / });
@@ -137,7 +141,10 @@ test("preserves lane membership and loaded pages when moving across a page bound
   await page.goto(
     "http://localhost:6006/iframe.html?id=composer-pending-input-reordering--interactive",
   );
-  await page.getByRole("button", { name: "Pending: Queued 3", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Queued 3", exact: true })
+    .getByRole("button", { name: "Queued 3", exact: true })
+    .click();
   await expect(queued.first()).toHaveAccessibleName("Ordinary message 1");
   await expect(dialog.getByRole("alert")).toHaveCount(0);
 });
@@ -174,7 +181,10 @@ test("distinguishes a rejected move from a completed move whose refreshed list c
   );
   await expect(dialog.getByRole("heading", { name: "Pending details", exact: true })).toBeFocused();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Pending: Queued 3", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Queued 3", exact: true })
+    .getByRole("button", { name: "Queued 3", exact: true })
+    .click();
   await expect(dialog.getByRole("listitem").first()).toContainText("Ordinary message 2");
   await expect(dialog.getByRole("listitem")).toHaveCount(3);
   await expect(dialog.getByRole("alert")).toHaveCount(0);

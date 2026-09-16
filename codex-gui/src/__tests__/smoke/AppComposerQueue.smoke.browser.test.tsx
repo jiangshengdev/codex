@@ -203,7 +203,9 @@ test("App queues during an active turn and starts exactly once after its live te
   await getAppComposer(screen).fill("Queued from active turn");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
 
-  const trigger = screen.getByRole("button", { name: "Pending: Queued 1", exact: true });
+  const trigger = screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true });
   await expect.element(trigger).toBeVisible();
   expect(queueCoordinator.getSnapshot().ordinaryQueuedCount).toBe(1);
   expect(readPendingTextPreviews(queueCoordinator, "ordinary")).toEqual([

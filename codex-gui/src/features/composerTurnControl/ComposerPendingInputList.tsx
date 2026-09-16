@@ -1,4 +1,15 @@
-import { Button, Chip, Disclosure, Dropdown, Label, Separator } from "@heroui/react";
+import {
+  Button,
+  Card,
+  Chip,
+  Disclosure,
+  DisclosureGroup,
+  Dropdown,
+  Label,
+  Modal,
+  Separator,
+} from "@heroui/react";
+import { ArrowDown, ArrowUp, Ellipsis, Pencil, Trash2 } from "lucide-react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
@@ -52,7 +63,11 @@ export function ComposerPendingInputList({
       </p>
     );
   return (
-    <div className="grid min-w-0 gap-4">
+    <DisclosureGroup
+      allowsMultipleExpanded
+      className="min-w-0"
+      defaultExpandedKeys={["steer", "ordinary"]}
+    >
       {guidingCount > 0 ? (
         <PendingInputGroup
           actionsDisabled={actionsDisabled}
@@ -71,7 +86,7 @@ export function ComposerPendingInputList({
           revision={pages.revision}
         />
       ) : null}
-      {guidingCount > 0 && ordinaryQueuedCount > 0 ? <Separator variant="tertiary" /> : null}
+      {guidingCount > 0 && ordinaryQueuedCount > 0 ? <Separator className="my-2" /> : null}
       {ordinaryQueuedCount > 0 ? (
         <PendingInputGroup
           actionsDisabled={actionsDisabled}
@@ -90,7 +105,7 @@ export function ComposerPendingInputList({
           revision={pages.revision}
         />
       ) : null}
-    </div>
+    </DisclosureGroup>
   );
 }
 
@@ -130,52 +145,68 @@ function PendingInputGroup({
 }>) {
   const { t } = useLingui();
   return (
-    <section className="grid min-w-0 gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <h3
-          className="text-sm font-medium outline-none"
-          ref={(element) => {
-            registerLaneHeading(lane, element);
-          }}
-          tabIndex={-1}
-        >
-          {lane === "steer" ? <Trans>Guiding</Trans> : <Trans>Queued</Trans>}
-        </h3>
-        <Chip size="sm" variant={lane === "steer" ? "secondary" : "tertiary"}>
-          {count}
-        </Chip>
-      </div>
-      <ul className="grid min-w-0 gap-2">
-        {items.map((item) => (
-          <li className="min-w-0" key={`${String(revision)}:${item.key}`}>
-            <PendingInputItem
-              actionsDisabled={actionsDisabled}
-              composerRole={composerRole}
-              item={item}
-              onBeginEdit={onBeginEdit}
-              onDetailFailure={onDetailFailure}
-              onDelete={onDelete}
-              onMove={onMove}
-              registerItemFocusTarget={registerItemFocusTarget}
-              revision={revision}
-            />
-          </li>
-        ))}
-      </ul>
-      {!nextCursorAvailable ? null : (
-        <Button
-          aria-label={
-            lane === "steer" ? t`Show more guiding messages` : t`Show more queued messages`
-          }
-          onPress={() => {
-            onShowMore(lane);
-          }}
-          variant="tertiary"
-        >
-          <Trans>Show more</Trans>
-        </Button>
+    <Disclosure id={lane}>
+      {({ isExpanded }) => (
+        <>
+          <Disclosure.Heading
+            level={3}
+            ref={(element) => {
+              registerLaneHeading(lane, element);
+            }}
+            tabIndex={-1}
+          >
+            <Button
+              slot="trigger"
+              variant={isExpanded ? "secondary" : "tertiary"}
+              className={`w-full border-none ${isExpanded ? "" : "bg-transparent"}`}
+            >
+              <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                {lane === "steer" ? <Trans>Guiding</Trans> : <Trans>Queued</Trans>}
+                <Chip color="accent" size="sm" variant="soft">
+                  {count}
+                </Chip>
+              </span>
+              <Disclosure.Indicator className="text-muted" />
+            </Button>
+          </Disclosure.Heading>
+          <Disclosure.Content>
+            <Disclosure.Body className="grid min-w-0 gap-3">
+              <ul className="grid min-w-0 gap-2">
+                {items.map((item) => (
+                  <li className="min-w-0" key={`${String(revision)}:${item.key}`}>
+                    <PendingInputItem
+                      actionsDisabled={actionsDisabled}
+                      composerRole={composerRole}
+                      item={item}
+                      onBeginEdit={onBeginEdit}
+                      onDetailFailure={onDetailFailure}
+                      onDelete={onDelete}
+                      onMove={onMove}
+                      registerItemFocusTarget={registerItemFocusTarget}
+                      revision={revision}
+                    />
+                  </li>
+                ))}
+              </ul>
+              {!nextCursorAvailable ? null : (
+                <Button
+                  aria-label={
+                    lane === "steer" ? t`Show more guiding messages` : t`Show more queued messages`
+                  }
+                  className="justify-self-center"
+                  onPress={() => {
+                    onShowMore(lane);
+                  }}
+                  variant="tertiary"
+                >
+                  <Trans>Show more</Trans>
+                </Button>
+              )}
+            </Disclosure.Body>
+          </Disclosure.Content>
+        </>
       )}
-    </section>
+    </Disclosure>
   );
 }
 
@@ -204,73 +235,69 @@ function PendingInputItem({
   registerItemFocusTarget: (key: string, element: HTMLElement | null) => void;
 }>) {
   const { t } = useLingui();
-  const [isExpanded, setIsExpanded] = useState(false);
   const [detailText, setDetailText] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const preview = item.preview;
   const previewText = preview.type === "text" ? preview.text : t`Structured input`;
-  const onExpandedChange = (expanded: boolean): void => {
-    if (!expanded) {
-      setIsExpanded(false);
+  const onDetailOpenChange = (isOpen: boolean): void => {
+    if (!isOpen) {
       setDetailText(null);
       return;
     }
     const detail = composerRole.readPendingInputDetail({ key: item.key, revision });
     if (detail.type !== "detail") {
-      setIsExpanded(false);
       setDetailText(null);
       onDetailFailure(detail);
       return;
     }
     setDetailText(detail.text);
-    setIsExpanded(true);
   };
   const content =
     preview.type === "text" && preview.truncated ? (
-      <Disclosure isExpanded={isExpanded} onExpandedChange={onExpandedChange}>
-        <Disclosure.Heading>
-          <Button
-            aria-label={
-              isExpanded
-                ? t`Collapse pending message: ${previewText}`
-                : t`Expand pending message: ${previewText}`
-            }
-            className="h-auto min-w-0 justify-between whitespace-normal"
-            slot="trigger"
-            variant="tertiary"
-          >
-            <ComposerInputPreviewContent preview={preview} />
-            <span>{isExpanded ? <Trans>Collapse</Trans> : <Trans>Expand</Trans>}</span>
-            <Disclosure.Indicator />
+      <>
+        <ComposerInputPreviewContent preview={preview} />
+        <Modal isOpen={detailText != null} onOpenChange={onDetailOpenChange}>
+          <Button className="self-end" size="sm" variant="tertiary">
+            <Trans comment="Open a dialog containing the complete pending message">
+              View full message
+            </Trans>
           </Button>
-        </Disclosure.Heading>
-        <Disclosure.Content>
-          <Disclosure.Body className="pt-2">
-            {detailText == null ? null : (
-              <p className="min-w-0 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">
-                {detailText}
-              </p>
-            )}
-          </Disclosure.Body>
-        </Disclosure.Content>
-      </Disclosure>
+          <Modal.Backdrop>
+            <Modal.Container scroll="inside" size="lg">
+              <Modal.Dialog>
+                <Modal.CloseTrigger />
+                <Modal.Header>
+                  <Modal.Heading>
+                    <Trans>Pending details</Trans>
+                  </Modal.Heading>
+                </Modal.Header>
+                <Modal.Body>
+                  <p className="min-w-0 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">
+                    {detailText}
+                  </p>
+                </Modal.Body>
+              </Modal.Dialog>
+            </Modal.Container>
+          </Modal.Backdrop>
+        </Modal>
+      </>
     ) : (
       <ComposerInputPreviewContent preview={preview} />
     );
   return (
-    <div
+    <Card
       aria-label={previewText}
-      className="grid min-w-0 gap-2 rounded-medium border border-separator p-3 outline-none"
+      className="min-w-0"
       ref={(element) => {
         registerItemFocusTarget(item.key, element);
       }}
       role="group"
       tabIndex={-1}
     >
-      {content}
+      <Card.Content>{content}</Card.Content>
       {item.management.type === "manageable" ? (
         confirmingDelete ? (
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <Card.Footer className="flex-wrap justify-end gap-2">
             <span className="mr-auto text-sm">
               <Trans>Delete this pending message?</Trans>
             </span>
@@ -293,13 +320,14 @@ function PendingInputItem({
             >
               <Trans>Delete</Trans>
             </Button>
-          </div>
+          </Card.Footer>
         ) : (
-          <div className="flex flex-wrap justify-end gap-2">
+          <Card.Footer className="flex-wrap justify-end gap-2">
             {!actionsDisabled && item.movement != null ? (
               <>
                 <Button
                   aria-label={t`Move up pending message: ${previewText}`}
+                  isIconOnly
                   isDisabled={!item.movement.canMoveEarlier}
                   onPress={() => {
                     onMove(item, "earlier");
@@ -307,10 +335,11 @@ function PendingInputItem({
                   size="sm"
                   variant="tertiary"
                 >
-                  <Trans>Move up</Trans>
+                  <ArrowUp aria-hidden="true" className="size-4" />
                 </Button>
                 <Button
                   aria-label={t`Move down pending message: ${previewText}`}
+                  isIconOnly
                   isDisabled={!item.movement.canMoveLater}
                   onPress={() => {
                     onMove(item, "later");
@@ -318,15 +347,16 @@ function PendingInputItem({
                   size="sm"
                   variant="tertiary"
                 >
-                  <Trans>Move down</Trans>
+                  <ArrowDown aria-hidden="true" className="size-4" />
                 </Button>
                 <Dropdown>
                   <Button
                     aria-label={t`More move options for pending message: ${previewText}`}
+                    isIconOnly
                     size="sm"
                     variant="tertiary"
                   >
-                    <Trans>Move to</Trans>
+                    <Ellipsis aria-hidden="true" className="size-4" />
                   </Button>
                   <Dropdown.Popover>
                     <Dropdown.Menu
@@ -354,6 +384,8 @@ function PendingInputItem({
               </>
             ) : null}
             <Button
+              aria-label={t`Edit`}
+              isIconOnly
               isDisabled={actionsDisabled}
               onPress={() => {
                 onBeginEdit(item);
@@ -361,9 +393,11 @@ function PendingInputItem({
               size="sm"
               variant="tertiary"
             >
-              <Trans>Edit</Trans>
+              <Pencil aria-hidden="true" className="size-4" />
             </Button>
             <Button
+              aria-label={t`Delete`}
+              isIconOnly
               isDisabled={actionsDisabled}
               onPress={() => {
                 setConfirmingDelete(true);
@@ -371,9 +405,9 @@ function PendingInputItem({
               size="sm"
               variant="danger-soft"
             >
-              <Trans>Delete</Trans>
+              <Trash2 aria-hidden="true" className="size-4" />
             </Button>
-          </div>
+          </Card.Footer>
         )
       ) : (
         <p className="text-sm text-muted">
@@ -384,6 +418,6 @@ function PendingInputItem({
           )}
         </p>
       )}
-    </div>
+    </Card>
   );
 }

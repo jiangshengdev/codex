@@ -144,7 +144,9 @@ test("App keeps a local Stop paused until explicit rejected-first and ordinary F
     guidingCount: 0,
     recoveryCount: 1,
   });
-  const queuedTrigger = screen.getByRole("button", { name: "Pending: Queued 2", exact: true });
+  const queuedTrigger = screen
+    .getByRole("group", { name: "Pending: Queued 2", exact: true })
+    .getByRole("button", { name: "Queued 2", exact: true });
   await expect.element(queuedTrigger).toBeVisible();
 
   const interrupted = turnCompleted(eventTurnCompleted, "commit-active-interrupted", {

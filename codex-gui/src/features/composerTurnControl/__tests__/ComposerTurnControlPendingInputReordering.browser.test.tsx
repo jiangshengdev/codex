@@ -50,7 +50,10 @@ test("moves pending messages through the authoritative owner and preserves menu 
     queue: { type: "provided", controller: harness.controller },
   });
 
-  await screen.getByRole("button", { name: "Pending: Guide 2, Queued 4", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Guide 2, Queued 4", exact: true })
+    .getByRole("button", { name: "Guide 2", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   const queuedA = dialog.getByRole("group", { name: "Queued A", exact: true });
   const queuedD = dialog.getByRole("group", { name: "Queued D", exact: true });
@@ -222,7 +225,10 @@ test("re-reads independent lane budgets after a move and does not locate an item
     queue: { type: "provided", controller: harness.controller },
   });
 
-  await screen.getByRole("button", { name: "Pending: Guide 21, Queued 41", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Guide 21, Queued 41", exact: true })
+    .getByRole("button", { name: "Guide 21", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await dialog.getByRole("button", { name: "Show more queued messages", exact: true }).click();
   await expect.element(dialog.getByText("Ordinary budget 39", { exact: true })).toBeVisible();
@@ -269,7 +275,9 @@ test("re-reads independent lane budgets after a move and does not locate an item
   await expect
     .element(dialog.getByText("Ordinary budget 0", { exact: true }))
     .not.toBeInTheDocument();
-  await expect.element(dialog.getByRole("heading", { name: "Queued", exact: true })).toHaveFocus();
+  await expect
+    .element(dialog.getByRole("heading", { name: "Queued 41", exact: true }))
+    .toHaveFocus();
   await expect
     .element(screen.getByRole("status").filter({ hasText: "Queued message moved" }))
     .toHaveTextContent("Queued message moved to position 41 of 41.");
@@ -295,7 +303,10 @@ test("does not announce or refresh when an accepted move action is a no-op", asy
     scenario: { type: "activeFixture" },
     queue: { type: "provided", controller: harness.controller },
   });
-  await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 2", exact: true })
+    .getByRole("button", { name: "Queued 2", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   const pageReadCount = harness.readPendingInputPage.mock.calls.length;
   harness.movePendingInput.mockReturnValueOnce({
@@ -358,7 +369,10 @@ test("restarts an atomic two-lane refresh once and falls back with an alert afte
     scenario: { type: "activeFixture" },
     queue: { type: "provided", controller: harness.controller },
   });
-  await screen.getByRole("button", { name: "Pending: Guide 2, Queued 2", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Guide 2, Queued 2", exact: true })
+    .getByRole("button", { name: "Guide 2", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
 
   harness.queuePageReadOverride(() => {
@@ -450,7 +464,10 @@ test("stops chasing continuous stale pages and resumes after a newer revision", 
     scenario: { type: "activeFixture" },
     queue: { type: "provided", controller: harness.controller },
   });
-  await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 2", exact: true })
+    .getByRole("button", { name: "Queued 2", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   harness.setPageReadFallbackOverride((request) => {
     const revision = request.revision + 1;
@@ -551,7 +568,10 @@ test("hides move actions for owner-projected blockers and while delete confirmat
     scenario: { type: "activeFixture" },
     queue: { type: "provided", controller: harness.controller },
   });
-  await screen.getByRole("button", { name: "Pending: Guide 3, Queued 3", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Guide 3, Queued 3", exact: true })
+    .getByRole("button", { name: "Guide 3", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect
     .element(
@@ -679,7 +699,10 @@ test("keeps move failures in the Drawer and rejects a stale session callback", a
     scenario: { type: "activeFixture" },
     queue: { type: "provided", controller: harness.controller },
   });
-  await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 2", exact: true })
+    .getByRole("button", { name: "Queued 2", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   harness.movePendingInput.mockReturnValueOnce({
     type: "notManageable",
@@ -730,7 +753,10 @@ test("keeps a terminal stale non-move failure in the Drawer when counts reach ze
     scenario: { type: "activeFixture" },
     queue: { type: "provided", controller: harness.controller },
   });
-  await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 2", exact: true })
+    .getByRole("button", { name: "Queued 2", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   harness.movePendingInput.mockImplementationOnce(() => {
     harness.publish(queueSnapshot({ detailRevision: 71, canStop: true }));

@@ -1,6 +1,73 @@
 import { expect, test, vi } from "vitest";
-import { disposedActiveThreadSessionSnapshot } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
+import {
+  createActiveThreadSessionHarness,
+  disposedActiveThreadSessionSnapshot,
+} from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import { renderComposerTurnControl } from "./composerTurnControlBrowserTestSupport";
+import {
+  observePendingDrawerExit,
+  waitForPendingDrawerOpen,
+} from "./composerTurnControlPendingInputBrowserTestSupport";
+import { ComposerPendingInputProvider } from "../ComposerPendingInputProvider";
+import { ComposerTurnControl } from "../ComposerTurnControl";
+
+test.each(["unmount", "replace"])(
+  "restores the Provider focus target after Composer %s during exit",
+  async (change) => {
+    const screen = await renderComposerTurnControl({ scenario: { type: "activeFixture" } });
+    await screen.composer().fill("Queued message");
+    await screen.getByRole("button", { name: "Send", exact: true }).click();
+    const trigger = screen
+      .getByRole("group", { name: "Pending: Queued 1", exact: true })
+      .getByRole("button", { name: "Queued 1", exact: true });
+    const oldEntry = trigger.element();
+    const oldComposer = screen.composer().element();
+    await trigger.click();
+    await waitForPendingDrawerOpen();
+    const oldEntryFocus = vi.spyOn(oldEntry, "focus");
+    const oldComposerFocus = vi.spyOn(oldComposer, "focus");
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    const replacement = createActiveThreadSessionHarness().activeSnapshot({
+      threadId: "replacement-thread",
+    });
+    let rerender: Promise<void> | undefined;
+    const exit = observePendingDrawerExit(() => {
+      // Keep the application Provider mounted while replacing only its Composer child.
+      rerender = screen.rerender(
+        <ComposerPendingInputProvider>
+          {change === "unmount" ? null : (
+            <ComposerTurnControl
+              authorizationToken={null}
+              guardCompositionEndEnter={false}
+              routeTarget={{ type: "currentTask", threadId: "replacement-thread" }}
+              sessionSnapshot={replacement}
+            />
+          )}
+        </ComposerPendingInputProvider>,
+      );
+    });
+    try {
+      await screen.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
+      await expect.element(screen.getByRole("dialog")).not.toBeInTheDocument();
+      expect(exit.didRun()).toBe(true);
+      await rerender;
+      await expect
+        .element(screen.getByRole("region", { name: "Pending message editor", exact: true }))
+        .toHaveFocus();
+      expect(oldEntry.isConnected).toBe(false);
+      expect(oldEntryFocus).not.toHaveBeenCalled();
+      expect(oldComposerFocus).not.toHaveBeenCalled();
+      const newComposer = screen.composer().query();
+      expect(newComposer?.isConnected ?? false).toBe(change === "replace");
+      expect(focus.mock.contexts).not.toContain(newComposer);
+    } finally {
+      exit.disconnect();
+      oldEntryFocus.mockRestore();
+      oldComposerFocus.mockRestore();
+      focus.mockRestore();
+    }
+  },
+);
 
 test("keeps unsaved edits after the Composer unmounts and returns from discard confirmation", async () => {
   const screen = await renderComposerTurnControl({
@@ -10,7 +77,10 @@ test("keeps unsaved edits after the Composer unmounts and returns from discard c
   await screen.composer().fill("Original queued message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
   await screen.composer().fill("Separate main draft");
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   await screen.getByRole("button", { name: "Edit", exact: true }).click();
   await screen
     .getByRole("combobox", { name: "Edit pending message", exact: true })
@@ -67,7 +137,10 @@ test.each(["close", "escape", "backdrop"])(
     await screen.composer().fill("Original");
     await screen.getByRole("button", { name: "Send", exact: true }).click();
     await screen.composer().fill("Main draft");
-    await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+    await screen
+      .getByRole("group", { name: "Pending: Queued 1", exact: true })
+      .getByRole("button", { name: "Queued 1", exact: true })
+      .click();
     await screen.getByRole("button", { name: "Edit", exact: true }).click();
     const editor = screen.getByRole("combobox", { name: "Edit pending message", exact: true });
     await editor.fill("Changed");

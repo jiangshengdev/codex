@@ -7,6 +7,7 @@ import {
   createPendingInputScenario,
   type PendingInputScenarioOptions,
 } from "../pendingInputScenario";
+import { DevOnly } from "../../DevOnly";
 
 type ReorderingOptions = Pick<PendingInputScenarioOptions, "ordinaryCount" | "guidingCount"> &
   Readonly<{
@@ -75,19 +76,21 @@ function InitialState({ move }: Readonly<{ move: boolean }>) {
 function FailureDescription({ failure }: Pick<ReorderingOptions, "failure">) {
   if (failure == null) return null;
   return (
-    <p className="text-sm text-muted">
-      {failure === "notApplied" ? (
-        <Trans comment="Explains the bounded role-interface failure in the queue sorting Story">
-          Injected feedback: the first move is rejected without changing the queue. Later moves use
-          the real queue.
-        </Trans>
-      ) : (
-        <Trans comment="Explains that only post-move page reads are injected in this Story">
-          Injected feedback: the first move changes the real queue, then its refreshed list cannot
-          load. Close and reopen the queue to read the updated order.
-        </Trans>
-      )}
-    </p>
+    <DevOnly>
+      <p className="text-sm text-muted">
+        {failure === "notApplied" ? (
+          <Trans comment="Explains the bounded role-interface failure in the queue sorting Story">
+            Injected feedback: the first move is rejected without changing the queue. Later moves
+            use the real queue.
+          </Trans>
+        ) : (
+          <Trans comment="Explains that only post-move page reads are injected in this Story">
+            Injected feedback: the first move changes the real queue, then its refreshed list cannot
+            load. Close and reopen the queue to read the updated order.
+          </Trans>
+        )}
+      </p>
+    </DevOnly>
   );
 }
 

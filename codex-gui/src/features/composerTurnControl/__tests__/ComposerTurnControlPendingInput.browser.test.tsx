@@ -27,8 +27,10 @@ import {
 } from "./composerTurnControlBrowserTestSupport";
 import {
   createQueueControllerHarness,
+  observePendingDrawerExit,
   pendingInputItem,
   queueSnapshot,
+  waitForPendingDrawerOpen,
 } from "./composerTurnControlPendingInputBrowserTestSupport";
 
 const attachResponse = attachBaseline;
@@ -141,7 +143,10 @@ test("keeps submit and pending-input open available after StrictMode effect repl
     .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
     .toBe("");
 
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect.element(dialog.getByText("Strict pending message", { exact: true })).toBeVisible();
 });
@@ -234,7 +239,10 @@ test.each([false, true])(
     await composer.fill("$Pending");
     await screen.user.keyboard("{Enter}");
     await screen.getByRole("button", { name: "Send", exact: true }).click();
-    await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+    await screen
+      .getByRole("group", { name: "Pending: Queued 1", exact: true })
+      .getByRole("button", { name: "Queued 1", exact: true })
+      .click();
     await screen.getByRole("button", { name: "Edit", exact: true }).click();
 
     const pendingEditor = screen.getByRole("combobox", {
@@ -491,10 +499,12 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
     queue: { type: "provided", controller: harness.controller },
   });
   const region = screen.getByRole("region", { name: "Pending messages", exact: true });
-  const trigger = region.getByRole("button", {
-    name: "Pending: Guide 21, Queued 21",
-    exact: true,
-  });
+  const trigger = region
+    .getByRole("group", {
+      name: "Pending: Guide 21, Queued 21",
+      exact: true,
+    })
+    .getByRole("button", { name: "Guide 21", exact: true });
 
   await expect.element(trigger).toBeVisible();
   await expect.element(region.getByText("Will send first", { exact: true })).toBeVisible();
@@ -535,11 +545,12 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
   expect(dialogText.indexOf("Ordinary A")).toBeLessThan(dialogText.indexOf("Ordinary B"));
   await expect.element(dialog.getByText("Steer 20", { exact: true })).not.toBeInTheDocument();
 
-  const expand = dialog.getByRole("button", { name: /Expand pending message:/ });
-  await expand.click();
-  await expect.element(dialog.getByText(longDetail, { exact: true })).toBeVisible();
-  const collapse = dialog.getByRole("button", { name: /Collapse pending message:/ });
-  await collapse.click();
+  const viewFullMessage = dialog.getByRole("button", { name: "View full message", exact: true });
+  await viewFullMessage.click();
+  const detailDialog = screen.getByRole("dialog", { name: "Pending details", exact: true }).last();
+  await expect.element(detailDialog.getByText(longDetail, { exact: true })).toBeVisible();
+  await detailDialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect.element(screen.getByText(longDetail, { exact: true })).not.toBeInTheDocument();
   await expect.element(dialog.getByText(longDetail, { exact: true })).not.toBeInTheDocument();
 
   const showMoreGuiding = dialog.getByRole("button", {
@@ -598,10 +609,12 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
     cursor: null,
     limit: 20,
   });
-  const currentTrigger = region.getByRole("button", {
-    name: "Pending: Guide 1, Queued 1",
-    exact: true,
-  });
+  const currentTrigger = region
+    .getByRole("group", {
+      name: "Pending: Guide 1, Queued 1",
+      exact: true,
+    })
+    .getByRole("button", { name: "Guide 1", exact: true });
   const closeTrigger = dialog.getByRole("button", { name: "Close", exact: true });
 
   closeTrigger.element().focus();
@@ -622,7 +635,10 @@ test("edits and deletes an ordinary pending message in one Drawer without changi
   await composer.fill("Original queued message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
   await composer.fill("Keep this main draft");
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   expect(screen.getByRole("dialog").all().length).toBe(1);
 
@@ -676,7 +692,9 @@ test("edits and deletes an ordinary pending message in one Drawer without changi
   await expect
     .element(screen.getByRole("dialog", { name: "Edit pending message", exact: true }))
     .not.toBeInTheDocument();
-  const trigger = screen.getByRole("button", { name: "Pending: Queued 1", exact: true });
+  const trigger = screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true });
   await expect.element(trigger).toHaveFocus();
   await trigger.click();
   const reopenedListDialog = screen.getByRole("dialog", {
@@ -727,7 +745,10 @@ test("returns focus to the Composer when cancelling an edit synchronously drains
 
   await composer.fill("Drain after cancelling edit");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   await screen.getByRole("button", { name: "Edit", exact: true }).click();
   await expect
     .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
@@ -768,7 +789,10 @@ test("keeps live-owner management failures in the Drawer as an alert", async () 
     queue: { type: "provided", controller: harness.controller },
   });
 
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
@@ -802,7 +826,10 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
   await screen.getByRole("button", { name: "Guide", exact: true }).click();
   await composer.fill("Still unsent steer");
   await screen.getByRole("button", { name: "Guide", exact: true }).click();
-  await screen.getByRole("button", { name: "Pending: Guide 2", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Guide 2", exact: true })
+    .getByRole("button", { name: "Guide 2", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
 
   await expect
@@ -849,7 +876,10 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
     .click();
   await expect.element(heldDialog).not.toBeInTheDocument();
   await expect.element(composer).toHaveFocus();
-  await screen.getByRole("button", { name: "Pending: Guide 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Guide 1", exact: true })
+    .getByRole("button", { name: "Guide 1", exact: true })
+    .click();
   await expect
     .element(screen.getByRole("dialog").getByText("Already issued steer", { exact: true }))
     .toBeVisible();
@@ -873,7 +903,10 @@ test("retains unsaved edits through a projection pause and a new subscription wi
 
   await composer.fill("Owner-bound queued message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   await screen.getByRole("button", { name: "Edit", exact: true }).click();
   await expect
     .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
@@ -934,7 +967,10 @@ test("restores delete focus only to a neighbor in the same lane", async () => {
   await screen.getByRole("button", { name: "Send", exact: true }).click();
   await composer.fill("Second ordinary neighbor");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 2", exact: true })
+    .getByRole("button", { name: "Queued 2", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   const firstItem = dialog.getByRole("group", { name: "First ordinary neighbor", exact: true });
   await firstItem.getByRole("button", { name: "Delete", exact: true }).click();
@@ -963,23 +999,25 @@ test("keeps the Drawer open when a pending-input detail is missing", async () =>
     queue: { type: "provided", controller: harness.controller },
   });
 
-  await screen.getByRole("button", { name: "Pending: Guide 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Guide 1", exact: true })
+    .getByRole("button", { name: "Guide 1", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
-  const expand = dialog.getByRole("button", {
-    name: `Expand pending message: ${previewText}`,
-    exact: true,
-  });
-  await expand.click();
+  const viewFullMessage = dialog
+    .getByRole("group", { name: previewText, exact: true })
+    .getByRole("button", { name: "View full message", exact: true });
+  await viewFullMessage.click();
 
   await expect.element(dialog).toBeVisible();
-  await expect.element(expand).toBeVisible();
+  await expect.element(viewFullMessage).toBeVisible();
   expect(harness.readPendingInputDetail).toHaveBeenCalledExactlyOnceWith({
     key: item.key,
     revision: 1,
   });
 });
 
-test("uses one pending trigger for either lane and hides it when both lanes are empty", async () => {
+test("shows only the non-empty lane in the pending group and hides it when both lanes are empty", async () => {
   const harness = createQueueControllerHarness(
     queueSnapshot({ guidingCount: 1, detailRevision: 1, canStop: true }),
     {
@@ -1005,25 +1043,152 @@ test("uses one pending trigger for either lane and hides it when both lanes are 
   });
   const region = screen.getByRole("region", { name: "Pending messages", exact: true });
 
-  const guideTrigger = region.getByRole("button", {
+  const guideGroup = region.getByRole("group", {
     name: "Pending: Guide 1",
     exact: true,
   });
+  const guideTrigger = guideGroup.getByRole("button", { name: "Guide 1", exact: true });
   await expect.element(guideTrigger).toBeVisible();
-  await expect.element(guideTrigger).toHaveTextContent("Guide 1");
-  await expect.element(guideTrigger).not.toHaveTextContent("Queued");
+  await expect.element(guideTrigger).toHaveTextContent("Guide1");
+  await expect.element(guideGroup).not.toHaveTextContent("Queued");
 
   harness.publish(queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 2, canStop: true }));
-  const queuedTrigger = region.getByRole("button", {
+  const queuedGroup = region.getByRole("group", {
     name: "Pending: Queued 1",
     exact: true,
   });
+  const queuedTrigger = queuedGroup.getByRole("button", { name: "Queued 1", exact: true });
   await expect.element(queuedTrigger).toBeVisible();
-  await expect.element(queuedTrigger).toHaveTextContent("Queued 1");
-  await expect.element(queuedTrigger).not.toHaveTextContent("Guide");
+  await expect.element(queuedTrigger).toHaveTextContent("Queued1");
+  await expect.element(queuedGroup).not.toHaveTextContent("Guide");
 
   harness.publish(queueSnapshot({ detailRevision: 3, canStop: true }));
   await expect.element(region).not.toBeInTheDocument();
+});
+
+test.each(
+  (["ordinary", "steer"] as const).flatMap((lane) =>
+    ["close", "escape", "backdrop"].map((method) => ({ lane, method })),
+  ),
+)(
+  "keeps the pending panel mounted and visible throughout $lane $method exit",
+  async ({ lane, method }) => {
+    const item = pendingInputItem("pending", lane, {
+      type: "text",
+      text: "Queued message",
+      truncated: false,
+    });
+    const harness = createQueueControllerHarness(
+      queueSnapshot({
+        ordinaryQueuedCount: lane === "ordinary" ? 1 : 0,
+        guidingCount: lane === "steer" ? 1 : 0,
+        detailRevision: 1,
+        canStop: true,
+      }),
+      { ordinary: lane === "ordinary" ? [item] : [], steer: lane === "steer" ? [item] : [] },
+    );
+    const screen = await renderComposerTurnControl({
+      scenario: { type: "activeFixture" },
+      queue: { type: "provided", controller: harness.controller },
+    });
+    await screen.composer().fill("Separate main draft");
+    const trigger = screen
+      .getByRole("group", {
+        name: lane === "ordinary" ? "Pending: Queued 1" : "Pending: Guide 1",
+        exact: true,
+      })
+      .getByRole("button", { name: lane === "ordinary" ? "Queued 1" : "Guide 1", exact: true });
+    const entry = trigger.element();
+    const panel = screen.getByRole("region", { name: "Pending messages", exact: true }).element();
+    await trigger.click();
+    const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+    await expect.element(dialog).toBeVisible();
+    await waitForPendingDrawerOpen();
+    const height = panel.getBoundingClientRect().height;
+    const samples: boolean[] = [];
+    let sawExit = false;
+    let removed = false;
+    const sample = () => {
+      sawExit ||= document.querySelector('[data-slot="drawer-backdrop"][data-exiting]') != null;
+      samples.push(
+        entry.isConnected &&
+          entry.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) &&
+          panel.getBoundingClientRect().height === height,
+      );
+    };
+    const observer = new MutationObserver((records) => {
+      removed ||= records.some((record) =>
+        Array.from(record.removedNodes).some((node) => node === entry || node.contains(entry)),
+      );
+      sample();
+    });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    let frame: number;
+    const sampleFrame = () => {
+      sample();
+      frame = requestAnimationFrame(sampleFrame);
+    };
+    frame = requestAnimationFrame(sampleFrame);
+    try {
+      if (method === "close")
+        await dialog.getByRole("button", { name: "Close", exact: true }).click();
+      else if (method === "escape") await screen.user.keyboard("{Escape}");
+      else {
+        const backdrop = document.querySelector('[data-slot="drawer-backdrop"]');
+        if (!(backdrop instanceof HTMLElement)) throw new Error("Expected drawer backdrop");
+        await screen.user.click(backdrop, { position: { x: 2, y: backdrop.clientHeight / 2 } });
+      }
+      await expect.element(dialog).not.toBeInTheDocument();
+      await expect.element(trigger).toHaveFocus();
+    } finally {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    }
+    expect(sawExit).toBe(true);
+    expect(removed).toBe(false);
+    expect(samples.length).toBeGreaterThan(0);
+    expect(samples.every(Boolean)).toBe(true);
+    expect(trigger.element()).toBe(entry);
+    await expect.element(screen.composer()).toHaveTextContent("Separate main draft");
+    await trigger.click();
+    await expect.element(dialog.getByText("Queued message", { exact: true })).toBeVisible();
+  },
+);
+
+test("returns to the Composer when the queue empties during the exit animation", async () => {
+  const harness = createQueueControllerHarness(
+    queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1, canStop: true }),
+    {
+      ordinary: [
+        pendingInputItem("queued", "ordinary", { type: "text", text: "Queued", truncated: false }),
+      ],
+      steer: [],
+    },
+  );
+  const screen = await renderComposerTurnControl({
+    scenario: { type: "activeFixture" },
+    queue: { type: "provided", controller: harness.controller },
+  });
+  await screen.composer().fill("Main draft");
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
+  await waitForPendingDrawerOpen();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  const exit = observePendingDrawerExit(() => {
+    harness.publish(queueSnapshot({ detailRevision: 2, canStop: true }));
+  });
+  try {
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await expect.element(dialog).not.toBeInTheDocument();
+    expect(exit.didRun()).toBe(true);
+    await expect.element(screen.getByRole("group", { name: /^Pending:/ })).not.toBeInTheDocument();
+    await expect.element(screen.composer()).toHaveFocus();
+    await expect.element(screen.composer()).toHaveTextContent("Main draft");
+  } finally {
+    exit.disconnect();
+  }
 });
 
 test("closes and clears pending details when counts become empty", async () => {
@@ -1045,7 +1210,10 @@ test("closes and clears pending details when counts become empty", async () => {
     queue: { type: "provided", controller: harness.controller },
   });
 
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect
     .element(dialog.getByText("Clear this pending detail", { exact: true }))
@@ -1082,28 +1250,40 @@ test("does not reopen a closing Drawer when new pending input arrives before pre
     queue: { type: "provided", controller: harness.controller },
   });
 
-  const trigger = screen.getByRole("button", { name: "Pending: Queued 1", exact: true });
+  const trigger = screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true });
   await trigger.click();
   const closingDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect
     .element(closingDialog.getByText("Closing pending detail", { exact: true }))
     .toBeVisible();
 
-  harness.publish(queueSnapshot({ detailRevision: 2, canStop: true }));
-  await expect.element(closingDialog).not.toBeInTheDocument();
-  harness.replaceDetails({
-    ordinary: [
-      pendingInputItem("ordinary-new", "ordinary", {
-        type: "text",
-        text: "New pending detail",
-        truncated: false,
-      }),
-    ],
-    steer: [],
+  await waitForPendingDrawerOpen();
+  const exit = observePendingDrawerExit(() => {
+    harness.replaceDetails({
+      ordinary: [
+        pendingInputItem("ordinary-new", "ordinary", {
+          type: "text",
+          text: "New pending detail",
+          truncated: false,
+        }),
+      ],
+      steer: [],
+    });
+    harness.publish(queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 3, canStop: true }));
   });
-  harness.publish(queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 3, canStop: true }));
+  try {
+    harness.publish(queueSnapshot({ detailRevision: 2, canStop: true }));
+    await expect.element(closingDialog).not.toBeInTheDocument();
+    expect(exit.didRun()).toBe(true);
+  } finally {
+    exit.disconnect();
+  }
 
-  const nextTrigger = screen.getByRole("button", { name: "Pending: Queued 1", exact: true });
+  const nextTrigger = screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true });
   await expect.element(nextTrigger).toBeVisible();
   expect(screen.getByText("New pending detail", { exact: true }).query()).toBeNull();
 
@@ -1165,7 +1345,10 @@ test("replaces an open pending-input owner without leaking its cached view into 
   );
   const screen = await renderWithProviders(renderSnapshot(firstSnapshot));
 
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   const oldDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect
     .element(oldDialog.getByText("Old owner pending message", { exact: true }))
@@ -1184,10 +1367,12 @@ test("replaces an open pending-input owner without leaking its cached view into 
   await screen.rerender(renderSnapshot(replacementSnapshot));
 
   await expect.element(oldDialog).not.toBeInTheDocument();
-  const replacementTrigger = screen.getByRole("button", {
-    name: "Pending: Queued 1",
-    exact: true,
-  });
+  const replacementTrigger = screen
+    .getByRole("group", {
+      name: "Pending: Queued 1",
+      exact: true,
+    })
+    .getByRole("button", { name: "Queued 1", exact: true });
   await expect.element(replacementTrigger).toBeVisible();
   await replacementTrigger.click();
   const replacementDialog = screen.getByRole("dialog", {
@@ -1221,7 +1406,10 @@ test("keeps pending details readable while projection mutations are unavailable"
     queue: { type: "provided", controller: harness.controller },
   });
 
-  await screen.getByRole("button", { name: "Pending: Guide 1", exact: true }).click();
+  await screen
+    .getByRole("group", { name: "Pending: Guide 1", exact: true })
+    .getByRole("button", { name: "Guide 1", exact: true })
+    .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect
     .element(dialog.getByText("Unavailable projection detail", { exact: true }))
@@ -1315,10 +1503,12 @@ test("renders Simplified Chinese guide and pending-input copy", async () => {
 
   await expect.element(screen.getByRole("button", { name: "引导", exact: true })).toBeDisabled();
   const region = screen.getByRole("region", { name: "待处理消息", exact: true });
-  const trigger = region.getByRole("button", {
-    name: "待处理：引导 1，排队 2",
-    exact: true,
-  });
+  const trigger = region
+    .getByRole("group", {
+      name: "待处理：引导 1，排队 2",
+      exact: true,
+    })
+    .getByRole("button", { name: "引导 1", exact: true });
   await expect.element(trigger).toBeVisible();
   await expect.element(region.getByText("将优先发送", { exact: true })).toBeVisible();
   await expect.element(region.getByText("当前无法引导，已加入队列", { exact: true })).toBeVisible();

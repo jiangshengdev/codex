@@ -5,6 +5,7 @@ import { userEvent, within } from "storybook/test";
 import { useComposerPendingInput } from "@/features/composerTurnControl/composerPendingInputHost";
 import { PendingInputPreview, PendingInputScenarioView } from "../PendingInputScenarioView";
 import { createPendingInputEditingScenario } from "./pendingInputEditingScenario";
+import { DevOnly } from "../../DevOnly";
 
 type InitialEditingState = "queue" | "editing" | "deleteConfirmation" | "retained";
 
@@ -83,7 +84,7 @@ function EditingControls({
   const snapshot = useSyncExternalStore(host.subscribe, host.getSnapshot);
   const edit = snapshot.pending.view?.edit;
   return (
-    <div className="grid gap-2 border-b border-separator pb-3">
+    <DevOnly>
       <p className="text-sm text-muted">
         {scenario.sendingConflict ? (
           <Trans>
@@ -123,7 +124,7 @@ function EditingControls({
           </Trans>
         </Button>
       ) : null}
-    </div>
+    </DevOnly>
   );
 }
 

@@ -89,7 +89,10 @@ test("restored queues stay paused across terminal events and queue viewing until
   await expect(page.getByRole("status", { name: "Current task is idle" })).toBeVisible();
   await settledRender(page);
   expect(host.sends()).toHaveLength(0);
-  await page.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   const pending = page.getByRole("dialog", { name: "Pending details", exact: true });
   await expect(pending).toContainText("Queued before reload");
   expect(host.sends()).toHaveLength(0);

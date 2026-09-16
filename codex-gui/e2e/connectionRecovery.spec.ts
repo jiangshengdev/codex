@@ -144,7 +144,10 @@ test("dirty pending edits remain available after closing and reconnecting", asyn
   const host = await createMultiSessionHarness(page);
   await host.open();
   await submit(page, "Original queued message");
-  await page.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
   await page
     .getByRole("dialog", { name: "Pending details", exact: true })
     .getByRole("button", { name: "Edit", exact: true })

@@ -79,6 +79,7 @@
     "@storybook/addon-docs": "^10.6.0",
     "@storybook/addon-mcp": "^10.6.0",
     "@storybook/addon-vitest": "^10.6.0",
+    "@storybook/icons": "2.1.0",
     "@storybook/tanstack-react": "^10.6.0",
     "@tanstack/react-query": "latest",
     "@tsconfig/node24": "^24.0.5",

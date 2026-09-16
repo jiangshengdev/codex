@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { expect, vi } from "vitest";
 
 import type {
   ComposerInputQueueCoordinator,
@@ -19,6 +19,36 @@ import { attachBaseline } from "@/features/projection/__tests__/projectionFixtur
 const attachResponse = attachBaseline;
 
 const threadId = attachResponse.snapshot.thread.id;
+
+export async function waitForPendingDrawerOpen() {
+  const backdrop = document.querySelector('[data-slot="drawer-backdrop"]');
+  if (!(backdrop instanceof HTMLElement)) throw new Error("Expected drawer backdrop");
+  await expect
+    .poll(() =>
+      backdrop
+        .getAnimations({ subtree: true })
+        .filter((animation) => animation.playState === "running"),
+    )
+    .toHaveLength(0);
+}
+
+export function observePendingDrawerExit(onExit: () => void) {
+  let observed = false;
+  const observer = new MutationObserver(() => {
+    const exiting = document.querySelector('[data-slot="drawer-backdrop"][data-exiting]');
+    if (exiting?.querySelector('[role="dialog"]') == null) return;
+    observed = true;
+    observer.disconnect();
+    onExit();
+  });
+  observer.observe(document.body, { attributes: true, childList: true, subtree: true });
+  return {
+    didRun: () => observed,
+    disconnect: () => {
+      observer.disconnect();
+    },
+  };
+}
 
 export const queueSnapshot = (
   overrides: Partial<ComposerInputQueueCoordinatorSnapshot> = {},

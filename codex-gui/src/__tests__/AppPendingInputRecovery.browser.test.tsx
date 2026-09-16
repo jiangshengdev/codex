@@ -191,7 +191,10 @@ test.each([HISTORY_LIST_ROUTE_PATH, NEW_TASK_ROUTE_PATH, CURRENT_TASK_ROUTE_PATH
     await composer.fill("Original queued message");
     await screen.getByRole("button", { name: "Send", exact: true }).click();
     await composer.fill("Independent main draft");
-    await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+    await screen
+      .getByRole("group", { name: "Pending: Queued 1", exact: true })
+      .getByRole("button", { name: "Queued 1", exact: true })
+      .click();
     await screen.getByRole("button", { name: "Edit", exact: true }).click();
     await screen
       .getByRole("combobox", { name: "Edit pending message", exact: true })
@@ -224,7 +227,10 @@ test.each([HISTORY_LIST_ROUTE_PATH, NEW_TASK_ROUTE_PATH, CURRENT_TASK_ROUTE_PATH
     await expect.element(retained).not.toBeInTheDocument();
     await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
     await expect.element(composer).toHaveTextContent("Independent main draft");
-    await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+    await screen
+      .getByRole("group", { name: "Pending: Queued 1", exact: true })
+      .getByRole("button", { name: "Queued 1", exact: true })
+      .click();
     await expect
       .element(screen.getByRole("dialog").getByText("Original queued message", { exact: true }))
       .toBeVisible();

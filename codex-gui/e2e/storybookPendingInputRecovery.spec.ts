@@ -65,12 +65,18 @@ test("distinguishes accepted guidance from priority fallback and exposes recover
   await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-recovery--guiding");
   await page.getByRole("button", { name: "Simulate guide success", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Pending: Guide 1, Queued 3", exact: true }),
+    page
+      .getByRole("group", { name: "Pending: Guide 1, Queued 3", exact: true })
+      .getByRole("button", { name: "Guide 1", exact: true }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Simulate guide runtime confirmation", exact: true })
     .click();
-  await expect(page.getByRole("button", { name: "Pending: Queued 3", exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole("group", { name: "Pending: Queued 3", exact: true })
+      .getByRole("button", { name: "Queued 3", exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
   await page.getByRole("button", { name: "Simulate guide refusal", exact: true }).click();
   await expect(
@@ -105,7 +111,10 @@ test("distinguishes accepted guidance from priority fallback and exposes recover
   ).toBeEnabled();
   await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-recovery--combined");
   await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Pending: Queued 3", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Pending: Queued 3", exact: true })
+    .getByRole("button", { name: "Queued 3", exact: true })
+    .click();
   await expect(page.getByRole("dialog")).toContainText("Ordinary message 3");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Simulate current turn completed", exact: true }).click();
@@ -113,7 +122,11 @@ test("distinguishes accepted guidance from priority fallback and exposes recover
   await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
   await expect(page.getByText("Guide message 1", { exact: true })).toBeVisible();
   await expect(page.getByText("Guide message 2", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Pending: Queued 3", exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole("group", { name: "Pending: Queued 3", exact: true })
+      .getByRole("button", { name: "Queued 3", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
