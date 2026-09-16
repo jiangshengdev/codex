@@ -97,7 +97,7 @@ msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 msgid "A message update is missing its associated turn, so it cannot be fully displayed."
 msgstr "A message update is missing its associated turn, so it cannot be fully displayed."
 
-#: src/features/appShell/AppShellTopBar.tsx:163
+#: src/features/appShell/AppShellTopBar.tsx:164
 #: src/features/newSession/NewSessionPage.tsx:39
 msgid "A working directory is required to start a session."
 msgstr "A working directory is required to start a session."
@@ -132,15 +132,15 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:239
+#: src/features/appShell/AppShellTopBar.tsx:240
 msgid "Browse task history"
 msgstr "Browse task history"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:292
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:298
 msgid "Cancel"
 msgstr "Cancel"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:268
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:274
 msgid "Changes copied"
 msgstr "Changes copied"
 
@@ -282,7 +282,7 @@ msgid "Continuing this task…"
 msgstr "Continuing this task…"
 
 #. Copy the unsaved pending-message edit to the clipboard
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:307
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:313
 msgid "Copy changes"
 msgstr "Copy changes"
 
@@ -291,7 +291,7 @@ msgstr "Copy changes"
 msgid "Copy code"
 msgstr "Copy code"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:270
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:276
 msgid "Copy failed. Select the text and copy it manually."
 msgstr "Copy failed. Select the text and copy it manually."
 
@@ -312,7 +312,7 @@ msgid "Could not copy table. Try again."
 msgstr "Could not copy table. Try again."
 
 #: src/features/appShell/AppShellTopBar.tsx:57
-#: src/features/appShell/AppShellTopBar.tsx:195
+#: src/features/appShell/AppShellTopBar.tsx:196
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "Current task"
@@ -378,12 +378,12 @@ msgstr "Diagnostic:"
 
 #. Discard only the unsaved edit, not the original queued message
 #. Discard only the unsaved edit, not the original queued message
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:317
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:357
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:323
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:363
 msgid "Discard changes"
 msgstr "Discard changes"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:331
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:337
 msgid "Discard unsaved changes?"
 msgstr "Discard unsaved changes?"
 
@@ -401,7 +401,7 @@ msgstr "Duration {duration}"
 msgid "Edit"
 msgstr "Edit"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:202
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:208
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:68
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:76
 msgid "Edit pending message"
@@ -412,7 +412,7 @@ msgstr "Edit pending message"
 msgid "Elapsed {duration}"
 msgstr "Elapsed {duration}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:460
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:466
 msgid "Enter a message before saving."
 msgstr "Enter a message before saving."
 
@@ -470,7 +470,7 @@ msgstr "Fork from here"
 msgid "Go back home"
 msgstr "Go back home"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:395
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:401
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:272
 msgid "Guide"
 msgstr "Guide"
@@ -483,12 +483,12 @@ msgstr "Guide status unknown"
 msgid "Guiding"
 msgstr "Guiding"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:218
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:224
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 
 #: src/features/appShell/AppShellTopBar.tsx:62
-#: src/features/appShell/AppShellTopBar.tsx:233
+#: src/features/appShell/AppShellTopBar.tsx:234
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "History"
@@ -608,7 +608,7 @@ msgstr "Loading task history…"
 msgid "Loading task…"
 msgstr "Loading task…"
 
-#: src/features/appShell/AppShellTopBar.tsx:127
+#: src/features/appShell/AppShellTopBar.tsx:128
 msgid "Main navigation"
 msgstr "Main navigation"
 
@@ -616,7 +616,7 @@ msgstr "Main navigation"
 msgid "Menu"
 msgstr "Menu"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:429
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:435
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
@@ -677,12 +677,12 @@ msgstr "Move to last"
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:123
+#: src/features/appShell/AppShellTopBar.tsx:124
 msgid "Navigation"
 msgstr "Navigation"
 
 #: src/features/appShell/AppShellTopBar.tsx:61
-#: src/features/appShell/AppShellTopBar.tsx:154
+#: src/features/appShell/AppShellTopBar.tsx:155
 #: src/features/documentTitle/DocumentTitleOwner.tsx:52
 msgid "New session"
 msgstr "New session"
@@ -733,7 +733,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:201
+#: src/features/appShell/AppShellTopBar.tsx:202
 msgid "Open current task"
 msgstr "Open current task"
 
@@ -763,7 +763,7 @@ msgstr "Operation diagnostic:"
 msgid "Page not found"
 msgstr "Page not found"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:200
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:206
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:271
 msgid "Pending details"
 msgstr "Pending details"
@@ -773,7 +773,7 @@ msgstr "Pending details"
 msgid "Pending init"
 msgstr "Pending init"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:435
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:441
 msgid "Pending message changed"
 msgstr "Pending message changed"
 
@@ -781,7 +781,7 @@ msgstr "Pending message changed"
 msgid "Pending message editor"
 msgstr "Pending message editor"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:431
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:437
 msgid "Pending message was not reordered"
 msgstr "Pending message was not reordered"
 
@@ -789,15 +789,15 @@ msgstr "Pending message was not reordered"
 msgid "Pending messages"
 msgstr "Pending messages"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:384
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:390
 msgid "Pending: Guide {guidingCount}"
 msgstr "Pending: Guide {guidingCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:382
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:388
 msgid "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
 msgstr "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:385
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:391
 msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "Pending: Queued {ordinaryQueuedCount}"
 
@@ -818,12 +818,12 @@ msgstr "QR access is unavailable until the GUI launch token is ready."
 msgid "QR code for current GUI URL"
 msgstr "QR code for current GUI URL"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:409
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:415
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:164
 msgid "Queued"
 msgstr "Queued"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:214
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:220
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "Queued message moved to position {movedPosition} of {movedCount}."
 
@@ -846,7 +846,7 @@ msgstr "Reconnecting…"
 msgid "Recover this task's connection before removing it."
 msgstr "Recover this task's connection before removing it."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:464
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:470
 msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
 
@@ -975,7 +975,7 @@ msgid "Return to current task"
 msgstr "Return to current task"
 
 #. Return to the pending-message edit without discarding it
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:347
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:353
 msgid "Return to edit"
 msgstr "Return to edit"
 
@@ -992,7 +992,7 @@ msgstr "Review unresolved messages in this task before removing it."
 msgid "Running"
 msgstr "Running"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:295
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:301
 msgid "Save"
 msgstr "Save"
 
@@ -1070,7 +1070,7 @@ msgstr "Spawned {receiver} ({model} {reasoningEffort})"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "Spawned {receiver} ({reasoningEffort})"
 
-#: src/features/appShell/AppShellTopBar.tsx:161
+#: src/features/appShell/AppShellTopBar.tsx:162
 msgid "Start a conversation"
 msgstr "Start a conversation"
 
@@ -1187,7 +1187,7 @@ msgstr "The current task could not be loaded."
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:449
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:455
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "The message was moved, but repeated queue changes prevented the updated order from loading."
 
@@ -1195,11 +1195,11 @@ msgstr "The message was moved, but repeated queue changes prevented the updated 
 msgid "The new conversation is saved. Continue opening it without creating another fork."
 msgstr "The new conversation is saved. Continue opening it without creating another fork."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:444
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:450
 msgid "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
 msgstr "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:442
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:448
 msgid "The pending-message order did not change. Refresh complete; try again."
 msgstr "The pending-message order did not change. Refresh complete; try again."
 
@@ -1216,7 +1216,7 @@ msgstr "The result is unknown. Check history before forking again; another click
 msgid "The specified turn was not found."
 msgstr "The specified turn was not found."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:454
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:460
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
@@ -1277,11 +1277,11 @@ msgstr "Theme preference"
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:462
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:468
 msgid "This editing session is no longer available."
 msgstr "This editing session is no longer available."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:456
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:462
 msgid "This message has entered the sending process and can no longer be managed."
 msgstr "This message has entered the sending process and can no longer be managed."
 
@@ -1293,7 +1293,7 @@ msgstr "This message has entered the sending process."
 msgid "This message is being edited."
 msgstr "This message is being edited."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:440
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:446
 msgid "This pending message cannot be edited."
 msgstr "This pending message cannot be edited."
 
@@ -1399,7 +1399,7 @@ msgstr "Unable to update the task list"
 msgid "Unknown"
 msgstr "Unknown"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:260
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:266
 msgid "Unsaved pending message"
 msgstr "Unsaved pending message"
 
@@ -1408,7 +1408,7 @@ msgstr "Unsaved pending message"
 msgid "Untitled task"
 msgstr "Untitled task"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:433
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:439
 msgid "Updated pending order could not be loaded"
 msgstr "Updated pending order could not be loaded"
 
@@ -1527,11 +1527,11 @@ msgstr "Yesterday"
 msgid "Yesterday {time}"
 msgstr "Yesterday {time}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:335
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:341
 msgid "Your changes have not been saved. Return to copy them, or discard them to continue."
 msgstr "Your changes have not been saved. Return to copy them, or discard them to continue."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:251
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:257
 msgid "Your edits are retained below. Copy anything you want to keep before discarding."
 msgstr "Your edits are retained below. Copy anything you want to keep before discarding."
 
