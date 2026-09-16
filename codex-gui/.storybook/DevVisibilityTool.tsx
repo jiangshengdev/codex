@@ -1,5 +1,6 @@
 import * as React from "react";
-import { IconButton } from "storybook/internal/components";
+import { BeakerIcon } from "@storybook/icons";
+import { ToggleButton } from "storybook/internal/components";
 import { addons, useAddonState, useChannel } from "storybook/manager-api";
 import {
   defaultDevVisibility,
@@ -27,16 +28,17 @@ export function DevVisibilityTool() {
     addons.getChannel().emit(DEV_VISIBILITY_CHANGED, visibility);
   }, [visibility]);
   return (
-    <IconButton
-      title="Show DEV controls"
-      aria-label="Show DEV controls"
-      aria-pressed={visibility.visible}
-      active={visibility.visible}
+    <ToggleButton
+      padding="small"
+      variant="ghost"
+      ariaLabel="Show DEV controls"
+      tooltip="Toggle DEV controls"
+      pressed={visibility.visible}
       onClick={() => {
         setVisibility({ visible: !visibility.visible }, { persistence: "none" });
       }}
     >
-      DEV
-    </IconButton>
+      <BeakerIcon />
+    </ToggleButton>
   );
 }

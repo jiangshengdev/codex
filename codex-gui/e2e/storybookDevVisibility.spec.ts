@@ -9,8 +9,8 @@ test("the toolbar removes DEV DOM while preserving the current editing scenario"
 }) => {
   await page.goto(`${storybookUrl}/?path=/story/composer-pending-input-editing--interactive`);
   const preview = page.frameLocator("#storybook-preview-iframe");
-  const toggle = page.getByRole("button", { name: "Show DEV controls", exact: true });
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  const toggle = page.getByRole("switch", { name: "Show DEV controls", exact: true });
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
   await preview.getByRole("radio", { name: "Dark theme", exact: true }).click();
   const draft = preview.getByRole("textbox", { name: "Main draft", exact: true });
   await draft.fill("Keep my main draft");
@@ -19,7 +19,7 @@ test("the toolbar removes DEV DOM while preserving the current editing scenario"
   const editor = preview.getByRole("combobox", { name: "Edit pending message", exact: true });
   await editor.fill("Keep my pending edit");
   await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
   await expect(
     preview.getByRole("group", { name: "DEV", exact: true, includeHidden: true }),
   ).toHaveCount(0);
@@ -60,7 +60,7 @@ test("the toolbar removes DEV DOM while preserving the current editing scenario"
 test("keeps the DEV choice across stories but resets it on reload", async ({ page }) => {
   await page.goto(`${storybookUrl}/?path=/story/environment-stateful--empty`);
   const preview = page.frameLocator("#storybook-preview-iframe");
-  const toggle = page.getByRole("button", { name: "Show DEV controls", exact: true });
+  const toggle = page.getByRole("switch", { name: "Show DEV controls", exact: true });
   await preview.getByRole("button", { name: "Create read-model slot", exact: true }).click();
   await toggle.click();
   await expect(
@@ -71,12 +71,12 @@ test("keeps the DEV choice across stories but resets it on reload", async ({ pag
   await toggle.click();
   await page.getByRole("link", { name: "Seeded", exact: true }).click();
   await expect(page).toHaveURL(/environment-stateful--seeded/);
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
   await expect(
     preview.getByRole("group", { name: "DEV", exact: true, includeHidden: true }),
   ).toHaveCount(0);
   await page.reload();
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
   await expect(preview.getByRole("status")).toHaveText("Redux slots: 1; route: /");
   await page.getByRole("link", { name: "Empty", exact: true }).click();
   await expect(preview.getByRole("status")).toHaveText("Redux slots: 0; route: /");
@@ -85,7 +85,7 @@ test("keeps the DEV choice across stories but resets it on reload", async ({ pag
 test("controls every Docs preview without removing business notices", async ({ page }) => {
   await page.goto(`${storybookUrl}/?path=/docs/feedback-connection-recovery-states--docs`);
   const docs = page.frameLocator("#storybook-preview-iframe");
-  const toggle = page.getByRole("button", { name: "Show DEV controls", exact: true });
+  const toggle = page.getByRole("switch", { name: "Show DEV controls", exact: true });
   const boundaries = docs.getByRole("group", { name: "DEV", exact: true, includeHidden: true });
   // The primary example and five listed stories each render a theme DEV region.
   await expect(boundaries).toHaveCount(6);
@@ -105,7 +105,7 @@ test("standalone previews retain their default controls without an internal swit
 }) => {
   await page.goto(`${storybookUrl}/iframe.html?id=environment-stateful--empty`);
   await expect(page.getByRole("group", { name: "DEV", exact: true })).toHaveCount(2);
-  await expect(page.getByRole("button", { name: "Show DEV controls", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("switch", { name: "Show DEV controls", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Create read-model slot", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Redux slots: 1; route: /");
 });
