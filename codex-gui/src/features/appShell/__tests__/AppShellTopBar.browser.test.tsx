@@ -107,6 +107,7 @@ test("Drawer exposes named navigation and Escape closes it with focus returned t
   const historyButton = navigation.getByRole("button", { name: "History", exact: true });
 
   await expect.element(dialog).toBeVisible();
+  await expect.element(dialog.getByRole("button", { name: "Close", exact: true })).toHaveFocus();
   await expect.element(currentTaskButton).toHaveAccessibleName("Current task");
   await expect.element(currentTaskButton).toHaveAccessibleDescription("Open current task");
   await expect.element(currentTaskButton).toHaveAttribute("aria-current", "page");
@@ -123,6 +124,12 @@ test("Drawer exposes named navigation and Escape closes it with focus returned t
 
   await screen.user.keyboard("{Escape}");
 
+  await expect.element(dialog).not.toBeInTheDocument();
+  await expect.element(trigger).toHaveFocus();
+
+  await screen.user.keyboard("{Enter}");
+  await expect.element(dialog.getByRole("button", { name: "Close", exact: true })).toHaveFocus();
+  await screen.user.keyboard("{Escape}");
   await expect.element(dialog).not.toBeInTheDocument();
   await expect.element(trigger).toHaveFocus();
 });
