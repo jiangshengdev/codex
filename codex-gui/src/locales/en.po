@@ -177,14 +177,6 @@ msgstr "Code copied"
 msgid "Codex GUI could not be started."
 msgstr "Codex GUI could not be started."
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:243
-#~ msgid "Collapse"
-#~ msgstr "Collapse"
-
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:235
-#~ msgid "Collapse pending message: {previewText}"
-#~ msgstr "Collapse pending message: {previewText}"
-
 #. Accessible name for the region containing committed transcript turns
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:144
 msgid "Committed transcript"
@@ -451,14 +443,6 @@ msgstr "Error - Agent resume failed"
 msgid "Exit fullscreen"
 msgstr "Exit fullscreen"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:243
-#~ msgid "Expand"
-#~ msgstr "Expand"
-
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:236
-#~ msgid "Expand pending message: {previewText}"
-#~ msgstr "Expand pending message: {previewText}"
-
 #. Status chip for a failed turn
 #: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:201
 msgid "Failed"
@@ -490,10 +474,6 @@ msgstr "Go back home"
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:272
 msgid "Guide"
 msgstr "Guide"
-
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:390
-#~ msgid "Guide {guidingCount}"
-#~ msgstr "Guide {guidingCount}"
 
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:66
 msgid "Guide status unknown"
@@ -673,10 +653,6 @@ msgstr "More move options for pending message: {previewText}"
 msgid "More options for {title}"
 msgstr "More options for {title}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:321
-#~ msgid "Move down"
-#~ msgstr "Move down"
-
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:341
 msgid "Move down pending message: {previewText}"
 msgstr "Move down pending message: {previewText}"
@@ -689,10 +665,6 @@ msgstr "Move pending message to first"
 msgid "Move pending message to last"
 msgstr "Move pending message to last"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:329
-#~ msgid "Move to"
-#~ msgstr "Move to"
-
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:373
 msgid "Move to first"
 msgstr "Move to first"
@@ -700,10 +672,6 @@ msgstr "Move to first"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:378
 msgid "Move to last"
 msgstr "Move to last"
-
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:310
-#~ msgid "Move up"
-#~ msgstr "Move up"
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:329
 msgid "Move up pending message: {previewText}"
@@ -795,10 +763,6 @@ msgstr "Operation diagnostic:"
 msgid "Page not found"
 msgstr "Page not found"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:387
-#~ msgid "Pending"
-#~ msgstr "Pending"
-
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:200
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:271
 msgid "Pending details"
@@ -858,10 +822,6 @@ msgstr "QR code for current GUI URL"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:164
 msgid "Queued"
 msgstr "Queued"
-
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:395
-#~ msgid "Queued {ordinaryQueuedCount}"
-#~ msgstr "Queued {ordinaryQueuedCount}"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:214
 msgid "Queued message moved to position {movedPosition} of {movedCount}."

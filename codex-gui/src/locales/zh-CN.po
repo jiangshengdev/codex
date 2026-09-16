@@ -177,14 +177,6 @@ msgstr "代码已复制"
 msgid "Codex GUI could not be started."
 msgstr "Codex GUI 未能启动。"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:243
-#~ msgid "Collapse"
-#~ msgstr "收起"
-
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:235
-#~ msgid "Collapse pending message: {previewText}"
-#~ msgstr "收起待处理消息：{previewText}"
-
 #. Accessible name for the region containing committed transcript turns
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:144
 msgid "Committed transcript"
@@ -451,14 +443,6 @@ msgstr "错误 - 恢复智能体失败"
 msgid "Exit fullscreen"
 msgstr "退出全屏"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:243
-#~ msgid "Expand"
-#~ msgstr "展开"
-
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:236
-#~ msgid "Expand pending message: {previewText}"
-#~ msgstr "展开待处理消息：{previewText}"
-
 #. Status chip for a failed turn
 #: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:201
 msgid "Failed"
@@ -490,10 +474,6 @@ msgstr "返回首页"
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:272
 msgid "Guide"
 msgstr "引导"
-
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:390
-#~ msgid "Guide {guidingCount}"
-#~ msgstr "引导 {guidingCount}"
 
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:66
 msgid "Guide status unknown"
@@ -673,10 +653,6 @@ msgstr "待处理消息的更多移动选项：{previewText}"
 msgid "More options for {title}"
 msgstr "{title} 的更多操作"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:321
-#~ msgid "Move down"
-#~ msgstr "下移"
-
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:341
 msgid "Move down pending message: {previewText}"
 msgstr "下移待处理消息：{previewText}"
@@ -689,10 +665,6 @@ msgstr "将待处理消息移至队首"
 msgid "Move pending message to last"
 msgstr "将待处理消息移至队尾"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:329
-#~ msgid "Move to"
-#~ msgstr "移动到"
-
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:373
 msgid "Move to first"
 msgstr "移至队首"
@@ -700,10 +672,6 @@ msgstr "移至队首"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:378
 msgid "Move to last"
 msgstr "移至队尾"
-
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:310
-#~ msgid "Move up"
-#~ msgstr "上移"
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:329
 msgid "Move up pending message: {previewText}"
@@ -795,10 +763,6 @@ msgstr "操作诊断信息："
 msgid "Page not found"
 msgstr "找不到页面"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:387
-#~ msgid "Pending"
-#~ msgstr "待处理"
-
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:200
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:271
 msgid "Pending details"
@@ -858,10 +822,6 @@ msgstr "当前 GUI URL 的二维码。"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:164
 msgid "Queued"
 msgstr "已排队"
-
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:395
-#~ msgid "Queued {ordinaryQueuedCount}"
-#~ msgstr "排队 {ordinaryQueuedCount}"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:214
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
