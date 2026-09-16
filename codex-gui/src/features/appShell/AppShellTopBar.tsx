@@ -117,7 +117,8 @@ export function AppShellTopBar() {
       <Drawer.Backdrop isOpen={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
         <Drawer.Content placement="left">
           <Drawer.Dialog>
-            <Drawer.CloseTrigger />
+            {/* An initial child focus avoids the dialog's delayed refocus racing nested menus. */}
+            <Drawer.CloseTrigger autoFocus />
             <Drawer.Header>
               <Drawer.Heading>
                 <Trans>Navigation</Trans>
