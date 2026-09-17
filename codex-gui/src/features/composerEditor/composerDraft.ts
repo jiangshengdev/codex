@@ -201,7 +201,8 @@ function compileEditorState(editorState: EditorState): Readonly<{
     const selectedSkillPaths: string[] = [];
     const seenPaths = new Set<string>();
     const root = $getRoot();
-    const text = compileNode(root, skills, selectedSkillPaths, seenPaths);
+    collectSkills(root, skills, selectedSkillPaths, seenPaths);
+    const text = $getComposerText(root.getChildren(), "canonical");
     const input: ReadonlyComposerInputPayload = [
       { type: "text", text, text_elements: [] },
       ...skills.map(({ name, path }) => ({ type: "skill" as const, name, path })),
@@ -214,12 +215,12 @@ function compileEditorState(editorState: EditorState): Readonly<{
   });
 }
 
-function compileNode(
+function collectSkills(
   node: LexicalNode,
   skills: SkillNodeState[],
   selectedSkillPaths: string[],
   seenPaths: Set<string>,
-): string {
+): void {
   if ($isSkillNode(node)) {
     const skill = node.getSkill();
     selectedSkillPaths.push(skill.path);
@@ -227,20 +228,14 @@ function compileNode(
       seenPaths.add(skill.path);
       skills.push(skill);
     }
-    return `$${skill.name}`;
+    return;
   }
 
   if (!$isElementNode(node)) {
-    return node.getTextContent();
+    return;
   }
 
-  const children = node.getChildren();
-  let text = "";
-  for (const [index, child] of children.entries()) {
-    text += compileNode(child, skills, selectedSkillPaths, seenPaths);
-    if ($isElementNode(child) && index !== children.length - 1 && !child.isInline()) {
-      text += "\n";
-    }
+  for (const child of node.getChildren()) {
+    collectSkills(child, skills, selectedSkillPaths, seenPaths);
   }
-  return text;
 }
