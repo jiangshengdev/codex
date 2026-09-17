@@ -47,6 +47,8 @@ test("reaches both sides of a standalone skill across paragraphs with arrow keys
   await screen.user.keyboard("{Shift>}{Enter}{/Shift}last");
   const controller = getController(controllerRef);
   await expect.poll(() => controller.capture().textContent).toBe("first\n$alpha\nlast");
+  // Firefox native caret movement needs iframe focus, even when the editor is activeElement.
+  window.focus();
   // Move across "last" without relying on platform-specific Home behavior.
   await screen.user.keyboard("{ArrowLeft>4/}");
   await screen.user.keyboard("{ArrowLeft}R");
@@ -141,6 +143,8 @@ test("restores legacy soft breaks as paragraphs and preserves editing, history, 
   expect(controller.restore(imported.draft)).toEqual({ type: "restored" });
   await expect.poll(() => controller.capture().textContent).toBe("first\n$Alpha\nlast");
   expect(editor.element().querySelectorAll(":scope > p")).toHaveLength(3);
+  // Restoring the editor selection does not activate the test iframe in Firefox.
+  window.focus();
   // Move across "last" without relying on platform-specific Home behavior.
   await screen.user.keyboard("{ArrowLeft>4/}");
   await screen.user.keyboard("{ArrowLeft}R");
@@ -220,6 +224,8 @@ test.each(["manual", "paste", "restore"] as const)(
     };
     await prepareEntry[entry]();
     await expect.poll(() => controller.capture().textContent).toBe("a\n$alpha$beta\n$alpha\nb");
+    // Activate the iframe before native navigation after manual input, paste, or restore.
+    window.focus();
     await screen.user.keyboard("{ArrowLeft>20/}");
     await screen.user.keyboard("{ArrowRight}");
     await screen.user.keyboard("{ArrowRight}");
