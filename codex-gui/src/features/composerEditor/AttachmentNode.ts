@@ -25,6 +25,7 @@ type SerializedAttachmentNode = Spread<
   SerializedLexicalNode
 >;
 export const RETRY_ATTACHMENT_COMMAND = createCommand<NodeKey>("retry-attachment");
+export const ADD_ATTACHMENTS_COMMAND = createCommand<readonly File[]>("add-attachments");
 
 export class AttachmentNode extends DecoratorNode<JSX.Element> {
   __attachment: AttachmentState;

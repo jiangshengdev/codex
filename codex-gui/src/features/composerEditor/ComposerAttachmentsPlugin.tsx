@@ -16,6 +16,7 @@ import { attachmentMedia } from "./attachmentMedia";
 import {
   $createAttachmentNode,
   $isAttachmentNode,
+  ADD_ATTACHMENTS_COMMAND,
   RETRY_ATTACHMENT_COMMAND,
 } from "./AttachmentNode";
 
@@ -32,6 +33,31 @@ export function ComposerAttachmentsPlugin({
   useEffect(() => {
     const entries = uploads.current;
     const unregister = mergeRegister(
+      editor.registerCommand(
+        ADD_ATTACHMENTS_COMMAND,
+        (files) => {
+          if (files.length === 0 || !editor.isEditable()) return false;
+          const nodes = files.map((file) => {
+            const node = $createAttachmentNode({
+              id: crypto.randomUUID(),
+              name: file.name,
+              mediaType: attachmentMedia(file) === "file" ? "file" : "image",
+              status: "uploading",
+              path: "",
+              failure: null,
+            });
+            entries.set(node.getKey(), { file, request: null });
+            return node;
+          });
+          const selection = $getSelection();
+          if ($isRangeSelection(selection) || $isNodeSelection(selection))
+            selection.insertNodes(nodes);
+          else $getRoot().selectEnd().insertNodes(nodes);
+          for (const node of nodes) void startUpload(node.getKey());
+          return true;
+        },
+        COMMAND_PRIORITY_HIGH,
+      ),
       editor.registerUpdateListener(({ editorState }) => {
         editorState.read(() => {
           for (const [key, entry] of entries) {
@@ -107,30 +133,7 @@ export function ComposerAttachmentsPlugin({
       onChange={(event) => {
         const files = Array.from(event.currentTarget.files ?? []);
         event.currentTarget.value = "";
-        if (files.length === 0 || !editor.isEditable()) return;
-        editor.update(
-          () => {
-            const nodes = files.map((file) => {
-              const node = $createAttachmentNode({
-                id: crypto.randomUUID(),
-                name: file.name,
-                mediaType: attachmentMedia(file) === "file" ? "file" : "image",
-                status: "uploading",
-                path: "",
-                failure: null,
-              });
-              uploads.current.set(node.getKey(), { file, request: null });
-              return node;
-            });
-            const selection = $getSelection();
-            if ($isRangeSelection(selection) || $isNodeSelection(selection))
-              selection.insertNodes(nodes);
-            else $getRoot().selectEnd().insertNodes(nodes);
-            for (const node of nodes)
-              editor.dispatchCommand(RETRY_ATTACHMENT_COMMAND, node.getKey());
-          },
-          { discrete: true },
-        );
+        editor.dispatchCommand(ADD_ATTACHMENTS_COMMAND, files);
         editor.focus();
       }}
     />

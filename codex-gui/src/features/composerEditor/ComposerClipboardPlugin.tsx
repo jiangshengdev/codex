@@ -25,6 +25,8 @@ import {
 } from "lexical";
 import { useEffect } from "react";
 import { $getComposerText } from "./composerText";
+import { ADD_ATTACHMENTS_COMMAND } from "./AttachmentNode";
+import { attachmentMedia } from "./attachmentMedia";
 
 const LEXICAL_MIME_TYPE = "application/x-lexical-editor";
 
@@ -59,6 +61,13 @@ export function ComposerClipboardPlugin() {
             const dataTransfer = dataTransferFromPasteEvent(event);
             if (dataTransfer == null) return false;
             event.preventDefault();
+            const images = Array.from(dataTransfer.files).filter(
+              (file) => attachmentMedia(file) !== "file",
+            );
+            if (images.length > 0) {
+              editor.dispatchCommand(ADD_ATTACHMENTS_COMMAND, images);
+              return true;
+            }
             editor.update(
               () => {
                 const selection = $getSelection();
