@@ -222,6 +222,20 @@ test("a mixed-result batch keeps input order and retries only the failed file", 
   expect(steerTurn).not.toHaveBeenCalled();
   await composer.getByRole("button", { name: "Retry upload b.txt", exact: true }).click();
   await expect.element(screen.getByRole("button", { name: "Guide", exact: true })).toBeEnabled();
+  await composer.click();
+  await userEvent.keyboard(
+    navigator.platform.startsWith("Mac") ? "{Meta>}a{/Meta}" : "{Control>}a{/Control}",
+  );
+  const copied = new DataTransfer();
+  const copyEvent = new ClipboardEvent("copy", {
+    clipboardData: copied,
+    bubbles: true,
+    cancelable: true,
+  });
+  // Firefox creates a separate DataTransfer for synthetic clipboard events.
+  Object.defineProperty(copyEvent, "clipboardData", { value: copied });
+  composer.element().dispatchEvent(copyEvent);
+  expect(copied.getData("text/plain")).toBe("/tmp/a.txt /tmp/b.txt");
   await screen.getByRole("button", { name: "Guide", exact: true }).click();
   await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
   expect(steerTurnParamsAt(steerTurn, 0).input).toEqual([
