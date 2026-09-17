@@ -20,6 +20,7 @@ import {
 } from "lexical";
 import { useEffect } from "react";
 import { $normalizeComposerLineBreak } from "./composerParagraphs";
+import { ADD_ATTACHMENTS_COMMAND } from "./AttachmentNode";
 
 export function ComposerContentModelPlugin() {
   const [editor] = useLexicalComposerContext();
@@ -40,7 +41,16 @@ export function ComposerContentModelPlugin() {
         editor.registerNodeTransform(LineBreakNode, $normalizeComposerLineBreak),
         editor.registerCommand(DRAGSTART_COMMAND, disableDragAndDrop, COMMAND_PRIORITY_HIGH),
         editor.registerCommand(DRAGOVER_COMMAND, disableDragAndDrop, COMMAND_PRIORITY_HIGH),
-        editor.registerCommand(DROP_COMMAND, disableDragAndDrop, COMMAND_PRIORITY_HIGH),
+        editor.registerCommand(
+          DROP_COMMAND,
+          (event) => {
+            event.preventDefault();
+            const files = Array.from(event.dataTransfer?.files ?? []);
+            if (files.length > 0) editor.dispatchCommand(ADD_ATTACHMENTS_COMMAND, files);
+            return true;
+          },
+          COMMAND_PRIORITY_HIGH,
+        ),
         editor.registerCommand(
           KEY_ESCAPE_COMMAND,
           (event) => {

@@ -27,6 +27,44 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
+test("dropping mixed files adds one ordered batch without navigating away", async () => {
+  const upload = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation((url, options) =>
+      Promise.resolve(
+        options?.method === "POST"
+          ? new Response(String(url).includes("picture.png") ? "/tmp/p.png" : "/tmp/n.txt", {
+              status: 201,
+            })
+          : new Response("missing", { status: 404 }),
+      ),
+    );
+  const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
+  await composer.fill("look ");
+  const data = new DataTransfer();
+  data.items.add(new File(["image bytes"], "picture.png", { type: "image/png" }));
+  data.items.add(new File(["note bytes"], "notes.txt", { type: "text/plain" }));
+  const event = new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true });
+  composer.element().dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(true);
+  await expect.element(composer.getByText("picture.png", { exact: true })).toBeVisible();
+  await expect.element(composer.getByText("notes.txt", { exact: true })).toBeVisible();
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  expect(steerTurnParamsAt(steerTurn, 0).input).toEqual([
+    {
+      type: "text",
+      text: "look /tmp/p.png /tmp/n.txt",
+      text_elements: [
+        { byteRange: { start: 5, end: 15 }, placeholder: "picture.png" },
+        { byteRange: { start: 16, end: 26 }, placeholder: "notes.txt" },
+      ],
+    },
+    { type: "localImage", path: "/tmp/p.png" },
+  ]);
+  expect(upload.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(2);
+});
+
 test("pasted image bytes enter the attachment flow without pasting their HTML representation", async () => {
   const fetch = vi
     .spyOn(globalThis, "fetch")
