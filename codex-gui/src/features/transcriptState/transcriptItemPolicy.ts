@@ -308,6 +308,9 @@ export const projectCompletedTranscriptItem = (
           role: "user",
           source,
           sourceKind: "plainText",
+          ...(item.content.some((input) => input.type === "text" && input.text_elements.length > 0)
+            ? { textInputs: item.content.filter((input) => input.type === "text") }
+            : {}),
           phase: null,
           revision: 0,
         },

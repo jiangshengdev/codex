@@ -34,6 +34,8 @@ import {
   type ComposerDraftRestoreResult,
 } from "./composerDraft";
 import { SkillNode } from "./SkillNode";
+import { AttachmentNode } from "./AttachmentNode";
+import { ComposerAttachmentsPlugin } from "./ComposerAttachmentsPlugin";
 import { SkillTypeaheadPlugin, type SkillTypeaheadPlacement } from "./SkillTypeaheadPlugin";
 
 export type ComposerEditorSkillMenuPlacement = SkillTypeaheadPlacement;
@@ -41,6 +43,7 @@ export type ComposerEditorSkillMenuPlacement = SkillTypeaheadPlacement;
 export type ComposerEditorSnapshot = Readonly<{
   textContent: string;
   selectedSkillPaths: readonly string[];
+  attachmentsReady?: boolean;
 }>;
 
 export type ComposerEditorSubmitIntent = NonNullable<
@@ -58,6 +61,7 @@ export type ComposerEditorController = Readonly<{
 }>;
 
 export type ComposerEditorProps = Readonly<{
+  authorizationToken?: string | null;
   ariaLabel: string;
   controllerRef?: Ref<ComposerEditorController>;
   disabled: boolean;
@@ -78,6 +82,7 @@ export type ComposerEditorProps = Readonly<{
 }>;
 
 export function ComposerEditor({
+  authorizationToken,
   ariaLabel,
   controllerRef,
   disabled,
@@ -175,6 +180,9 @@ export function ComposerEditor({
           />
         )}
         <ComposerClipboardPlugin />
+        {authorizationToken == null ? null : (
+          <ComposerAttachmentsPlugin authorizationToken={authorizationToken} disabled={disabled} />
+        )}
       </SelectedSkillPresentationEnvironment>
     </LexicalComposer>
   );
@@ -182,7 +190,7 @@ export function ComposerEditor({
 
 const initialConfig = {
   namespace: "codex-composer",
-  nodes: [SkillNode],
+  nodes: [SkillNode, AttachmentNode],
   onError(error: Error) {
     throw error;
   },

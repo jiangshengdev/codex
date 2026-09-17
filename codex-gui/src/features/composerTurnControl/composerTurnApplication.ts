@@ -122,7 +122,10 @@ class ComposerTurnApplicationImpl implements ComposerTurnApplication {
     this.observeProjection(session);
     const operationsEnabled =
       !this.disposed && session.phase === "active" && session.connection.phase === "available";
-    const sendingEnabled = operationsEnabled && session.composer.persistence.error == null;
+    const sendingEnabled =
+      operationsEnabled &&
+      session.composer.persistence.error == null &&
+      editor?.attachmentsReady !== false;
     const isSubmitting = this.activeSubmission != null;
     const invalidPaths = invalidSelectedSkillPaths(
       session.skills,
@@ -167,6 +170,7 @@ class ComposerTurnApplicationImpl implements ComposerTurnApplication {
     if (input.session.composer.persistence.error != null) return ignored;
     const controller = input.controller;
     const capture = input.capture ?? controller.capture();
+    if (!capture.attachmentsReady) return ignored;
     if (!this.accepts(input.session) || this.activeSubmission != null) return ignored;
 
     const guide = composerGuideControlState({

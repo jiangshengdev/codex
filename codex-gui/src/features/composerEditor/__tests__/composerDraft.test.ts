@@ -187,6 +187,7 @@ describe("composerDraft", () => {
 
     expect(projectComposerDraft(editor.getEditorState())).toEqual({
       textContent: "Before $First and $Second\n$Third after",
+      attachmentsReady: true,
       selectedSkillPaths: [repeatedPath, repeatedPath, "/example/skills/third/SKILL.md"],
     });
   });

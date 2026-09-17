@@ -131,6 +131,11 @@ msgstr "An unexpected error occurred while continuing the task."
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
+#. Choose local files to attach to the current message
+#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:86
+msgid "Attach files"
+msgstr "Attach files"
+
 #. Description for the task history destination in the navigation drawer
 #: src/features/appShell/AppShellTopBar.tsx:243
 msgid "Browse task history"
@@ -152,7 +157,7 @@ msgstr "Changes could not be saved"
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 
-#: src/features/fileUpload/FileUploadDialog.tsx:84
+#: src/features/fileUpload/FileUploadDialog.tsx:73
 msgid "Choose a file"
 msgstr "Choose a file"
 
@@ -166,7 +171,7 @@ msgstr "Cleanup diagnostic:"
 msgid "Close diagnostics"
 msgstr "Close diagnostics"
 
-#: src/features/fileUpload/FileUploadDialog.tsx:70
+#: src/features/fileUpload/FileUploadDialog.tsx:59
 msgid "Close file upload"
 msgstr "Close file upload"
 
@@ -457,19 +462,21 @@ msgid "Failed"
 msgstr "Failed"
 
 #. Status entry indicating that transcript processing failed
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:111
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:114
 msgid "Failed."
 msgstr "Failed."
 
-#: src/features/fileUpload/FileUploadDialog.tsx:121
+#: src/features/fileUpload/FileUploadDialog.tsx:110
 msgid "File saved on the Codex machine"
 msgstr "File saved on the Codex machine"
 
-#: src/features/fileUpload/FileUploadDialog.tsx:106
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:70
+#: src/features/fileUpload/FileUploadDialog.tsx:95
 msgid "File upload failed."
 msgstr "File upload failed."
 
-#: src/features/fileUpload/FileUploadDialog.tsx:104
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:66
+#: src/features/fileUpload/FileUploadDialog.tsx:93
 msgid "File upload is not authorized. Open the current GUI launch link."
 msgstr "File upload is not authorized. Open the current GUI launch link."
 
@@ -491,7 +498,7 @@ msgid "Go back home"
 msgstr "Go back home"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:401
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:272
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:273
 msgid "Guide"
 msgstr "Guide"
 
@@ -559,7 +566,7 @@ msgid "Interrupted <0/> <1/>"
 msgstr "Interrupted <0/> <1/>"
 
 #. Status entry indicating that transcript processing was interrupted
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:105
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:108
 msgid "Interrupted."
 msgstr "Interrupted."
 
@@ -640,8 +647,8 @@ msgstr "Menu"
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:204
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:214
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:205
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:215
 #: src/features/newSession/NewSessionPage.tsx:137
 #: src/features/newSession/NewSessionPage.tsx:153
 msgid "Message Codex"
@@ -847,6 +854,11 @@ msgstr "Queued"
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "Queued message moved to position {movedPosition} of {movedCount}."
 
+#. Attachment upload completed and it can be sent
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:62
+msgid "Ready"
+msgstr "Ready"
+
 #. Manually re-establish the shared GUI host connection
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:31
 msgid "Reconnect"
@@ -892,6 +904,16 @@ msgstr "Reload skills"
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:414
 msgid "Reloading skills…"
 msgstr "Reloading skills…"
+
+#. Remove an attachment from the draft
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:100
+msgid "Remove"
+msgstr "Remove"
+
+#. Remove the named attachment from the draft
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:89
+msgid "Remove {name}"
+msgstr "Remove {name}"
 
 #. Remove only from the active GUI task list; history and draft are kept
 #: src/features/appShell/ActiveThreadCollectionMenu.tsx:156
@@ -990,9 +1012,15 @@ msgid "Retry saving this task's state before removing it."
 msgstr "Retry saving this task's state before removing it."
 
 #. Manually resend the entire selected file after an upload failure
-#: src/features/fileUpload/FileUploadDialog.tsx:144
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:83
+#: src/features/fileUpload/FileUploadDialog.tsx:133
 msgid "Retry upload"
 msgstr "Retry upload"
+
+#. Retry uploading the named attachment
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:77
+msgid "Retry upload {name}"
+msgstr "Retry upload {name}"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:131
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:163
@@ -1021,7 +1049,7 @@ msgstr "Running"
 msgid "Save"
 msgstr "Save"
 
-#: src/features/fileUpload/FileUploadDialog.tsx:78
+#: src/features/fileUpload/FileUploadDialog.tsx:67
 msgid "Save a file on the machine running Codex. Maximum size: 50 MiB. Uploading does not send a message."
 msgstr "Save a file on the machine running Codex. Maximum size: 50 MiB. Uploading does not send a message."
 
@@ -1030,7 +1058,7 @@ msgstr "Save a file on the machine running Codex. Maximum size: 50 MiB. Uploadin
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:284
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:285
 #: src/features/newSession/NewSessionPage.tsx:173
 msgid "Send"
 msgstr "Send"
@@ -1108,11 +1136,11 @@ msgstr "Start a conversation"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:260
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:261
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:251
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:252
 msgid "Stop failed"
 msgstr "Stop failed"
 
@@ -1216,11 +1244,12 @@ msgstr "The current task could not be loaded."
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
 
-#: src/features/fileUpload/FileUploadDialog.tsx:102
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:64
+#: src/features/fileUpload/FileUploadDialog.tsx:91
 msgid "The file exceeds the 50 MiB limit."
 msgstr "The file exceeds the 50 MiB limit."
 
-#: src/features/fileUpload/FileUploadDialog.tsx:112
+#: src/features/fileUpload/FileUploadDialog.tsx:101
 msgid "The file may already have been saved. Retrying uploads the entire file again and may create another copy."
 msgstr "The file may already have been saved. Retrying uploads the entire file again and may create another copy."
 
@@ -1450,14 +1479,23 @@ msgid "Updated pending order could not be loaded"
 msgstr "Updated pending order could not be loaded"
 
 #. Send the selected local file to the machine running Codex
-#: src/features/fileUpload/FileUploadDialog.tsx:148
+#: src/features/fileUpload/FileUploadDialog.tsx:137
 msgid "Upload"
 msgstr "Upload"
 
-#: src/features/fileUpload/FileUploadDialog.tsx:65
-#: src/features/fileUpload/FileUploadDialog.tsx:73
+#: src/features/fileUpload/FileUploadDialog.tsx:54
+#: src/features/fileUpload/FileUploadDialog.tsx:62
 msgid "Upload file"
 msgstr "Upload file"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:68
+msgid "Upload interrupted. Remove and add the file again."
+msgstr "Upload interrupted. Remove and add the file again."
+
+#. Attachment is being transferred to the Codex machine
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:60
+msgid "Uploading"
+msgstr "Uploading"
 
 #. Source label for a skill installed by the current user
 #. Source label for a skill installed by the current user

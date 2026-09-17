@@ -13,6 +13,7 @@ import {
 } from "./TranscriptActivityEntries";
 import { LiveMarkdownText } from "./LiveMarkdownText";
 import { MarkdownText } from "./MarkdownText";
+import { UserMessageText } from "./UserMessageText";
 import {
   presentSubAgentActivityGroup,
   subAgentActivityPresentationInput,
@@ -74,6 +75,8 @@ const MessageEntryBody = ({
   enableMath: boolean;
 }) => {
   switch (rendering.mode) {
+    case "userText":
+      return <UserMessageText inputs={rendering.inputs} />;
     case "plainText":
       return (
         <Typography
