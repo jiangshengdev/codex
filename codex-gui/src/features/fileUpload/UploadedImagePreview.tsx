@@ -35,13 +35,13 @@ function ImagePreview({ path, name, authorizationToken }: UploadedImagePreviewPr
         });
         if (!response.ok) throw new Error("Image preview request failed");
         const blob = await response.blob();
-        if (controller.signal.aborted) return;
+        controller.signal.throwIfAborted();
         objectUrl = URL.createObjectURL(blob);
         reason = "decode";
         const image = new Image();
         image.src = objectUrl;
         await image.decode();
-        if (controller.signal.aborted) return;
+        controller.signal.throwIfAborted();
         setOutcome({ type: "ready", url: objectUrl });
       } catch {
         if (objectUrl != null) {

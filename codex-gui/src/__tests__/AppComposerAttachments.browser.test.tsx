@@ -301,7 +301,7 @@ test("an image is previewable in the draft and authoritative history and sends a
       .filter(([, options]) => options?.method !== "POST")
       .every(
         ([url, options]) =>
-          String(url) === "/upload/preview?path=%2Ftmp%2Fcodex-upload-image.png" &&
+          url === "/upload/preview?path=%2Ftmp%2Fcodex-upload-image.png" &&
           new Headers(options?.headers).get("Authorization") === "Bearer secret",
       ),
   ).toBe(true);

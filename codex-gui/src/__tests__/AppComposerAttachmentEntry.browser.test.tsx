@@ -28,17 +28,15 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 test("dropping mixed files adds one ordered batch without navigating away", async () => {
-  const upload = vi
-    .spyOn(globalThis, "fetch")
-    .mockImplementation((url, options) =>
-      Promise.resolve(
-        options?.method === "POST"
-          ? new Response(String(url).includes("picture.png") ? "/tmp/p.png" : "/tmp/n.txt", {
-              status: 201,
-            })
-          : new Response("missing", { status: 404 }),
-      ),
-    );
+  const upload = vi.spyOn(globalThis, "fetch").mockImplementation((url, options) =>
+    Promise.resolve(
+      options?.method === "POST"
+        ? new Response(url === "/upload?filename=picture.png" ? "/tmp/p.png" : "/tmp/n.txt", {
+            status: 201,
+          })
+        : new Response("missing", { status: 404 }),
+    ),
+  );
   const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
   await composer.fill("look ");
   const data = new DataTransfer();

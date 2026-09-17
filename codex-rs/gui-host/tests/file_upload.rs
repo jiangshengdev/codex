@@ -131,7 +131,11 @@ async fn file_preview_requires_token_trusted_host_and_valid_origin_when_present(
             Some("http://untrusted.invalid"),
             authority.as_str(),
         ),
-        (host.launch_token().as_str(), Some("null"), authority.as_str()),
+        (
+            host.launch_token().as_str(),
+            Some("null"),
+            authority.as_str(),
+        ),
         (host.launch_token().as_str(), Some(""), authority.as_str()),
         (host.launch_token().as_str(), None, "untrusted.invalid"),
         (
