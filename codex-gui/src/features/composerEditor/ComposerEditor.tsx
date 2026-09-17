@@ -34,6 +34,9 @@ import {
   type ComposerDraftRestoreResult,
 } from "./composerDraft";
 import { SkillNode } from "./SkillNode";
+import { AttachmentNode } from "./AttachmentNode";
+import { ComposerAttachmentsPlugin } from "./ComposerAttachmentsPlugin";
+import { AttachmentAuthorizationContext } from "./attachmentEnvironment";
 import { SkillTypeaheadPlugin, type SkillTypeaheadPlacement } from "./SkillTypeaheadPlugin";
 
 export type ComposerEditorSkillMenuPlacement = SkillTypeaheadPlacement;
@@ -41,6 +44,7 @@ export type ComposerEditorSkillMenuPlacement = SkillTypeaheadPlacement;
 export type ComposerEditorSnapshot = Readonly<{
   textContent: string;
   selectedSkillPaths: readonly string[];
+  attachmentsReady?: boolean;
 }>;
 
 export type ComposerEditorSubmitIntent = NonNullable<
@@ -58,6 +62,7 @@ export type ComposerEditorController = Readonly<{
 }>;
 
 export type ComposerEditorProps = Readonly<{
+  authorizationToken?: string | null;
   ariaLabel: string;
   controllerRef?: Ref<ComposerEditorController>;
   disabled: boolean;
@@ -78,6 +83,7 @@ export type ComposerEditorProps = Readonly<{
 }>;
 
 export function ComposerEditor({
+  authorizationToken,
   ariaLabel,
   controllerRef,
   disabled,
@@ -118,71 +124,79 @@ export function ComposerEditor({
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <SelectedSkillPresentationEnvironment
-        disabled={disabled}
-        skillCatalog={skillCatalog}
-        skillValidity={skillValidity}
-      >
-        <div className="relative min-w-0">
-          <RichTextPlugin
-            contentEditable={
-              <ContentEditable
-                aria-autocomplete="list"
-                aria-label={ariaLabel}
-                aria-keyshortcuts={shortcuts.guide.aria}
-                aria-multiline="true"
-                className="min-h-24 w-full min-w-0 resize-none overflow-x-hidden overflow-y-auto bg-transparent px-3 py-2 leading-6 whitespace-pre-wrap outline-none [max-height:min(13rem,30vh)] [overflow-wrap:anywhere]"
-                onCompositionEnd={onCompositionEnd}
-                onCompositionStart={onCompositionStart}
-                spellCheck
-              />
-            }
-            ErrorBoundary={LexicalErrorBoundary}
-            placeholder={
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 top-0 px-3 py-2 leading-6 text-field-placeholder"
-              >
-                {placeholder}
-              </div>
-            }
+      <AttachmentAuthorizationContext value={authorizationToken ?? null}>
+        <SelectedSkillPresentationEnvironment
+          disabled={disabled}
+          skillCatalog={skillCatalog}
+          skillValidity={skillValidity}
+        >
+          <div className="relative min-w-0">
+            <RichTextPlugin
+              contentEditable={
+                <ContentEditable
+                  aria-autocomplete="list"
+                  aria-label={ariaLabel}
+                  aria-keyshortcuts={shortcuts.guide.aria}
+                  aria-multiline="true"
+                  className="min-h-24 w-full min-w-0 resize-none overflow-x-hidden overflow-y-auto bg-transparent px-3 py-2 leading-6 whitespace-pre-wrap outline-none [max-height:min(13rem,30vh)] [overflow-wrap:anywhere]"
+                  onCompositionEnd={onCompositionEnd}
+                  onCompositionStart={onCompositionStart}
+                  spellCheck
+                />
+              }
+              ErrorBoundary={LexicalErrorBoundary}
+              placeholder={
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 top-0 px-3 py-2 leading-6 text-field-placeholder"
+                >
+                  {placeholder}
+                </div>
+              }
+            />
+          </div>
+          <ComposerContentModelPlugin />
+          <EnterCommandPlugin
+            activeControllerRef={activeControllerRef}
+            isComposingRef={isComposingRef}
+            onSubmitRef={onSubmitRef}
+            shortcuts={shortcuts}
+            suppressNextEnterRef={suppressNextEnterRef}
           />
-        </div>
-        <ComposerContentModelPlugin />
-        <EnterCommandPlugin
-          activeControllerRef={activeControllerRef}
-          isComposingRef={isComposingRef}
-          onSubmitRef={onSubmitRef}
-          shortcuts={shortcuts}
-          suppressNextEnterRef={suppressNextEnterRef}
-        />
-        <HistoryPlugin />
-        <ComposerControllerPlugin
-          activeControllerRef={activeControllerRef}
-          controllerRef={controllerRef}
-          onControllerChange={onControllerChange}
-          initialDraft={initialDraft}
-          onDraftChange={onDraftChange}
-        />
-        <EditablePlugin disabled={disabled} />
-        <ComposerAtomicNodePlugin />
-        {skillMenuParent == null ? null : (
-          <SkillTypeaheadPlugin
-            onRetry={onRetrySkillCatalog}
-            placement={skillMenuPlacement}
-            portalParent={skillMenuParent}
-            skillCatalog={skillCatalog}
+          <HistoryPlugin />
+          <ComposerControllerPlugin
+            activeControllerRef={activeControllerRef}
+            controllerRef={controllerRef}
+            onControllerChange={onControllerChange}
+            initialDraft={initialDraft}
+            onDraftChange={onDraftChange}
           />
-        )}
-        <ComposerClipboardPlugin />
-      </SelectedSkillPresentationEnvironment>
+          <EditablePlugin disabled={disabled} />
+          <ComposerAtomicNodePlugin />
+          {skillMenuParent == null ? null : (
+            <SkillTypeaheadPlugin
+              onRetry={onRetrySkillCatalog}
+              placement={skillMenuPlacement}
+              portalParent={skillMenuParent}
+              skillCatalog={skillCatalog}
+            />
+          )}
+          <ComposerClipboardPlugin />
+          {authorizationToken == null ? null : (
+            <ComposerAttachmentsPlugin
+              authorizationToken={authorizationToken}
+              disabled={disabled}
+            />
+          )}
+        </SelectedSkillPresentationEnvironment>
+      </AttachmentAuthorizationContext>
     </LexicalComposer>
   );
 }
 
 const initialConfig = {
   namespace: "codex-composer",
-  nodes: [SkillNode],
+  nodes: [SkillNode, AttachmentNode],
   onError(error: Error) {
     throw error;
   },

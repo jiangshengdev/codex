@@ -1,7 +1,8 @@
-import { MAX_UPLOAD_BYTES, UPLOAD_PATH, type GuiUploadParams } from "@codex-gui-host-contract";
+import { MAX_UPLOAD_BYTES } from "@codex-gui-host-contract";
 import { Button, Modal } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useId, useRef, useState } from "react";
+import { uploadFile } from "./uploadFile";
 
 export function FileUploadDialog({ authorizationToken }: { authorizationToken: string | null }) {
   const { t } = useLingui();
@@ -32,25 +33,13 @@ export function FileUploadDialog({ authorizationToken }: { authorizationToken: s
     request.current = controller;
     setPending(true);
     try {
-      const query = new URLSearchParams({ filename: file.name } satisfies GuiUploadParams);
-      const response = await fetch(`${UPLOAD_PATH}?${query}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${authorizationToken}`,
-          "Content-Type": "application/octet-stream",
-        },
-        body: file,
-        signal: controller.signal,
-      });
+      const result = await uploadFile(file, authorizationToken, controller.signal);
       if (controller.signal.aborted) return;
-      if (response.status !== 201) {
-        setFailure(
-          response.status === 413 ? "size" : response.status === 403 ? "authorization" : "upload",
-        );
+      if (result.type === "failed") {
+        setFailure(result.reason);
         return;
       }
-      const uploadedPath = await response.text();
-      if (request.current === controller) setPath(uploadedPath);
+      if (request.current === controller) setPath(result.path);
     } catch {
       if (!controller.signal.aborted) setFailure("upload");
     } finally {

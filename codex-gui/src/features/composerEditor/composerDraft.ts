@@ -15,6 +15,8 @@ import {
 import type { ReadonlyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 
 import { $isSkillNode, SkillNode, type SkillNodeState } from "./SkillNode";
+import { $isAttachmentNode, AttachmentNode } from "./AttachmentNode";
+import type { UserInput } from "@codex-protocol/v2";
 import { $getComposerText } from "./composerText";
 import { $normalizeComposerLineBreak } from "./composerParagraphs";
 
@@ -32,6 +34,7 @@ export type ComposerDraftCapture = Readonly<{
   input: ReadonlyComposerInputPayload;
   textContent: string;
   selectedSkillPaths: readonly string[];
+  attachmentsReady: boolean;
 }>;
 
 export type ComposerDraftRestoreResult =
@@ -41,6 +44,7 @@ export type ComposerDraftRestoreResult =
 export type ComposerDraftProjection = Readonly<{
   textContent: string;
   selectedSkillPaths: readonly string[];
+  attachmentsReady: boolean;
 }>;
 
 // The editor owns the JSON payload; persistence consumers retain it unchanged.
@@ -89,7 +93,7 @@ export function importComposerDraft(value: unknown): ComposerDraftImportResult {
     // importJSON, including SkillNode's own version and field validation.
     const editor = createEditor({
       namespace: "codex-composer-draft-import",
-      nodes: [SkillNode],
+      nodes: [SkillNode, AttachmentNode],
       onError(error) {
         throw error;
       },
@@ -116,7 +120,8 @@ export function importComposerDraft(value: unknown): ComposerDraftImportResult {
 
 export function captureComposerDraft(editorState: EditorState): ComposerDraftCapture {
   const serializedEditorState = editorState.toJSON();
-  const { input, selectedSkillPaths, textContent } = compileEditorState(editorState);
+  const { input, selectedSkillPaths, textContent, attachmentsReady } =
+    compileEditorState(editorState);
   const draft = { [composerDraftBrand]: true } as ComposerDraft;
   composerDraftRecords.set(draft, {
     version: composerDraftVersion,
@@ -129,6 +134,7 @@ export function captureComposerDraft(editorState: EditorState): ComposerDraftCap
     input,
     textContent,
     selectedSkillPaths,
+    attachmentsReady,
   } as ComposerDraftCapture;
   composerDraftCaptureStates.set(capture, editorState);
   return capture;
@@ -141,6 +147,9 @@ export function projectComposerDraft(editorState: EditorState): ComposerDraftPro
     return {
       textContent: $getComposerText($getRoot().getChildren(), "display"),
       selectedSkillPaths,
+      attachmentsReady: $nodesOfType(AttachmentNode).every(
+        (node) => node.getAttachment().status === "ready",
+      ),
     };
   });
 }
@@ -195,24 +204,74 @@ function compileEditorState(editorState: EditorState): Readonly<{
   input: ReadonlyComposerInputPayload;
   selectedSkillPaths: readonly string[];
   textContent: string;
+  attachmentsReady: boolean;
 }> {
   return editorState.read(() => {
     const skills: SkillNodeState[] = [];
     const selectedSkillPaths: string[] = [];
     const seenPaths = new Set<string>();
     const root = $getRoot();
+    const images: Extract<UserInput, { type: "localImage" }>[] = [];
+    const collectImages = (node: LexicalNode): void => {
+      if ($isAttachmentNode(node)) {
+        const attachment = node.getAttachment();
+        if (attachment.status === "ready" && attachment.mediaType === "image")
+          images.push({ type: "localImage", path: attachment.path });
+      } else if ($isElementNode(node)) {
+        for (const child of node.getChildren()) collectImages(child);
+      }
+    };
+    collectImages(root);
     collectSkills(root, skills, selectedSkillPaths, seenPaths);
-    const text = $getComposerText(root.getChildren(), "canonical");
+    const { text, text_elements } = compileTextElements(root.getChildren());
     const input: ReadonlyComposerInputPayload = [
-      { type: "text", text, text_elements: [] },
+      { type: "text", text, text_elements },
+      ...images,
       ...skills.map(({ name, path }) => ({ type: "skill" as const, name, path })),
     ];
     return {
       input,
       selectedSkillPaths,
       textContent: $getComposerText(root.getChildren(), "display"),
+      attachmentsReady: $nodesOfType(AttachmentNode).every(
+        (node) => node.getAttachment().status === "ready",
+      ),
     };
   });
+}
+
+function compileTextElements(
+  nodes: readonly LexicalNode[],
+): Pick<Extract<UserInput, { type: "text" }>, "text" | "text_elements"> {
+  let text = "";
+  const text_elements: Extract<UserInput, { type: "text" }>["text_elements"] = [];
+  const encoder = new TextEncoder();
+  let previous: LexicalNode | undefined;
+  for (const node of nodes) {
+    if (previous != null && (!previous.isInline() || !node.isInline())) text += "\n";
+    else if ($isAttachmentNode(previous) && $isAttachmentNode(node)) text += " ";
+    const start = encoder.encode(text).length;
+    if ($isAttachmentNode(node)) {
+      const attachment = node.getAttachment();
+      text += attachment.path;
+      if (attachment.status === "ready")
+        text_elements.push({
+          byteRange: { start, end: encoder.encode(text).length },
+          placeholder: attachment.name,
+        });
+    } else if ($isElementNode(node)) {
+      const child = compileTextElements(node.getChildren());
+      text += child.text;
+      text_elements.push(
+        ...child.text_elements.map((element) => ({
+          ...element,
+          byteRange: { start: start + element.byteRange.start, end: start + element.byteRange.end },
+        })),
+      );
+    } else text += $getComposerText([node], "canonical");
+    previous = node;
+  }
+  return { text, text_elements };
 }
 
 function collectSkills(

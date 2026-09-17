@@ -3,6 +3,7 @@ import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  $nodesOfType,
   $isElementNode,
   createEditor,
   type LexicalNode,
@@ -19,8 +20,140 @@ import {
   type ComposerDraft,
 } from "../composerDraft";
 import { $createSkillNode, $isSkillNode, SkillNode, type SkillNodeState } from "../SkillNode";
+import { $createAttachmentNode, AttachmentNode } from "../AttachmentNode";
 
 describe("composerDraft", () => {
+  it("round-trips mixed UTF-8 text, a skill, a file, and images in document rather than creation order", () => {
+    const source = createTestEditor();
+    const selected = skill("alpha", "/skills/alpha", "技能");
+    source.update(
+      () => {
+        const secondImage = $createAttachmentNode({
+          id: "image-2",
+          name: "第二张.png",
+          mediaType: "image",
+          status: "ready",
+          path: "/tmp/second.png",
+          failure: null,
+        });
+        const firstImage = $createAttachmentNode({
+          id: "image-1",
+          name: "第一张.png",
+          mediaType: "image",
+          status: "ready",
+          path: "/tmp/first.png",
+          failure: null,
+        });
+        const file = $createAttachmentNode({
+          id: "file",
+          name: "报告.txt",
+          mediaType: "file",
+          status: "ready",
+          path: "/tmp/a.txt",
+          failure: null,
+        });
+        $getRoot().append(
+          $createParagraphNode().append(
+            $createTextNode("资料🙂 "),
+            $createSkillNode(selected),
+            $createTextNode(" "),
+            file,
+            $createTextNode(" "),
+            firstImage,
+            $createTextNode(" "),
+            secondImage,
+          ),
+        );
+      },
+      { discrete: true },
+    );
+    const original = captureComposerDraft(source.getEditorState());
+    const expected = {
+      input: [
+        {
+          type: "text",
+          text: "资料🙂 $alpha /tmp/a.txt /tmp/first.png /tmp/second.png",
+          text_elements: [
+            { byteRange: { start: 18, end: 28 }, placeholder: "报告.txt" },
+            { byteRange: { start: 29, end: 43 }, placeholder: "第一张.png" },
+            { byteRange: { start: 44, end: 59 }, placeholder: "第二张.png" },
+          ],
+        },
+        { type: "localImage", path: "/tmp/first.png" },
+        { type: "localImage", path: "/tmp/second.png" },
+        { type: "skill", name: "alpha", path: "/skills/alpha" },
+      ],
+      textContent: "资料🙂 $技能 报告.txt 第一张.png 第二张.png",
+      selectedSkillPaths: ["/skills/alpha"],
+      attachmentsReady: true,
+    };
+    expect(original).toMatchObject(expected);
+    const imported = importComposerDraft(
+      JSON.parse(JSON.stringify(exportComposerDraft(original.draft))),
+    );
+    if (imported.type !== "imported") throw new Error("Expected mixed attachment draft to import");
+    const target = createEditorWithText("replace me");
+    expect(restoreComposerDraft(target, imported.draft)).toEqual({ type: "restored" });
+    const restored = captureComposerDraft(target.getEditorState());
+    expect(restored).toMatchObject(expected);
+    expect(restored.input).toEqual(original.input);
+    expect(readSkills(target)).toEqual([selected]);
+    const restoredExport = exportComposerDraft(restored.draft);
+    const originalExport = exportComposerDraft(original.draft);
+    expect(restoredExport.version).toBe(originalExport.version);
+    expect(JSON.parse(restoredExport.editorStateJson)).toEqual(
+      JSON.parse(originalExport.editorStateJson),
+    );
+  });
+
+  it("restores an unfinished upload as interrupted and keeps submission blocked", () => {
+    const source = createTestEditor();
+    source.update(
+      () => {
+        $getRoot().append(
+          $createParagraphNode().append(
+            $createTextNode("keep "),
+            $createAttachmentNode({
+              id: "uploading",
+              name: "待上传.png",
+              mediaType: "image",
+              status: "uploading",
+              path: "",
+              failure: null,
+            }),
+          ),
+        );
+      },
+      { discrete: true },
+    );
+    const original = captureComposerDraft(source.getEditorState());
+    expect(original.attachmentsReady).toBe(false);
+    const imported = importComposerDraft(exportComposerDraft(original.draft));
+    if (imported.type !== "imported")
+      throw new Error("Expected unfinished attachment draft to import");
+    const target = createEditorWithText("replace me");
+    expect(restoreComposerDraft(target, imported.draft)).toEqual({ type: "restored" });
+    expect(captureComposerDraft(target.getEditorState())).toMatchObject({
+      textContent: "keep 待上传.png",
+      attachmentsReady: false,
+      input: [{ type: "text", text: "keep ", text_elements: [] }],
+    });
+    expect(
+      target
+        .getEditorState()
+        .read(() => $nodesOfType(AttachmentNode).map((node) => node.getAttachment())),
+    ).toEqual([
+      {
+        id: "uploading",
+        name: "待上传.png",
+        mediaType: "image",
+        status: "failed",
+        path: "",
+        failure: "interrupted",
+      },
+    ]);
+  });
+
   it("migrates v1 soft breaks and double paragraph boundaries once without losing skills", () => {
     const source = createTestEditor();
     const selected = skill("alpha", "/skills/alpha", "Alpha");
@@ -187,6 +320,7 @@ describe("composerDraft", () => {
 
     expect(projectComposerDraft(editor.getEditorState())).toEqual({
       textContent: "Before $First and $Second\n$Third after",
+      attachmentsReady: true,
       selectedSkillPaths: [repeatedPath, repeatedPath, "/example/skills/third/SKILL.md"],
     });
   });
@@ -400,7 +534,7 @@ function collectSkills(node: LexicalNode): SkillNodeState[] {
 function createTestEditor(): LexicalEditor {
   return createEditor({
     namespace: "composer-draft-test",
-    nodes: [SkillNode],
+    nodes: [SkillNode, AttachmentNode],
     onError(error) {
       throw error;
     },

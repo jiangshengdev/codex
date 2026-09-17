@@ -433,6 +433,10 @@ function PendingManagementAlert({ alert }: Readonly<{ alert: ComposerPendingInpu
         <Alert.Title>
           {alert === "empty" ? (
             <Trans>Message cannot be empty</Trans>
+          ) : alert === "attachmentsNotReady" ? (
+            <Trans comment="Pending message cannot be saved while an attachment is uploading or failed">
+              Attachments are not ready
+            </Trans>
           ) : alert === "moveNotApplied" || alert === "moveNotAppliedRefreshFailed" ? (
             <Trans>Pending message was not reordered</Trans>
           ) : alert === "moveRefreshFailed" ? (
@@ -444,6 +448,10 @@ function PendingManagementAlert({ alert }: Readonly<{ alert: ComposerPendingInpu
         <Alert.Description>
           {alert === "invalidDraft" ? (
             <Trans>This pending message cannot be edited.</Trans>
+          ) : alert === "attachmentsNotReady" ? (
+            <Trans>
+              Wait for uploads to finish, or retry or remove failed attachments before saving.
+            </Trans>
           ) : alert === "moveNotApplied" ? (
             <Trans>The pending-message order did not change. Refresh complete; try again.</Trans>
           ) : alert === "moveNotAppliedRefreshFailed" ? (

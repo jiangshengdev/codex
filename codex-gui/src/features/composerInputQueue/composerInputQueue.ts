@@ -1045,10 +1045,10 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
         revision: this.pendingInputIdentity.detailRevision(),
       };
     }
-    if (!hasMeaningfulInput(capture.input)) {
+    if (!capture.attachmentsReady || !hasMeaningfulInput(capture.input)) {
       return {
         type: "invalidInput",
-        reason: "emptyInput",
+        reason: capture.attachmentsReady ? "emptyInput" : "attachmentsNotReady",
         revision: this.pendingInputIdentity.detailRevision(),
       };
     }

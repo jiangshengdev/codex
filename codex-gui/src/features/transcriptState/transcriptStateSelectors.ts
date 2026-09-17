@@ -220,10 +220,18 @@ const createTranscriptEntryView = (entry: TranscriptStoredEntry): TranscriptEntr
         id: entry.id,
         turnId: entry.turnId,
         role: entry.role,
-        rendering: {
-          mode: entry.sourceKind === "plainText" ? "plainText" : "staticMarkdown",
-          source: entry.source,
-        },
+        rendering:
+          entry.textInputs == null
+            ? {
+                mode: entry.sourceKind === "plainText" ? "plainText" : "staticMarkdown",
+                source: entry.source,
+              }
+            : {
+                mode: "userText",
+                inputs: entry.textInputs,
+                images: entry.imageInputs ?? [],
+                source: entry.source,
+              },
         revision: entry.revision,
       };
     case "status":

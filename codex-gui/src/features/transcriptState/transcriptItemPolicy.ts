@@ -295,7 +295,8 @@ export const projectCompletedTranscriptItem = (
   switch (item.type) {
     case "userMessage": {
       const source = item.content.map(textFromUserInput).join("");
-      if (source.length === 0) {
+      const imageInputs = item.content.filter((input) => input.type === "localImage");
+      if (source.length === 0 && imageInputs.length === 0) {
         return { kind: "ignore" };
       }
 
@@ -308,6 +309,11 @@ export const projectCompletedTranscriptItem = (
           role: "user",
           source,
           sourceKind: "plainText",
+          ...(imageInputs.length > 0 ||
+          item.content.some((input) => input.type === "text" && input.text_elements.length > 0)
+            ? { textInputs: item.content.filter((input) => input.type === "text") }
+            : {}),
+          ...(imageInputs.length > 0 ? { imageInputs } : {}),
           phase: null,
           revision: 0,
         },

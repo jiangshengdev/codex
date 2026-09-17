@@ -1,6 +1,7 @@
 import { Alert, Surface } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { use, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { AppCapabilitiesContext } from "@/features/appShell/AppCapabilities";
 import {
   ComposerEditor,
   type ComposerEditorController,
@@ -28,6 +29,7 @@ export function ComposerPendingInputEditor({
   skillCatalog,
 }: ComposerPendingInputEditorProps) {
   const { t } = useLingui();
+  const capabilities = use(AppCapabilitiesContext);
   const [controller, setController] = useState<ComposerEditorController | null>(null);
   const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
   const snapshot = useSyncExternalStore<ComposerEditorSnapshot | null>(
@@ -43,7 +45,7 @@ export function ComposerPendingInputEditor({
     () => ({ invalidPaths, statusText: invalidStatusText }),
     [invalidPaths, invalidStatusText],
   );
-  const valid = invalidPaths.size === 0;
+  const valid = invalidPaths.size === 0 && snapshot?.attachmentsReady === true;
   const handleControllerChange = useCallback(
     (nextController: ComposerEditorController | null): void => {
       setController(nextController);
@@ -65,6 +67,7 @@ export function ComposerPendingInputEditor({
       <Surface className="composer-frame" variant="secondary">
         <Surface className="composer-field" variant="default">
           <ComposerEditor
+            authorizationToken={capabilities?.authorizationToken ?? null}
             ariaLabel={t`Edit pending message`}
             disabled={false}
             guardCompositionEndEnter={guardCompositionEndEnter}

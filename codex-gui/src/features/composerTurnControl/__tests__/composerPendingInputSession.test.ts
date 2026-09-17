@@ -1,4 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
+import { $createParagraphNode, $createTextNode, $getRoot, createEditor } from "lexical";
+import { AttachmentNode, $createAttachmentNode } from "@/features/composerEditor/AttachmentNode";
+import { captureComposerDraft } from "@/features/composerEditor/composerDraft";
 import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ActiveThreadPendingInputEditReservation } from "@/features/activeThreadSession/activeThreadSessionContracts";
@@ -153,6 +156,60 @@ function beginActiveEdit(
 }
 
 describe("ComposerPendingInputSession", () => {
+  test("requires discard confirmation when an uploading attachment changes only the draft", () => {
+    const { session, harness, current } = openSession();
+    let capture = composerCapture("original");
+    const reservation: ActiveThreadPendingInputEditReservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved",
+        revision: 2,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "cancelled",
+        revision: 2,
+      })),
+    };
+    beginActiveEdit(session, harness, current, reservation, () => capture);
+    const editor = createEditor({
+      namespace: "pending-attachment-dirty-test",
+      nodes: [AttachmentNode],
+      onError(error) {
+        throw error;
+      },
+    });
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createParagraphNode().append(
+            $createTextNode("original"),
+            $createAttachmentNode({
+              id: "pending-upload",
+              name: "pending.txt",
+              mediaType: "file",
+              status: "uploading",
+              path: "",
+              failure: null,
+            }),
+          ),
+        );
+      },
+      { discrete: true },
+    );
+    const pendingCapture = captureComposerDraft(editor.getEditorState());
+    expect(pendingCapture.input).toEqual(capture.input);
+    expect(pendingCapture.attachmentsReady).toBe(false);
+    capture = pendingCapture;
+    session.requestClose(current);
+    expect(session.getSnapshot().confirmDiscard).toBe(true);
+    expect(reservation.cancel).not.toHaveBeenCalled();
+    session.returnToEdit(current);
+    expect(session.getSnapshot().view?.edit?.phase).toBe("active");
+    session.requestClose(current);
+    session.discardEdit(current);
+    expect(reservation.cancel).toHaveBeenCalledOnce();
+    expect(reservation.save).not.toHaveBeenCalled();
+  });
+
   test("retains failed save content and requires explicit discard without settling twice", () => {
     const { session, harness, current } = openSession();
     let capture = composerCapture("original");
@@ -327,7 +384,7 @@ describe("ComposerPendingInputSession", () => {
       facts: current,
       itemKey: "one",
       restore: () => ({ type: "restored" as const }),
-      capture: () => ({}) as ComposerDraftCapture,
+      capture: () => composerCapture("original"),
     };
 
     expect(
@@ -368,7 +425,7 @@ describe("ComposerPendingInputSession", () => {
       preparationToken: preparation.preparationToken,
       itemKey: "one",
       restore: () => ({ type: "restored" as const }),
-      capture: () => ({}) as ComposerDraftCapture,
+      capture: () => composerCapture("original"),
     };
     vi.mocked(harness.role.readPendingInputPage).mockClear();
 
@@ -594,7 +651,7 @@ describe("ComposerPendingInputSession", () => {
         preparationToken: preparation.preparationToken,
         itemKey: steerItem.key,
         restore: () => ({ type: "restored" }),
-        capture: () => ({}) as ComposerDraftCapture,
+        capture: () => composerCapture("original"),
       }),
     ).toEqual({ type: "applied" });
     const token = preparation.preparationToken;
@@ -799,7 +856,7 @@ describe("ComposerPendingInputSession", () => {
         preparationToken: preparation.preparationToken,
         itemKey: "one",
         restore: () => ({ type: "restored" }),
-        capture: () => ({}) as ComposerDraftCapture,
+        capture: () => composerCapture("original"),
       }),
     ).toEqual({ type: "ignored" });
     expect(replacement.beginEdit).not.toHaveBeenCalled();

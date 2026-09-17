@@ -14,6 +14,26 @@ import {
 } from "./composerInputQueueCoordinatorTestFixtures";
 import { composerCapture as input, composerDraftCapture } from "./composerInputQueueTestFixtures";
 describe("ComposerInputQueueCoordinator", () => {
+  it("rejects direct ordinary and steer submission while attachments are unfinished", () => {
+    const startTurn = vi.fn<StartTurn>();
+    const steerTurn = vi.fn<SteerTurn>();
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn-active",
+      startTurn,
+      steerTurn,
+    });
+    const capture = {
+      ...composerDraftCapture("message with an uploading attachment"),
+      attachmentsReady: false,
+    };
+    expect(coordinator.submit(capture)).toEqual({ type: "rejected", reason: "invalidInput" });
+    expect(coordinator.submitSteer(capture)).toEqual({ type: "rejected", reason: "invalidInput" });
+    expect(coordinator.getSnapshot()).toMatchObject({ ordinaryQueuedCount: 0, guidingCount: 0 });
+    expect(startTurn).not.toHaveBeenCalled();
+    expect(steerTurn).not.toHaveBeenCalled();
+  });
+
   it("owns an ordinary edit across revision changes and blocks stop and release", () => {
     const startTurn = vi.fn<StartTurn>().mockResolvedValue({ turn: baseTurn("turn-earlier") });
     const interruptTurn = vi.fn<InterruptTurn>();
@@ -52,6 +72,15 @@ describe("ComposerInputQueueCoordinator", () => {
     expect(begun.reservation.save(composerDraftCapture("   "))).toMatchObject({
       type: "invalidInput",
       reason: "emptyInput",
+    });
+    expect(
+      begun.reservation.save({
+        ...composerDraftCapture("unfinished attachment"),
+        attachmentsReady: false,
+      }),
+    ).toMatchObject({
+      type: "invalidInput",
+      reason: "attachmentsNotReady",
     });
 
     coordinator.observeAcceptedEvent(

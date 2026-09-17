@@ -16,8 +16,10 @@ use ts_rs::TS;
 
 use crate::browser_contract::AUTHENTICATE_METHOD;
 use crate::browser_contract::CURRENT_TASK_PATH_SEGMENT;
+use crate::browser_contract::FILE_PREVIEW_PATH;
 use crate::browser_contract::GuiAuthenticateParams;
 use crate::browser_contract::GuiAuthenticateResult;
+use crate::browser_contract::GuiFilePreviewParams;
 use crate::browser_contract::GuiUploadParams;
 use crate::browser_contract::HISTORY_PATH_SEGMENT;
 use crate::browser_contract::MAX_UPLOAD_BYTES;
@@ -50,6 +52,10 @@ pub fn generate_browser_contract_fixture_tree_for_tests() -> Result<BTreeMap<Pat
     files.insert(
         PathBuf::from("json/GuiUploadParams.json"),
         generate_json_schema::<GuiUploadParams>()?,
+    );
+    files.insert(
+        PathBuf::from("json/GuiFilePreviewParams.json"),
+        generate_json_schema::<GuiFilePreviewParams>()?,
     );
     Ok(files)
 }
@@ -244,6 +250,7 @@ fn generate_typescript_contract() -> Result<String> {
         ("TOKEN_FRAGMENT_KEY", TOKEN_FRAGMENT_KEY),
         ("WEBSOCKET_PATH", WEBSOCKET_PATH),
         ("UPLOAD_PATH", UPLOAD_PATH),
+        ("FILE_PREVIEW_PATH", FILE_PREVIEW_PATH),
         ("AUTHENTICATE_METHOD", AUTHENTICATE_METHOD),
     ];
     let mut output = String::from(GENERATED_HEADER);
@@ -267,6 +274,11 @@ fn generate_typescript_contract() -> Result<String> {
     output.push('\n');
     output.push_str(
         &GuiUploadParams::export_to_string().context("export GuiUploadParams TypeScript")?,
+    );
+    output.push('\n');
+    output.push_str(
+        &GuiFilePreviewParams::export_to_string()
+            .context("export GuiFilePreviewParams TypeScript")?,
     );
     if !output.ends_with('\n') {
         output.push('\n');

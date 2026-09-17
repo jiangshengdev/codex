@@ -909,6 +909,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     submit: ComposerInputQueue["submit"],
   ): ComposerInputQueueSubmitResult {
     if (this.disposed) return { type: "rejected", reason: "disposed" };
+    if (!capture.attachmentsReady) return { type: "rejected", reason: "invalidInput" };
     if (this.liveManagement.mutationPending()) {
       return { type: "rejected", reason: "managementPending" };
     }
