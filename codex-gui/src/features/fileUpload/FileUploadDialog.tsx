@@ -107,6 +107,14 @@ export function FileUploadDialog({ authorizationToken }: { authorizationToken: s
                   )}
                 </p>
               ) : null}
+              {failure === "upload" ? (
+                <p className="text-sm text-muted">
+                  <Trans>
+                    The file may already have been saved. Retrying uploads the entire file again and
+                    may create another copy.
+                  </Trans>
+                </p>
+              ) : null}
               {path != null ? (
                 <div role="status" className="grid gap-1">
                   <p>
@@ -124,16 +132,23 @@ export function FileUploadDialog({ authorizationToken }: { authorizationToken: s
                   file == null ||
                   authorizationToken == null ||
                   pending ||
-                  failure != null ||
+                  failure === "size" ||
+                  failure === "authorization" ||
                   path != null
                 }
                 onPress={() => {
                   void upload();
                 }}
               >
-                <Trans comment="Send the selected local file to the machine running Codex">
-                  Upload
-                </Trans>
+                {failure === "upload" ? (
+                  <Trans comment="Manually resend the entire selected file after an upload failure">
+                    Retry upload
+                  </Trans>
+                ) : (
+                  <Trans comment="Send the selected local file to the machine running Codex">
+                    Upload
+                  </Trans>
+                )}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

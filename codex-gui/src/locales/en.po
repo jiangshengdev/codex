@@ -461,7 +461,7 @@ msgstr "Failed"
 msgid "Failed."
 msgstr "Failed."
 
-#: src/features/fileUpload/FileUploadDialog.tsx:113
+#: src/features/fileUpload/FileUploadDialog.tsx:121
 msgid "File saved on the Codex machine"
 msgstr "File saved on the Codex machine"
 
@@ -989,6 +989,11 @@ msgstr "Retry saving"
 msgid "Retry saving this task's state before removing it."
 msgstr "Retry saving this task's state before removing it."
 
+#. Manually resend the entire selected file after an upload failure
+#: src/features/fileUpload/FileUploadDialog.tsx:144
+msgid "Retry upload"
+msgstr "Retry upload"
+
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:131
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:163
 msgid "Return to current task"
@@ -1214,6 +1219,10 @@ msgstr "The current task still has queued or unresolved messages. Return to it b
 #: src/features/fileUpload/FileUploadDialog.tsx:102
 msgid "The file exceeds the 50 MiB limit."
 msgstr "The file exceeds the 50 MiB limit."
+
+#: src/features/fileUpload/FileUploadDialog.tsx:112
+msgid "The file may already have been saved. Retrying uploads the entire file again and may create another copy."
+msgstr "The file may already have been saved. Retrying uploads the entire file again and may create another copy."
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:455
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
@@ -1441,7 +1450,7 @@ msgid "Updated pending order could not be loaded"
 msgstr "Updated pending order could not be loaded"
 
 #. Send the selected local file to the machine running Codex
-#: src/features/fileUpload/FileUploadDialog.tsx:134
+#: src/features/fileUpload/FileUploadDialog.tsx:148
 msgid "Upload"
 msgstr "Upload"
 
