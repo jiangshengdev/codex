@@ -637,32 +637,22 @@ impl TurnRequestProcessor {
 
         let submission = thread
             .start_or_steer_turn(
-                TurnInputRequest {
-                    reject_unsupported_images: params.reject_unsupported_images,
-                    ..TurnInputRequest::new(input)
-                }
-                .with_thread_settings(thread_settings)
-                .on_start(TurnStartOptions {
-                    turn_trigger: params.turn_trigger,
-                    final_output_json_schema: params.output_schema,
-                    service_tier: params.service_tier_for_turn,
-                    cyber_access_program: params.cyber_access_program.map(Into::into),
-                    ..Default::default()
-                })
-                .with_additional_context(additional_context)
-                .with_responses_metadata(params.responsesapi_client_metadata)
-                .with_trace(self.request_trace_context(&request_id).await),
+                TurnInputRequest::new(input)
+                    .with_thread_settings(thread_settings)
+                    .on_start(TurnStartOptions {
+                        turn_trigger: params.turn_trigger,
+                        final_output_json_schema: params.output_schema,
+                        service_tier: params.service_tier_for_turn,
+                        cyber_access_program: params.cyber_access_program.map(Into::into),
+                        ..Default::default()
+                    })
+                    .with_additional_context(additional_context)
+                    .with_responses_metadata(params.responsesapi_client_metadata)
+                    .with_trace(self.request_trace_context(&request_id).await),
             )
             .await
             .map_err(|err| {
-                let error = match err.details() {
-                    CodexErrorDetails::InvalidRequest(message)
-                        if params.reject_unsupported_images =>
-                    {
-                        invalid_request(message.clone())
-                    }
-                    _ => internal_error(format!("failed to submit turn input: {err}")),
-                };
+                let error = internal_error(format!("failed to submit turn input: {err}"));
                 self.track_error_response(&request_id, &error, /*error_type*/ None);
                 error
             })?;
@@ -1051,27 +1041,17 @@ impl TurnRequestProcessor {
 
         let submission = thread
             .steer_turn(
-                TurnInputRequest {
-                    reject_unsupported_images: params.reject_unsupported_images,
-                    ..TurnInputRequest::new(TurnInput::UserInput {
-                        content: mapped_items,
-                        client_id: params.client_user_message_id,
-                    })
-                }
+                TurnInputRequest::new(TurnInput::UserInput {
+                    content: mapped_items,
+                    client_id: params.client_user_message_id,
+                })
                 .with_additional_context(additional_context)
                 .with_responses_metadata(params.responsesapi_client_metadata),
                 params.expected_turn_id,
             )
             .await
             .map_err(|err| {
-                let error = match err.details() {
-                    CodexErrorDetails::InvalidRequest(message)
-                        if params.reject_unsupported_images =>
-                    {
-                        invalid_request(message.clone())
-                    }
-                    _ => internal_error(format!("failed to steer turn: {err}")),
-                };
+                let error = internal_error(format!("failed to steer turn: {err}"));
                 self.track_error_response(request_id, &error, /*error_type*/ None);
                 error
             })?;

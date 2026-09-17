@@ -1339,7 +1339,6 @@ impl AppServerSession {
                 request_id,
                 params: TurnStartParams {
                     thread_id: thread_id.to_string(),
-                    reject_unsupported_images: false,
                     turn_trigger: None,
                     client_user_message_id: Some(client_user_message_id),
                     input: items,
@@ -1408,7 +1407,6 @@ impl AppServerSession {
                 request_id,
                 params: TurnSteerParams {
                     thread_id: thread_id.to_string(),
-                    reject_unsupported_images: false,
                     client_user_message_id: Some(client_user_message_id),
                     input: items,
                     responsesapi_client_metadata: None,

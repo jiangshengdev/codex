@@ -522,7 +522,6 @@ async fn turn_steer_updates_client_metadata_on_follow_up_responses_request_v2() 
     ]);
     let steer_req = mcp
         .send_turn_steer_request(TurnSteerParams {
-            reject_unsupported_images: false,
             thread_id: thread.id.clone(),
             client_user_message_id: None,
             input: vec![V2UserInput::Text {

@@ -14,12 +14,9 @@ import {
 } from "./appComposerQueueBrowserTestSupport";
 import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
-import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
-import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { eventTurnCompleted } from "@/features/projection/__tests__/projectionFixtures";
 import {
   eventWithEnvelope,
-  inProgressTurn,
   turnCompleted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
@@ -40,67 +37,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-});
-
-test("an image rejected by the model shows its reason and retries unchanged only after Continue sending", async () => {
-  vi.spyOn(globalThis, "fetch").mockImplementation((_url, options) =>
-    Promise.resolve(
-      options?.method === "POST"
-        ? new Response("/tmp/ref.png", { status: 201 })
-        : new Response("missing", { status: 404 }),
-    ),
-  );
-  const reason = "Selected model cannot accept image inputs.";
-  const startTurn = vi
-    .fn<GuiHostCommands["startTurn"]>()
-    .mockRejectedValueOnce(
-      new GuiHostCommandError({
-        source: "rpc",
-        delivery: "definitelyNotAccepted",
-        error: new Error(reason),
-      }),
-    )
-    .mockResolvedValueOnce({ turn: inProgressTurn("image-retry-accepted") });
-  const { screen, composer, options, activeTurn } = await renderActiveComposerQueueApp(startHost, {
-    startTurn,
-  });
-  await screen
-    .getByLabelText("Attach files", { exact: true })
-    .upload(new File(["image"], "reference.png", { type: "image/png" }));
-  await expect.element(composer.getByText("reference.png", { exact: true })).toBeVisible();
-  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
-  await screen.getByRole("button", { name: "Send", exact: true }).click();
-  emitProjectionEvent(
-    options,
-    eventWithEnvelope(
-      turnCompleted(eventTurnCompleted, "rejected-image-terminal", {
-        ...activeTurn,
-        status: "completed",
-      }),
-      { parentCommitId: attachResponse.snapshot.headCommitId },
-    ),
-  );
-  await expect.element(screen.getByRole("alert")).toHaveTextContent(reason);
-  await expect
-    .element(screen.getByText("1 message has not been sent", { exact: true }))
-    .toBeVisible();
-  expect(startTurn).toHaveBeenCalledOnce();
-  const original = startTurnParamsAt(startTurn, 0).input;
-  expect(original).toEqual([
-    {
-      type: "text",
-      text: "/tmp/ref.png",
-      text_elements: [{ byteRange: { start: 0, end: 12 }, placeholder: "reference.png" }],
-    },
-    { type: "localImage", path: "/tmp/ref.png" },
-  ]);
-  await screen.getByRole("button", { name: "Continue sending", exact: true }).click();
-  await expect.poll(() => startTurn.mock.calls.length).toBe(2);
-  expect(startTurnParamsAt(startTurn, 1).input).toEqual(original);
-  await expect.element(screen.getByText(reason, { exact: true })).not.toBeInTheDocument();
-  await expect
-    .element(screen.getByRole("button", { name: "Continue sending", exact: true }))
-    .not.toBeInTheDocument();
 });
 
 test("undoing removal of an unfinished upload restores an interrupted attachment, not a stuck upload", async () => {

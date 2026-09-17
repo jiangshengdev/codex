@@ -136,7 +136,7 @@ describe("ComposerTurnApplication", () => {
       composer: queueSnapshot({
         canStop: true,
         recoveryCount: 2,
-        recovery: { reason: "startDefinitelyNotAccepted", count: 2, rejectionReason: null },
+        recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
         interrupt: { phase: "definitelyNotAccepted" },
       }),
     });
@@ -260,7 +260,7 @@ describe("ComposerTurnApplication", () => {
       composerRole: role,
       composer: queueSnapshot({
         recoveryCount: 2,
-        recovery: { reason: "startDefinitelyNotAccepted", count: 2, rejectionReason: null },
+        recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
       }),
     });
     application.project({ session: recoverable, editor: null });

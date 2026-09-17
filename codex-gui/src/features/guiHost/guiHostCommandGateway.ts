@@ -96,16 +96,8 @@ export class GuiHostCommandGateway {
       resumeThread: (params) => this.request(requestDescriptors["thread/resume"], params),
       detachThreadProjection: (params) =>
         this.request(requestDescriptors["thread/projection/detach"], params),
-      startTurn: (params) =>
-        this.request(requestDescriptors["turn/start"], {
-          ...params,
-          rejectUnsupportedImages: true,
-        }),
-      steerTurn: (params) =>
-        this.request(requestDescriptors["turn/steer"], {
-          ...params,
-          rejectUnsupportedImages: true,
-        }),
+      startTurn: (params) => this.request(requestDescriptors["turn/start"], params),
+      steerTurn: (params) => this.request(requestDescriptors["turn/steer"], params),
       interruptTurn: (params) => this.request(requestDescriptors["turn/interrupt"], params),
     };
   }

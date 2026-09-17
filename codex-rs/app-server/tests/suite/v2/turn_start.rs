@@ -1,6 +1,5 @@
 use anyhow::Context;
 use anyhow::Result;
-
 use app_test_support::ChatGptAuthFixture;
 use app_test_support::MockResponsesConfig;
 use app_test_support::TestAppServer;
@@ -128,90 +127,6 @@ fn body_contains(req: &wiremock::Request, text: &str) -> bool {
     String::from_utf8(req.body.clone())
         .ok()
         .is_some_and(|body| body.contains(text))
-}
-
-#[tokio::test]
-async fn reject_unsupported_images_returns_invalid_request_before_start() -> Result<()> {
-    let home = tempfile::TempDir::new()?;
-    let server = create_mock_responses_server_sequence(vec![]).await;
-    let config = core_test_support::load_default_config_for_test(&home).await;
-    let image_model =
-        codex_core::test_support::construct_model_info_offline("preview-image", &config);
-    let mut text_model = image_model.clone();
-    text_model.slug = "preview-text".to_string();
-    text_model.input_modalities = vec![codex_protocol::openai_models::InputModality::Text];
-    let catalog = home.path().join("models.json");
-    std::fs::write(
-        &catalog,
-        serde_json::to_vec(&codex_protocol::openai_models::ModelsResponse {
-            models: vec![image_model, text_model],
-        })?,
-    )?;
-    MockResponsesConfig::new(&server.uri())
-        .with_model("preview-image")
-        .with_root_config(&format!(
-            "model_catalog_json = {}",
-            serde_json::to_string(&catalog)?
-        ))
-        .write(home.path())?;
-    let mut app = TestAppServer::builder()
-        .with_codex_home(home.path())
-        .without_managed_config()
-        .build_initialized()
-        .await?;
-    let started = app
-        .start_thread(ThreadStartParams {
-            history_mode: Some(ThreadHistoryMode::Legacy),
-            ..Default::default()
-        })
-        .await?;
-    let request_id = app
-        .send_turn_start_request(TurnStartParams {
-            thread_id: started.thread.id.clone(),
-            model: Some("preview-text".to_string()),
-            input: vec![V2UserInput::LocalImage {
-                path: "/nonexistent/image.png".into(),
-                detail: None,
-            }],
-            reject_unsupported_images: true,
-            ..Default::default()
-        })
-        .await?;
-    let error = timeout(
-        DEFAULT_READ_TIMEOUT,
-        app.read_stream_until_error_message(RequestId::Integer(request_id)),
-    )
-    .await??;
-    assert_eq!(error.error.code, -32600);
-    assert!(error.error.message.contains("does not support image input"));
-    let read_id = app
-        .send_thread_read_request(codex_app_server_protocol::ThreadReadParams {
-            thread_id: started.thread.id.clone(),
-            include_turns: true,
-        })
-        .await?;
-    // A rejected first input must leave the thread unmaterialized, so full history
-    // intentionally remains unavailable until an input is actually accepted.
-    let history_error = timeout(
-        DEFAULT_READ_TIMEOUT,
-        app.read_stream_until_error_message(RequestId::Integer(read_id)),
-    )
-    .await??;
-    assert_eq!(history_error.error.code, -32600);
-    assert!(history_error.error.message.contains("not materialized yet"));
-    let read_id = app
-        .send_thread_read_request(codex_app_server_protocol::ThreadReadParams {
-            thread_id: started.thread.id,
-            include_turns: false,
-        })
-        .await?;
-    let read: codex_app_server_protocol::ThreadReadResponse = app.read_response(read_id).await?;
-    assert_eq!(read.thread.model.as_deref(), Some("preview-image"));
-    assert_eq!(
-        read.thread.status,
-        codex_app_server_protocol::ThreadStatus::Idle
-    );
-    Ok(())
 }
 
 async fn run_local_image_turn(detail: Option<ImageDetail>) -> Result<Vec<Value>> {
@@ -3313,7 +3228,6 @@ async fn turn_start_explicit_local_environment_updates_legacy_cwd_between_turns(
             request_id,
             params: TurnStartParams {
                 environments: None,
-                reject_unsupported_images: false,
                 thread_id: thread.id.clone(),
                 client_user_message_id: None,
                 input: vec![V2UserInput::Text {
@@ -3366,7 +3280,6 @@ async fn turn_start_explicit_local_environment_updates_legacy_cwd_between_turns(
                     cwd: second_cwd.abs().into(),
                     runtime_workspace_roots: None,
                 }]),
-                reject_unsupported_images: false,
                 thread_id: thread.id.clone(),
                 client_user_message_id: None,
                 input: vec![V2UserInput::Text {
@@ -4589,7 +4502,6 @@ async fn direct_input_to_multi_agent_v2_subagent_is_rejected(
 
     let direct_steer_req = mcp
         .send_turn_steer_request(TurnSteerParams {
-            reject_unsupported_images: false,
             thread_id: child_thread_id.clone(),
             client_user_message_id: None,
             input: vec![V2UserInput::Text {

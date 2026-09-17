@@ -14199,7 +14199,7 @@ function validate136(data, { instancePath = "", parentData, parentDataProperty, 
   return errors === 0;
 }
 var validateV2TurnStartParams = validate137;
-var schema158 = { "$schema": "http://json-schema.org/draft-07/schema#", "properties": { "approvalPolicy": { "anyOf": [{ "$ref": "#/definitions/v2/AskForApproval" }, { "type": "null" }], "description": "Override the approval policy for this turn and subsequent turns." }, "approvalsReviewer": { "anyOf": [{ "$ref": "#/definitions/v2/ApprovalsReviewer" }, { "type": "null" }], "description": "Override where approval requests are routed for review on this turn and subsequent turns." }, "clientUserMessageId": { "type": ["string", "null"] }, "cwd": { "description": "Override the working directory for this turn and subsequent turns.", "type": ["string", "null"] }, "effort": { "anyOf": [{ "$ref": "#/definitions/v2/ReasoningEffort" }, { "type": "null" }], "description": "Override the reasoning effort for this turn and subsequent turns." }, "input": { "items": { "$ref": "#/definitions/v2/UserInput" }, "type": "array" }, "model": { "description": "Override the model for this turn and subsequent turns.", "type": ["string", "null"] }, "outputSchema": { "description": "Optional JSON Schema used to constrain the final assistant message for this turn." }, "personality": { "anyOf": [{ "$ref": "#/definitions/v2/Personality" }, { "type": "null" }], "description": "Override the personality for this turn and subsequent turns." }, "rejectUnsupportedImages": { "description": "Reject new images if the model receiving this input does not support them.", "type": "boolean" }, "sandboxPolicy": { "anyOf": [{ "$ref": "#/definitions/v2/SandboxPolicy" }, { "type": "null" }], "description": "Override the sandbox policy for this turn and subsequent turns." }, "serviceTier": { "description": "Override the service tier for this turn and subsequent turns.", "type": ["string", "null"] }, "serviceTierForTurn": { "description": `Override the service tier only when this request starts a new turn. Use "default" for standard speed. Omitted or null inherits the thread's tier. Does not change the thread's tier or a turn being steered.`, "type": ["string", "null"] }, "summary": { "anyOf": [{ "$ref": "#/definitions/v2/ReasoningSummary" }, { "type": "null" }], "description": "Override the reasoning summary for this turn and subsequent turns." }, "threadId": { "type": "string" }, "toolOutput": { "anyOf": [{ "$ref": "#/definitions/v2/TurnToolOutput" }, { "type": "null" }] }, "turnTrigger": { "description": "Optional source classification for the caller that starts this turn. Ignored when this request steers an already-active turn.", "type": ["string", "null"] } }, "required": ["input", "threadId"], "title": "TurnStartParams", "type": "object" };
+var schema158 = { "$schema": "http://json-schema.org/draft-07/schema#", "properties": { "approvalPolicy": { "anyOf": [{ "$ref": "#/definitions/v2/AskForApproval" }, { "type": "null" }], "description": "Override the approval policy for this turn and subsequent turns." }, "approvalsReviewer": { "anyOf": [{ "$ref": "#/definitions/v2/ApprovalsReviewer" }, { "type": "null" }], "description": "Override where approval requests are routed for review on this turn and subsequent turns." }, "clientUserMessageId": { "type": ["string", "null"] }, "cwd": { "description": "Override the working directory for this turn and subsequent turns.", "type": ["string", "null"] }, "effort": { "anyOf": [{ "$ref": "#/definitions/v2/ReasoningEffort" }, { "type": "null" }], "description": "Override the reasoning effort for this turn and subsequent turns." }, "input": { "items": { "$ref": "#/definitions/v2/UserInput" }, "type": "array" }, "model": { "description": "Override the model for this turn and subsequent turns.", "type": ["string", "null"] }, "outputSchema": { "description": "Optional JSON Schema used to constrain the final assistant message for this turn." }, "personality": { "anyOf": [{ "$ref": "#/definitions/v2/Personality" }, { "type": "null" }], "description": "Override the personality for this turn and subsequent turns." }, "sandboxPolicy": { "anyOf": [{ "$ref": "#/definitions/v2/SandboxPolicy" }, { "type": "null" }], "description": "Override the sandbox policy for this turn and subsequent turns." }, "serviceTier": { "description": "Override the service tier for this turn and subsequent turns.", "type": ["string", "null"] }, "serviceTierForTurn": { "description": `Override the service tier only when this request starts a new turn. Use "default" for standard speed. Omitted or null inherits the thread's tier. Does not change the thread's tier or a turn being steered.`, "type": ["string", "null"] }, "summary": { "anyOf": [{ "$ref": "#/definitions/v2/ReasoningSummary" }, { "type": "null" }], "description": "Override the reasoning summary for this turn and subsequent turns." }, "threadId": { "type": "string" }, "toolOutput": { "anyOf": [{ "$ref": "#/definitions/v2/TurnToolOutput" }, { "type": "null" }] }, "turnTrigger": { "description": "Optional source classification for the caller that starts this turn. Ignored when this request steers an already-active turn.", "type": ["string", "null"] } }, "required": ["input", "threadId"], "title": "TurnStartParams", "type": "object" };
 var schema162 = { "enum": ["none", "friendly", "pragmatic"], "type": "string" };
 var schema163 = { "description": "A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process. See https://platform.openai.com/docs/guides/reasoning?api-mode=responses#reasoning-summaries", "oneOf": [{ "enum": ["auto", "concise", "detailed"], "type": "string" }, { "description": "Option to disable reasoning summaries.", "enum": ["none"], "type": "string" }] };
 var schema164 = { "properties": { "name": { "type": "string" }, "namespace": { "type": ["string", "null"] }, "output": { "$ref": "#/definitions/v2/FunctionCallOutputBody" } }, "required": ["name", "output"], "type": "object" };
@@ -14781,73 +14781,74 @@ function validate138(data, { instancePath = "", parentData, parentDataProperty, 
                         var valid0 = true;
                       }
                       if (valid0) {
-                        if (data.rejectUnsupportedImages !== void 0) {
+                        if (data.sandboxPolicy !== void 0) {
+                          let data15 = data.sandboxPolicy;
                           const _errs55 = errors;
-                          if (typeof data.rejectUnsupportedImages !== "boolean") {
-                            validate138.errors = [{ instancePath: instancePath + "/rejectUnsupportedImages", schemaPath: "#/properties/rejectUnsupportedImages/type", keyword: "type", params: { type: "boolean" } }];
+                          const _errs56 = errors;
+                          let valid13 = false;
+                          const _errs57 = errors;
+                          if (!validate29(data15, { instancePath: instancePath + "/sandboxPolicy", parentData: data, parentDataProperty: "sandboxPolicy", rootData })) {
+                            vErrors = vErrors === null ? validate29.errors : vErrors.concat(validate29.errors);
+                            errors = vErrors.length;
+                          }
+                          var _valid5 = _errs57 === errors;
+                          valid13 = valid13 || _valid5;
+                          if (!valid13) {
+                            const _errs58 = errors;
+                            if (data15 !== null) {
+                              const err27 = { instancePath: instancePath + "/sandboxPolicy", schemaPath: "#/properties/sandboxPolicy/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                              if (vErrors === null) {
+                                vErrors = [err27];
+                              } else {
+                                vErrors.push(err27);
+                              }
+                              errors++;
+                            }
+                            var _valid5 = _errs58 === errors;
+                            valid13 = valid13 || _valid5;
+                          }
+                          if (!valid13) {
+                            const err28 = { instancePath: instancePath + "/sandboxPolicy", schemaPath: "#/properties/sandboxPolicy/anyOf", keyword: "anyOf", params: {} };
+                            if (vErrors === null) {
+                              vErrors = [err28];
+                            } else {
+                              vErrors.push(err28);
+                            }
+                            errors++;
+                            validate138.errors = vErrors;
                             return false;
+                          } else {
+                            errors = _errs56;
+                            if (vErrors !== null) {
+                              if (_errs56) {
+                                vErrors.length = _errs56;
+                              } else {
+                                vErrors = null;
+                              }
+                            }
                           }
                           var valid0 = _errs55 === errors;
                         } else {
                           var valid0 = true;
                         }
                         if (valid0) {
-                          if (data.sandboxPolicy !== void 0) {
-                            let data16 = data.sandboxPolicy;
-                            const _errs57 = errors;
-                            const _errs58 = errors;
-                            let valid13 = false;
-                            const _errs59 = errors;
-                            if (!validate29(data16, { instancePath: instancePath + "/sandboxPolicy", parentData: data, parentDataProperty: "sandboxPolicy", rootData })) {
-                              vErrors = vErrors === null ? validate29.errors : vErrors.concat(validate29.errors);
-                              errors = vErrors.length;
-                            }
-                            var _valid5 = _errs59 === errors;
-                            valid13 = valid13 || _valid5;
-                            if (!valid13) {
-                              const _errs60 = errors;
-                              if (data16 !== null) {
-                                const err27 = { instancePath: instancePath + "/sandboxPolicy", schemaPath: "#/properties/sandboxPolicy/anyOf/1/type", keyword: "type", params: { type: "null" } };
-                                if (vErrors === null) {
-                                  vErrors = [err27];
-                                } else {
-                                  vErrors.push(err27);
-                                }
-                                errors++;
-                              }
-                              var _valid5 = _errs60 === errors;
-                              valid13 = valid13 || _valid5;
-                            }
-                            if (!valid13) {
-                              const err28 = { instancePath: instancePath + "/sandboxPolicy", schemaPath: "#/properties/sandboxPolicy/anyOf", keyword: "anyOf", params: {} };
-                              if (vErrors === null) {
-                                vErrors = [err28];
-                              } else {
-                                vErrors.push(err28);
-                              }
-                              errors++;
-                              validate138.errors = vErrors;
+                          if (data.serviceTier !== void 0) {
+                            let data16 = data.serviceTier;
+                            const _errs60 = errors;
+                            if (typeof data16 !== "string" && data16 !== null) {
+                              validate138.errors = [{ instancePath: instancePath + "/serviceTier", schemaPath: "#/properties/serviceTier/type", keyword: "type", params: { type: schema158.properties.serviceTier.type } }];
                               return false;
-                            } else {
-                              errors = _errs58;
-                              if (vErrors !== null) {
-                                if (_errs58) {
-                                  vErrors.length = _errs58;
-                                } else {
-                                  vErrors = null;
-                                }
-                              }
                             }
-                            var valid0 = _errs57 === errors;
+                            var valid0 = _errs60 === errors;
                           } else {
                             var valid0 = true;
                           }
                           if (valid0) {
-                            if (data.serviceTier !== void 0) {
-                              let data17 = data.serviceTier;
+                            if (data.serviceTierForTurn !== void 0) {
+                              let data17 = data.serviceTierForTurn;
                               const _errs62 = errors;
                               if (typeof data17 !== "string" && data17 !== null) {
-                                validate138.errors = [{ instancePath: instancePath + "/serviceTier", schemaPath: "#/properties/serviceTier/type", keyword: "type", params: { type: schema158.properties.serviceTier.type } }];
+                                validate138.errors = [{ instancePath: instancePath + "/serviceTierForTurn", schemaPath: "#/properties/serviceTierForTurn/type", keyword: "type", params: { type: schema158.properties.serviceTierForTurn.type } }];
                                 return false;
                               }
                               var valid0 = _errs62 === errors;
@@ -14855,212 +14856,199 @@ function validate138(data, { instancePath = "", parentData, parentDataProperty, 
                               var valid0 = true;
                             }
                             if (valid0) {
-                              if (data.serviceTierForTurn !== void 0) {
-                                let data18 = data.serviceTierForTurn;
+                              if (data.summary !== void 0) {
+                                let data18 = data.summary;
                                 const _errs64 = errors;
-                                if (typeof data18 !== "string" && data18 !== null) {
-                                  validate138.errors = [{ instancePath: instancePath + "/serviceTierForTurn", schemaPath: "#/properties/serviceTierForTurn/type", keyword: "type", params: { type: schema158.properties.serviceTierForTurn.type } }];
+                                const _errs65 = errors;
+                                let valid14 = false;
+                                const _errs66 = errors;
+                                const _errs68 = errors;
+                                let valid16 = false;
+                                let passing1 = null;
+                                const _errs69 = errors;
+                                if (typeof data18 !== "string") {
+                                  const err29 = { instancePath: instancePath + "/summary", schemaPath: "#/definitions/v2/ReasoningSummary/oneOf/0/type", keyword: "type", params: { type: "string" } };
+                                  if (vErrors === null) {
+                                    vErrors = [err29];
+                                  } else {
+                                    vErrors.push(err29);
+                                  }
+                                  errors++;
+                                }
+                                if (!(data18 === "auto" || data18 === "concise" || data18 === "detailed")) {
+                                  const err30 = { instancePath: instancePath + "/summary", schemaPath: "#/definitions/v2/ReasoningSummary/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema163.oneOf[0].enum } };
+                                  if (vErrors === null) {
+                                    vErrors = [err30];
+                                  } else {
+                                    vErrors.push(err30);
+                                  }
+                                  errors++;
+                                }
+                                var _valid7 = _errs69 === errors;
+                                if (_valid7) {
+                                  valid16 = true;
+                                  passing1 = 0;
+                                }
+                                const _errs71 = errors;
+                                if (typeof data18 !== "string") {
+                                  const err31 = { instancePath: instancePath + "/summary", schemaPath: "#/definitions/v2/ReasoningSummary/oneOf/1/type", keyword: "type", params: { type: "string" } };
+                                  if (vErrors === null) {
+                                    vErrors = [err31];
+                                  } else {
+                                    vErrors.push(err31);
+                                  }
+                                  errors++;
+                                }
+                                if (!(data18 === "none")) {
+                                  const err32 = { instancePath: instancePath + "/summary", schemaPath: "#/definitions/v2/ReasoningSummary/oneOf/1/enum", keyword: "enum", params: { allowedValues: schema163.oneOf[1].enum } };
+                                  if (vErrors === null) {
+                                    vErrors = [err32];
+                                  } else {
+                                    vErrors.push(err32);
+                                  }
+                                  errors++;
+                                }
+                                var _valid7 = _errs71 === errors;
+                                if (_valid7 && valid16) {
+                                  valid16 = false;
+                                  passing1 = [passing1, 1];
+                                } else {
+                                  if (_valid7) {
+                                    valid16 = true;
+                                    passing1 = 1;
+                                  }
+                                }
+                                if (!valid16) {
+                                  const err33 = { instancePath: instancePath + "/summary", schemaPath: "#/definitions/v2/ReasoningSummary/oneOf", keyword: "oneOf", params: { passingSchemas: passing1 } };
+                                  if (vErrors === null) {
+                                    vErrors = [err33];
+                                  } else {
+                                    vErrors.push(err33);
+                                  }
+                                  errors++;
+                                } else {
+                                  errors = _errs68;
+                                  if (vErrors !== null) {
+                                    if (_errs68) {
+                                      vErrors.length = _errs68;
+                                    } else {
+                                      vErrors = null;
+                                    }
+                                  }
+                                }
+                                var _valid6 = _errs66 === errors;
+                                valid14 = valid14 || _valid6;
+                                if (!valid14) {
+                                  const _errs73 = errors;
+                                  if (data18 !== null) {
+                                    const err34 = { instancePath: instancePath + "/summary", schemaPath: "#/properties/summary/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                    if (vErrors === null) {
+                                      vErrors = [err34];
+                                    } else {
+                                      vErrors.push(err34);
+                                    }
+                                    errors++;
+                                  }
+                                  var _valid6 = _errs73 === errors;
+                                  valid14 = valid14 || _valid6;
+                                }
+                                if (!valid14) {
+                                  const err35 = { instancePath: instancePath + "/summary", schemaPath: "#/properties/summary/anyOf", keyword: "anyOf", params: {} };
+                                  if (vErrors === null) {
+                                    vErrors = [err35];
+                                  } else {
+                                    vErrors.push(err35);
+                                  }
+                                  errors++;
+                                  validate138.errors = vErrors;
                                   return false;
+                                } else {
+                                  errors = _errs65;
+                                  if (vErrors !== null) {
+                                    if (_errs65) {
+                                      vErrors.length = _errs65;
+                                    } else {
+                                      vErrors = null;
+                                    }
+                                  }
                                 }
                                 var valid0 = _errs64 === errors;
                               } else {
                                 var valid0 = true;
                               }
                               if (valid0) {
-                                if (data.summary !== void 0) {
-                                  let data19 = data.summary;
-                                  const _errs66 = errors;
-                                  const _errs67 = errors;
-                                  let valid14 = false;
-                                  const _errs68 = errors;
-                                  const _errs70 = errors;
-                                  let valid16 = false;
-                                  let passing1 = null;
-                                  const _errs71 = errors;
-                                  if (typeof data19 !== "string") {
-                                    const err29 = { instancePath: instancePath + "/summary", schemaPath: "#/definitions/v2/ReasoningSummary/oneOf/0/type", keyword: "type", params: { type: "string" } };
-                                    if (vErrors === null) {
-                                      vErrors = [err29];
-                                    } else {
-                                      vErrors.push(err29);
-                                    }
-                                    errors++;
-                                  }
-                                  if (!(data19 === "auto" || data19 === "concise" || data19 === "detailed")) {
-                                    const err30 = { instancePath: instancePath + "/summary", schemaPath: "#/definitions/v2/ReasoningSummary/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema163.oneOf[0].enum } };
-                                    if (vErrors === null) {
-                                      vErrors = [err30];
-                                    } else {
-                                      vErrors.push(err30);
-                                    }
-                                    errors++;
-                                  }
-                                  var _valid7 = _errs71 === errors;
-                                  if (_valid7) {
-                                    valid16 = true;
-                                    passing1 = 0;
-                                  }
-                                  const _errs73 = errors;
-                                  if (typeof data19 !== "string") {
-                                    const err31 = { instancePath: instancePath + "/summary", schemaPath: "#/definitions/v2/ReasoningSummary/oneOf/1/type", keyword: "type", params: { type: "string" } };
-                                    if (vErrors === null) {
-                                      vErrors = [err31];
-                                    } else {
-                                      vErrors.push(err31);
-                                    }
-                                    errors++;
-                                  }
-                                  if (!(data19 === "none")) {
-                                    const err32 = { instancePath: instancePath + "/summary", schemaPath: "#/definitions/v2/ReasoningSummary/oneOf/1/enum", keyword: "enum", params: { allowedValues: schema163.oneOf[1].enum } };
-                                    if (vErrors === null) {
-                                      vErrors = [err32];
-                                    } else {
-                                      vErrors.push(err32);
-                                    }
-                                    errors++;
-                                  }
-                                  var _valid7 = _errs73 === errors;
-                                  if (_valid7 && valid16) {
-                                    valid16 = false;
-                                    passing1 = [passing1, 1];
-                                  } else {
-                                    if (_valid7) {
-                                      valid16 = true;
-                                      passing1 = 1;
-                                    }
-                                  }
-                                  if (!valid16) {
-                                    const err33 = { instancePath: instancePath + "/summary", schemaPath: "#/definitions/v2/ReasoningSummary/oneOf", keyword: "oneOf", params: { passingSchemas: passing1 } };
-                                    if (vErrors === null) {
-                                      vErrors = [err33];
-                                    } else {
-                                      vErrors.push(err33);
-                                    }
-                                    errors++;
-                                  } else {
-                                    errors = _errs70;
-                                    if (vErrors !== null) {
-                                      if (_errs70) {
-                                        vErrors.length = _errs70;
-                                      } else {
-                                        vErrors = null;
-                                      }
-                                    }
-                                  }
-                                  var _valid6 = _errs68 === errors;
-                                  valid14 = valid14 || _valid6;
-                                  if (!valid14) {
-                                    const _errs75 = errors;
-                                    if (data19 !== null) {
-                                      const err34 = { instancePath: instancePath + "/summary", schemaPath: "#/properties/summary/anyOf/1/type", keyword: "type", params: { type: "null" } };
-                                      if (vErrors === null) {
-                                        vErrors = [err34];
-                                      } else {
-                                        vErrors.push(err34);
-                                      }
-                                      errors++;
-                                    }
-                                    var _valid6 = _errs75 === errors;
-                                    valid14 = valid14 || _valid6;
-                                  }
-                                  if (!valid14) {
-                                    const err35 = { instancePath: instancePath + "/summary", schemaPath: "#/properties/summary/anyOf", keyword: "anyOf", params: {} };
-                                    if (vErrors === null) {
-                                      vErrors = [err35];
-                                    } else {
-                                      vErrors.push(err35);
-                                    }
-                                    errors++;
-                                    validate138.errors = vErrors;
+                                if (data.threadId !== void 0) {
+                                  const _errs75 = errors;
+                                  if (typeof data.threadId !== "string") {
+                                    validate138.errors = [{ instancePath: instancePath + "/threadId", schemaPath: "#/properties/threadId/type", keyword: "type", params: { type: "string" } }];
                                     return false;
-                                  } else {
-                                    errors = _errs67;
-                                    if (vErrors !== null) {
-                                      if (_errs67) {
-                                        vErrors.length = _errs67;
-                                      } else {
-                                        vErrors = null;
-                                      }
-                                    }
                                   }
-                                  var valid0 = _errs66 === errors;
+                                  var valid0 = _errs75 === errors;
                                 } else {
                                   var valid0 = true;
                                 }
                                 if (valid0) {
-                                  if (data.threadId !== void 0) {
+                                  if (data.toolOutput !== void 0) {
+                                    let data20 = data.toolOutput;
                                     const _errs77 = errors;
-                                    if (typeof data.threadId !== "string") {
-                                      validate138.errors = [{ instancePath: instancePath + "/threadId", schemaPath: "#/properties/threadId/type", keyword: "type", params: { type: "string" } }];
+                                    const _errs78 = errors;
+                                    let valid17 = false;
+                                    const _errs79 = errors;
+                                    if (!validate141(data20, { instancePath: instancePath + "/toolOutput", parentData: data, parentDataProperty: "toolOutput", rootData })) {
+                                      vErrors = vErrors === null ? validate141.errors : vErrors.concat(validate141.errors);
+                                      errors = vErrors.length;
+                                    }
+                                    var _valid8 = _errs79 === errors;
+                                    valid17 = valid17 || _valid8;
+                                    if (!valid17) {
+                                      const _errs80 = errors;
+                                      if (data20 !== null) {
+                                        const err36 = { instancePath: instancePath + "/toolOutput", schemaPath: "#/properties/toolOutput/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                        if (vErrors === null) {
+                                          vErrors = [err36];
+                                        } else {
+                                          vErrors.push(err36);
+                                        }
+                                        errors++;
+                                      }
+                                      var _valid8 = _errs80 === errors;
+                                      valid17 = valid17 || _valid8;
+                                    }
+                                    if (!valid17) {
+                                      const err37 = { instancePath: instancePath + "/toolOutput", schemaPath: "#/properties/toolOutput/anyOf", keyword: "anyOf", params: {} };
+                                      if (vErrors === null) {
+                                        vErrors = [err37];
+                                      } else {
+                                        vErrors.push(err37);
+                                      }
+                                      errors++;
+                                      validate138.errors = vErrors;
                                       return false;
+                                    } else {
+                                      errors = _errs78;
+                                      if (vErrors !== null) {
+                                        if (_errs78) {
+                                          vErrors.length = _errs78;
+                                        } else {
+                                          vErrors = null;
+                                        }
+                                      }
                                     }
                                     var valid0 = _errs77 === errors;
                                   } else {
                                     var valid0 = true;
                                   }
                                   if (valid0) {
-                                    if (data.toolOutput !== void 0) {
-                                      let data21 = data.toolOutput;
-                                      const _errs79 = errors;
-                                      const _errs80 = errors;
-                                      let valid17 = false;
-                                      const _errs81 = errors;
-                                      if (!validate141(data21, { instancePath: instancePath + "/toolOutput", parentData: data, parentDataProperty: "toolOutput", rootData })) {
-                                        vErrors = vErrors === null ? validate141.errors : vErrors.concat(validate141.errors);
-                                        errors = vErrors.length;
-                                      }
-                                      var _valid8 = _errs81 === errors;
-                                      valid17 = valid17 || _valid8;
-                                      if (!valid17) {
-                                        const _errs82 = errors;
-                                        if (data21 !== null) {
-                                          const err36 = { instancePath: instancePath + "/toolOutput", schemaPath: "#/properties/toolOutput/anyOf/1/type", keyword: "type", params: { type: "null" } };
-                                          if (vErrors === null) {
-                                            vErrors = [err36];
-                                          } else {
-                                            vErrors.push(err36);
-                                          }
-                                          errors++;
-                                        }
-                                        var _valid8 = _errs82 === errors;
-                                        valid17 = valid17 || _valid8;
-                                      }
-                                      if (!valid17) {
-                                        const err37 = { instancePath: instancePath + "/toolOutput", schemaPath: "#/properties/toolOutput/anyOf", keyword: "anyOf", params: {} };
-                                        if (vErrors === null) {
-                                          vErrors = [err37];
-                                        } else {
-                                          vErrors.push(err37);
-                                        }
-                                        errors++;
-                                        validate138.errors = vErrors;
+                                    if (data.turnTrigger !== void 0) {
+                                      let data21 = data.turnTrigger;
+                                      const _errs82 = errors;
+                                      if (typeof data21 !== "string" && data21 !== null) {
+                                        validate138.errors = [{ instancePath: instancePath + "/turnTrigger", schemaPath: "#/properties/turnTrigger/type", keyword: "type", params: { type: schema158.properties.turnTrigger.type } }];
                                         return false;
-                                      } else {
-                                        errors = _errs80;
-                                        if (vErrors !== null) {
-                                          if (_errs80) {
-                                            vErrors.length = _errs80;
-                                          } else {
-                                            vErrors = null;
-                                          }
-                                        }
                                       }
-                                      var valid0 = _errs79 === errors;
+                                      var valid0 = _errs82 === errors;
                                     } else {
                                       var valid0 = true;
-                                    }
-                                    if (valid0) {
-                                      if (data.turnTrigger !== void 0) {
-                                        let data22 = data.turnTrigger;
-                                        const _errs84 = errors;
-                                        if (typeof data22 !== "string" && data22 !== null) {
-                                          validate138.errors = [{ instancePath: instancePath + "/turnTrigger", schemaPath: "#/properties/turnTrigger/type", keyword: "type", params: { type: schema158.properties.turnTrigger.type } }];
-                                          return false;
-                                        }
-                                        var valid0 = _errs84 === errors;
-                                      } else {
-                                        var valid0 = true;
-                                      }
                                     }
                                   }
                                 }
@@ -15134,7 +15122,7 @@ function validate145(data, { instancePath = "", parentData, parentDataProperty, 
   return errors === 0;
 }
 var validateV2TurnSteerParams = validate149;
-var schema168 = { "$schema": "http://json-schema.org/draft-07/schema#", "properties": { "clientUserMessageId": { "type": ["string", "null"] }, "expectedTurnId": { "description": "Required active turn id precondition. The request fails when it does not match the currently active turn.", "type": "string" }, "input": { "items": { "$ref": "#/definitions/v2/UserInput" }, "type": "array" }, "rejectUnsupportedImages": { "description": "Reject new images if the active turn's current model does not support them.", "type": "boolean" }, "threadId": { "type": "string" } }, "required": ["expectedTurnId", "input", "threadId"], "title": "TurnSteerParams", "type": "object" };
+var schema168 = { "$schema": "http://json-schema.org/draft-07/schema#", "properties": { "clientUserMessageId": { "type": ["string", "null"] }, "expectedTurnId": { "description": "Required active turn id precondition. The request fails when it does not match the currently active turn.", "type": "string" }, "input": { "items": { "$ref": "#/definitions/v2/UserInput" }, "type": "array" }, "threadId": { "type": "string" } }, "required": ["expectedTurnId", "input", "threadId"], "title": "TurnSteerParams", "type": "object" };
 function validate150(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -15196,27 +15184,15 @@ function validate150(data, { instancePath = "", parentData, parentDataProperty, 
               var valid0 = true;
             }
             if (valid0) {
-              if (data.rejectUnsupportedImages !== void 0) {
+              if (data.threadId !== void 0) {
                 const _errs8 = errors;
-                if (typeof data.rejectUnsupportedImages !== "boolean") {
-                  validate150.errors = [{ instancePath: instancePath + "/rejectUnsupportedImages", schemaPath: "#/properties/rejectUnsupportedImages/type", keyword: "type", params: { type: "boolean" } }];
+                if (typeof data.threadId !== "string") {
+                  validate150.errors = [{ instancePath: instancePath + "/threadId", schemaPath: "#/properties/threadId/type", keyword: "type", params: { type: "string" } }];
                   return false;
                 }
                 var valid0 = _errs8 === errors;
               } else {
                 var valid0 = true;
-              }
-              if (valid0) {
-                if (data.threadId !== void 0) {
-                  const _errs10 = errors;
-                  if (typeof data.threadId !== "string") {
-                    validate150.errors = [{ instancePath: instancePath + "/threadId", schemaPath: "#/properties/threadId/type", keyword: "type", params: { type: "string" } }];
-                    return false;
-                  }
-                  var valid0 = _errs10 === errors;
-                } else {
-                  var valid0 = true;
-                }
               }
             }
           }

@@ -19,7 +19,6 @@ use codex_protocol::SessionId;
 use codex_protocol::ThreadId;
 use codex_protocol::config_types::ShellEnvironmentPolicy;
 use codex_protocol::models::AdditionalPermissionProfile;
-use codex_protocol::openai_models::InputModality;
 use codex_protocol::openai_models::MODEL_SPECIALTY_CYBER;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::openai_models::ReasoningEffort;
@@ -879,66 +878,6 @@ impl Session {
         Ok(Some((turn_context, commit.snapshot)))
     }
 
-    /// Validates image admission against the same candidate that is committed, and
-    /// pins the validated metadata for the new turn. No settings are committed on rejection.
-    pub(super) async fn new_turn_with_sub_id_requiring_images(
-        &self,
-        sub_id: String,
-        updates: SessionSettingsUpdate,
-        options: NewTurnContextOptions,
-    ) -> CodexResult<(Arc<TurnContext>, ThreadSettingsSnapshot)> {
-        loop {
-            let candidate = {
-                let state = self.state.lock().await;
-                self.apply_session_settings(&state.session_configuration, &updates)
-                    .map_err(|error| CodexErr::InvalidRequest(error.to_string()))?
-            };
-            let model_info = candidate
-                .step_settings
-                .resolve_model_info(
-                    self.services.models_manager.as_ref(),
-                    &candidate.model_info_overrides,
-                    self.features.enabled(Feature::Personality),
-                )
-                .await;
-            let supported = model_info.input_modalities.contains(&InputModality::Image);
-            let mut candidate_matches = false;
-            let commit = self
-                .update_settings_if(updates.clone(), |_, proposed| {
-                    candidate_matches = proposed.step_settings == candidate.step_settings
-                        && proposed.model_info_overrides == candidate.model_info_overrides;
-                    candidate_matches && supported
-                })
-                .await
-                .map_err(|error| CodexErr::InvalidRequest(error.to_string()))?;
-            if !candidate_matches {
-                continue;
-            }
-            let Some(commit) = commit else {
-                return Err(CodexErr::InvalidRequest(format!(
-                    "model {} does not support image input",
-                    model_info.slug,
-                )));
-            };
-            let mut configuration = commit.configuration;
-            if let Some(service_tier) = &updates.service_tier_for_turn {
-                Arc::make_mut(&mut configuration.step_settings).service_tier =
-                    Some(service_tier.clone());
-            }
-            let turn_context = self
-                .new_turn_context_from_configuration(
-                    sub_id,
-                    configuration,
-                    options,
-                    TurnMultiAgentRuntime::ResolveAndStore,
-                    self.git_enrichment_policy,
-                    Some(model_info),
-                )
-                .await;
-            return Ok((turn_context, commit.snapshot));
-        }
-    }
-
     /// Constructs a turn from the exact committed settings without starting a task.
     async fn new_turn_from_configuration(
         &self,
@@ -952,7 +891,6 @@ impl Session {
             options,
             TurnMultiAgentRuntime::ResolveAndStore,
             self.git_enrichment_policy,
-            /*validated_model_info*/ None,
         )
         .await
     }
@@ -968,7 +906,6 @@ impl Session {
             NewTurnContextOptions::default(),
             TurnMultiAgentRuntime::Preview,
             GitEnrichmentPolicy::Skip,
-            /*validated_model_info*/ None,
         )
         .await
     }
@@ -981,7 +918,6 @@ impl Session {
         options: NewTurnContextOptions,
         multi_agent_runtime: TurnMultiAgentRuntime,
         git_enrichment_policy: GitEnrichmentPolicy,
-        validated_model_info: Option<ModelInfo>,
     ) -> Arc<TurnContext> {
         let turn_environments = self.services.turn_environments.snapshot().await;
         let primary_turn_environment = turn_environments.primary();
@@ -996,19 +932,14 @@ impl Session {
             .map(TurnEnvironment::permission_profile)
             .cloned()
             .unwrap_or_else(|| session_configuration.permission_profile());
-        let model_info = match validated_model_info {
-            Some(model_info) => model_info,
-            None => {
-                session_configuration
-                    .step_settings
-                    .resolve_model_info(
-                        self.services.models_manager.as_ref(),
-                        &session_configuration.model_info_overrides,
-                        self.features.enabled(Feature::Personality),
-                    )
-                    .await
-            }
-        };
+        let model_info = session_configuration
+            .step_settings
+            .resolve_model_info(
+                self.services.models_manager.as_ref(),
+                &session_configuration.model_info_overrides,
+                self.features.enabled(Feature::Personality),
+            )
+            .await;
         self.services
             .thread_extension_data
             .insert(model_info.clone());

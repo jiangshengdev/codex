@@ -22,7 +22,6 @@ use codex_protocol::config_types::ModeKind;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result as CodexResult;
 use codex_protocol::models::ResponseItem;
-use codex_protocol::openai_models::InputModality;
 use codex_protocol::protocol::AdditionalContextEntry;
 use codex_protocol::protocol::CodexErrorInfo;
 use codex_protocol::protocol::ErrorEvent;
@@ -120,7 +119,6 @@ impl PreparedTurnInputSettings {
         session: &Arc<Session>,
         submission_id: String,
         kind: TurnStartKind,
-        requires_image_support: bool,
     ) -> CodexResult<Option<Arc<TurnContext>>> {
         let TurnStartOptions {
             turn_trigger,
@@ -144,11 +142,6 @@ impl PreparedTurnInputSettings {
             cyber_access_program,
         };
         let turn_context = match kind {
-            TurnStartKind::User if requires_image_support => Some(
-                session
-                    .new_turn_with_sub_id_requiring_images(submission_id.clone(), updates, options)
-                    .await?,
-            ),
             TurnStartKind::User | TurnStartKind::Recovery => Some(
                 session
                     .new_turn_with_sub_id(submission_id.clone(), updates, options)
@@ -246,7 +239,6 @@ async fn start_or_steer(
     request: TurnInputRequest,
     submission_id: String,
 ) -> CodexResult<TurnInputSubmission> {
-    let requires_image_support = requires_image_support(&request);
     let TurnInputRequest {
         mut input,
         thread_settings,
@@ -276,9 +268,8 @@ async fn start_or_steer(
             /*expected_turn_id*/ None,
             settings.required_active_final_output_json_schema(),
             responsesapi_client_metadata.clone(),
-            requires_image_support,
         )
-        .await?
+        .await
     {
         Ok(turn_id) => {
             settings.apply_steered(session, submission_id).await?;
@@ -286,12 +277,7 @@ async fn start_or_steer(
         }
         Err(NotSubmittedReason::NoActiveTurn) => {
             let Some(turn_context) = settings
-                .apply_started(
-                    session,
-                    submission_id.clone(),
-                    TurnStartKind::User,
-                    requires_image_support,
-                )
+                .apply_started(session, submission_id.clone(), TurnStartKind::User)
                 .await?
             else {
                 unreachable!("explicit user input can enter Plan mode");
@@ -328,7 +314,6 @@ async fn start_if_idle(
     submission_id: String,
     kind: TurnStartKind,
 ) -> CodexResult<TurnInputSubmission> {
-    let requires_image_support = requires_image_support(&request);
     let TurnInputRequest {
         input,
         thread_settings,
@@ -379,7 +364,7 @@ async fn start_if_idle(
         }
     };
     let turn_context = match settings
-        .apply_started(session, submission_id.clone(), kind, requires_image_support)
+        .apply_started(session, submission_id.clone(), kind)
         .await
     {
         Ok(Some(turn_context)) => turn_context,
@@ -442,7 +427,6 @@ async fn steer(
     expected_turn_id: String,
     submission_id: String,
 ) -> CodexResult<TurnInputSubmission> {
-    let requires_image_support = requires_image_support(&request);
     let TurnInputRequest {
         mut input,
         thread_settings,
@@ -464,9 +448,8 @@ async fn steer(
             Some(expected_turn_id.as_str()),
             settings.required_active_final_output_json_schema(),
             responsesapi_client_metadata,
-            requires_image_support,
         )
-        .await?
+        .await
     {
         Ok(turn_id) => {
             settings.apply_steered(session, submission_id).await?;
@@ -540,43 +523,42 @@ impl Session {
         expected_turn_id: Option<&str>,
         required_final_output_json_schema: Option<&Value>,
         responsesapi_client_metadata: Option<HashMap<String, String>>,
-        requires_image_support: bool,
-    ) -> CodexResult<Result<String, NotSubmittedReason>> {
+    ) -> Result<String, NotSubmittedReason> {
         let mut active = self.active_turn.lock().await;
         let Some(active_turn) = active.as_mut() else {
-            return Ok(Err(NotSubmittedReason::NoActiveTurn));
+            return Err(NotSubmittedReason::NoActiveTurn);
         };
 
         let Some(active_task) = active_turn.task.as_ref() else {
-            return Ok(Err(NotSubmittedReason::NoActiveTurn));
+            return Err(NotSubmittedReason::NoActiveTurn);
         };
         let active_turn_id = &active_task.turn_context.sub_id;
 
         if let Some(expected_turn_id) = expected_turn_id
             && expected_turn_id != active_turn_id
         {
-            return Ok(Err(NotSubmittedReason::ExpectedTurnMismatch {
+            return Err(NotSubmittedReason::ExpectedTurnMismatch {
                 expected: expected_turn_id.to_string(),
                 actual: active_turn_id.clone(),
-            }));
+            });
         }
 
         match active_task.kind {
             crate::state::TaskKind::Regular => {}
             crate::state::TaskKind::Review => {
-                return Ok(Err(NotSubmittedReason::ActiveTurnNotSteerable {
+                return Err(NotSubmittedReason::ActiveTurnNotSteerable {
                     turn_kind: NonSteerableTurnKind::Review,
-                }));
+                });
             }
             crate::state::TaskKind::Compact => {
-                return Ok(Err(NotSubmittedReason::ActiveTurnNotSteerable {
+                return Err(NotSubmittedReason::ActiveTurnNotSteerable {
                     turn_kind: NonSteerableTurnKind::Compact,
-                }));
+                });
             }
         }
 
         if matches!(input, SubmittedTurnInput::UserInput { content, .. } if content.is_empty()) {
-            return Ok(Err(NotSubmittedReason::EmptyInput));
+            return Err(NotSubmittedReason::EmptyInput);
         }
         // Compare JSON values directly instead of serialized schema text.
         // Value equality ignores object key order while preserving array and
@@ -584,19 +566,7 @@ impl Session {
         if let Some(required_schema) = required_final_output_json_schema
             && active_task.turn_context.final_output_json_schema.as_ref() != Some(required_schema)
         {
-            return Ok(Err(NotSubmittedReason::ActiveTurnOutputSchemaMismatch));
-        }
-        let current_settings = active_task.turn_context.current_settings.load_full();
-        if requires_image_support
-            && !current_settings
-                .model_info
-                .input_modalities
-                .contains(&InputModality::Image)
-        {
-            return Err(CodexErr::InvalidRequest(format!(
-                "model {} does not support image input",
-                current_settings.model_info.slug,
-            )));
+            return Err(NotSubmittedReason::ActiveTurnOutputSchemaMismatch);
         }
         let mut pending_input = merge_additional_context_input(self, additional_context).await;
 
@@ -628,14 +598,8 @@ impl Session {
                 pending_input,
             )
             .await;
-        Ok(Ok(active_turn_id.clone()))
+        Ok(active_turn_id.clone())
     }
-}
-
-fn requires_image_support(request: &TurnInputRequest) -> bool {
-    request.reject_unsupported_images
-        && matches!(&request.input, SubmittedTurnInput::UserInput { content, .. }
-            if content.iter().any(|item| matches!(item, UserInput::Image { .. } | UserInput::LocalImage { .. })))
 }
 
 async fn merge_additional_context_input(

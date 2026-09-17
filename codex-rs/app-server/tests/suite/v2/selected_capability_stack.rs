@@ -682,7 +682,6 @@ async fn selected_capabilities_become_available_between_samples_in_one_turn(
         let steer_request_id = app_server
             .send_turn_steer_request(TurnSteerParams {
                 thread_id,
-                reject_unsupported_images: false,
                 input: vec![UserInput::Text {
                     text: if matches!(mention_timing, MentionTiming::Steered) {
                         format!("Use {mention_link} now.")

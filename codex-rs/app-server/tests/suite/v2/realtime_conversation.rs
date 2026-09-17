@@ -1279,7 +1279,6 @@ async fn realtime_timeline_splits_accepted_steering_and_persists_promoted_artifa
             .mcp
             .send_turn_steer_request(TurnSteerParams {
                 thread_id: harness.thread_id.clone(),
-                reject_unsupported_images: false,
                 input,
                 expected_turn_id,
                 additional_context: None,
@@ -1309,7 +1308,6 @@ async fn realtime_timeline_splits_accepted_steering_and_persists_promoted_artifa
         .mcp
         .send_turn_steer_request(TurnSteerParams {
             thread_id: harness.thread_id.clone(),
-            reject_unsupported_images: false,
             input: vec![V2UserInput::Text {
                 text: "Accepted steering".to_string(),
                 text_elements: Vec::new(),

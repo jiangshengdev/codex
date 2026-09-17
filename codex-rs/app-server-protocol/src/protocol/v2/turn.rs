@@ -155,9 +155,6 @@ pub struct TurnToolOutput {
 #[ts(export_to = "v2/")]
 pub struct TurnStartParams {
     pub thread_id: String,
-    /// Reject new images if the model receiving this input does not support them.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub reject_unsupported_images: bool,
     #[ts(optional = nullable)]
     pub client_user_message_id: Option<String>,
     pub input: Vec<UserInput>,
@@ -279,9 +276,6 @@ pub struct TurnStartResponse {
 #[ts(export_to = "v2/")]
 pub struct TurnSteerParams {
     pub thread_id: String,
-    /// Reject new images if the active turn's current model does not support them.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub reject_unsupported_images: bool,
     #[ts(optional = nullable)]
     pub client_user_message_id: Option<String>,
     pub input: Vec<UserInput>,
