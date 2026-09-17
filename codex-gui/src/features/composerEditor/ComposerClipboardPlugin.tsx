@@ -10,7 +10,6 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import {
   $createNodeSelection,
   $getSelection,
-  $isElementNode,
   $isNodeSelection,
   $isRangeSelection,
   $isTextNode,
@@ -20,13 +19,12 @@ import {
   CUT_COMMAND,
   CUT_TAG,
   type LexicalEditor,
-  type LexicalNode,
   mergeRegister,
   PASTE_COMMAND,
   PASTE_TAG,
 } from "lexical";
 import { useEffect } from "react";
-import { $isSkillNode } from "./SkillNode";
+import { $getComposerText } from "./composerText";
 
 const LEXICAL_MIME_TYPE = "application/x-lexical-editor";
 
@@ -146,13 +144,11 @@ function clipboardDataFromSelection(
   );
   const selectedNodes = $generateNodesFromSerializedNodes(payload.nodes);
   return {
-    "text/plain": compileSelectedNodes(selectedNodes, "canonical"),
-    "text/html": `<span>${escapeHtml(compileSelectedNodes(selectedNodes, "display"))}</span>`,
+    "text/plain": $getComposerText(selectedNodes, "canonical"),
+    "text/html": clipboardHtml($getComposerText(selectedNodes, "display")),
     [LEXICAL_MIME_TYPE]: JSON.stringify(payload),
   };
 }
-
-type SkillTextProjection = "canonical" | "display";
 
 function normalizeSelectionForClipboardProjection(selection: BaseSelection): BaseSelection {
   if (!$isRangeSelection(selection)) return selection;
@@ -163,31 +159,6 @@ function normalizeSelectionForClipboardProjection(selection: BaseSelection): Bas
   const nodeSelection = $createNodeSelection();
   for (const node of selectedNodes) nodeSelection.add(node.getKey());
   return nodeSelection;
-}
-
-function compileSelectedNodes(nodes: LexicalNode[], skillText: SkillTextProjection): string {
-  let compiled = "";
-  let previousNode: LexicalNode | null = null;
-  for (const node of nodes) {
-    if (previousNode != null && (!previousNode.isInline() || !node.isInline())) {
-      compiled += "\n";
-    }
-    compiled += compileSelectedNode(node, skillText);
-    previousNode = node;
-  }
-  return compiled;
-}
-
-function compileSelectedNode(node: LexicalNode, skillText: SkillTextProjection): string {
-  if ($isSkillNode(node)) {
-    const skill = node.getSkill();
-    return `$${skillText === "canonical" ? skill.name : skill.displayName}`;
-  }
-  if (!$isElementNode(node)) return node.getTextContent();
-  return node
-    .getChildren()
-    .map((child) => compileSelectedNode(child, skillText))
-    .join("");
 }
 
 function reportClipboardCopyFailure(editor: LexicalEditor, error?: unknown): void {
@@ -213,4 +184,11 @@ function escapeHtml(text: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function clipboardHtml(text: string): string {
+  const lines = text.split("\n");
+  return lines.length === 1
+    ? `<span>${escapeHtml(text)}</span>`
+    : lines.map((line) => `<p>${line === "" ? "<br>" : escapeHtml(line)}</p>`).join("");
 }

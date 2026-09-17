@@ -1,4 +1,4 @@
-import { importComposerDraft } from "@/features/composerEditor/composerDraft";
+import { exportComposerDraft, importComposerDraft } from "@/features/composerEditor/composerDraft";
 import type { PersistedComposerDraft } from "@/features/composerEditor/composerEditorContracts";
 
 import {
@@ -36,8 +36,11 @@ export function decodeComposerCoordinatorRecord(
   ) {
     throw new Error("Invalid persisted failed interrupt target");
   }
-  if (record.draft !== null && importComposerDraft(record.draft).type !== "imported") {
-    throw new Error("Invalid persisted composer draft");
+  let draft: PersistedComposerDraft | null = null;
+  if (record.draft !== null) {
+    const imported = importComposerDraft(record.draft);
+    if (imported.type !== "imported") throw new Error("Invalid persisted composer draft");
+    draft = exportComposerDraft(imported.draft);
   }
 
   const queue = createComposerInputQueue({ threadId, activeTurnId: null });
@@ -56,7 +59,7 @@ export function decodeComposerCoordinatorRecord(
     // The owner validated the stored data above. Keep its original phases here:
     // issuing becomes unknown only on live recovery, not during commit validation.
     queue: upgradedQueue as ComposerInputQueuePersistedState,
-    draft: record.draft as PersistedComposerDraft | null,
+    draft,
     interrupt,
     failedInterruptTurnId: record.failedInterruptTurnId,
   };

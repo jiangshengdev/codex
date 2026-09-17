@@ -1,4 +1,5 @@
 import {
+  $createLineBreakNode,
   $createParagraphNode,
   $createTextNode,
   $getRoot,
@@ -20,6 +21,49 @@ import {
 import { $createSkillNode, $isSkillNode, SkillNode, type SkillNodeState } from "../SkillNode";
 
 describe("composerDraft", () => {
+  it("migrates v1 soft breaks and double paragraph boundaries once without losing skills", () => {
+    const source = createTestEditor();
+    const selected = skill("alpha", "/skills/alpha", "Alpha");
+    source.update(
+      () => {
+        $getRoot().append(
+          $createParagraphNode().append(
+            $createLineBreakNode(),
+            $createSkillNode(selected),
+            $createLineBreakNode(),
+            $createLineBreakNode(),
+            $createTextNode("tail"),
+            $createLineBreakNode(),
+          ),
+          $createParagraphNode(),
+          $createParagraphNode().append($createTextNode("last")),
+        );
+      },
+      { discrete: true },
+    );
+    const imported = importComposerDraft({
+      version: 1,
+      editorStateJson: JSON.stringify(source.getEditorState().toJSON()),
+    });
+    if (imported.type !== "imported") throw new Error("Expected legacy import");
+    const target = createEditorWithText("current");
+    expect(restoreComposerDraft(target, imported.draft)).toEqual({ type: "restored" });
+    const migrated = captureComposerDraft(target.getEditorState());
+    expect(migrated.textContent).toBe("\n$Alpha\n\ntail\n\n\n\n\nlast");
+    expect(migrated.input).toEqual([
+      { type: "text", text: "\n$alpha\n\ntail\n\n\n\n\nlast", text_elements: [] },
+      { type: "skill", name: "alpha", path: "/skills/alpha" },
+    ]);
+    const exported = exportComposerDraft(migrated.draft);
+    expect(exported.version).toBe(2);
+    expect(exported.editorStateJson).not.toContain('"type":"linebreak"');
+    const again = importComposerDraft(exported);
+    if (again.type !== "imported") throw new Error("Expected current import");
+    expect(restoreComposerDraft(target, again.draft)).toEqual({ type: "restored" });
+    expect(captureComposerDraft(target.getEditorState()).input).toEqual(migrated.input);
+    expect(readSkills(target)).toEqual([selected]);
+  });
+
   it("preserves ordinary text and paragraph line breaks", () => {
     const editor = createTestEditor();
     editor.update(
@@ -35,7 +79,7 @@ describe("composerDraft", () => {
     expect(captureComposerDraft(editor.getEditorState()).input).toEqual([
       {
         type: "text",
-        text: "first paragraph\n\nsecond paragraph",
+        text: "first paragraph\nsecond paragraph",
         text_elements: [],
       },
     ]);
@@ -142,7 +186,7 @@ describe("composerDraft", () => {
     );
 
     expect(projectComposerDraft(editor.getEditorState())).toEqual({
-      textContent: "Before $First and $Second\n\n$Third after",
+      textContent: "Before $First and $Second\n$Third after",
       selectedSkillPaths: [repeatedPath, repeatedPath, "/example/skills/third/SKILL.md"],
     });
   });
@@ -206,7 +250,7 @@ describe("composerDraft", () => {
       input: [
         {
           type: "text",
-          text: "literal $shared then $shared and $renamed\n\n$shared done",
+          text: "literal $shared then $shared and $renamed\n$shared done",
           text_elements: [],
         },
         { type: "skill", name: "shared", path: first.path },
@@ -214,7 +258,7 @@ describe("composerDraft", () => {
       ],
       selectedSkillPaths: [first.path, first.path, second.path],
       textContent:
-        "literal $shared then $First display and $Duplicate display\n\n$Second display done",
+        "literal $shared then $First display and $Duplicate display\n$Second display done",
     });
     expect(readSkills(editor)).toEqual([first, duplicate, second]);
   });

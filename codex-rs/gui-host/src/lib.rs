@@ -7,6 +7,7 @@ mod filter;
 mod host;
 mod net;
 mod token;
+mod upload;
 mod url;
 pub(crate) mod ws;
 

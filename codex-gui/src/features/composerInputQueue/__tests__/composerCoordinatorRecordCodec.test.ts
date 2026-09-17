@@ -123,6 +123,16 @@ describe("decodeComposerCoordinatorRecord", () => {
     expect(decodeComposerCoordinatorRecord(record, threadId)).toEqual(record);
   });
 
+  it("returns a migrated draft without changing the persisted source record", () => {
+    const current = exportComposerDraft(composerDraftCapture("legacy draft").draft);
+    const legacy = { ...emptyRecord(), draft: { ...current, version: 1 } };
+    const decoded = decodeComposerCoordinatorRecord(legacy, threadId);
+    expect(decoded.draft?.version).toBe(2);
+    expect(decoded.draft?.editorStateJson).toBe(current.editorStateJson);
+    expect(legacy.draft.version).toBe(1);
+    expect(decodeComposerCoordinatorRecord(decoded, threadId)).toEqual(decoded);
+  });
+
   it("preserves issuing phases while validating a send candidate", () => {
     const queue = createComposerInputQueue({ threadId, activeTurnId: null });
     const submitted = queue.submit(composerQueueMessage("first"));

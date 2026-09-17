@@ -13,6 +13,7 @@ use axum::middleware;
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::routing::get;
+use axum::routing::post;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
@@ -26,6 +27,7 @@ use crate::assets;
 use crate::browser_contract::CURRENT_TASK_PATH_SEGMENT;
 use crate::browser_contract::HISTORY_PATH_SEGMENT;
 use crate::browser_contract::NEW_TASK_PATH_SEGMENT;
+use crate::browser_contract::UPLOAD_PATH;
 use crate::browser_contract::WEBSOCKET_PATH;
 use crate::launch_url_for_thread;
 use crate::launch_urls_for_thread;
@@ -44,6 +46,7 @@ pub struct GuiHostHandle {
 
 #[derive(Clone)]
 pub(crate) struct GuiHostState<B> {
+    pub(crate) shutdown: CancellationToken,
     pub(crate) local_addr: SocketAddr,
     pub(crate) launch_token: LaunchToken,
     pub(crate) advertised_hosts: Vec<AdvertisedHost>,
@@ -128,6 +131,7 @@ where
             let config = config.clone();
             Ok(Router::new()
                 .route(WEBSOCKET_PATH, get(crate::ws::ws_handler::<B>))
+                .route(UPLOAD_PATH, post(crate::upload::upload::<B>))
                 .fallback(get(move |request: Request<Body>| {
                     let config = config.clone();
                     async move { assets::proxy_vite(config, request).await }
@@ -186,6 +190,7 @@ where
                     }),
                 )
                 .route(WEBSOCKET_PATH, get(crate::ws::ws_handler::<B>))
+                .route(UPLOAD_PATH, post(crate::upload::upload::<B>))
                 .fallback_service(assets::prod_assets_service(config))
                 .layer(middleware::map_response(assets::add_security_headers))
                 .layer(middleware::from_fn_with_state(
@@ -243,12 +248,14 @@ where
     let local_addr = listener.local_addr()?;
     let launch_token = LaunchToken::generate().map_err(io::Error::other)?;
     let state = Arc::new(GuiHostState {
+        shutdown: CancellationToken::new(),
         local_addr,
         launch_token: launch_token.clone(),
         advertised_hosts: advertised_hosts.clone(),
         mode: config.mode,
         backend,
     });
+    let upload_shutdown = state.shutdown.clone();
     let app = router_for_state(state).map_err(io::Error::other)?;
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let cancel_token = CancellationToken::new();
@@ -260,6 +267,7 @@ where
                     _ = shutdown_rx => {}
                     _ = server_cancel.cancelled() => {}
                 }
+                upload_shutdown.cancel();
             })
             .await
     });

@@ -1,21 +1,26 @@
 import {
+  $createParagraphNode,
   $getRoot,
   $isElementNode,
+  $nodesOfType,
   CLEAR_HISTORY_COMMAND,
   createEditor,
   type EditorState,
   type LexicalEditor,
   type LexicalNode,
+  LineBreakNode,
   type SerializedEditorState,
 } from "lexical";
 
 import type { ReadonlyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 
 import { $isSkillNode, SkillNode, type SkillNodeState } from "./SkillNode";
+import { $getComposerText } from "./composerText";
+import { $normalizeComposerLineBreak } from "./composerParagraphs";
 
 const composerDraftBrand: unique symbol = Symbol("ComposerDraft");
 const composerDraftCaptureBrand: unique symbol = Symbol("ComposerDraftCapture");
-const composerDraftVersion = 1;
+const composerDraftVersion = 2;
 
 export type ComposerDraft = Readonly<{
   [composerDraftBrand]: true;
@@ -72,7 +77,7 @@ export function importComposerDraft(value: unknown): ComposerDraftImportResult {
     typeof value !== "object" ||
     value === null ||
     !("version" in value) ||
-    value.version !== composerDraftVersion ||
+    (value.version !== 1 && value.version !== composerDraftVersion) ||
     !("editorStateJson" in value) ||
     typeof value.editorStateJson !== "string"
   ) {
@@ -89,7 +94,19 @@ export function importComposerDraft(value: unknown): ComposerDraftImportResult {
         throw error;
       },
     });
-    const editorState = editor.parseEditorState(value.editorStateJson);
+    const editorState = editor.parseEditorState(value.editorStateJson, () => {
+      // Version 1 compiled every block boundary as two newlines. Preserve the
+      // extra newline explicitly; subsequent imports only see version 2.
+      if (value.version === 1) {
+        const blocks = $getRoot().getChildren();
+        for (const block of blocks.slice(0, -1)) {
+          if ($isElementNode(block) && !block.isInline()) {
+            block.insertAfter($createParagraphNode());
+          }
+        }
+      }
+      $normalizeDraftLineBreaks();
+    });
     const capture = captureComposerDraft(editorState);
     return { type: "imported", draft: capture.draft };
   } catch {
@@ -122,7 +139,7 @@ export function projectComposerDraft(editorState: EditorState): ComposerDraftPro
     const selectedSkillPaths: string[] = [];
     collectSelectedSkillPaths($getRoot(), selectedSkillPaths);
     return {
-      textContent: $getRoot().getTextContent(),
+      textContent: $getComposerText($getRoot().getChildren(), "display"),
       selectedSkillPaths,
     };
   });
@@ -158,6 +175,7 @@ export function restoreComposerDraft(
   let restoredEditorState: EditorState;
   try {
     restoredEditorState = editor.parseEditorState(record.serializedEditorState, () => {
+      $normalizeDraftLineBreaks();
       $getRoot().selectEnd();
     });
   } catch {
@@ -167,6 +185,10 @@ export function restoreComposerDraft(
   editor.dispatchCommand(CLEAR_HISTORY_COMMAND, undefined);
   editor.setEditorState(restoredEditorState);
   return { type: "restored" };
+}
+
+function $normalizeDraftLineBreaks(): void {
+  for (const node of $nodesOfType(LineBreakNode)) $normalizeComposerLineBreak(node);
 }
 
 function compileEditorState(editorState: EditorState): Readonly<{
@@ -179,7 +201,8 @@ function compileEditorState(editorState: EditorState): Readonly<{
     const selectedSkillPaths: string[] = [];
     const seenPaths = new Set<string>();
     const root = $getRoot();
-    const text = compileNode(root, skills, selectedSkillPaths, seenPaths);
+    collectSkills(root, skills, selectedSkillPaths, seenPaths);
+    const text = $getComposerText(root.getChildren(), "canonical");
     const input: ReadonlyComposerInputPayload = [
       { type: "text", text, text_elements: [] },
       ...skills.map(({ name, path }) => ({ type: "skill" as const, name, path })),
@@ -187,17 +210,17 @@ function compileEditorState(editorState: EditorState): Readonly<{
     return {
       input,
       selectedSkillPaths,
-      textContent: root.getTextContent(),
+      textContent: $getComposerText(root.getChildren(), "display"),
     };
   });
 }
 
-function compileNode(
+function collectSkills(
   node: LexicalNode,
   skills: SkillNodeState[],
   selectedSkillPaths: string[],
   seenPaths: Set<string>,
-): string {
+): void {
   if ($isSkillNode(node)) {
     const skill = node.getSkill();
     selectedSkillPaths.push(skill.path);
@@ -205,20 +228,14 @@ function compileNode(
       seenPaths.add(skill.path);
       skills.push(skill);
     }
-    return `$${skill.name}`;
+    return;
   }
 
   if (!$isElementNode(node)) {
-    return node.getTextContent();
+    return;
   }
 
-  const children = node.getChildren();
-  let text = "";
-  for (const [index, child] of children.entries()) {
-    text += compileNode(child, skills, selectedSkillPaths, seenPaths);
-    if ($isElementNode(child) && index !== children.length - 1 && !child.isInline()) {
-      text += "\n\n";
-    }
+  for (const child of node.getChildren()) {
+    collectSkills(child, skills, selectedSkillPaths, seenPaths);
   }
-  return text;
 }

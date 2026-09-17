@@ -181,6 +181,61 @@ test("line-break copy preserves the newline boundary", async () => {
   expect(copied.plainText).toBe("First line\nSecond line");
 });
 
+test("multiline structured copy and cut preserve blank lines and skill identity on paste", async () => {
+  const harness = await renderEditors();
+  const source = harness.screen.getByRole("combobox", { name: "Source composer" });
+  const target = harness.screen.getByRole("combobox", { name: "Target composer" });
+  await source.click();
+  await harness.screen.user.keyboard("{Shift>}{Enter}{/Shift}");
+  await insertSkill(harness.screen, source);
+  await harness.screen.user.keyboard("{Shift>}{Enter}{Enter}{/Shift}tail{Shift>}{Enter}{/Shift}");
+  await expect
+    .poll(() => harness.sourceController().capture().textContent)
+    .toBe(`\n$${displayName}\n\ntail\n`);
+  await harness.screen.user.keyboard(
+    navigator.platform.startsWith("Mac") ? "{Meta>}a{/Meta}" : "{Control>}a{/Control}",
+  );
+  const copiedData = observeNextCopyData();
+  await harness.screen.user.copy();
+  const copied = await copiedData;
+  expect(copied.plainText).toBe(`\n$${canonicalName}\n\ntail\n`);
+  expect(copied.html).toBe(`<p><br></p><p>$${displayName}</p><p><br></p><p>tail</p><p><br></p>`);
+  await target.click();
+  await harness.screen.user.paste();
+  await expect
+    .poll(() => harness.targetController().capture().input)
+    .toEqual([
+      { type: "text", text: `\n$${canonicalName}\n\ntail\n`, text_elements: [] },
+      { type: "skill", name: canonicalName, path: skillPath },
+    ]);
+  expect(target.element().querySelectorAll(":scope > p")).toHaveLength(5);
+  await harness.screen.user.keyboard(
+    navigator.platform.startsWith("Mac") ? "{Meta>}a{/Meta}" : "{Control>}a{/Control}",
+  );
+  const cutData = observeNextCopyData("cut");
+  await harness.screen.user.cut();
+  expect((await cutData).plainText).toBe(copied.plainText);
+  await expect.poll(() => harness.targetController().capture().textContent).toBe("");
+  await harness.screen.user.paste();
+  await expect
+    .poll(() => harness.targetController().capture().input)
+    .toEqual(harness.sourceController().capture().input);
+  await target.fill("");
+  const htmlOnly = new DataTransfer();
+  htmlOnly.setData("text/html", copied.html);
+  target.element().dispatchEvent(
+    new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: htmlOnly,
+    }),
+  );
+  await expect
+    .poll(() => harness.targetController().capture().textContent)
+    .toBe(`\n$${displayName}\n\ntail\n`);
+  expect(harness.targetController().capture().selectedSkillPaths).toEqual([]);
+});
+
 test("external canonical-looking plain text pastes as ordinary text", async () => {
   const harness = await renderEditors();
   const externalSource = harness.screen.getByRole("textbox", { name: "External source" });
