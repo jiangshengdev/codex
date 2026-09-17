@@ -159,7 +159,11 @@ export type ComposerPendingInputEditSaveResult =
       revision: number;
       drainIntent: ComposerPendingInputDrainIntent;
     }>
-  | Readonly<{ type: "invalidInput"; reason: "emptyInput"; revision: number }>
+  | Readonly<{
+      type: "invalidInput";
+      reason: "emptyInput" | "attachmentsNotReady";
+      revision: number;
+    }>
   | Readonly<{ type: "unavailable"; reason: "sessionSettled"; revision: number }>;
 
 export type ComposerPendingInputEditCancelResult =

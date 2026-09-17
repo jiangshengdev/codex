@@ -25,6 +25,7 @@ use crate::GuiLaunchUrls;
 use crate::LaunchToken;
 use crate::assets;
 use crate::browser_contract::CURRENT_TASK_PATH_SEGMENT;
+use crate::browser_contract::FILE_PREVIEW_PATH;
 use crate::browser_contract::HISTORY_PATH_SEGMENT;
 use crate::browser_contract::NEW_TASK_PATH_SEGMENT;
 use crate::browser_contract::UPLOAD_PATH;
@@ -132,6 +133,7 @@ where
             Ok(Router::new()
                 .route(WEBSOCKET_PATH, get(crate::ws::ws_handler::<B>))
                 .route(UPLOAD_PATH, post(crate::upload::upload::<B>))
+                .route(FILE_PREVIEW_PATH, get(crate::file_preview::preview::<B>))
                 .fallback(get(move |request: Request<Body>| {
                     let config = config.clone();
                     async move { assets::proxy_vite(config, request).await }
@@ -191,6 +193,7 @@ where
                 )
                 .route(WEBSOCKET_PATH, get(crate::ws::ws_handler::<B>))
                 .route(UPLOAD_PATH, post(crate::upload::upload::<B>))
+                .route(FILE_PREVIEW_PATH, get(crate::file_preview::preview::<B>))
                 .fallback_service(assets::prod_assets_service(config))
                 .layer(middleware::map_response(assets::add_security_headers))
                 .layer(middleware::from_fn_with_state(

@@ -1,0 +1,322 @@
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { userEvent } from "vitest/browser";
+import {
+  attachResponse,
+  createDeferred,
+  createGuiHostCommands,
+  getHostOptions,
+  initializeHost,
+  queueAttachProjectionResponse,
+  emitProjectionEvent,
+  launchThreadId,
+  resetAppBrowserTestSupport,
+  type StartGuiHostConnectionMock,
+} from "./appBrowserTestSupport";
+import {
+  dispatchGuideShortcut,
+  renderActiveComposerQueueApp,
+  steerTurnParamsAt,
+} from "./appComposerQueueBrowserTestSupport";
+import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
+import { eventItemCompleted } from "@/features/projection/__tests__/projectionFixtures";
+import {
+  attachWithTurns,
+  baseTurn,
+  eventWithEnvelope,
+  itemCompleted,
+  userMessage,
+} from "@/features/projection/__tests__/projectionTestBuilders";
+import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
+import { renderWithProviders } from "@/utils/test-utils";
+
+const host = vi.hoisted(() => ({
+  startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
+}));
+vi.mock("@/features/guiHost/guiHostClient", () => ({
+  startGuiHostConnection: host.startGuiHostConnection,
+}));
+vi.mock("@/features/composerInputQueue/composerInputQueueCoordinator", { spy: true });
+const startHost = host.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
+
+test("unsupported images block sending and can be removed as a whole", async () => {
+  const upload = vi.spyOn(globalThis, "fetch");
+  const { screen, composer } = await renderActiveComposerQueueApp(startHost);
+  await screen
+    .getByLabelText("Attach files", { exact: true })
+    .upload(new File(["unsupported"], "photo.heic", { type: "image/heic" }));
+  await expect
+    .element(composer.getByText("Unsupported image format. Use PNG, JPEG, GIF, or WebP."))
+    .toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+  expect(upload).not.toHaveBeenCalled();
+  await composer.getByText("photo.heic", { exact: true }).click();
+  await userEvent.keyboard("{Backspace}");
+  await expect.element(composer.getByText("photo.heic", { exact: true })).not.toBeInTheDocument();
+});
+
+test("reloaded image history keeps its filename and reports an unavailable preview", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("missing", { status: 404 }));
+  const commands = createGuiHostCommands();
+  const screen = await renderWithProviders(<App />);
+  queueAttachProjectionResponse(
+    commands,
+    attachWithTurns(attachResponse, [
+      baseTurn("old-image-turn", [
+        userMessage("old-image", [
+          { type: "localImage", path: "/tmp/image.png" },
+          {
+            type: "text",
+            text: "/tmp/image.png",
+            text_elements: [{ byteRange: { start: 0, end: 14 }, placeholder: "original.png" }],
+          },
+        ]),
+      ]),
+    ]),
+  );
+  initializeHost(getHostOptions(startHost), commands);
+  await expect
+    .element(
+      screen.getByText(
+        "Could not load the preview of original.png. The file may no longer be available.",
+      ),
+    )
+    .toBeVisible();
+});
+
+beforeEach(() => {
+  resetAppBrowserTestSupport(startHost);
+  window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
+  vi.mocked(createComposerInputQueueCoordinator).mockClear();
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+test("Composer uploads a file, blocks keyboard submission until ready, and displays its authoritative filename and path", async () => {
+  const response = createDeferred<Response>();
+  const upload = vi.spyOn(globalThis, "fetch").mockImplementation(() => response.promise);
+  const { screen, composer, steerTurn, options, activeTurn } =
+    await renderActiveComposerQueueApp(startHost);
+  await composer.fill("请看🙂 ");
+  await screen
+    .getByLabelText("Attach files", { exact: true })
+    .upload(new File(["original bytes"], "notes.txt"));
+  await expect.element(composer.getByText("notes.txt", { exact: true })).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+  await composer.click();
+  dispatchGuideShortcut(composer.element());
+  expect(steerTurn).not.toHaveBeenCalled();
+  expect(upload).toHaveBeenCalledOnce();
+  const request = upload.mock.calls[0];
+  expect(request?.[0]).toBe("/upload?filename=notes.txt");
+  expect(new Headers(request?.[1]?.headers).get("Authorization")).toBe("Bearer secret");
+  response.resolve(new Response("/tmp/codex-upload-note.txt", { status: 201 }));
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  const params = steerTurnParamsAt(steerTurn, 0);
+  expect(params.input).toEqual([
+    {
+      type: "text",
+      text: "请看🙂 /tmp/codex-upload-note.txt",
+      text_elements: [{ byteRange: { start: 11, end: 37 }, placeholder: "notes.txt" }],
+    },
+  ]);
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(
+      itemCompleted(
+        eventItemCompleted,
+        "attachment-commit",
+        activeTurn.id,
+        userMessage("attachment-message", params.input, params.clientUserMessageId),
+      ),
+      { parentCommitId: attachResponse.snapshot.headCommitId },
+    ),
+  );
+  const transcript = screen.getByRole("region", { name: "Committed transcript" });
+  await transcript.getByRole("button", { name: "notes.txt", exact: true }).click();
+  await expect
+    .element(screen.getByText("/tmp/codex-upload-note.txt", { exact: true }))
+    .toBeVisible();
+});
+
+test("failed attachments retry independently and a removed upload cannot return", async () => {
+  const late = createDeferred<Response>();
+  const upload = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(new Response("failed", { status: 500 }))
+    .mockResolvedValueOnce(new Response("/tmp/retried.txt", { status: 201 }))
+    .mockImplementationOnce(() => late.promise);
+  const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
+  const files = screen.getByLabelText("Attach files", { exact: true });
+  await files.upload(new File(["retry bytes"], "retry.txt"));
+  await expect.element(composer.getByText("File upload failed.")).toBeVisible();
+  await composer.click();
+  dispatchGuideShortcut(composer.element());
+  expect(steerTurn).not.toHaveBeenCalled();
+  await composer.getByRole("button", { name: "Retry upload retry.txt", exact: true }).click();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+  await composer.getByText("retry.txt", { exact: true }).click();
+  await userEvent.keyboard("{ArrowRight}");
+  await files.upload(new File(["late bytes"], "late.txt"));
+  await expect.element(composer.getByText("late.txt", { exact: true })).toBeVisible();
+  await composer.getByRole("button", { name: "Remove late.txt", exact: true }).click();
+  late.resolve(new Response("/tmp/late.txt", { status: 201 }));
+  await expect.element(composer.getByText("late.txt", { exact: true })).not.toBeInTheDocument();
+  await composer.click();
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  expect(steerTurnParamsAt(steerTurn, 0).input).toEqual([
+    {
+      type: "text",
+      text: "/tmp/retried.txt",
+      text_elements: [{ byteRange: { start: 0, end: 16 }, placeholder: "retry.txt" }],
+    },
+  ]);
+  expect(upload).toHaveBeenCalledTimes(3);
+});
+
+test("reloaded authoritative history retains a filename and its path without a local upload", async () => {
+  const commands = createGuiHostCommands();
+  const screen = await renderWithProviders(<App />);
+  queueAttachProjectionResponse(
+    commands,
+    attachWithTurns(attachResponse, [
+      baseTurn("old-attachments", [
+        userMessage("old-file", [
+          {
+            type: "text",
+            text: "资料🙂 /tmp/saved.txt",
+            text_elements: [{ byteRange: { start: 11, end: 25 }, placeholder: "报告.txt" }],
+          },
+        ]),
+      ]),
+    ]),
+  );
+  initializeHost(getHostOptions(startHost), commands);
+  const transcript = screen.getByRole("region", { name: "Committed transcript" });
+  await transcript.getByRole("button", { name: "报告.txt", exact: true }).click();
+  await expect.element(screen.getByText("/tmp/saved.txt", { exact: true })).toBeVisible();
+});
+
+test("a mixed-result batch keeps input order and retries only the failed file", async () => {
+  const first = createDeferred<Response>();
+  const upload = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementationOnce(() => first.promise)
+    .mockResolvedValueOnce(new Response("failed", { status: 500 }))
+    .mockResolvedValueOnce(new Response("/tmp/b.txt", { status: 201 }));
+  const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
+  await screen
+    .getByLabelText("Attach files", { exact: true })
+    .upload([new File(["A"], "a.txt"), new File(["B"], "b.txt")]);
+  await expect.element(composer.getByText("a.txt", { exact: true })).toBeVisible();
+  await expect.element(composer.getByText("File upload failed.")).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+  first.resolve(new Response("/tmp/a.txt", { status: 201 }));
+  await expect.element(composer.getByText("Ready", { exact: true })).toBeVisible();
+  await composer.click();
+  dispatchGuideShortcut(composer.element());
+  expect(steerTurn).not.toHaveBeenCalled();
+  await composer.getByRole("button", { name: "Retry upload b.txt", exact: true }).click();
+  await expect.element(screen.getByRole("button", { name: "Guide", exact: true })).toBeEnabled();
+  await composer.click();
+  await userEvent.keyboard(
+    navigator.platform.startsWith("Mac") ? "{Meta>}a{/Meta}" : "{Control>}a{/Control}",
+  );
+  const copied = new DataTransfer();
+  const copyEvent = new ClipboardEvent("copy", {
+    clipboardData: copied,
+    bubbles: true,
+    cancelable: true,
+  });
+  // Firefox creates a separate DataTransfer for synthetic clipboard events.
+  Object.defineProperty(copyEvent, "clipboardData", { value: copied });
+  composer.element().dispatchEvent(copyEvent);
+  expect(copied.getData("text/plain")).toBe("/tmp/a.txt /tmp/b.txt");
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  expect(steerTurnParamsAt(steerTurn, 0).input).toEqual([
+    {
+      type: "text",
+      text: "/tmp/a.txt /tmp/b.txt",
+      text_elements: [
+        { byteRange: { start: 0, end: 10 }, placeholder: "a.txt" },
+        { byteRange: { start: 11, end: 21 }, placeholder: "b.txt" },
+      ],
+    },
+  ]);
+  expect(upload.mock.calls.map(([url]) => url)).toEqual([
+    "/upload?filename=a.txt",
+    "/upload?filename=b.txt",
+    "/upload?filename=b.txt",
+  ]);
+});
+
+test("an image is previewable in the draft and authoritative history and sends a localImage", async () => {
+  const png = Uint8Array.from(
+    atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+    ),
+    (char) => char.charCodeAt(0),
+  );
+  const request = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation((_url, options) =>
+      Promise.resolve(
+        options?.method === "POST"
+          ? new Response("/tmp/codex-upload-image.png", { status: 201 })
+          : new Response(png, { headers: { "Content-Type": "image/png" } }),
+      ),
+    );
+  const { screen, composer, steerTurn, activeTurn, options } =
+    await renderActiveComposerQueueApp(startHost);
+  await screen
+    .getByLabelText("Attach files", { exact: true })
+    .upload(new File([png], "picture.png", { type: "image/png" }));
+  const preview = composer.getByRole("button", { name: "Preview picture.png", exact: true });
+  await preview.click();
+  const dialog = screen.getByRole("dialog", { name: "picture.png", exact: true });
+  await expect.element(dialog.getByRole("img", { name: "picture.png" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Close image preview" }).click();
+  await expect.element(preview).toHaveFocus();
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  const params = steerTurnParamsAt(steerTurn, 0);
+  expect(params.input).toEqual([
+    {
+      type: "text",
+      text: "/tmp/codex-upload-image.png",
+      text_elements: [{ byteRange: { start: 0, end: 27 }, placeholder: "picture.png" }],
+    },
+    { type: "localImage", path: "/tmp/codex-upload-image.png" },
+  ]);
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(
+      itemCompleted(
+        eventItemCompleted,
+        "image-commit",
+        activeTurn.id,
+        userMessage("image-message", params.input, params.clientUserMessageId),
+      ),
+      { parentCommitId: attachResponse.snapshot.headCommitId },
+    ),
+  );
+  await screen
+    .getByRole("region", { name: "Committed transcript" })
+    .getByRole("button", { name: "Preview picture.png", exact: true })
+    .click();
+  await expect.element(dialog.getByRole("img", { name: "picture.png" })).toBeVisible();
+  expect(
+    request.mock.calls
+      .filter(([, options]) => options?.method !== "POST")
+      .every(
+        ([url, options]) =>
+          url === "/upload/preview?path=%2Ftmp%2Fcodex-upload-image.png" &&
+          new Headers(options?.headers).get("Authorization") === "Bearer secret",
+      ),
+  ).toBe(true);
+});

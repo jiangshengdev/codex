@@ -73,6 +73,7 @@ const draftCapture = (
     input: [{ type: "text", text: textContent, text_elements: [] }],
     textContent,
     selectedSkillPaths,
+    attachmentsReady: true,
   }) as unknown as ComposerDraftCapture;
 
 const editorController = (capture: ComposerDraftCapture): SubmitController => ({

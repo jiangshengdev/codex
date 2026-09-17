@@ -40,6 +40,10 @@ const viteDevCompression = (): Plugin => ({
 
 // https://vite.dev/config/
 export default defineConfig({
+  optimizeDeps: {
+    // Discover the attachment editability hook before browser tests start.
+    include: ["@lexical/react/useLexicalEditable"],
+  },
   plugins: [
     viteDevCompression(),
     react(),
