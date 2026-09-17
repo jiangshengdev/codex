@@ -111,10 +111,10 @@ export function AppShellTopBar() {
             </Trans>
           </span>
         ) : null}
+        <FileUploadDialog authorizationToken={authorizationToken} />
         <h1 className="min-w-0 flex-1 truncate text-base font-semibold" title={title}>
           {title}
         </h1>
-        <FileUploadDialog authorizationToken={authorizationToken} />
       </div>
 
       <Drawer.Backdrop isOpen={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
