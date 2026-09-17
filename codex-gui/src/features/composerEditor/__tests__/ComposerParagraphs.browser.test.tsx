@@ -1,6 +1,15 @@
 import { expect, test, vi } from "vitest";
+import {
+  $createLineBreakNode,
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  createEditor,
+} from "lexical";
 
 import type { ComposerEditorProps } from "../ComposerEditor";
+import { importComposerDraft } from "../composerDraft";
+import { $createSkillNode, SkillNode } from "../SkillNode";
 import { getController, renderEditor, skill } from "./composerEditorBrowserTestSupport";
 
 test("Shift+Enter preserves blank lines as paragraphs and submits one newline per boundary", async () => {
@@ -81,4 +90,69 @@ test.each([
   expect(editor.element().querySelectorAll(":scope > p")).toHaveLength(5);
   await screen.user.keyboard("tail");
   await expect.poll(() => controller.capture().textContent).toBe("\nfirst\n\nlast\ntail");
+});
+
+test("restores legacy soft breaks as paragraphs and preserves editing, history, and submission", async () => {
+  const legacy = createEditor({
+    nodes: [SkillNode],
+    onError: (error) => {
+      throw error;
+    },
+  });
+  legacy.update(
+    () => {
+      $getRoot().append(
+        $createParagraphNode().append(
+          $createTextNode("first"),
+          $createLineBreakNode(),
+          $createSkillNode({
+            name: "alpha",
+            displayName: "Alpha",
+            path: "/skills/alpha",
+            sourceLabel: "",
+          }),
+          $createLineBreakNode(),
+          $createTextNode("last"),
+        ),
+      );
+    },
+    { discrete: true },
+  );
+  const imported = importComposerDraft({
+    version: 1,
+    editorStateJson: JSON.stringify(legacy.getEditorState().toJSON()),
+  });
+  if (imported.type !== "imported") throw new Error("Expected imported legacy draft");
+  const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
+  const { controllerRef, screen } = await renderEditor([skill("alpha", "/skills/alpha", "Alpha")], {
+    onSubmit,
+  });
+  const editor = screen.getByRole("combobox", { name: "Message" });
+  const controller = getController(controllerRef);
+  expect(controller.restore(imported.draft)).toEqual({ type: "restored" });
+  await expect.poll(() => controller.capture().textContent).toBe("first\n$Alpha\nlast");
+  expect(editor.element().querySelectorAll(":scope > p")).toHaveLength(3);
+  await screen.user.keyboard("{Home}{ArrowLeft}R");
+  await expect.poll(() => controller.capture().textContent).toBe("first\n$AlphaR\nlast");
+  await screen.user.keyboard("{ArrowLeft}{ArrowLeft}L");
+  await expect.poll(() => controller.capture().textContent).toBe("first\nL$AlphaR\nlast");
+  await screen.user.keyboard("{Delete}");
+  await expect.poll(() => controller.capture().textContent).toBe("first\nLR\nlast");
+  await screen.user.keyboard(
+    navigator.platform.startsWith("Mac") ? "{Meta>}z{/Meta}" : "{Control>}z{/Control}",
+  );
+  await expect.poll(() => controller.capture().textContent).toBe("first\nL$AlphaR\nlast");
+  await screen.user.keyboard(
+    navigator.platform.startsWith("Mac")
+      ? "{Meta>}{Shift>}z{/Shift}{/Meta}"
+      : "{Control>}y{/Control}",
+  );
+  await expect.poll(() => controller.capture().textContent).toBe("first\nLR\nlast");
+  expect(controller.restore(imported.draft)).toEqual({ type: "restored" });
+  await expect.poll(() => controller.capture().textContent).toBe("first\n$Alpha\nlast");
+  await screen.user.keyboard("{Enter}");
+  expect(onSubmit.mock.calls[0]?.[0].input).toEqual([
+    { type: "text", text: "first\n$alpha\nlast", text_elements: [] },
+    { type: "skill", name: "alpha", path: "/skills/alpha" },
+  ]);
 });
