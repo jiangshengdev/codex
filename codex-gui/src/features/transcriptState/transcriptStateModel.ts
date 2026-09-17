@@ -147,6 +147,7 @@ export type TranscriptEntry =
       source: string;
       sourceKind: "plainText" | "markdown";
       textInputs?: Extract<UserInput, { type: "text" }>[];
+      imageInputs?: Extract<UserInput, { type: "localImage" }>[];
       phase: TranscriptMessagePhase;
       revision: number;
     }
@@ -187,7 +188,12 @@ export type TranscriptStoredEntry =
 
 export type TranscriptMessageRendering =
   | { mode: "plainText"; source: string }
-  | { mode: "userText"; inputs: Extract<UserInput, { type: "text" }>[]; source: string }
+  | {
+      mode: "userText";
+      inputs: Extract<UserInput, { type: "text" }>[];
+      images: Extract<UserInput, { type: "localImage" }>[];
+      source: string;
+    }
   | { mode: "staticMarkdown"; source: string }
   | { mode: "streamingMarkdown"; source: string };
 

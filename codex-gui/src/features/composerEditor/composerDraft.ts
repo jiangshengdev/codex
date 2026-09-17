@@ -211,10 +211,22 @@ function compileEditorState(editorState: EditorState): Readonly<{
     const selectedSkillPaths: string[] = [];
     const seenPaths = new Set<string>();
     const root = $getRoot();
+    const images: Extract<UserInput, { type: "localImage" }>[] = [];
+    const collectImages = (node: LexicalNode): void => {
+      if ($isAttachmentNode(node)) {
+        const attachment = node.getAttachment();
+        if (attachment.status === "ready" && attachment.mediaType === "image")
+          images.push({ type: "localImage", path: attachment.path });
+      } else if ($isElementNode(node)) {
+        for (const child of node.getChildren()) collectImages(child);
+      }
+    };
+    collectImages(root);
     collectSkills(root, skills, selectedSkillPaths, seenPaths);
     const { text, text_elements } = compileTextElements(root.getChildren());
     const input: ReadonlyComposerInputPayload = [
       { type: "text", text, text_elements },
+      ...images,
       ...skills.map(({ name, path }) => ({ type: "skill" as const, name, path })),
     ];
     return {

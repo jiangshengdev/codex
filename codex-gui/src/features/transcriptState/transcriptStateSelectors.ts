@@ -226,7 +226,12 @@ const createTranscriptEntryView = (entry: TranscriptStoredEntry): TranscriptEntr
                 mode: entry.sourceKind === "plainText" ? "plainText" : "staticMarkdown",
                 source: entry.source,
               }
-            : { mode: "userText", inputs: entry.textInputs, source: entry.source },
+            : {
+                mode: "userText",
+                inputs: entry.textInputs,
+                images: entry.imageInputs ?? [],
+                source: entry.source,
+              },
         revision: entry.revision,
       };
     case "status":

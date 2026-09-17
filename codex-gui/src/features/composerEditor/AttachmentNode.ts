@@ -15,9 +15,10 @@ import { SelectedAttachmentToken } from "./SelectedAttachmentToken";
 export type AttachmentState = Readonly<{
   id: string;
   name: string;
+  mediaType: "file" | "image";
   status: "uploading" | "ready" | "failed";
   path: string;
-  failure: UploadFailure | "interrupted" | null;
+  failure: UploadFailure | "interrupted" | "unsupportedImage" | null;
 }>;
 type SerializedAttachmentNode = Spread<
   { type: "attachment"; version: 1; attachment: AttachmentState },
@@ -31,6 +32,7 @@ export class AttachmentNode extends DecoratorNode<JSX.Element> {
     attachment: AttachmentState = {
       id: "",
       name: "",
+      mediaType: "file",
       status: "failed",
       path: "",
       failure: "interrupted",
@@ -62,6 +64,7 @@ export class AttachmentNode extends DecoratorNode<JSX.Element> {
       typeof state.id !== "string" ||
       typeof state.name !== "string" ||
       typeof state.path !== "string" ||
+      (state.mediaType !== "file" && state.mediaType !== "image") ||
       (state.status !== "uploading" && state.status !== "ready" && state.status !== "failed") ||
       (state.status === "ready" && state.path.length === 0)
     )
@@ -69,6 +72,7 @@ export class AttachmentNode extends DecoratorNode<JSX.Element> {
     return $createAttachmentNode({
       id: state.id,
       name: state.name,
+      mediaType: state.mediaType,
       path: state.path,
       status: state.status === "ready" ? "ready" : "failed",
       failure: state.status === "ready" ? null : "interrupted",

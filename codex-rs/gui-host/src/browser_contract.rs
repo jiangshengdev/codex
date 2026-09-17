@@ -9,6 +9,7 @@ pub(crate) const HISTORY_PATH_SEGMENT: &str = "history";
 pub(crate) const TOKEN_FRAGMENT_KEY: &str = "token";
 pub(crate) const WEBSOCKET_PATH: &str = "/ws";
 pub(crate) const UPLOAD_PATH: &str = "/upload";
+pub(crate) const FILE_PREVIEW_PATH: &str = "/upload/preview";
 pub(crate) const MAX_UPLOAD_BYTES: usize = 50 * 1024 * 1024;
 pub(crate) const AUTHENTICATE_METHOD: &str = "gui/authenticate";
 
@@ -29,4 +30,9 @@ pub(crate) struct GuiAuthenticateResult {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 pub(crate) struct GuiUploadParams {
     pub(crate) filename: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+pub(crate) struct GuiFilePreviewParams {
+    pub(crate) path: std::path::PathBuf,
 }

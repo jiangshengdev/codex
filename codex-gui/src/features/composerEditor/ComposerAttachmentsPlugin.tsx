@@ -12,6 +12,7 @@ import {
 } from "lexical";
 import { useEffect, useRef } from "react";
 import { uploadFile } from "@/features/fileUpload/uploadFile";
+import { attachmentMedia } from "./attachmentMedia";
 import {
   $createAttachmentNode,
   $isAttachmentNode,
@@ -60,6 +61,18 @@ export function ComposerAttachmentsPlugin({
     async function startUpload(key: NodeKey): Promise<void> {
       const entry = entries.get(key);
       if (entry == null || entry.request != null) return;
+      if (attachmentMedia(entry.file) === "unsupportedImage") {
+        editor.update(() => {
+          const node = $getNodeByKey(key);
+          if ($isAttachmentNode(node))
+            node.setAttachment({
+              ...node.getAttachment(),
+              status: "failed",
+              failure: "unsupportedImage",
+            });
+        });
+        return;
+      }
       const request = new AbortController();
       entry.request = request;
       editor.update(() => {
@@ -101,6 +114,7 @@ export function ComposerAttachmentsPlugin({
               const node = $createAttachmentNode({
                 id: crypto.randomUUID(),
                 name: file.name,
+                mediaType: attachmentMedia(file) === "file" ? "file" : "image",
                 status: "uploading",
                 path: "",
                 failure: null,

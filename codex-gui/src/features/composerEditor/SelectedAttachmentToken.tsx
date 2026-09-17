@@ -2,8 +2,11 @@ import { Button, Chip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { $getNodeByKey, CLICK_COMMAND, COMMAND_PRIORITY_LOW, type NodeKey } from "lexical";
-import { useEffect } from "react";
+import { use, useEffect } from "react";
+import { UploadedImagePreview } from "@/features/fileUpload/UploadedImagePreview";
+import { AttachmentAuthorizationContext } from "./attachmentEnvironment";
 import { RETRY_ATTACHMENT_COMMAND, type AttachmentState } from "./AttachmentNode";
 
 export function SelectedAttachmentToken({
@@ -14,8 +17,10 @@ export function SelectedAttachmentToken({
   attachment: AttachmentState;
 }) {
   const [editor] = useLexicalComposerContext();
+  const editable = useLexicalEditable();
   const [selected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey);
   const { t } = useLingui();
+  const authorizationToken = use(AttachmentAuthorizationContext);
   const name = attachment.name;
   useEffect(
     () =>
@@ -44,7 +49,7 @@ export function SelectedAttachmentToken({
       color={attachment.status === "failed" ? "danger" : "default"}
     >
       <span
-        className="inline-flex max-w-full items-center gap-1"
+        className="inline-flex max-w-full flex-wrap items-center gap-1 whitespace-normal"
         role="group"
         aria-label={name}
         onPointerDown={(event) => {
@@ -54,8 +59,18 @@ export function SelectedAttachmentToken({
           }
         }}
       >
-        <span className="max-w-48 truncate">{name}</span>
-        <span role="status" className="text-xs">
+        <span className="max-w-48 shrink-0 truncate">{name}</span>
+        {attachment.mediaType === "image" && attachment.status === "ready" ? (
+          <UploadedImagePreview
+            path={attachment.path}
+            name={name}
+            authorizationToken={authorizationToken}
+          />
+        ) : null}
+        <span
+          role="status"
+          className={attachment.status === "failed" ? "basis-full text-xs" : "shrink-0 text-xs"}
+        >
           {attachment.status === "uploading" ? (
             <Trans comment="Attachment is being transferred to the Codex machine">Uploading</Trans>
           ) : attachment.status === "ready" ? (
@@ -64,6 +79,8 @@ export function SelectedAttachmentToken({
             <Trans>The file exceeds the 50 MiB limit.</Trans>
           ) : attachment.failure === "authorization" ? (
             <Trans>File upload is not authorized. Open the current GUI launch link.</Trans>
+          ) : attachment.failure === "unsupportedImage" ? (
+            <Trans>Unsupported image format. Use PNG, JPEG, GIF, or WebP.</Trans>
           ) : attachment.failure === "interrupted" ? (
             <Trans>Upload interrupted. Remove and add the file again.</Trans>
           ) : (
@@ -72,6 +89,7 @@ export function SelectedAttachmentToken({
         </span>
         {attachment.status === "failed" && attachment.failure === "upload" ? (
           <Button
+            isDisabled={!editable}
             size="sm"
             variant="ghost"
             aria-label={t({
@@ -84,6 +102,7 @@ export function SelectedAttachmentToken({
           </Button>
         ) : null}
         <Button
+          isDisabled={!editable}
           size="sm"
           variant="ghost"
           aria-label={t({

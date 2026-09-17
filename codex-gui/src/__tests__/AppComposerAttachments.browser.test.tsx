@@ -39,6 +39,51 @@ vi.mock("@/features/guiHost/guiHostClient", () => ({
 vi.mock("@/features/composerInputQueue/composerInputQueueCoordinator", { spy: true });
 const startHost = host.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
+test("unsupported images block sending and can be removed as a whole", async () => {
+  const upload = vi.spyOn(globalThis, "fetch");
+  const { screen, composer } = await renderActiveComposerQueueApp(startHost);
+  await screen
+    .getByLabelText("Attach files", { exact: true })
+    .upload(new File(["unsupported"], "photo.heic", { type: "image/heic" }));
+  await expect
+    .element(composer.getByText("Unsupported image format. Use PNG, JPEG, GIF, or WebP."))
+    .toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+  expect(upload).not.toHaveBeenCalled();
+  await composer.getByText("photo.heic", { exact: true }).click();
+  await userEvent.keyboard("{Backspace}");
+  await expect.element(composer.getByText("photo.heic", { exact: true })).not.toBeInTheDocument();
+});
+
+test("reloaded image history keeps its filename and reports an unavailable preview", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("missing", { status: 404 }));
+  const commands = createGuiHostCommands();
+  const screen = await renderWithProviders(<App />);
+  queueAttachProjectionResponse(
+    commands,
+    attachWithTurns(attachResponse, [
+      baseTurn("old-image-turn", [
+        userMessage("old-image", [
+          { type: "localImage", path: "/tmp/image.png" },
+          {
+            type: "text",
+            text: "/tmp/image.png",
+            text_elements: [{ byteRange: { start: 0, end: 14 }, placeholder: "original.png" }],
+          },
+        ]),
+      ]),
+    ]),
+  );
+  initializeHost(getHostOptions(startHost), commands);
+  await expect
+    .element(
+      screen.getByText(
+        "Could not load the preview of original.png. The file may no longer be available.",
+      ),
+    )
+    .toBeVisible();
+});
+
 beforeEach(() => {
   resetAppBrowserTestSupport(startHost);
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
@@ -194,4 +239,70 @@ test("a mixed-result batch keeps input order and retries only the failed file", 
     "/upload?filename=b.txt",
     "/upload?filename=b.txt",
   ]);
+});
+
+test("an image is previewable in the draft and authoritative history and sends a localImage", async () => {
+  const png = Uint8Array.from(
+    atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+    ),
+    (char) => char.charCodeAt(0),
+  );
+  const request = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation((_url, options) =>
+      Promise.resolve(
+        options?.method === "POST"
+          ? new Response("/tmp/codex-upload-image.png", { status: 201 })
+          : new Response(png, { headers: { "Content-Type": "image/png" } }),
+      ),
+    );
+  const { screen, composer, steerTurn, activeTurn, options } =
+    await renderActiveComposerQueueApp(startHost);
+  await screen
+    .getByLabelText("Attach files", { exact: true })
+    .upload(new File([png], "picture.png", { type: "image/png" }));
+  const preview = composer.getByRole("button", { name: "Preview picture.png", exact: true });
+  await preview.click();
+  const dialog = screen.getByRole("dialog", { name: "picture.png", exact: true });
+  await expect.element(dialog.getByRole("img", { name: "picture.png" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Close image preview" }).click();
+  await expect.element(preview).toHaveFocus();
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  const params = steerTurnParamsAt(steerTurn, 0);
+  expect(params.input).toEqual([
+    {
+      type: "text",
+      text: "/tmp/codex-upload-image.png",
+      text_elements: [{ byteRange: { start: 0, end: 27 }, placeholder: "picture.png" }],
+    },
+    { type: "localImage", path: "/tmp/codex-upload-image.png" },
+  ]);
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(
+      itemCompleted(
+        eventItemCompleted,
+        "image-commit",
+        activeTurn.id,
+        userMessage("image-message", params.input, params.clientUserMessageId),
+      ),
+      { parentCommitId: attachResponse.snapshot.headCommitId },
+    ),
+  );
+  await screen
+    .getByRole("region", { name: "Committed transcript" })
+    .getByRole("button", { name: "Preview picture.png", exact: true })
+    .click();
+  await expect.element(dialog.getByRole("img", { name: "picture.png" })).toBeVisible();
+  expect(
+    request.mock.calls
+      .filter(([, options]) => options?.method !== "POST")
+      .every(
+        ([url, options]) =>
+          String(url) === "/upload/preview?path=%2Ftmp%2Fcodex-upload-image.png" &&
+          new Headers(options?.headers).get("Authorization") === "Bearer secret",
+      ),
+  ).toBe(true);
 });

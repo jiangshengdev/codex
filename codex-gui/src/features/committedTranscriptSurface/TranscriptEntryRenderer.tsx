@@ -76,7 +76,7 @@ const MessageEntryBody = ({
 }) => {
   switch (rendering.mode) {
     case "userText":
-      return <UserMessageText inputs={rendering.inputs} />;
+      return <UserMessageText inputs={rendering.inputs} images={rendering.images} />;
     case "plainText":
       return (
         <Typography
