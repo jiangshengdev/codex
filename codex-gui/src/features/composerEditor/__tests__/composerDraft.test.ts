@@ -35,7 +35,7 @@ describe("composerDraft", () => {
     expect(captureComposerDraft(editor.getEditorState()).input).toEqual([
       {
         type: "text",
-        text: "first paragraph\n\nsecond paragraph",
+        text: "first paragraph\nsecond paragraph",
         text_elements: [],
       },
     ]);
@@ -142,7 +142,7 @@ describe("composerDraft", () => {
     );
 
     expect(projectComposerDraft(editor.getEditorState())).toEqual({
-      textContent: "Before $First and $Second\n\n$Third after",
+      textContent: "Before $First and $Second\n$Third after",
       selectedSkillPaths: [repeatedPath, repeatedPath, "/example/skills/third/SKILL.md"],
     });
   });
@@ -206,7 +206,7 @@ describe("composerDraft", () => {
       input: [
         {
           type: "text",
-          text: "literal $shared then $shared and $renamed\n\n$shared done",
+          text: "literal $shared then $shared and $renamed\n$shared done",
           text_elements: [],
         },
         { type: "skill", name: "shared", path: first.path },
@@ -214,7 +214,7 @@ describe("composerDraft", () => {
       ],
       selectedSkillPaths: [first.path, first.path, second.path],
       textContent:
-        "literal $shared then $First display and $Duplicate display\n\n$Second display done",
+        "literal $shared then $First display and $Duplicate display\n$Second display done",
     });
     expect(readSkills(editor)).toEqual([first, duplicate, second]);
   });

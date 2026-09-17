@@ -9,6 +9,8 @@ import {
   DROP_COMMAND,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
+  INSERT_LINE_BREAK_COMMAND,
+  INSERT_PARAGRAPH_COMMAND,
   KEY_ESCAPE_COMMAND,
   mergeRegister,
   ParagraphNode,
@@ -23,6 +25,11 @@ export function ComposerContentModelPlugin() {
   useEffect(
     () =>
       mergeRegister(
+        editor.registerCommand(
+          INSERT_LINE_BREAK_COMMAND,
+          () => editor.dispatchCommand(INSERT_PARAGRAPH_COMMAND, undefined),
+          COMMAND_PRIORITY_HIGH,
+        ),
         editor.registerCommand(FORMAT_TEXT_COMMAND, rejectFormat, COMMAND_PRIORITY_HIGH),
         editor.registerCommand(SET_TEXT_FORMAT_COMMAND, rejectFormat, COMMAND_PRIORITY_HIGH),
         editor.registerCommand(FORMAT_ELEMENT_COMMAND, rejectFormat, COMMAND_PRIORITY_HIGH),

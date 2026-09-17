@@ -12,6 +12,7 @@ import {
 import type { ReadonlyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 
 import { $isSkillNode, SkillNode, type SkillNodeState } from "./SkillNode";
+import { $getComposerText } from "./composerText";
 
 const composerDraftBrand: unique symbol = Symbol("ComposerDraft");
 const composerDraftCaptureBrand: unique symbol = Symbol("ComposerDraftCapture");
@@ -122,7 +123,7 @@ export function projectComposerDraft(editorState: EditorState): ComposerDraftPro
     const selectedSkillPaths: string[] = [];
     collectSelectedSkillPaths($getRoot(), selectedSkillPaths);
     return {
-      textContent: $getRoot().getTextContent(),
+      textContent: $getComposerText($getRoot().getChildren(), "display"),
       selectedSkillPaths,
     };
   });
@@ -187,7 +188,7 @@ function compileEditorState(editorState: EditorState): Readonly<{
     return {
       input,
       selectedSkillPaths,
-      textContent: root.getTextContent(),
+      textContent: $getComposerText(root.getChildren(), "display"),
     };
   });
 }
@@ -217,7 +218,7 @@ function compileNode(
   for (const [index, child] of children.entries()) {
     text += compileNode(child, skills, selectedSkillPaths, seenPaths);
     if ($isElementNode(child) && index !== children.length - 1 && !child.isInline()) {
-      text += "\n\n";
+      text += "\n";
     }
   }
   return text;
