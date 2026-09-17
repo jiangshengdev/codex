@@ -67,6 +67,7 @@ async fn turn_steer_requires_active_turn() -> Result<()> {
         .send_turn_steer_request(TurnSteerParams {
             thread_id: thread.id.clone(),
             client_user_message_id: Some("client-steer-message-1".to_string()),
+            reject_unsupported_images: false,
             input: vec![V2UserInput::Text {
                 text: "steer".to_string(),
                 text_elements: Vec::new(),
@@ -184,6 +185,7 @@ async fn turn_steer_rejects_oversized_text_input() -> Result<()> {
                 text: oversized_input.clone(),
                 text_elements: Vec::new(),
             }],
+            reject_unsupported_images: false,
             responsesapi_client_metadata: None,
             additional_context: None,
             expected_turn_id: turn.id.clone(),
@@ -294,6 +296,7 @@ async fn turn_steer_returns_active_turn_id() -> Result<()> {
             request_id,
             params: TurnSteerParams {
                 thread_id: thread.id.clone(),
+                reject_unsupported_images: false,
                 client_user_message_id: Some("client-steer-message-1".to_string()),
                 input: vec![V2UserInput::Text {
                     text: "steer".to_string(),
@@ -434,6 +437,7 @@ async fn turn_steer_rejects_context_only_input_without_merging_context() -> Resu
             thread_id: thread.id.clone(),
             client_user_message_id: None,
             input: Vec::new(),
+            reject_unsupported_images: false,
             responsesapi_client_metadata: None,
             additional_context,
             expected_turn_id: turn.id,

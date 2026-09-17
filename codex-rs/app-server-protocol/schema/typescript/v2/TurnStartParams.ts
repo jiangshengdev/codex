@@ -11,7 +11,10 @@ import type { SandboxPolicy } from "./SandboxPolicy";
 import type { TurnToolOutput } from "./TurnToolOutput";
 import type { UserInput } from "./UserInput";
 
-export type TurnStartParams = {threadId: string, clientUserMessageId?: string | null, input: Array<UserInput>, /**
+export type TurnStartParams = {threadId: string, /**
+ * Reject new images if the model receiving this input does not support them.
+ */
+rejectUnsupportedImages?: boolean, clientUserMessageId?: string | null, input: Array<UserInput>, /**
  * Optional source classification for the caller that starts this turn.
  * Ignored when this request steers an already-active turn.
  */

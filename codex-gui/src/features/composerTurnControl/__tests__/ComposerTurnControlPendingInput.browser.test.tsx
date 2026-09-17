@@ -1545,7 +1545,7 @@ test("renders Simplified Chinese guide and pending-input copy", async () => {
 test("recovery disables send, keeps the editor editable, and prevents duplicate recovery", async () => {
   const initialSnapshot = queueSnapshot({
     recoveryCount: 2,
-    recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
+    recovery: { reason: "startDefinitelyNotAccepted", count: 2, rejectionReason: null },
   });
   const harness = createQueueControllerHarness(initialSnapshot);
   harness.recover.mockImplementation(() => {
@@ -1585,7 +1585,7 @@ test("guards recovery while manual reconnect is required", async () => {
   const harness = createQueueControllerHarness(
     queueSnapshot({
       recoveryCount: 2,
-      recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
+      recovery: { reason: "startDefinitelyNotAccepted", count: 2, rejectionReason: null },
     }),
   );
   const screen = await renderComposerTurnControl({

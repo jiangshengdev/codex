@@ -241,7 +241,7 @@ describe("guiHostClient commands", () => {
       jsonrpc: "2.0",
       id: request.id,
       method: "turn/start",
-      params,
+      params: { ...params, rejectUnsupportedImages: true },
     });
 
     sendJsonRpcResult(socket, request.id, response);
@@ -280,7 +280,7 @@ describe("guiHostClient commands", () => {
       jsonrpc: "2.0",
       id: request.id,
       method: "turn/steer",
-      params,
+      params: { ...params, rejectUnsupportedImages: true },
     });
 
     sendJsonRpcResult(socket, request.id, response);
@@ -303,7 +303,7 @@ describe("guiHostClient commands", () => {
       jsonrpc: "2.0",
       id: request.id,
       method: "turn/steer",
-      params,
+      params: { ...params, rejectUnsupportedImages: true },
     });
 
     const rpcError = {

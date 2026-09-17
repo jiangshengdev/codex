@@ -329,6 +329,7 @@ test("sends plain text through turn/start", async ({ page }) => {
   expect(params).toEqual({
     threadId,
     clientUserMessageId,
+    rejectUnsupportedImages: true,
     input: [{ type: "text", text: "Hello from e2e", text_elements: [] }],
   });
   await expect(composer).toHaveText("");

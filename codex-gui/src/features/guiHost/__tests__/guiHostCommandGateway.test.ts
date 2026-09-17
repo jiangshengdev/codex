@@ -164,7 +164,7 @@ describe("GuiHostCommandGateway", () => {
       jsonrpc: "2.0",
       id: startRequest.id,
       method: "turn/start",
-      params: startParams,
+      params: { ...startParams, rejectUnsupportedImages: true },
     });
     const startResponse = { turn: inProgressTurn("turn-1") };
     transport.settleResult(startRequest.id, startResponse);
@@ -182,7 +182,7 @@ describe("GuiHostCommandGateway", () => {
       jsonrpc: "2.0",
       id: steerRequest.id,
       method: "turn/steer",
-      params: steerParams,
+      params: { ...steerParams, rejectUnsupportedImages: true },
     });
     const steerResponse = { turnId: "turn-1" };
     transport.settleResult(steerRequest.id, steerResponse);

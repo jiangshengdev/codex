@@ -33,7 +33,7 @@ msgid "{0, plural, one {# mention} other {# mentions}}"
 msgstr "{0, plural, one {# 个提及} other {# 个提及}}"
 
 #. placeholder {0}: snapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:106
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:111
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# 条消息尚未发送} other {# 条消息尚未发送}}"
 
@@ -290,7 +290,7 @@ msgid "Context usage details, {usedTokensLabel} tokens used, context window capa
 msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗口容量未知"
 
 #. Resumes sending this page's restored queue; does not open the queue
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:125
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:130
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:68
 msgid "Continue sending"
 msgstr "继续发送"
@@ -835,7 +835,7 @@ msgstr "待发送消息编辑区"
 msgid "Pending message was not reordered"
 msgstr "待处理消息未重新排序"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:137
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:142
 msgid "Pending messages"
 msgstr "待处理消息"
 
@@ -1026,7 +1026,7 @@ msgid "Resuming {receiver}"
 msgstr "正在恢复 {receiver}"
 
 #. Pending state of Continue sending while recovering previously unsent messages
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:117
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:122
 msgid "Resuming sending"
 msgstr "正在继续发送"
 

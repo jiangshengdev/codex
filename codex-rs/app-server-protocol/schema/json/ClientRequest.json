@@ -5462,6 +5462,10 @@
           ],
           "description": "Override the personality for this turn and subsequent turns."
         },
+        "rejectUnsupportedImages": {
+          "description": "Reject new images if the model receiving this input does not support them.",
+          "type": "boolean"
+        },
         "sandboxPolicy": {
           "anyOf": [
             {
@@ -5542,6 +5546,10 @@
             "$ref": "#/definitions/UserInput"
           },
           "type": "array"
+        },
+        "rejectUnsupportedImages": {
+          "description": "Reject new images if the active turn's current model does not support them.",
+          "type": "boolean"
         },
         "threadId": {
           "type": "string"

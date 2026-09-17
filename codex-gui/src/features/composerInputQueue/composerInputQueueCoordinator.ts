@@ -80,7 +80,11 @@ export type ComposerInputQueueCoordinatorSnapshot = Readonly<{
   guidingCount: number;
   detailRevision: number;
   recoveryCount: number;
-  recovery: Readonly<{ reason: RecoveryBatch["reason"]; count: number }> | null;
+  recovery: Readonly<{
+    reason: RecoveryBatch["reason"];
+    count: number;
+    rejectionReason: string | null;
+  }> | null;
   isRecovering: boolean;
   rejectedSteers: readonly ComposerRejectedSteerView[];
   hasUnknownSteer: boolean;
@@ -199,6 +203,7 @@ type CoordinatorState = {
   queue: ComposerInputQueue;
   interruptState: ReturnType<typeof createComposerInterruptState>;
   recovery: RecoveryBatch | null;
+  imageRejectionReason: string | null;
   deferredEffects: readonly ComposerInputQueueEffect[];
   failedInterruptTurnId: Turn["id"] | null;
   draft: ComposerDraft | null;
@@ -225,6 +230,14 @@ function deliveryFailure(error: unknown): Exclude<InterruptSettlement["type"], "
   return isGuiHostCommandError(error) && error.delivery === "definitelyNotAccepted"
     ? "definitelyNotAccepted"
     : "deliveryUnknown";
+}
+
+function imageRejectionReason(input: ComposerQueueMessage["input"], error: unknown): string | null {
+  return isGuiHostCommandError(error) &&
+    error.delivery === "definitelyNotAccepted" &&
+    input.some((item) => item.type === "image" || item.type === "localImage")
+    ? error.message
+    : null;
 }
 
 class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator {
@@ -254,6 +267,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   }
   private set recovery(value: RecoveryBatch | null) {
     this.state.recovery = value;
+    if (value == null) this.state.imageRejectionReason = null;
   }
   private get deferredEffects() {
     return this.state.deferredEffects;
@@ -293,6 +307,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       }),
       interruptState: createComposerInterruptState(),
       recovery: null,
+      imageRejectionReason: null,
       deferredEffects: [],
       failedInterruptTurnId: null,
       draft: null,
@@ -966,14 +981,25 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
         this.settle(generation, { type: "accepted", claim, turnId: turn.id });
       },
       (error: unknown) => {
-        this.settle(generation, { type: deliveryFailure(error), claim });
+        this.settle(
+          generation,
+          { type: deliveryFailure(error), claim },
+          imageRejectionReason(claim.message.input, error),
+        );
       },
     );
   }
-  private settle(generation: number, settlement: StartSettlement): void {
+  private settle(
+    generation: number,
+    settlement: StartSettlement,
+    rejectionReason: string | null = null,
+  ): void {
     if (this.disposed || generation !== this.generation) return;
     this.receiveFact(() => {
-      this.consumeTransition(this.queue.settleStart(settlement));
+      const transition = this.queue.settleStart(settlement);
+      if (rejectionReason != null && transition.effects.some((effect) => effect.type === "recover"))
+        this.state.imageRejectionReason = rejectionReason;
+      this.consumeTransition(transition);
     });
   }
   private performSteer(claim: SteerClaim): void {
@@ -1000,7 +1026,11 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
             : isGuiHostCommandError(error) && error.delivery === "definitelyNotAccepted"
               ? "definitelyNotAccepted"
               : "deliveryUnknown";
-        this.settleSteer(generation, { type, claim });
+        this.settleSteer(
+          generation,
+          { type, claim },
+          imageRejectionReason(claim.intent.message.input, error),
+        );
       },
     );
   }
@@ -1090,10 +1120,17 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     if (pending?.params.threadId !== this.threadId || pending.params.turnId !== turnId) return;
     this.interruptState = createComposerInterruptState();
   }
-  private settleSteer(generation: number, settlement: SteerSettlement): void {
+  private settleSteer(
+    generation: number,
+    settlement: SteerSettlement,
+    rejectionReason: string | null = null,
+  ): void {
     if (this.disposed || generation !== this.generation) return;
     this.receiveFact(() => {
-      this.consumeTransition(this.queue.settleSteer(settlement));
+      const transition = this.queue.settleSteer(settlement);
+      if (rejectionReason != null && transition.effects.some((effect) => effect.type === "recover"))
+        this.state.imageRejectionReason = rejectionReason;
+      this.consumeTransition(transition);
     });
   }
   private publishSnapshot(): void {
@@ -1117,7 +1154,14 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       guidingCount: queueView.guidingCount,
       detailRevision: queueView.detailRevision,
       recoveryCount: count,
-      recovery: this.recovery == null ? null : { reason: this.recovery.reason, count },
+      recovery:
+        this.recovery == null
+          ? null
+          : {
+              reason: this.recovery.reason,
+              count,
+              rejectionReason: this.state.imageRejectionReason,
+            },
       isRecovering: this.isRecovering,
       rejectedSteers: queueView.rejectedSteers,
       hasUnknownSteer: queueView.hasUnknownSteer,

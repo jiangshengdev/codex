@@ -274,6 +274,10 @@
       },
       "type": "array"
     },
+    "rejectUnsupportedImages": {
+      "description": "Reject new images if the active turn's current model does not support them.",
+      "type": "boolean"
+    },
     "threadId": {
       "type": "string"
     }

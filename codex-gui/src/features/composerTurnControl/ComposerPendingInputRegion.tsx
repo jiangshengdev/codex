@@ -102,6 +102,11 @@ export function ComposerPendingInputRegion({
       key: "recovery",
       node: (
         <div className="flex flex-wrap items-center gap-2">
+          {snapshot.recovery?.rejectionReason == null ? null : (
+            <p className="w-full text-sm text-danger" role="alert">
+              {snapshot.recovery.rejectionReason}
+            </p>
+          )}
           <span id={recoveryDescriptionId}>
             <Plural
               value={snapshot.recoveryCount}

@@ -555,6 +555,7 @@ fn sample_turn_steer_request() -> ClientRequest {
         request_id: RequestId::Integer(2),
         params: TurnSteerParams {
             thread_id: "thread-1".to_string(),
+            reject_unsupported_images: false,
             expected_turn_id: "turn-1".to_string(),
             client_user_message_id: None,
             input: Vec::new(),
