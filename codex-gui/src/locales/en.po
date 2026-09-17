@@ -97,7 +97,7 @@ msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 msgid "A message update is missing its associated turn, so it cannot be fully displayed."
 msgstr "A message update is missing its associated turn, so it cannot be fully displayed."
 
-#: src/features/appShell/AppShellTopBar.tsx:164
+#: src/features/appShell/AppShellTopBar.tsx:167
 #: src/features/newSession/NewSessionPage.tsx:39
 msgid "A working directory is required to start a session."
 msgstr "A working directory is required to start a session."
@@ -132,7 +132,7 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:240
+#: src/features/appShell/AppShellTopBar.tsx:243
 msgid "Browse task history"
 msgstr "Browse task history"
 
@@ -152,6 +152,10 @@ msgstr "Changes could not be saved"
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 
+#: src/features/fileUpload/FileUploadDialog.tsx:84
+msgid "Choose a file"
+msgstr "Choose a file"
+
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:215
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:243
 msgid "Cleanup diagnostic:"
@@ -161,6 +165,10 @@ msgstr "Cleanup diagnostic:"
 #: src/feedback/FailureDiagnosticModal.tsx:27
 msgid "Close diagnostics"
 msgstr "Close diagnostics"
+
+#: src/features/fileUpload/FileUploadDialog.tsx:70
+msgid "Close file upload"
+msgstr "Close file upload"
 
 #. Collaboration activity showing the raw receiver value of the closed agent
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:240
@@ -223,7 +231,7 @@ msgstr "Connection closed"
 msgid "Connection interrupted. Reconnect required."
 msgstr "Connection interrupted. Reconnect required."
 
-#: src/NotFoundPage.tsx:20
+#: src/NotFoundPage.tsx:35
 msgid "Contact support"
 msgstr "Contact support"
 
@@ -311,8 +319,8 @@ msgstr "Could not copy code. Try again."
 msgid "Could not copy table. Try again."
 msgstr "Could not copy table. Try again."
 
-#: src/features/appShell/AppShellTopBar.tsx:57
-#: src/features/appShell/AppShellTopBar.tsx:196
+#: src/features/appShell/AppShellTopBar.tsx:59
+#: src/features/appShell/AppShellTopBar.tsx:199
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "Current task"
@@ -453,6 +461,18 @@ msgstr "Failed"
 msgid "Failed."
 msgstr "Failed."
 
+#: src/features/fileUpload/FileUploadDialog.tsx:113
+msgid "File saved on the Codex machine"
+msgstr "File saved on the Codex machine"
+
+#: src/features/fileUpload/FileUploadDialog.tsx:106
+msgid "File upload failed."
+msgstr "File upload failed."
+
+#: src/features/fileUpload/FileUploadDialog.tsx:104
+msgid "File upload is not authorized. Open the current GUI launch link."
+msgstr "File upload is not authorized. Open the current GUI launch link."
+
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:237
 msgid "Finished waiting"
 msgstr "Finished waiting"
@@ -466,7 +486,7 @@ msgstr "Fork created"
 msgid "Fork from here"
 msgstr "Fork from here"
 
-#: src/NotFoundPage.tsx:17
+#: src/NotFoundPage.tsx:32
 msgid "Go back home"
 msgstr "Go back home"
 
@@ -487,8 +507,8 @@ msgstr "Guiding"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 
-#: src/features/appShell/AppShellTopBar.tsx:62
-#: src/features/appShell/AppShellTopBar.tsx:234
+#: src/features/appShell/AppShellTopBar.tsx:64
+#: src/features/appShell/AppShellTopBar.tsx:237
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "History"
@@ -497,7 +517,7 @@ msgstr "History"
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
-#: src/features/appShell/AppShellTopBar.tsx:59
+#: src/features/appShell/AppShellTopBar.tsx:61
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
 msgid "History detail"
@@ -608,11 +628,11 @@ msgstr "Loading task history…"
 msgid "Loading task…"
 msgstr "Loading task…"
 
-#: src/features/appShell/AppShellTopBar.tsx:128
+#: src/features/appShell/AppShellTopBar.tsx:131
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:99
+#: src/features/appShell/AppShellTopBar.tsx:101
 msgid "Menu"
 msgstr "Menu"
 
@@ -677,12 +697,12 @@ msgstr "Move to last"
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:124
+#: src/features/appShell/AppShellTopBar.tsx:127
 msgid "Navigation"
 msgstr "Navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:61
-#: src/features/appShell/AppShellTopBar.tsx:155
+#: src/features/appShell/AppShellTopBar.tsx:63
+#: src/features/appShell/AppShellTopBar.tsx:158
 #: src/features/documentTitle/DocumentTitleOwner.tsx:52
 msgid "New session"
 msgstr "New session"
@@ -733,7 +753,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:202
+#: src/features/appShell/AppShellTopBar.tsx:205
 msgid "Open current task"
 msgstr "Open current task"
 
@@ -759,7 +779,7 @@ msgid "Operation diagnostic:"
 msgstr "Operation diagnostic:"
 
 #: src/features/documentTitle/DocumentTitleOwner.tsx:51
-#: src/NotFoundPage.tsx:33
+#: src/NotFoundPage.tsx:20
 msgid "Page not found"
 msgstr "Page not found"
 
@@ -996,6 +1016,10 @@ msgstr "Running"
 msgid "Save"
 msgstr "Save"
 
+#: src/features/fileUpload/FileUploadDialog.tsx:78
+msgid "Save a file on the machine running Codex. Maximum size: 50 MiB. Uploading does not send a message."
+msgstr "Save a file on the machine running Codex. Maximum size: 50 MiB. Uploading does not send a message."
+
 #: src/features/qrAccess/QrAccessPopover.tsx:32
 #: src/features/qrAccess/QrAccessPopover.tsx:42
 msgid "Scan with phone"
@@ -1049,7 +1073,7 @@ msgstr "Skills could not be loaded"
 msgid "Some skills could not be loaded"
 msgstr "Some skills could not be loaded"
 
-#: src/NotFoundPage.tsx:41
+#: src/NotFoundPage.tsx:28
 msgid "Sorry, we couldn’t find the page you’re looking for."
 msgstr "Sorry, we couldn’t find the page you’re looking for."
 
@@ -1070,7 +1094,7 @@ msgstr "Spawned {receiver} ({model} {reasoningEffort})"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "Spawned {receiver} ({reasoningEffort})"
 
-#: src/features/appShell/AppShellTopBar.tsx:162
+#: src/features/appShell/AppShellTopBar.tsx:165
 msgid "Start a conversation"
 msgstr "Start a conversation"
 
@@ -1146,7 +1170,7 @@ msgid "Task updates are paused"
 msgstr "Task updates are paused"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:107
+#: src/features/appShell/AppShellTopBar.tsx:109
 msgid "Tasks or the connection need attention."
 msgstr "Tasks or the connection need attention."
 
@@ -1186,6 +1210,10 @@ msgstr "The current task could not be loaded."
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:173
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
+
+#: src/features/fileUpload/FileUploadDialog.tsx:102
+msgid "The file exceeds the 50 MiB limit."
+msgstr "The file exceeds the 50 MiB limit."
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:455
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
@@ -1411,6 +1439,16 @@ msgstr "Untitled task"
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:439
 msgid "Updated pending order could not be loaded"
 msgstr "Updated pending order could not be loaded"
+
+#. Send the selected local file to the machine running Codex
+#: src/features/fileUpload/FileUploadDialog.tsx:134
+msgid "Upload"
+msgstr "Upload"
+
+#: src/features/fileUpload/FileUploadDialog.tsx:65
+#: src/features/fileUpload/FileUploadDialog.tsx:73
+msgid "Upload file"
+msgstr "Upload file"
 
 #. Source label for a skill installed by the current user
 #. Source label for a skill installed by the current user

@@ -18,9 +18,12 @@ use crate::browser_contract::AUTHENTICATE_METHOD;
 use crate::browser_contract::CURRENT_TASK_PATH_SEGMENT;
 use crate::browser_contract::GuiAuthenticateParams;
 use crate::browser_contract::GuiAuthenticateResult;
+use crate::browser_contract::GuiUploadParams;
 use crate::browser_contract::HISTORY_PATH_SEGMENT;
+use crate::browser_contract::MAX_UPLOAD_BYTES;
 use crate::browser_contract::NEW_TASK_PATH_SEGMENT;
 use crate::browser_contract::TOKEN_FRAGMENT_KEY;
+use crate::browser_contract::UPLOAD_PATH;
 use crate::browser_contract::WEBSOCKET_PATH;
 
 #[cfg(test)]
@@ -43,6 +46,10 @@ pub fn generate_browser_contract_fixture_tree_for_tests() -> Result<BTreeMap<Pat
     files.insert(
         PathBuf::from("json/GuiAuthenticateResult.json"),
         generate_json_schema::<GuiAuthenticateResult>()?,
+    );
+    files.insert(
+        PathBuf::from("json/GuiUploadParams.json"),
+        generate_json_schema::<GuiUploadParams>()?,
     );
     Ok(files)
 }
@@ -236,6 +243,7 @@ fn generate_typescript_contract() -> Result<String> {
         ("HISTORY_PATH_SEGMENT", HISTORY_PATH_SEGMENT),
         ("TOKEN_FRAGMENT_KEY", TOKEN_FRAGMENT_KEY),
         ("WEBSOCKET_PATH", WEBSOCKET_PATH),
+        ("UPLOAD_PATH", UPLOAD_PATH),
         ("AUTHENTICATE_METHOD", AUTHENTICATE_METHOD),
     ];
     let mut output = String::from(GENERATED_HEADER);
@@ -243,6 +251,9 @@ fn generate_typescript_contract() -> Result<String> {
         let value = serde_json::to_string(value).context("serialize browser contract constant")?;
         output.push_str(&format!("export const {name} = {value} as const;\n"));
     }
+    output.push_str(&format!(
+        "export const MAX_UPLOAD_BYTES = {MAX_UPLOAD_BYTES} as const;\n"
+    ));
     output.push('\n');
     output.push_str(
         &GuiAuthenticateParams::export_to_string()
@@ -252,6 +263,10 @@ fn generate_typescript_contract() -> Result<String> {
     output.push_str(
         &GuiAuthenticateResult::export_to_string()
             .context("export GuiAuthenticateResult TypeScript")?,
+    );
+    output.push('\n');
+    output.push_str(
+        &GuiUploadParams::export_to_string().context("export GuiUploadParams TypeScript")?,
     );
     if !output.ends_with('\n') {
         output.push('\n');

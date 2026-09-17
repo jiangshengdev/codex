@@ -97,7 +97,7 @@ msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 msgid "A message update is missing its associated turn, so it cannot be fully displayed."
 msgstr "收到的消息更新缺少所属轮次，暂时无法完整展示。"
 
-#: src/features/appShell/AppShellTopBar.tsx:164
+#: src/features/appShell/AppShellTopBar.tsx:167
 #: src/features/newSession/NewSessionPage.tsx:39
 msgid "A working directory is required to start a session."
 msgstr "需要工作目录才能新建会话。"
@@ -132,7 +132,7 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:240
+#: src/features/appShell/AppShellTopBar.tsx:243
 msgid "Browse task history"
 msgstr "浏览历史任务"
 
@@ -152,6 +152,10 @@ msgstr "无法保存更改"
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "继续前，请检查队列、其他打开的页面和会话历史。发送结果未知的消息仍会阻塞后续发送。"
 
+#: src/features/fileUpload/FileUploadDialog.tsx:84
+msgid "Choose a file"
+msgstr "选择文件"
+
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:215
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:243
 msgid "Cleanup diagnostic:"
@@ -161,6 +165,10 @@ msgstr "清理诊断信息："
 #: src/feedback/FailureDiagnosticModal.tsx:27
 msgid "Close diagnostics"
 msgstr "关闭诊断信息"
+
+#: src/features/fileUpload/FileUploadDialog.tsx:70
+msgid "Close file upload"
+msgstr "关闭文件上传"
 
 #. Collaboration activity showing the raw receiver value of the closed agent
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:240
@@ -223,7 +231,7 @@ msgstr "连接已关闭"
 msgid "Connection interrupted. Reconnect required."
 msgstr "连接已中断，需要重新连接。"
 
-#: src/NotFoundPage.tsx:20
+#: src/NotFoundPage.tsx:35
 msgid "Contact support"
 msgstr "联系支持"
 
@@ -311,8 +319,8 @@ msgstr "无法复制代码，请重试。"
 msgid "Could not copy table. Try again."
 msgstr "无法复制表格。请重试。"
 
-#: src/features/appShell/AppShellTopBar.tsx:57
-#: src/features/appShell/AppShellTopBar.tsx:196
+#: src/features/appShell/AppShellTopBar.tsx:59
+#: src/features/appShell/AppShellTopBar.tsx:199
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "当前任务"
@@ -453,6 +461,18 @@ msgstr "失败"
 msgid "Failed."
 msgstr "失败。"
 
+#: src/features/fileUpload/FileUploadDialog.tsx:113
+msgid "File saved on the Codex machine"
+msgstr "文件已保存到运行 Codex 的机器"
+
+#: src/features/fileUpload/FileUploadDialog.tsx:106
+msgid "File upload failed."
+msgstr "文件上传失败。"
+
+#: src/features/fileUpload/FileUploadDialog.tsx:104
+msgid "File upload is not authorized. Open the current GUI launch link."
+msgstr "文件上传未获授权。请打开当前 GUI 启动链接。"
+
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:237
 msgid "Finished waiting"
 msgstr "等待结束"
@@ -466,7 +486,7 @@ msgstr "分叉会话已创建"
 msgid "Fork from here"
 msgstr "从此处分叉"
 
-#: src/NotFoundPage.tsx:17
+#: src/NotFoundPage.tsx:32
 msgid "Go back home"
 msgstr "返回首页"
 
@@ -487,8 +507,8 @@ msgstr "引导中"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
-#: src/features/appShell/AppShellTopBar.tsx:62
-#: src/features/appShell/AppShellTopBar.tsx:234
+#: src/features/appShell/AppShellTopBar.tsx:64
+#: src/features/appShell/AppShellTopBar.tsx:237
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "历史记录"
@@ -497,7 +517,7 @@ msgstr "历史记录"
 msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
-#: src/features/appShell/AppShellTopBar.tsx:59
+#: src/features/appShell/AppShellTopBar.tsx:61
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
 msgid "History detail"
@@ -608,11 +628,11 @@ msgstr "正在加载任务历史…"
 msgid "Loading task…"
 msgstr "正在加载任务…"
 
-#: src/features/appShell/AppShellTopBar.tsx:128
+#: src/features/appShell/AppShellTopBar.tsx:131
 msgid "Main navigation"
 msgstr "主导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:99
+#: src/features/appShell/AppShellTopBar.tsx:101
 msgid "Menu"
 msgstr "菜单"
 
@@ -677,12 +697,12 @@ msgstr "移至队尾"
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:124
+#: src/features/appShell/AppShellTopBar.tsx:127
 msgid "Navigation"
 msgstr "导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:61
-#: src/features/appShell/AppShellTopBar.tsx:155
+#: src/features/appShell/AppShellTopBar.tsx:63
+#: src/features/appShell/AppShellTopBar.tsx:158
 #: src/features/documentTitle/DocumentTitleOwner.tsx:52
 msgid "New session"
 msgstr "新建会话"
@@ -733,7 +753,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:202
+#: src/features/appShell/AppShellTopBar.tsx:205
 msgid "Open current task"
 msgstr "打开当前任务"
 
@@ -759,7 +779,7 @@ msgid "Operation diagnostic:"
 msgstr "操作诊断信息："
 
 #: src/features/documentTitle/DocumentTitleOwner.tsx:51
-#: src/NotFoundPage.tsx:33
+#: src/NotFoundPage.tsx:20
 msgid "Page not found"
 msgstr "找不到页面"
 
@@ -996,6 +1016,10 @@ msgstr "运行中"
 msgid "Save"
 msgstr "保存"
 
+#: src/features/fileUpload/FileUploadDialog.tsx:78
+msgid "Save a file on the machine running Codex. Maximum size: 50 MiB. Uploading does not send a message."
+msgstr "将文件保存到运行 Codex 的机器，最大支持 50 MiB。上传不会发送聊天消息。"
+
 #: src/features/qrAccess/QrAccessPopover.tsx:32
 #: src/features/qrAccess/QrAccessPopover.tsx:42
 msgid "Scan with phone"
@@ -1049,7 +1073,7 @@ msgstr "无法加载技能"
 msgid "Some skills could not be loaded"
 msgstr "部分技能无法加载"
 
-#: src/NotFoundPage.tsx:41
+#: src/NotFoundPage.tsx:28
 msgid "Sorry, we couldn’t find the page you’re looking for."
 msgstr "抱歉，找不到您要访问的页面。"
 
@@ -1070,7 +1094,7 @@ msgstr "已启动 {receiver}（{model} {reasoningEffort}）"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "已启动 {receiver}（{reasoningEffort}）"
 
-#: src/features/appShell/AppShellTopBar.tsx:162
+#: src/features/appShell/AppShellTopBar.tsx:165
 msgid "Start a conversation"
 msgstr "开始新对话"
 
@@ -1146,7 +1170,7 @@ msgid "Task updates are paused"
 msgstr "任务内容更新已暂停"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:107
+#: src/features/appShell/AppShellTopBar.tsx:109
 msgid "Tasks or the connection need attention."
 msgstr "任务或连接存在待处理的异常。"
 
@@ -1186,6 +1210,10 @@ msgstr "当前任务未能加载。"
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:173
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当前任务再切换。"
+
+#: src/features/fileUpload/FileUploadDialog.tsx:102
+msgid "The file exceeds the 50 MiB limit."
+msgstr "文件超过 50 MiB 限制。"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:455
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
@@ -1411,6 +1439,16 @@ msgstr "未命名任务"
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:439
 msgid "Updated pending order could not be loaded"
 msgstr "无法加载更新后的待处理顺序"
+
+#. Send the selected local file to the machine running Codex
+#: src/features/fileUpload/FileUploadDialog.tsx:134
+msgid "Upload"
+msgstr "上传"
+
+#: src/features/fileUpload/FileUploadDialog.tsx:65
+#: src/features/fileUpload/FileUploadDialog.tsx:73
+msgid "Upload file"
+msgstr "上传文件"
 
 #. Source label for a skill installed by the current user
 #. Source label for a skill installed by the current user
