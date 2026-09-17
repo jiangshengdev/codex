@@ -8,6 +8,8 @@ pub(crate) const NEW_TASK_PATH_SEGMENT: &str = "new";
 pub(crate) const HISTORY_PATH_SEGMENT: &str = "history";
 pub(crate) const TOKEN_FRAGMENT_KEY: &str = "token";
 pub(crate) const WEBSOCKET_PATH: &str = "/ws";
+pub(crate) const UPLOAD_PATH: &str = "/upload";
+pub(crate) const MAX_UPLOAD_BYTES: usize = 50 * 1024 * 1024;
 pub(crate) const AUTHENTICATE_METHOD: &str = "gui/authenticate";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
@@ -22,4 +24,9 @@ pub(crate) struct GuiAuthenticateParams {
 #[ts(rename_all = "camelCase")]
 pub(crate) struct GuiAuthenticateResult {
     pub(crate) authenticated: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+pub(crate) struct GuiUploadParams {
+    pub(crate) filename: String,
 }

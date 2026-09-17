@@ -195,7 +195,7 @@ test.each([
     description: "抱歉，找不到您要访问的页面。",
   },
 ])(
-  "places not-found actions after content responsively in $locale at $width pixels",
+  "centers not-found content with actions below it in $locale at $width pixels",
   async ({ locale, width, action, support, description }) => {
     const originalViewport = { width: window.innerWidth, height: window.innerHeight };
     try {
@@ -215,12 +215,16 @@ test.each([
           const contentRect = descriptionText.element().getBoundingClientRect();
           const codeRect = errorCode.element().getBoundingClientRect();
           return {
-            responsivePlacement:
-              width === 375
-                ? actionRect.top >= contentRect.bottom - 1 &&
-                  Math.abs(actionRect.left - contentRect.left) <= 1
-                : actionRect.left >= contentRect.right - 1 &&
-                  Math.abs(actionRect.top - codeRect.top) <= 1,
+            actionsBelowContent: Math.min(actionRect.top, supportRect.top) > contentRect.bottom,
+            contentCentered:
+              Math.abs((contentRect.left + contentRect.right) / 2 - window.innerWidth / 2) <= 1 &&
+              Math.abs((codeRect.left + codeRect.right) / 2 - window.innerWidth / 2) <= 1,
+            actionsCentered:
+              Math.abs((actionRect.left + supportRect.right) / 2 - window.innerWidth / 2) <= 1,
+            actionsVerticallyAligned:
+              Math.abs(
+                (actionRect.top + actionRect.bottom - supportRect.top - supportRect.bottom) / 2,
+              ) <= 1,
             actionsWithinViewport:
               actionRect.left >= 0 &&
               actionRect.right <= window.innerWidth &&
@@ -230,7 +234,10 @@ test.each([
           };
         })
         .toEqual({
-          responsivePlacement: true,
+          actionsBelowContent: true,
+          contentCentered: true,
+          actionsCentered: true,
+          actionsVerticallyAligned: true,
           actionsWithinViewport: true,
           noHorizontalOverflow: true,
         });
