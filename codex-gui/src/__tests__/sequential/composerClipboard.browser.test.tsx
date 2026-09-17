@@ -223,13 +223,10 @@ test("multiline structured copy and cut preserve blank lines and skill identity 
   await target.fill("");
   const htmlOnly = new DataTransfer();
   htmlOnly.setData("text/html", copied.html);
-  target.element().dispatchEvent(
-    new ClipboardEvent("paste", {
-      bubbles: true,
-      cancelable: true,
-      clipboardData: htmlOnly,
-    }),
-  );
+  const pasteEvent = new ClipboardEvent("paste", { bubbles: true, cancelable: true });
+  // Firefox creates a separate DataTransfer for synthetic clipboard events.
+  Object.defineProperty(pasteEvent, "clipboardData", { value: htmlOnly });
+  target.element().dispatchEvent(pasteEvent);
   await expect
     .poll(() => harness.targetController().capture().textContent)
     .toBe(`\n$${displayName}\n\ntail\n`);
