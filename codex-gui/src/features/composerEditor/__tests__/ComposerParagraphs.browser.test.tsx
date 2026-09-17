@@ -47,7 +47,9 @@ test("reaches both sides of a standalone skill across paragraphs with arrow keys
   await screen.user.keyboard("{Shift>}{Enter}{/Shift}last");
   const controller = getController(controllerRef);
   await expect.poll(() => controller.capture().textContent).toBe("first\n$alpha\nlast");
-  await screen.user.keyboard("{Home}{ArrowLeft}R");
+  // Move across "last" without relying on platform-specific Home behavior.
+  await screen.user.keyboard("{ArrowLeft>4/}");
+  await screen.user.keyboard("{ArrowLeft}R");
   await expect.poll(() => controller.capture().textContent).toBe("first\n$alphaR\nlast");
   await screen.user.keyboard("{ArrowLeft}");
   await screen.user.keyboard("{ArrowLeft}");
@@ -88,13 +90,10 @@ test.each([
   await editor.click();
   const data = new DataTransfer();
   data.setData(mime, value);
-  editor.element().dispatchEvent(
-    new ClipboardEvent("paste", {
-      bubbles: true,
-      cancelable: true,
-      clipboardData: data,
-    }),
-  );
+  const pasteEvent = new ClipboardEvent("paste", { bubbles: true, cancelable: true });
+  // Firefox creates a separate DataTransfer for synthetic clipboard events.
+  Object.defineProperty(pasteEvent, "clipboardData", { value: data });
+  editor.element().dispatchEvent(pasteEvent);
   const controller = getController(controllerRef);
   await expect.poll(() => controller.capture().textContent).toBe("\nfirst\n\nlast\n");
   expect(editor.element().querySelectorAll(":scope > p")).toHaveLength(5);
@@ -142,7 +141,9 @@ test("restores legacy soft breaks as paragraphs and preserves editing, history, 
   expect(controller.restore(imported.draft)).toEqual({ type: "restored" });
   await expect.poll(() => controller.capture().textContent).toBe("first\n$Alpha\nlast");
   expect(editor.element().querySelectorAll(":scope > p")).toHaveLength(3);
-  await screen.user.keyboard("{Home}{ArrowLeft}R");
+  // Move across "last" without relying on platform-specific Home behavior.
+  await screen.user.keyboard("{ArrowLeft>4/}");
+  await screen.user.keyboard("{ArrowLeft}R");
   await expect.poll(() => controller.capture().textContent).toBe("first\n$AlphaR\nlast");
   await screen.user.keyboard("{ArrowLeft}");
   await screen.user.keyboard("{ArrowLeft}");
@@ -204,20 +205,17 @@ test.each(["manual", "paste", "restore"] as const)(
           navigator.platform.startsWith("Mac") ? "{Meta>}a{/Meta}" : "{Control>}a{/Control}",
         );
         const data = new DataTransfer();
-        editor
-          .element()
-          .dispatchEvent(
-            new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData: data }),
-          );
+        const copyEvent = new ClipboardEvent("copy", { bubbles: true, cancelable: true });
+        // Firefox creates a separate DataTransfer for synthetic clipboard events.
+        Object.defineProperty(copyEvent, "clipboardData", { value: data });
+        editor.element().dispatchEvent(copyEvent);
         expect(data.getData("text/plain")).toBe("a\n$alpha$beta\n$alpha\nb");
         expect(controller.clearIfCurrent(controller.capture())).toBe(true);
         await expect.poll(() => controller.capture().textContent).toBe("");
         await editor.click();
-        editor
-          .element()
-          .dispatchEvent(
-            new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }),
-          );
+        const pasteEvent = new ClipboardEvent("paste", { bubbles: true, cancelable: true });
+        Object.defineProperty(pasteEvent, "clipboardData", { value: data });
+        editor.element().dispatchEvent(pasteEvent);
       },
     };
     await prepareEntry[entry]();
