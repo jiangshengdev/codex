@@ -6,17 +6,21 @@ import {
   $getSelection,
   $isNodeSelection,
   $isRangeSelection,
+  $nodesOfType,
   COMMAND_PRIORITY_HIGH,
+  HISTORY_MERGE_TAG,
   mergeRegister,
   type NodeKey,
 } from "lexical";
 import { useEffect, useRef } from "react";
 import { uploadFile } from "@/features/fileUpload/uploadFile";
+import { randomUuid } from "@/identity/randomUuid";
 import { attachmentMedia } from "./attachmentMedia";
 import {
   $createAttachmentNode,
   $isAttachmentNode,
   ADD_ATTACHMENTS_COMMAND,
+  AttachmentNode,
   RETRY_ATTACHMENT_COMMAND,
 } from "./AttachmentNode";
 
@@ -39,7 +43,7 @@ export function ComposerAttachmentsPlugin({
           if (files.length === 0 || !editor.isEditable()) return false;
           const nodes = files.map((file) => {
             const node = $createAttachmentNode({
-              id: crypto.randomUUID(),
+              id: randomUuid(),
               name: file.name,
               mediaType: attachmentMedia(file) === "file" ? "file" : "image",
               status: "uploading",
@@ -59,14 +63,38 @@ export function ComposerAttachmentsPlugin({
         COMMAND_PRIORITY_HIGH,
       ),
       editor.registerUpdateListener(({ editorState }) => {
-        editorState.read(() => {
+        const interrupted = editorState.read(() => {
           for (const [key, entry] of entries) {
             if ($getNodeByKey(key) == null) {
               entry.request?.abort();
               entries.delete(key);
             }
           }
+          return $nodesOfType(AttachmentNode)
+            .filter((node) => {
+              const attachment = node.getAttachment();
+              return (
+                !entries.has(node.getKey()) &&
+                (attachment.status === "uploading" || attachment.failure === "upload")
+              );
+            })
+            .map((node) => node.getKey());
         });
+        if (interrupted.length > 0)
+          editor.update(
+            () => {
+              for (const key of interrupted) {
+                const node = $getNodeByKey(key);
+                if ($isAttachmentNode(node))
+                  node.setAttachment({
+                    ...node.getAttachment(),
+                    status: "failed",
+                    failure: "interrupted",
+                  });
+              }
+            },
+            { tag: HISTORY_MERGE_TAG },
+          );
       }),
       editor.registerCommand(
         RETRY_ATTACHMENT_COMMAND,

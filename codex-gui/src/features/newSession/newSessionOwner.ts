@@ -96,7 +96,8 @@ export class NewSessionOwner {
     )
       return { type: "retained" };
     const input = this.capture ?? capture;
-    if (input === undefined || input.textContent.trim().length === 0) return { type: "retained" };
+    if (input === undefined || !input.attachmentsReady || input.textContent.trim().length === 0)
+      return { type: "retained" };
     this.capture = input;
     this.pending = true;
     const generation = this.generation;

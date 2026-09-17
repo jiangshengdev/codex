@@ -1,6 +1,7 @@
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ActiveThreadPendingInputEditReservation } from "@/features/activeThreadSession/activeThreadSessionContracts";
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
+import { exportComposerDraft } from "@/features/composerEditor/composerDraft";
 import type {
   ComposerPendingInputDetailResult,
   ComposerPendingInputEditRestore,
@@ -28,6 +29,7 @@ export type ComposerPendingInputCurrentFacts = Readonly<{
 
 export type ComposerPendingInputAlert =
   | "empty"
+  | "attachmentsNotReady"
   | "invalidDraft"
   | "moveNotApplied"
   | "moveNotAppliedRefreshFailed"
@@ -185,7 +187,7 @@ type ActiveEdit = Readonly<{
   outcomeAtBegin: ComposerInputQueueCoordinatorSnapshot["pendingInputManagementOutcome"];
   reservation: ActiveThreadPendingInputEditReservation;
   capture: () => ComposerDraftCapture;
-  initialInput: string;
+  initialDraft: string;
   valid: boolean;
 }>;
 
@@ -396,7 +398,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
         phase: "active",
         reservation: result.reservation,
         capture: attachment.capture,
-        initialInput: JSON.stringify(attachment.capture().input),
+        initialDraft: JSON.stringify(exportComposerDraft(attachment.capture().draft)),
         valid: true,
       };
       if (this.pages != null) this.pages = { ...this.pages, revision: result.revision };
@@ -809,7 +811,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
       return false;
     }
     if (result.type === "invalidInput") {
-      this.alert = "empty";
+      this.alert = result.reason === "attachmentsNotReady" ? "attachmentsNotReady" : "empty";
       return false;
     }
     this.edit = null;
@@ -847,7 +849,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     if (this.edit?.phase === "retained") return true;
     return (
       this.edit?.phase === "active" &&
-      JSON.stringify(this.edit.capture().input) !== this.edit.initialInput
+      JSON.stringify(exportComposerDraft(this.edit.capture().draft)) !== this.edit.initialDraft
     );
   }
 

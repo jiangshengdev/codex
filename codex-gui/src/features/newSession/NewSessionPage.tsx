@@ -57,11 +57,15 @@ function NewSessionEditor({
 }>) {
   const { t } = useLingui();
   const navigate = useNavigate();
-  const { newSessionOwner, activeThreadSession } = useAppCapabilities();
+  const { newSessionOwner, activeThreadSession, authorizationToken } = useAppCapabilities();
   const [controller, setController] = useState<ComposerEditorController | null>(null);
   const draftText = useSyncExternalStore(
     controller?.subscribe ?? subscribeUnavailableEditor,
     () => controller?.getSnapshot().textContent ?? "",
+  );
+  const attachmentsReady = useSyncExternalStore(
+    controller?.subscribe ?? subscribeUnavailableEditor,
+    () => controller?.getSnapshot().attachmentsReady ?? false,
   );
   const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
   const { skillCatalog, retry } = useNewSessionSkillCatalog(snapshot.cwd, commands);
@@ -134,6 +138,7 @@ function NewSessionEditor({
       >
         <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
         <ComposerEditor
+          authorizationToken={authorizationToken}
           ariaLabel={t`Message Codex`}
           onControllerChange={setController}
           disabled={commands == null || snapshot.isInputLocked}
@@ -158,7 +163,11 @@ function NewSessionEditor({
           <RetryActionButton
             variant="outline"
             isDisabled={
-              commands == null || pending || unknownHandoff || draftText.trim().length === 0
+              commands == null ||
+              pending ||
+              unknownHandoff ||
+              draftText.trim().length === 0 ||
+              !attachmentsReady
             }
             isPending={pending}
             pendingChildren={

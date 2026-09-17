@@ -54,6 +54,19 @@ function setup() {
 }
 
 describe("NewSessionOwner", () => {
+  it("does not create a session until attachments finish uploading", async () => {
+    const h = setup();
+    expect(await h.owner.submit({ ...h.capture, attachmentsReady: false })).toEqual({
+      type: "retained",
+    });
+    expect(h.startThread).not.toHaveBeenCalled();
+    expect(h.target.composerRole.submit).not.toHaveBeenCalled();
+    expect(await h.owner.submit(h.capture)).toEqual({
+      type: "accepted",
+      threadId: h.target.threadId,
+    });
+  });
+
   it("keeps one draft in its original directory without starting a thread", () => {
     const h = setup();
     h.owner.saveDraft(h.capture.draft);

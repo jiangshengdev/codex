@@ -19,6 +19,63 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+test("ready file and image attachments survive reload and submit without reupload", async ({
+  page,
+}) => {
+  const host = await createPersistenceHarness(page);
+  let uploads = 0;
+  await page.route("**/upload?*", async (route) => {
+    uploads += 1;
+    await route.fulfill({
+      status: 201,
+      body: route.request().url().includes("picture.png") ? "/tmp/p.png" : "/tmp/n.txt",
+    });
+  });
+  await page.route("**/upload/preview?*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+        "base64",
+      ),
+    });
+  });
+  await host.open();
+  await page.getByLabel("Attach files", { exact: true }).setInputFiles([
+    { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("notes") },
+    { name: "picture.png", mimeType: "image/png", buffer: Buffer.from("image") },
+  ]);
+  await expect(
+    composer(page).getByRole("button", { name: "Preview picture.png", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+  await settledRender(page);
+  await page.reload();
+  await ready(page);
+  await expect(composer(page).getByText("notes.txt", { exact: true })).toBeVisible();
+  await expect(
+    composer(page).getByRole("button", { name: "Preview picture.png", exact: true }),
+  ).toBeVisible();
+  expect(host.sends()).toHaveLength(0);
+  expect(uploads).toBe(2);
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => host.sends().length).toBe(1);
+  expect(host.sends()[0]?.params).toMatchObject({
+    input: [
+      {
+        type: "text",
+        text: "/tmp/n.txt /tmp/p.png",
+        text_elements: [
+          { byteRange: { start: 0, end: 10 }, placeholder: "notes.txt" },
+          { byteRange: { start: 11, end: 21 }, placeholder: "picture.png" },
+        ],
+      },
+      { type: "localImage", path: "/tmp/p.png" },
+    ],
+  });
+});
+
 test("an untouched session stays ready after reload and accepts its first explicit send", async ({
   page,
 }) => {
