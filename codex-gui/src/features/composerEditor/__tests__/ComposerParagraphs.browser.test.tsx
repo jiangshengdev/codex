@@ -59,3 +59,26 @@ test("reaches between adjacent skills without replacing either node", async () =
   await expect.poll(() => controller.capture().textContent).toBe("$alphamiddle$beta");
   expect(controller.capture().selectedSkillPaths).toEqual(["/skills/alpha", "/skills/beta"]);
 });
+
+test.each([
+  ["text/plain", "\nfirst\n\nlast\n"],
+  ["text/html", "<p><br>first<br><br>last<br><br></p>"],
+])("pastes %s with blank lines into the same paragraph model", async (mime, value) => {
+  const { controllerRef, screen } = await renderEditor([]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+  await editor.click();
+  const data = new DataTransfer();
+  data.setData(mime, value);
+  editor.element().dispatchEvent(
+    new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: data,
+    }),
+  );
+  const controller = getController(controllerRef);
+  await expect.poll(() => controller.capture().textContent).toBe("\nfirst\n\nlast\n");
+  expect(editor.element().querySelectorAll(":scope > p")).toHaveLength(5);
+  await screen.user.keyboard("tail");
+  await expect.poll(() => controller.capture().textContent).toBe("\nfirst\n\nlast\ntail");
+});

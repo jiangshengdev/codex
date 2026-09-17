@@ -12,12 +12,14 @@ import {
   INSERT_LINE_BREAK_COMMAND,
   INSERT_PARAGRAPH_COMMAND,
   KEY_ESCAPE_COMMAND,
+  LineBreakNode,
   mergeRegister,
   ParagraphNode,
   SET_TEXT_FORMAT_COMMAND,
   TextNode,
 } from "lexical";
 import { useEffect } from "react";
+import { $normalizeComposerLineBreak } from "./composerParagraphs";
 
 export function ComposerContentModelPlugin() {
   const [editor] = useLexicalComposerContext();
@@ -35,6 +37,7 @@ export function ComposerContentModelPlugin() {
         editor.registerCommand(FORMAT_ELEMENT_COMMAND, rejectFormat, COMMAND_PRIORITY_HIGH),
         editor.registerNodeTransform(TextNode, normalizeTextNode),
         editor.registerNodeTransform(ParagraphNode, normalizeParagraphNode),
+        editor.registerNodeTransform(LineBreakNode, $normalizeComposerLineBreak),
         editor.registerCommand(DRAGSTART_COMMAND, disableDragAndDrop, COMMAND_PRIORITY_HIGH),
         editor.registerCommand(DRAGOVER_COMMAND, disableDragAndDrop, COMMAND_PRIORITY_HIGH),
         editor.registerCommand(DROP_COMMAND, disableDragAndDrop, COMMAND_PRIORITY_HIGH),
