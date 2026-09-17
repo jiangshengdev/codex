@@ -89,26 +89,31 @@ export function ComposerAttachmentsPlugin({
       })}
       className="mx-3 max-w-full text-sm"
       type="file"
+      multiple
       disabled={disabled}
       onChange={(event) => {
-        const file = event.currentTarget.files?.[0];
+        const files = Array.from(event.currentTarget.files ?? []);
         event.currentTarget.value = "";
-        if (file == null || !editor.isEditable()) return;
+        if (files.length === 0 || !editor.isEditable()) return;
         editor.update(
           () => {
-            const node = $createAttachmentNode({
-              id: crypto.randomUUID(),
-              name: file.name,
-              status: "uploading",
-              path: "",
-              failure: null,
+            const nodes = files.map((file) => {
+              const node = $createAttachmentNode({
+                id: crypto.randomUUID(),
+                name: file.name,
+                status: "uploading",
+                path: "",
+                failure: null,
+              });
+              uploads.current.set(node.getKey(), { file, request: null });
+              return node;
             });
             const selection = $getSelection();
             if ($isRangeSelection(selection) || $isNodeSelection(selection))
-              selection.insertNodes([node]);
-            else $getRoot().selectEnd().insertNodes([node]);
-            uploads.current.set(node.getKey(), { file, request: null });
-            editor.dispatchCommand(RETRY_ATTACHMENT_COMMAND, node.getKey());
+              selection.insertNodes(nodes);
+            else $getRoot().selectEnd().insertNodes(nodes);
+            for (const node of nodes)
+              editor.dispatchCommand(RETRY_ATTACHMENT_COMMAND, node.getKey());
           },
           { discrete: true },
         );

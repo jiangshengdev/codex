@@ -155,3 +155,43 @@ test("reloaded authoritative history retains a filename and its path without a l
   await transcript.getByRole("button", { name: "报告.txt", exact: true }).click();
   await expect.element(screen.getByText("/tmp/saved.txt", { exact: true })).toBeVisible();
 });
+
+test("a mixed-result batch keeps input order and retries only the failed file", async () => {
+  const first = createDeferred<Response>();
+  const upload = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementationOnce(() => first.promise)
+    .mockResolvedValueOnce(new Response("failed", { status: 500 }))
+    .mockResolvedValueOnce(new Response("/tmp/b.txt", { status: 201 }));
+  const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
+  await screen
+    .getByLabelText("Attach files", { exact: true })
+    .upload([new File(["A"], "a.txt"), new File(["B"], "b.txt")]);
+  await expect.element(composer.getByText("a.txt", { exact: true })).toBeVisible();
+  await expect.element(composer.getByText("File upload failed.")).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+  first.resolve(new Response("/tmp/a.txt", { status: 201 }));
+  await expect.element(composer.getByText("Ready", { exact: true })).toBeVisible();
+  await composer.click();
+  dispatchGuideShortcut(composer.element());
+  expect(steerTurn).not.toHaveBeenCalled();
+  await composer.getByRole("button", { name: "Retry upload b.txt", exact: true }).click();
+  await expect.element(screen.getByRole("button", { name: "Guide", exact: true })).toBeEnabled();
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  expect(steerTurnParamsAt(steerTurn, 0).input).toEqual([
+    {
+      type: "text",
+      text: "/tmp/a.txt /tmp/b.txt",
+      text_elements: [
+        { byteRange: { start: 0, end: 10 }, placeholder: "a.txt" },
+        { byteRange: { start: 11, end: 21 }, placeholder: "b.txt" },
+      ],
+    },
+  ]);
+  expect(upload.mock.calls.map(([url]) => url)).toEqual([
+    "/upload?filename=a.txt",
+    "/upload?filename=b.txt",
+    "/upload?filename=b.txt",
+  ]);
+});

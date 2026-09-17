@@ -237,6 +237,7 @@ function compileTextElements(
   let previous: LexicalNode | undefined;
   for (const node of nodes) {
     if (previous != null && (!previous.isInline() || !node.isInline())) text += "\n";
+    else if ($isAttachmentNode(previous) && $isAttachmentNode(node)) text += " ";
     const start = encoder.encode(text).length;
     if ($isAttachmentNode(node)) {
       const attachment = node.getAttachment();
