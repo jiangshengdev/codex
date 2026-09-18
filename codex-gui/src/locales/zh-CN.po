@@ -97,7 +97,7 @@ msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 msgid "A message update is missing its associated turn, so it cannot be fully displayed."
 msgstr "收到的消息更新缺少所属轮次，暂时无法完整展示。"
 
-#: src/features/appShell/AppShellTopBar.tsx:167
+#: src/features/appShell/AppShellTopBar.tsx:164
 #: src/features/newSession/NewSessionPage.tsx:39
 msgid "A working directory is required to start a session."
 msgstr "需要工作目录才能新建会话。"
@@ -132,7 +132,7 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
 #. Choose local files to attach to the current message
-#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:153
+#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:164
 msgid "Attach files"
 msgstr "添加文件"
 
@@ -142,7 +142,7 @@ msgid "Attachments are not ready"
 msgstr "附件尚未就绪"
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:243
+#: src/features/appShell/AppShellTopBar.tsx:240
 msgid "Browse task history"
 msgstr "浏览历史任务"
 
@@ -180,7 +180,7 @@ msgstr "关闭诊断信息"
 msgid "Close file upload"
 msgstr "关闭文件上传"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:123
+#: src/features/fileUpload/UploadedImagePreview.tsx:133
 msgid "Close image preview"
 msgstr "关闭图片预览"
 
@@ -334,12 +334,12 @@ msgid "Could not copy table. Try again."
 msgstr "无法复制表格。请重试。"
 
 #. Uploaded image could not be retrieved; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:87
+#: src/features/fileUpload/UploadedImagePreview.tsx:92
 msgid "Could not load the preview of {name}. The file may no longer be available."
 msgstr "无法加载 {name} 的预览。文件可能已不可用。"
 
-#: src/features/appShell/AppShellTopBar.tsx:59
-#: src/features/appShell/AppShellTopBar.tsx:199
+#: src/features/appShell/AppShellTopBar.tsx:57
+#: src/features/appShell/AppShellTopBar.tsx:196
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "当前任务"
@@ -512,7 +512,7 @@ msgid "Go back home"
 msgstr "返回首页"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:401
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:273
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:278
 msgid "Guide"
 msgstr "引导"
 
@@ -528,8 +528,8 @@ msgstr "引导中"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
-#: src/features/appShell/AppShellTopBar.tsx:64
-#: src/features/appShell/AppShellTopBar.tsx:237
+#: src/features/appShell/AppShellTopBar.tsx:62
+#: src/features/appShell/AppShellTopBar.tsx:234
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "历史记录"
@@ -538,7 +538,7 @@ msgstr "历史记录"
 msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
-#: src/features/appShell/AppShellTopBar.tsx:61
+#: src/features/appShell/AppShellTopBar.tsx:59
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
 msgid "History detail"
@@ -550,7 +550,7 @@ msgstr "历史详情"
 msgid "Idle"
 msgstr "空闲"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:69
+#: src/features/fileUpload/UploadedImagePreview.tsx:74
 msgid "Image preview is not authorized. Open the current GUI launch link."
 msgstr "图片预览未获授权。请打开当前 GUI 启动链接。"
 
@@ -590,7 +590,7 @@ msgstr "已中断。"
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:43
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:92
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:110
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:113
 msgid "Invalid skill"
 msgstr "无效技能"
 
@@ -638,7 +638,7 @@ msgid "Loading more…"
 msgstr "正在加载更多…"
 
 #. Loading an uploaded image preview; name is the original file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:77
+#: src/features/fileUpload/UploadedImagePreview.tsx:82
 msgid "Loading preview of {name}…"
 msgstr "正在加载 {name} 的预览…"
 
@@ -658,11 +658,11 @@ msgstr "正在加载任务历史…"
 msgid "Loading task…"
 msgstr "正在加载任务…"
 
-#: src/features/appShell/AppShellTopBar.tsx:131
+#: src/features/appShell/AppShellTopBar.tsx:128
 msgid "Main navigation"
 msgstr "主导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:101
+#: src/features/appShell/AppShellTopBar.tsx:99
 msgid "Menu"
 msgstr "菜单"
 
@@ -670,14 +670,14 @@ msgstr "菜单"
 msgid "Message cannot be empty"
 msgstr "消息不能为空"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:205
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:215
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:209
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:219
 #: src/features/newSession/NewSessionPage.tsx:142
 #: src/features/newSession/NewSessionPage.tsx:158
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:189
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:192
 msgid "Message composer"
 msgstr "消息输入区"
 
@@ -727,12 +727,12 @@ msgstr "移至队尾"
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:127
+#: src/features/appShell/AppShellTopBar.tsx:124
 msgid "Navigation"
 msgstr "导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:63
-#: src/features/appShell/AppShellTopBar.tsx:158
+#: src/features/appShell/AppShellTopBar.tsx:61
+#: src/features/appShell/AppShellTopBar.tsx:155
 #: src/features/documentTitle/DocumentTitleOwner.tsx:52
 msgid "New session"
 msgstr "新建会话"
@@ -783,7 +783,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:205
+#: src/features/appShell/AppShellTopBar.tsx:202
 msgid "Open current task"
 msgstr "打开当前任务"
 
@@ -852,7 +852,7 @@ msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "待处理：排队 {ordinaryQueuedCount}"
 
 #. Open the uploaded image at a larger size; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:107
+#: src/features/fileUpload/UploadedImagePreview.tsx:112
 msgid "Preview {name}"
 msgstr "预览 {name}"
 
@@ -1086,7 +1086,7 @@ msgstr "将文件保存到运行 Codex 的机器，最大支持 50 MiB。上传�
 msgid "Scan with phone"
 msgstr "使用手机扫描"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:285
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:290
 #: src/features/newSession/NewSessionPage.tsx:182
 msgid "Send"
 msgstr "发送"
@@ -1155,7 +1155,7 @@ msgstr "已启动 {receiver}（{model} {reasoningEffort}）"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "已启动 {receiver}（{reasoningEffort}）"
 
-#: src/features/appShell/AppShellTopBar.tsx:165
+#: src/features/appShell/AppShellTopBar.tsx:162
 msgid "Start a conversation"
 msgstr "开始新对话"
 
@@ -1164,11 +1164,11 @@ msgstr "开始新对话"
 msgid "Started <0/> <1/>"
 msgstr "已启动 <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:261
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:266
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:252
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:257
 msgid "Stop failed"
 msgstr "停止失败"
 
@@ -1231,12 +1231,12 @@ msgid "Task updates are paused"
 msgstr "任务内容更新已暂停"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:109
+#: src/features/appShell/AppShellTopBar.tsx:107
 msgid "Tasks or the connection need attention."
 msgstr "任务或连接存在待处理的异常。"
 
 #. Browser could not decode the uploaded image; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:91
+#: src/features/fileUpload/UploadedImagePreview.tsx:96
 msgid "The browser could not display {name} as an image."
 msgstr "浏览器无法将 {name} 显示为图片。"
 

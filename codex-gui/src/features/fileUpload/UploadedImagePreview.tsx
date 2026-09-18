@@ -10,7 +10,7 @@ type UploadedImagePreviewProps = {
 };
 
 type ImagePreviewOutcome =
-  | { type: "ready"; url: string }
+  | { type: "ready"; url: string; width: number; height: number }
   | { type: "failed"; reason: "read" | "decode" };
 
 export function UploadedImagePreview(props: UploadedImagePreviewProps) {
@@ -42,7 +42,12 @@ function ImagePreview({ path, name, authorizationToken }: UploadedImagePreviewPr
         image.src = objectUrl;
         await image.decode();
         controller.signal.throwIfAborted();
-        setOutcome({ type: "ready", url: objectUrl });
+        setOutcome({
+          type: "ready",
+          url: objectUrl,
+          width: image.naturalWidth,
+          height: image.naturalHeight,
+        });
       } catch {
         if (objectUrl != null) {
           URL.revokeObjectURL(objectUrl);
@@ -118,17 +123,24 @@ function ImagePreview({ path, name, authorizationToken }: UploadedImagePreviewPr
         <span className="truncate">{name}</span>
       </Button>
       <Modal.Backdrop>
-        <Modal.Container scroll="inside">
-          <Modal.Dialog>
+        <Modal.Container scroll="inside" placement="center" className="p-4 sm:p-4">
+          <Modal.Dialog
+            className="max-w-full"
+            style={{
+              width: `max(16rem, min(${String(outcome.width + 48)}px, calc(100vw - 32px), calc((100dvh - 160px) * ${String(outcome.width / outcome.height)} + 48px)))`,
+            }}
+          >
             <Modal.CloseTrigger aria-label={t`Close image preview`} />
-            <Modal.Header>
-              <Modal.Heading className="break-all">{name}</Modal.Heading>
+            <Modal.Header className="min-h-8 shrink-0 pr-10">
+              <Modal.Heading className="line-clamp-2 break-all" title={name}>
+                {name}
+              </Modal.Heading>
             </Modal.Header>
-            <Modal.Body>
+            <Modal.Body className="flex items-center justify-center overflow-hidden">
               <img
                 src={outcome.url}
                 alt={name}
-                className="max-h-[70vh] max-w-full object-contain"
+                className="h-auto max-h-[calc(100dvh-160px)] w-auto max-w-full object-contain"
                 onError={reportDecodeFailure}
               />
             </Modal.Body>

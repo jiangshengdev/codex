@@ -97,7 +97,7 @@ msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 msgid "A message update is missing its associated turn, so it cannot be fully displayed."
 msgstr "A message update is missing its associated turn, so it cannot be fully displayed."
 
-#: src/features/appShell/AppShellTopBar.tsx:167
+#: src/features/appShell/AppShellTopBar.tsx:164
 #: src/features/newSession/NewSessionPage.tsx:39
 msgid "A working directory is required to start a session."
 msgstr "A working directory is required to start a session."
@@ -132,7 +132,7 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
 #. Choose local files to attach to the current message
-#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:153
+#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:164
 msgid "Attach files"
 msgstr "Attach files"
 
@@ -142,7 +142,7 @@ msgid "Attachments are not ready"
 msgstr "Attachments are not ready"
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:243
+#: src/features/appShell/AppShellTopBar.tsx:240
 msgid "Browse task history"
 msgstr "Browse task history"
 
@@ -180,7 +180,7 @@ msgstr "Close diagnostics"
 msgid "Close file upload"
 msgstr "Close file upload"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:123
+#: src/features/fileUpload/UploadedImagePreview.tsx:133
 msgid "Close image preview"
 msgstr "Close image preview"
 
@@ -334,12 +334,12 @@ msgid "Could not copy table. Try again."
 msgstr "Could not copy table. Try again."
 
 #. Uploaded image could not be retrieved; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:87
+#: src/features/fileUpload/UploadedImagePreview.tsx:92
 msgid "Could not load the preview of {name}. The file may no longer be available."
 msgstr "Could not load the preview of {name}. The file may no longer be available."
 
-#: src/features/appShell/AppShellTopBar.tsx:59
-#: src/features/appShell/AppShellTopBar.tsx:199
+#: src/features/appShell/AppShellTopBar.tsx:57
+#: src/features/appShell/AppShellTopBar.tsx:196
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "Current task"
@@ -512,7 +512,7 @@ msgid "Go back home"
 msgstr "Go back home"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:401
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:273
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:278
 msgid "Guide"
 msgstr "Guide"
 
@@ -528,8 +528,8 @@ msgstr "Guiding"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 
-#: src/features/appShell/AppShellTopBar.tsx:64
-#: src/features/appShell/AppShellTopBar.tsx:237
+#: src/features/appShell/AppShellTopBar.tsx:62
+#: src/features/appShell/AppShellTopBar.tsx:234
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "History"
@@ -538,7 +538,7 @@ msgstr "History"
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
-#: src/features/appShell/AppShellTopBar.tsx:61
+#: src/features/appShell/AppShellTopBar.tsx:59
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
 msgid "History detail"
@@ -550,7 +550,7 @@ msgstr "History detail"
 msgid "Idle"
 msgstr "Idle"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:69
+#: src/features/fileUpload/UploadedImagePreview.tsx:74
 msgid "Image preview is not authorized. Open the current GUI launch link."
 msgstr "Image preview is not authorized. Open the current GUI launch link."
 
@@ -590,7 +590,7 @@ msgstr "Interrupted."
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:43
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:92
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:110
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:113
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
@@ -638,7 +638,7 @@ msgid "Loading more…"
 msgstr "Loading more…"
 
 #. Loading an uploaded image preview; name is the original file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:77
+#: src/features/fileUpload/UploadedImagePreview.tsx:82
 msgid "Loading preview of {name}…"
 msgstr "Loading preview of {name}…"
 
@@ -658,11 +658,11 @@ msgstr "Loading task history…"
 msgid "Loading task…"
 msgstr "Loading task…"
 
-#: src/features/appShell/AppShellTopBar.tsx:131
+#: src/features/appShell/AppShellTopBar.tsx:128
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:101
+#: src/features/appShell/AppShellTopBar.tsx:99
 msgid "Menu"
 msgstr "Menu"
 
@@ -670,14 +670,14 @@ msgstr "Menu"
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:205
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:215
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:209
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:219
 #: src/features/newSession/NewSessionPage.tsx:142
 #: src/features/newSession/NewSessionPage.tsx:158
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:189
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:192
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -727,12 +727,12 @@ msgstr "Move to last"
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:127
+#: src/features/appShell/AppShellTopBar.tsx:124
 msgid "Navigation"
 msgstr "Navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:63
-#: src/features/appShell/AppShellTopBar.tsx:158
+#: src/features/appShell/AppShellTopBar.tsx:61
+#: src/features/appShell/AppShellTopBar.tsx:155
 #: src/features/documentTitle/DocumentTitleOwner.tsx:52
 msgid "New session"
 msgstr "New session"
@@ -783,7 +783,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:205
+#: src/features/appShell/AppShellTopBar.tsx:202
 msgid "Open current task"
 msgstr "Open current task"
 
@@ -852,7 +852,7 @@ msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "Pending: Queued {ordinaryQueuedCount}"
 
 #. Open the uploaded image at a larger size; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:107
+#: src/features/fileUpload/UploadedImagePreview.tsx:112
 msgid "Preview {name}"
 msgstr "Preview {name}"
 
@@ -1086,7 +1086,7 @@ msgstr "Save a file on the machine running Codex. Maximum size: 50 MiB. Uploadin
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:285
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:290
 #: src/features/newSession/NewSessionPage.tsx:182
 msgid "Send"
 msgstr "Send"
@@ -1155,7 +1155,7 @@ msgstr "Spawned {receiver} ({model} {reasoningEffort})"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "Spawned {receiver} ({reasoningEffort})"
 
-#: src/features/appShell/AppShellTopBar.tsx:165
+#: src/features/appShell/AppShellTopBar.tsx:162
 msgid "Start a conversation"
 msgstr "Start a conversation"
 
@@ -1164,11 +1164,11 @@ msgstr "Start a conversation"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:261
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:266
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:252
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:257
 msgid "Stop failed"
 msgstr "Stop failed"
 
@@ -1231,12 +1231,12 @@ msgid "Task updates are paused"
 msgstr "Task updates are paused"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:109
+#: src/features/appShell/AppShellTopBar.tsx:107
 msgid "Tasks or the connection need attention."
 msgstr "Tasks or the connection need attention."
 
 #. Browser could not decode the uploaded image; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:91
+#: src/features/fileUpload/UploadedImagePreview.tsx:96
 msgid "The browser could not display {name} as an image."
 msgstr "The browser could not display {name} as an image."
 
