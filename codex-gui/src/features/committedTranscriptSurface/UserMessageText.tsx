@@ -26,27 +26,32 @@ function TextInputContent({
     content.push(
       <Fragment key={`${String(start)}:${String(end)}`}>
         {decoder.decode(bytes.subarray(offset, start))}
-        {images.some((image) => image.path === original) ? (
-          <UploadedImagePreview
-            path={original}
-            name={label}
-            authorizationToken={authorizationToken}
-          />
-        ) : (
-          <Popover>
-            <Button
-              className="inline-flex h-auto max-w-full min-w-0 rounded-xl px-2 py-1 align-bottom text-sm md:h-auto"
-              variant="tertiary"
-            >
-              <span className="truncate">{label}</span>
-            </Button>
-            <Popover.Content className="max-w-[min(32rem,calc(100vw-24px))]" placement="top start">
-              <Popover.Dialog aria-label={label}>
-                <p className="wrap-anywhere whitespace-pre-wrap select-text">{original}</p>
-              </Popover.Dialog>
-            </Popover.Content>
-          </Popover>
-        )}
+        <span className="relative m-1 inline-block max-w-[calc(100%-0.5rem)] align-bottom focus-within:z-10">
+          {images.some((image) => image.path === original) ? (
+            <UploadedImagePreview
+              path={original}
+              name={label}
+              authorizationToken={authorizationToken}
+            />
+          ) : (
+            <Popover>
+              <Button
+                className="inline-flex h-auto max-w-full min-w-0 rounded-xl px-2 py-1 align-bottom text-sm md:h-auto"
+                variant="tertiary"
+              >
+                <span className="truncate">{label}</span>
+              </Button>
+              <Popover.Content
+                className="max-w-[min(32rem,calc(100vw-24px))]"
+                placement="top start"
+              >
+                <Popover.Dialog aria-label={label}>
+                  <p className="wrap-anywhere whitespace-pre-wrap select-text">{original}</p>
+                </Popover.Dialog>
+              </Popover.Content>
+            </Popover>
+          )}
+        </span>
       </Fragment>,
     );
     offset = end;
@@ -68,7 +73,7 @@ export function UserMessageText({
     offset += input.text.length;
   }
   return (
-    <div className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word text-sm leading-6">
+    <div className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word text-base leading-6">
       {content}
       {images
         .filter(
@@ -85,12 +90,16 @@ export function UserMessageText({
             ),
         )
         .map((image) => (
-          <UploadedImagePreview
+          <span
             key={image.path}
-            path={image.path}
-            name={image.path.split(/[\\/]/).at(-1) ?? image.path}
-            authorizationToken={authorizationToken}
-          />
+            className="relative m-1 inline-block max-w-[calc(100%-0.5rem)] align-bottom focus-within:z-10"
+          >
+            <UploadedImagePreview
+              path={image.path}
+              name={image.path.split(/[\\/]/).at(-1) ?? image.path}
+              authorizationToken={authorizationToken}
+            />
+          </span>
         ))}
     </div>
   );

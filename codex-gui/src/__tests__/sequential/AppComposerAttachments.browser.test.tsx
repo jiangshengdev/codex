@@ -22,6 +22,7 @@ import { createComposerInputQueueCoordinator } from "@/features/composerInputQue
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import { eventItemCompleted } from "@/features/projection/__tests__/projectionFixtures";
 import {
+  agentMessage,
   attachWithTurns,
   baseTurn,
   eventWithEnvelope,
@@ -183,19 +184,20 @@ test("mixed file and image attachments align their bottom edges without overflow
         userMessage("mixed-message", [
           {
             type: "text",
-            text: "/tmp/a.txt /tmp/b.png\n/tmp/long.txt /tmp/b.png",
+            text: "Before\n/tmp/a.txt/tmp/b.png\nbetween /tmp/long.txt\n/tmp/b.png after",
             text_elements: [
-              { byteRange: { start: 0, end: 10 }, placeholder: "notes.txt" },
-              { byteRange: { start: 11, end: 21 }, placeholder: "picture.png" },
+              { byteRange: { start: 7, end: 17 }, placeholder: "notes.txt" },
+              { byteRange: { start: 17, end: 27 }, placeholder: "picture.png" },
               {
-                byteRange: { start: 22, end: 35 },
+                byteRange: { start: 36, end: 49 },
                 placeholder: "a-very-long-attachment-name-".repeat(8) + ".txt",
               },
-              { byteRange: { start: 36, end: 46 }, placeholder: "second.png" },
+              { byteRange: { start: 50, end: 60 }, placeholder: "second.png" },
             ],
           },
           { type: "localImage", path: "/tmp/b.png" },
         ]),
+        agentMessage("mixed-reply", "Agent typography stays unchanged"),
       ]),
     ]),
   );
@@ -204,6 +206,19 @@ test("mixed file and image attachments align their bottom edges without overflow
   const file = transcript.getByRole("button", { name: "notes.txt", exact: true });
   const image = transcript.getByRole("button", { name: "Preview picture.png", exact: true });
   await expect.element(image).toBeVisible();
+  const message = transcript.getByText(/^Before/);
+  await expect.element(message).toHaveStyle("font-size: 16px; line-height: 24px");
+  await expect
+    .element(message)
+    .toHaveTextContent(
+      `Before notes.txtpicture.png between ${"a-very-long-attachment-name-".repeat(8)}.txt second.png after`,
+    );
+  await expect
+    .element(transcript.getByText("Agent typography stays unchanged", { exact: true }))
+    .toHaveStyle("font-size: 16px; line-height: 24px");
+  await expect
+    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+    .toHaveStyle("font-size: 16px; line-height: 24px");
   for (const width of [1440, 400]) {
     await page.viewport(width, 900);
     await expect
@@ -230,6 +245,50 @@ test("mixed file and image attachments align their bottom edges without overflow
         parseFloat(getComputedStyle(thumbnail).borderTopLeftRadius),
     ).toBeCloseTo(inset, 0);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width);
+    await file.click();
+    await expect.element(screen.getByRole("dialog", { name: "notes.txt" })).toBeVisible();
+    await expect.element(screen.getByText("/tmp/a.txt", { exact: true })).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await expect.element(file).toHaveFocus();
+    await userEvent.tab();
+    await expect.element(image).toHaveFocus();
+    await expect
+      .poll(
+        () =>
+          image
+            .element()
+            .getAnimations()
+            .filter((a) => a.playState === "running").length,
+      )
+      .toBe(0);
+    const shadow = getComputedStyle(image.element()).boxShadow;
+    expect(shadow).not.toBe("none");
+    const outset = Math.max(
+      ...[...shadow.replace(/rgba?\([^)]*\)/g, "").matchAll(/(-?[\d.]+)px/g)].map((m) =>
+        Number(m[1]),
+      ),
+    );
+    expect(outset).toBeGreaterThan(0);
+    expect(image.element().getBoundingClientRect().left - outset).toBeGreaterThanOrEqual(
+      file.element().getBoundingClientRect().right,
+    );
+    await userEvent.keyboard("{Enter}");
+    await expect.element(screen.getByRole("dialog", { name: "picture.png" })).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await expect.element(image).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    await expect.element(file).toHaveFocus();
+    const messageBounds = message.element().getBoundingClientRect();
+    for (const button of message.getByRole("button").elements()) {
+      const bounds = button.getBoundingClientRect();
+      expect(bounds.left - outset).toBeGreaterThanOrEqual(messageBounds.left);
+      expect(bounds.right + outset).toBeLessThanOrEqual(messageBounds.right);
+      expect(bounds.top - outset).toBeGreaterThanOrEqual(messageBounds.top);
+      expect(bounds.bottom + outset).toBeLessThanOrEqual(messageBounds.bottom);
+    }
+    await expect
+      .element(transcript.getByRole("button", { name: /^Remove / }))
+      .not.toBeInTheDocument();
     await transcript.screenshot({
       path: `__screenshots__/attachment-layout-${server.browser}-${String(width)}-smooth-${String(CSS.supports("corner-shape", "squircle"))}.png`,
     });
