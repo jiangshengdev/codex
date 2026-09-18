@@ -98,7 +98,11 @@ test("dropping mixed files adds one ordered batch without navigating away", asyn
   const event = new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true });
   composer.element().dispatchEvent(event);
   expect(event.defaultPrevented).toBe(true);
-  await expect.element(composer.getByText("picture.png", { exact: true })).toBeVisible();
+  await expect
+    .element(composer.getByRole("alert"))
+    .toHaveTextContent(
+      "Could not load the preview of picture.png. The file may no longer be available.",
+    );
   await expect.element(composer.getByText("notes.txt", { exact: true })).toBeVisible();
   await screen.getByRole("button", { name: "Guide", exact: true }).click();
   await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
@@ -142,7 +146,11 @@ test("pasted image bytes enter the attachment flow without pasting their HTML re
   expect(data.files.length).toBe(1);
   expect(event.clipboardData?.files.length).toBe(1);
   composer.element().dispatchEvent(event);
-  await expect.element(composer.getByText("pasted.png", { exact: true })).toBeVisible();
+  await expect
+    .element(composer.getByRole("alert"))
+    .toHaveTextContent(
+      "Could not load the preview of pasted.png. The file may no longer be available.",
+    );
   await expect.element(composer).not.toHaveTextContent("image representation");
   await screen.getByRole("button", { name: "Guide", exact: true }).click();
   await expect.poll(() => steerTurn.mock.calls.length).toBe(1);

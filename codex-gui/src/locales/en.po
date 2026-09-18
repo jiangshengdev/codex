@@ -180,7 +180,7 @@ msgstr "Close diagnostics"
 msgid "Close file upload"
 msgstr "Close file upload"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:133
+#: src/features/fileUpload/UploadedImagePreview.tsx:139
 msgid "Close image preview"
 msgstr "Close image preview"
 
@@ -334,7 +334,7 @@ msgid "Could not copy table. Try again."
 msgstr "Could not copy table. Try again."
 
 #. Uploaded image could not be retrieved; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:92
+#: src/features/fileUpload/UploadedImagePreview.tsx:96
 msgid "Could not load the preview of {name}. The file may no longer be available."
 msgstr "Could not load the preview of {name}. The file may no longer be available."
 
@@ -484,12 +484,12 @@ msgstr "Failed."
 msgid "File saved on the Codex machine"
 msgstr "File saved on the Codex machine"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:87
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:68
 #: src/features/fileUpload/FileUploadDialog.tsx:95
 msgid "File upload failed."
 msgstr "File upload failed."
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:81
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:62
 #: src/features/fileUpload/FileUploadDialog.tsx:93
 msgid "File upload is not authorized. Open the current GUI launch link."
 msgstr "File upload is not authorized. Open the current GUI launch link."
@@ -503,7 +503,7 @@ msgid "Fork created"
 msgstr "Fork created"
 
 #. Button at the end of a chat turn; creates a new conversation including history through this turn
-#: src/features/threadFork/ThreadForkAction.tsx:36
+#: src/features/threadFork/ThreadForkAction.tsx:37
 msgid "Fork from here"
 msgstr "Fork from here"
 
@@ -550,7 +550,7 @@ msgstr "History detail"
 msgid "Idle"
 msgstr "Idle"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:74
+#: src/features/fileUpload/UploadedImagePreview.tsx:76
 msgid "Image preview is not authorized. Open the current GUI launch link."
 msgstr "Image preview is not authorized. Open the current GUI launch link."
 
@@ -638,7 +638,7 @@ msgid "Loading more…"
 msgstr "Loading more…"
 
 #. Loading an uploaded image preview; name is the original file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:82
+#: src/features/fileUpload/UploadedImagePreview.tsx:85
 msgid "Loading preview of {name}…"
 msgstr "Loading preview of {name}…"
 
@@ -852,7 +852,7 @@ msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "Pending: Queued {ordinaryQueuedCount}"
 
 #. Open the uploaded image at a larger size; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:112
+#: src/features/fileUpload/UploadedImagePreview.tsx:117
 msgid "Preview {name}"
 msgstr "Preview {name}"
 
@@ -883,7 +883,7 @@ msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "Queued message moved to position {movedPosition} of {movedCount}."
 
 #. Attachment upload completed and it can be sent
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:77
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:58
 msgid "Ready"
 msgstr "Ready"
 
@@ -935,11 +935,11 @@ msgstr "Reloading skills…"
 
 #. Remove an attachment from the draft
 #: src/features/composerEditor/SelectedAttachmentToken.tsx:119
-msgid "Remove"
-msgstr "Remove"
+#~ msgid "Remove"
+#~ msgstr "Remove"
 
 #. Remove the named attachment from the draft
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:108
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:73
 msgid "Remove {name}"
 msgstr "Remove {name}"
 
@@ -1040,13 +1040,13 @@ msgid "Retry saving this task's state before removing it."
 msgstr "Retry saving this task's state before removing it."
 
 #. Manually resend the entire selected file after an upload failure
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:101
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:109
 #: src/features/fileUpload/FileUploadDialog.tsx:133
 msgid "Retry upload"
 msgstr "Retry upload"
 
 #. Retry uploading the named attachment
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:95
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:103
 msgid "Retry upload {name}"
 msgstr "Retry upload {name}"
 
@@ -1236,7 +1236,7 @@ msgid "Tasks or the connection need attention."
 msgstr "Tasks or the connection need attention."
 
 #. Browser could not decode the uploaded image; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:96
+#: src/features/fileUpload/UploadedImagePreview.tsx:100
 msgid "The browser could not display {name} as an image."
 msgstr "The browser could not display {name} as an image."
 
@@ -1277,7 +1277,7 @@ msgstr "The current task could not be loaded."
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:79
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:60
 #: src/features/fileUpload/FileUploadDialog.tsx:91
 msgid "The file exceeds the 50 MiB limit."
 msgstr "The file exceeds the 50 MiB limit."
@@ -1502,7 +1502,7 @@ msgstr "Unknown"
 msgid "Unsaved pending message"
 msgstr "Unsaved pending message"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:83
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:64
 msgid "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
 msgstr "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
 
@@ -1525,12 +1525,12 @@ msgstr "Upload"
 msgid "Upload file"
 msgstr "Upload file"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:85
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:66
 msgid "Upload interrupted. Remove and add the file again."
 msgstr "Upload interrupted. Remove and add the file again."
 
 #. Attachment is being transferred to the Codex machine
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:75
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:56
 msgid "Uploading"
 msgstr "Uploading"
 

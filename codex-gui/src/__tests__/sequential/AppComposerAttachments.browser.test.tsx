@@ -90,8 +90,78 @@ beforeEach(() => {
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
   vi.mocked(createComposerInputQueueCoordinator).mockClear();
 });
-afterEach(() => {
+afterEach(async () => {
   vi.restoreAllMocks();
+  await page.viewport(1280, 720);
+});
+
+test("narrow draft attachments preserve visible keyboard focus beside adjacent controls", async () => {
+  const png = Uint8Array.from(
+    atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+    ),
+    (char) => char.charCodeAt(0),
+  );
+  vi.spyOn(globalThis, "fetch").mockImplementation((_url, options) =>
+    Promise.resolve(
+      options?.method === "POST"
+        ? new Response("/tmp/focus.png", { status: 201 })
+        : new Response(png, { headers: { "Content-Type": "image/png" } }),
+    ),
+  );
+  const { screen, composer } = await renderActiveComposerQueueApp(startHost);
+  await page.viewport(400, 876);
+  await attachmentFileInput(screen.container).upload([
+    new File([png], "first.png", { type: "image/png" }),
+    new File([png], "second.png", { type: "image/png" }),
+    new File(["unsupported"], "long-failed-image-name-".repeat(8) + ".heic", {
+      type: "image/heic",
+    }),
+  ]);
+  const first = composer.getByRole("button", { name: "Preview first.png", exact: true });
+  await first.click();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(first).toHaveFocus();
+  await userEvent.tab();
+  const remove = composer.getByRole("button", { name: "Remove first.png", exact: true });
+  await expect.element(remove).toHaveFocus();
+  await expect
+    .poll(
+      () =>
+        remove
+          .element()
+          .getAnimations()
+          .filter((animation) => animation.playState === "running").length,
+    )
+    .toBe(0);
+  const focused = getComputedStyle(remove.element());
+  expect(focused.boxShadow).not.toBe("none");
+  expect(Number(focused.zIndex)).toBeGreaterThan(
+    Number(getComputedStyle(first.element()).zIndex) || 0,
+  );
+  // Focus shadows extend beyond the control. Measure their actual spread rather than a CSS class.
+  const spreads = [
+    ...focused.boxShadow.replace(/rgba?\([^)]*\)/g, "").matchAll(/(-?[\d.]+)px/g),
+  ].map((match) => Number(match[1]));
+  const outset = Math.max(...spreads);
+  expect(outset).toBeGreaterThan(0);
+  const bounds = remove.element().getBoundingClientRect();
+  const editorBounds = composer.element().getBoundingClientRect();
+  expect(bounds.left - outset).toBeGreaterThanOrEqual(editorBounds.left);
+  expect(bounds.right + outset).toBeLessThanOrEqual(editorBounds.right);
+  expect(bounds.top - outset).toBeGreaterThanOrEqual(editorBounds.top);
+  expect(bounds.bottom + outset).toBeLessThanOrEqual(editorBounds.bottom);
+  const next = composer
+    .getByRole("group", { name: "second.png", exact: true })
+    .element()
+    .getBoundingClientRect();
+  expect(bounds.right + outset <= next.left || bounds.bottom + outset <= next.top).toBe(true);
+  await expect
+    .element(composer.getByText("Unsupported image format. Use PNG, JPEG, GIF, or WebP."))
+    .toBeVisible();
+  expect(composer.element().scrollWidth).toBeLessThanOrEqual(composer.element().clientWidth);
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(400);
+  await composer.screenshot({ path: `__screenshots__/attachment-focus-${server.browser}.png` });
 });
 
 test("mixed file and image attachments align their bottom edges without overflowing narrow messages", async () => {
@@ -175,6 +245,7 @@ test("Composer uploads a file, blocks keyboard submission until ready, and displ
   await composer.fill("请看🙂 ");
   await attachmentFileInput(screen.container).upload(new File(["original bytes"], "notes.txt"));
   await expect.element(composer.getByText("notes.txt", { exact: true })).toBeVisible();
+  await expect.element(composer.getByRole("status")).toHaveTextContent("Uploading");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await composer.click();
   dispatchGuideShortcut(composer.element());
@@ -185,6 +256,7 @@ test("Composer uploads a file, blocks keyboard submission until ready, and displ
   expect(new Headers(request?.[1]?.headers).get("Authorization")).toBe("Bearer secret");
   response.resolve(new Response("/tmp/codex-upload-note.txt", { status: 201 }));
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+  await expect.element(composer.getByRole("status")).toHaveTextContent("Ready");
   dispatchGuideShortcut(composer.element());
   await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
   const params = steerTurnParamsAt(steerTurn, 0);
@@ -235,6 +307,7 @@ test("failed attachments retry independently and a removed upload cannot return"
   await files.upload(new File(["late bytes"], "late.txt"));
   await expect.element(composer.getByText("late.txt", { exact: true })).toBeVisible();
   await composer.getByRole("button", { name: "Remove late.txt", exact: true }).click();
+  await expect.element(composer).toHaveFocus();
   late.resolve(new Response("/tmp/late.txt", { status: 201 }));
   await expect.element(composer.getByText("late.txt", { exact: true })).not.toBeInTheDocument();
   await composer.click();
@@ -350,10 +423,20 @@ test("an image is previewable in the draft and authoritative history and sends a
     new File([png], "picture.png", { type: "image/png" }),
   );
   const preview = composer.getByRole("button", { name: "Preview picture.png", exact: true });
+  await expect.element(preview).toBeVisible();
+  expect(composer.element().textContent.match(/picture\.png/g)).toHaveLength(1);
+  await expect.element(preview.getByRole("status")).toHaveTextContent("Ready");
+  const remove = composer.getByRole("button", { name: "Remove picture.png", exact: true });
+  await expect.element(remove).toHaveTextContent(/^$/);
   await preview.click();
   const dialog = screen.getByRole("dialog", { name: "picture.png", exact: true });
   await expect.element(dialog.getByRole("img", { name: "picture.png" })).toBeVisible();
   await dialog.getByRole("button", { name: "Close image preview" }).click();
+  await expect.element(preview).toHaveFocus();
+  await userEvent.tab();
+  await expect.element(remove).toHaveFocus();
+  await expect.element(screen.getByRole("tooltip")).toHaveTextContent("Remove picture.png");
+  await userEvent.tab({ shift: true });
   await expect.element(preview).toHaveFocus();
   await screen.getByRole("button", { name: "Guide", exact: true }).click();
   await expect.poll(() => steerTurn.mock.calls.length).toBe(1);

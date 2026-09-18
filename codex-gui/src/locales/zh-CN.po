@@ -180,7 +180,7 @@ msgstr "关闭诊断信息"
 msgid "Close file upload"
 msgstr "关闭文件上传"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:133
+#: src/features/fileUpload/UploadedImagePreview.tsx:139
 msgid "Close image preview"
 msgstr "关闭图片预览"
 
@@ -334,7 +334,7 @@ msgid "Could not copy table. Try again."
 msgstr "无法复制表格。请重试。"
 
 #. Uploaded image could not be retrieved; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:92
+#: src/features/fileUpload/UploadedImagePreview.tsx:96
 msgid "Could not load the preview of {name}. The file may no longer be available."
 msgstr "无法加载 {name} 的预览。文件可能已不可用。"
 
@@ -484,12 +484,12 @@ msgstr "失败。"
 msgid "File saved on the Codex machine"
 msgstr "文件已保存到运行 Codex 的机器"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:87
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:68
 #: src/features/fileUpload/FileUploadDialog.tsx:95
 msgid "File upload failed."
 msgstr "文件上传失败。"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:81
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:62
 #: src/features/fileUpload/FileUploadDialog.tsx:93
 msgid "File upload is not authorized. Open the current GUI launch link."
 msgstr "文件上传未获授权。请打开当前 GUI 启动链接。"
@@ -503,7 +503,7 @@ msgid "Fork created"
 msgstr "分叉会话已创建"
 
 #. Button at the end of a chat turn; creates a new conversation including history through this turn
-#: src/features/threadFork/ThreadForkAction.tsx:36
+#: src/features/threadFork/ThreadForkAction.tsx:37
 msgid "Fork from here"
 msgstr "从此处分叉"
 
@@ -550,7 +550,7 @@ msgstr "历史详情"
 msgid "Idle"
 msgstr "空闲"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:74
+#: src/features/fileUpload/UploadedImagePreview.tsx:76
 msgid "Image preview is not authorized. Open the current GUI launch link."
 msgstr "图片预览未获授权。请打开当前 GUI 启动链接。"
 
@@ -638,7 +638,7 @@ msgid "Loading more…"
 msgstr "正在加载更多…"
 
 #. Loading an uploaded image preview; name is the original file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:82
+#: src/features/fileUpload/UploadedImagePreview.tsx:85
 msgid "Loading preview of {name}…"
 msgstr "正在加载 {name} 的预览…"
 
@@ -852,7 +852,7 @@ msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "待处理：排队 {ordinaryQueuedCount}"
 
 #. Open the uploaded image at a larger size; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:112
+#: src/features/fileUpload/UploadedImagePreview.tsx:117
 msgid "Preview {name}"
 msgstr "预览 {name}"
 
@@ -883,7 +883,7 @@ msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "已将已排队消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
 #. Attachment upload completed and it can be sent
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:77
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:58
 msgid "Ready"
 msgstr "已就绪"
 
@@ -935,11 +935,11 @@ msgstr "正在重新加载技能…"
 
 #. Remove an attachment from the draft
 #: src/features/composerEditor/SelectedAttachmentToken.tsx:119
-msgid "Remove"
-msgstr "移除"
+#~ msgid "Remove"
+#~ msgstr "移除"
 
 #. Remove the named attachment from the draft
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:108
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:73
 msgid "Remove {name}"
 msgstr "移除 {name}"
 
@@ -1040,13 +1040,13 @@ msgid "Retry saving this task's state before removing it."
 msgstr "请先重试保存此任务的状态，再将其移出列表。"
 
 #. Manually resend the entire selected file after an upload failure
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:101
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:109
 #: src/features/fileUpload/FileUploadDialog.tsx:133
 msgid "Retry upload"
 msgstr "重试上传"
 
 #. Retry uploading the named attachment
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:95
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:103
 msgid "Retry upload {name}"
 msgstr "重试上传 {name}"
 
@@ -1236,7 +1236,7 @@ msgid "Tasks or the connection need attention."
 msgstr "任务或连接存在待处理的异常。"
 
 #. Browser could not decode the uploaded image; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:96
+#: src/features/fileUpload/UploadedImagePreview.tsx:100
 msgid "The browser could not display {name} as an image."
 msgstr "浏览器无法将 {name} 显示为图片。"
 
@@ -1277,7 +1277,7 @@ msgstr "当前任务未能加载。"
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当前任务再切换。"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:79
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:60
 #: src/features/fileUpload/FileUploadDialog.tsx:91
 msgid "The file exceeds the 50 MiB limit."
 msgstr "文件超过 50 MiB 限制。"
@@ -1502,7 +1502,7 @@ msgstr "状态未知"
 msgid "Unsaved pending message"
 msgstr "尚未保存的待发送消息"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:83
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:64
 msgid "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
 msgstr "不支持此图片格式。请使用 PNG、JPEG、GIF 或 WebP。"
 
@@ -1525,12 +1525,12 @@ msgstr "上传"
 msgid "Upload file"
 msgstr "上传文件"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:85
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:66
 msgid "Upload interrupted. Remove and add the file again."
 msgstr "上传已中断。请移除后重新添加文件。"
 
 #. Attachment is being transferred to the Codex machine
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:75
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:56
 msgid "Uploading"
 msgstr "上传中"
 

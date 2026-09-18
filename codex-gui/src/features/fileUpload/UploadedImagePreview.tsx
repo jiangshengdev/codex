@@ -1,12 +1,13 @@
 import { FILE_PREVIEW_PATH, type GuiFilePreviewParams } from "@codex-gui-host-contract";
 import { Button, Modal } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 type UploadedImagePreviewProps = {
   path: string;
   name: string;
   authorizationToken: string | null;
+  status?: ReactNode;
 };
 
 type ImagePreviewOutcome =
@@ -17,7 +18,7 @@ export function UploadedImagePreview(props: UploadedImagePreviewProps) {
   return <ImagePreview key={JSON.stringify([props.path, props.authorizationToken])} {...props} />;
 }
 
-function ImagePreview({ path, name, authorizationToken }: UploadedImagePreviewProps) {
+function ImagePreview({ path, name, authorizationToken, status }: UploadedImagePreviewProps) {
   const { t } = useLingui();
   const [outcome, setOutcome] = useState<ImagePreviewOutcome | null>(null);
 
@@ -70,24 +71,27 @@ function ImagePreview({ path, name, authorizationToken }: UploadedImagePreviewPr
 
   if (authorizationToken == null) {
     return (
-      <span role="alert" className="text-sm text-danger">
+      <span role="alert" className="min-w-0 wrap-anywhere text-sm text-danger">
+        <span>{name}</span>{" "}
         <Trans>Image preview is not authorized. Open the current GUI launch link.</Trans>
+        {status}
       </span>
     );
   }
 
   if (outcome == null) {
     return (
-      <span role="status" className="text-sm text-muted">
+      <span role="status" className="min-w-0 wrap-anywhere text-sm text-muted">
         <Trans comment="Loading an uploaded image preview; name is the original file name">
           Loading preview of {name}…
         </Trans>
+        {status}
       </span>
     );
   }
   if (outcome.type === "failed") {
     return (
-      <span role="alert" className="text-sm text-danger">
+      <span role="alert" className="min-w-0 wrap-anywhere text-sm text-danger">
         {outcome.reason === "read" ? (
           <Trans comment="Uploaded image could not be retrieved; name is its file name">
             Could not load the preview of {name}. The file may no longer be available.
@@ -97,6 +101,7 @@ function ImagePreview({ path, name, authorizationToken }: UploadedImagePreviewPr
             The browser could not display {name} as an image.
           </Trans>
         )}
+        {status}
       </span>
     );
   }
@@ -121,6 +126,7 @@ function ImagePreview({ path, name, authorizationToken }: UploadedImagePreviewPr
           onError={reportDecodeFailure}
         />
         <span className="truncate">{name}</span>
+        {status}
       </Button>
       <Modal.Backdrop>
         <Modal.Container scroll="inside" placement="center" className="p-4 sm:p-4">
