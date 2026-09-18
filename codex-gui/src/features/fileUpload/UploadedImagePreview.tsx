@@ -142,7 +142,7 @@ function ImagePreview({ path, name, authorizationToken, status }: UploadedImageP
                 {name}
               </Modal.Heading>
             </Modal.Header>
-            <Modal.Body className="flex items-center justify-center overflow-hidden">
+            <Modal.Body className="mx-0 flex items-center justify-center overflow-hidden p-0">
               <img
                 src={outcome.url}
                 alt={name}

@@ -72,6 +72,15 @@ test.each([
     await attachmentFileInput(screen.container).upload(
       new File([blob], name, { type: "image/png" }),
     );
+    for (const viewportWidth of [1600, 400]) {
+      await page.viewport(viewportWidth, 876);
+      const preview = composer.getByRole("button", { name: `Preview ${name}`, exact: true });
+      const remove = composer.getByRole("button", { name: `Remove ${name}`, exact: true });
+      await expect.element(preview).toBeVisible();
+      const bounds = remove.element().getBoundingClientRect();
+      expect(bounds.right).toBeLessThanOrEqual(viewportWidth);
+      expect(preview.element().getBoundingClientRect().right).toBeCloseTo(bounds.left, 3);
+    }
     for (const entry of ["draft", "sent"]) {
       const owner =
         entry === "draft" ? composer : screen.getByRole("region", { name: "Committed transcript" });
@@ -81,6 +90,8 @@ test.each([
         [400, 876],
       ] as const) {
         await page.viewport(viewportWidth, viewportHeight);
+        await expect.element(trigger).toBeVisible();
+        expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(viewportWidth);
         await trigger.click();
         const dialog = screen.getByRole("dialog", { name, exact: true });
         const image = dialog.getByRole("img", { name, exact: true });
@@ -112,6 +123,9 @@ test.each([
         const bounds = dialog.element().getBoundingClientRect();
         const content = image.element().parentElement?.getBoundingClientRect();
         if (content == null) throw new Error("Missing preview content region");
+        expect(content.left - bounds.left).toBeCloseTo(24, 0);
+        expect(bounds.right - content.right).toBeCloseTo(24, 0);
+        expect(bounds.bottom - rect.bottom).toBeCloseTo(24, 0);
         expect(
           Math.abs(rect.top + rect.height / 2 - content.top - content.height / 2),
         ).toBeLessThanOrEqual(1);
