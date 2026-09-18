@@ -103,7 +103,7 @@ function ImagePreview({ path, name, authorizationToken }: UploadedImagePreviewPr
     <Modal>
       <Button
         variant="secondary"
-        className="h-auto max-w-full gap-2 p-1"
+        className="h-auto max-w-full min-w-0 gap-2 rounded-xl p-1 align-bottom md:h-auto"
         aria-label={t({
           comment: "Open the uploaded image at a larger size; name is its file name",
           message: `Preview ${name}`,
@@ -112,7 +112,7 @@ function ImagePreview({ path, name, authorizationToken }: UploadedImagePreviewPr
         <img
           src={outcome.url}
           alt=""
-          className="size-10 shrink-0 rounded object-cover"
+          className="size-10 shrink-0 rounded-lg object-cover"
           onError={reportDecodeFailure}
         />
         <span className="truncate">{name}</span>

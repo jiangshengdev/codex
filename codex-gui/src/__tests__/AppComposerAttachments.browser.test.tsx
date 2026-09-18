@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, server, userEvent } from "vitest/browser";
 import {
   attachResponse,
   createDeferred,
@@ -91,6 +91,79 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+test("mixed file and image attachments align their bottom edges without overflowing narrow messages", async () => {
+  const png = Uint8Array.from(
+    atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+    ),
+    (char) => char.charCodeAt(0),
+  );
+  vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+    Promise.resolve(new Response(png, { headers: { "Content-Type": "image/png" } })),
+  );
+  const commands = createGuiHostCommands();
+  const screen = await renderWithProviders(<App />);
+  queueAttachProjectionResponse(
+    commands,
+    attachWithTurns(attachResponse, [
+      baseTurn("mixed-attachments", [
+        userMessage("mixed-message", [
+          {
+            type: "text",
+            text: "/tmp/a.txt /tmp/b.png\n/tmp/long.txt /tmp/b.png",
+            text_elements: [
+              { byteRange: { start: 0, end: 10 }, placeholder: "notes.txt" },
+              { byteRange: { start: 11, end: 21 }, placeholder: "picture.png" },
+              {
+                byteRange: { start: 22, end: 35 },
+                placeholder: "a-very-long-attachment-name-".repeat(8) + ".txt",
+              },
+              { byteRange: { start: 36, end: 46 }, placeholder: "second.png" },
+            ],
+          },
+          { type: "localImage", path: "/tmp/b.png" },
+        ]),
+      ]),
+    ]),
+  );
+  initializeHost(getHostOptions(startHost), commands);
+  const transcript = screen.getByRole("region", { name: "Committed transcript" });
+  const file = transcript.getByRole("button", { name: "notes.txt", exact: true });
+  const image = transcript.getByRole("button", { name: "Preview picture.png", exact: true });
+  await expect.element(image).toBeVisible();
+  for (const width of [1440, 400]) {
+    await page.viewport(width, 900);
+    await expect
+      .poll(() =>
+        Math.abs(
+          file.element().getBoundingClientRect().bottom -
+            image.element().getBoundingClientRect().bottom,
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+    expect(image.element().getBoundingClientRect().right).toBeLessThanOrEqual(width);
+    expect(file.element().getBoundingClientRect().left).toBeLessThan(
+      image.element().getBoundingClientRect().left,
+    );
+    const thumbnail = image.element().querySelector("img");
+    if (thumbnail == null) throw new Error("Missing attachment thumbnail");
+    const outer = image.element().getBoundingClientRect();
+    const inner = thumbnail.getBoundingClientRect();
+    const inset = inner.left - outer.left;
+    expect(inner.top - outer.top).toBeCloseTo(inset, 0);
+    expect(outer.bottom - inner.bottom).toBeCloseTo(inset, 0);
+    expect(
+      parseFloat(getComputedStyle(image.element()).borderTopLeftRadius) -
+        parseFloat(getComputedStyle(thumbnail).borderTopLeftRadius),
+    ).toBeCloseTo(inset, 0);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width);
+    await transcript.screenshot({
+      path: `__screenshots__/attachment-layout-${server.browser}-${String(width)}-smooth-${String(CSS.supports("corner-shape", "squircle"))}.png`,
+    });
+  }
+  await page.viewport(1280, 720);
 });
 
 test("Composer uploads a file, blocks keyboard submission until ready, and displays its authoritative filename and path", async () => {
