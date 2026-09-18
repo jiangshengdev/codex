@@ -71,6 +71,10 @@ test("offers fork at the end of a displayed completed turn", async () => {
   await time.hover();
   expect(time.element().closest("[title], [tabindex], button, a")).toBeNull();
   await expect.element(page.getByRole("tooltip")).not.toBeInTheDocument();
+  await expect.element(fork).toHaveTextContent(/^$/);
+  await expect.element(fork).toHaveAccessibleName("Fork from here");
+  await fork.hover();
+  await expect.element(page.getByRole("tooltip")).toHaveTextContent("Fork from here");
 });
 
 const forkId = "00000000-0000-0000-0000-000000000003";
