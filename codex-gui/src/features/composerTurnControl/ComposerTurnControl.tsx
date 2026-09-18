@@ -1,4 +1,4 @@
-import { Button, Surface, Tooltip } from "@heroui/react";
+import { Button, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   useCallback,
@@ -13,7 +13,6 @@ import { useAppSelector } from "@/app/hooks";
 import type { ActiveThreadSessionSnapshot } from "@/features/activeThreadSession/activeThreadSession";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import {
-  ComposerEditor,
   type ComposerEditorController,
   type ComposerEditorSnapshot,
   type ComposerEditorSubmitIntent,
@@ -29,9 +28,8 @@ import {
 import { createComposerTurnApplication } from "./composerTurnApplication";
 import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
 import { ComposerPendingInputRegion } from "./ComposerPendingInputRegion";
-import { ComposerSkillMenuLayer } from "./ComposerSkillMenuLayer";
+import { ComposerSurface } from "./ComposerSurface";
 import { CurrentThreadStatus } from "./CurrentThreadStatus";
-import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
 import { ComposerPersistenceStatus } from "./ComposerPersistenceStatus";
 import { usePersistComposerDraft } from "./usePersistComposerDraft";
 
@@ -60,9 +58,6 @@ export function ComposerTurnControl({
   const [turnApplication] = useState(createComposerTurnApplication);
   const adapterLifecycleRef = useRef({ generation: 0, mounted: false });
   const recoveryDescriptionId = useId();
-  const composerShellRef = useRef<HTMLElement | null>(null);
-  const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
-  const composerFocusVisible = useComposerFocusVisible(composerShellRef);
   const tokenUsage = useAppSelector((state) =>
     state.threadRuntime.byThreadId[sessionSnapshot.threadId]?.identity.instanceId ===
     sessionSnapshot.identity.instanceId
@@ -157,8 +152,6 @@ export function ComposerTurnControl({
     };
   }, [turnApplication]);
 
-  useRevealComposerOnViewportResize(composerShellRef);
-
   const submit = (
     requestedCapture?: ReturnType<ComposerEditorController["capture"]>,
     intent: ComposerEditorSubmitIntent = "ordinary",
@@ -185,38 +178,25 @@ export function ComposerTurnControl({
   };
 
   return (
-    <section
-      aria-label={t`Message composer`}
-      className="composer-shell task-bottom-shell sticky bottom-0 z-10"
-      ref={composerShellRef}
-    >
-      <Surface className="composer-frame" variant="secondary">
-        <Surface
-          aria-disabled={!controlView.operationsEnabled}
-          className="composer-panel task-bottom-panel composer-field grid gap-2"
-          data-disabled={!controlView.operationsEnabled}
-          data-focus-visible={composerFocusVisible}
-          variant="default"
-        >
-          <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
-          <ComposerEditor
-            authorizationToken={authorizationToken}
-            key={sessionSnapshot.identity.instanceId}
-            ariaLabel={t`Message Codex`}
-            disabled={!controlView.operationsEnabled}
-            guardCompositionEndEnter={guardCompositionEndEnter}
-            onControllerChange={setComposerEditorController}
-            initialDraft={initialDraft}
-            onDraftChange={saveDraft}
-            onRetrySkillCatalog={() => {
-              skillsRole.retrySkills(revision);
-            }}
-            onSubmit={submit}
-            placeholder={t`Message Codex`}
-            skillCatalog={skillCatalog}
-            skillMenuParent={skillMenuParent}
-            skillValidity={skillValidity}
-          />
+    <ComposerSurface
+      disabled={!controlView.operationsEnabled}
+      key={sessionSnapshot.identity.instanceId}
+      editor={{
+        authorizationToken,
+        disabled: !controlView.operationsEnabled,
+        guardCompositionEndEnter,
+        onControllerChange: setComposerEditorController,
+        initialDraft,
+        onDraftChange: saveDraft,
+        onRetrySkillCatalog: () => {
+          skillsRole.retrySkills(revision);
+        },
+        onSubmit: submit,
+        skillCatalog,
+        skillValidity,
+      }}
+      afterEditor={
+        <>
           <ComposerPersistenceStatus sessionSnapshot={sessionSnapshot} />
           <ComposerPendingInputRegion
             canRecover={controlView.recoverEnabled}
@@ -236,134 +216,62 @@ export function ComposerTurnControl({
             pendingInputSnapshot={pendingInputSnapshot}
             triggerRef={pendingTriggerRef}
           />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="composer-footer-left flex shrink-0 items-center gap-2">
-              <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
-              <CurrentThreadStatus status={sessionSnapshot.threadStatus} />
-            </div>
-            <div className="flex items-center gap-2">
-              <ContextUsagePopover
-                compaction={compaction}
-                onRequestCompaction={requestCompaction}
-                usage={contextUsage}
-              />
-              {controlView.stop.failed ? (
-                <span className="text-sm text-danger" role="status">
-                  <Trans>Stop failed</Trans>
-                </span>
-              ) : null}
+        </>
+      }
+      toolbarLeading={
+        <>
+          <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
+          <CurrentThreadStatus status={sessionSnapshot.threadStatus} />
+        </>
+      }
+      actions={
+        <>
+          <ContextUsagePopover
+            compaction={compaction}
+            onRequestCompaction={requestCompaction}
+            usage={contextUsage}
+          />
+          {controlView.stop.failed ? (
+            <span className="text-sm text-danger" role="status">
+              <Trans>Stop failed</Trans>
+            </span>
+          ) : null}
+          <Button
+            isDisabled={!controlView.stop.enabled}
+            isPending={controlView.stop.pending}
+            onPress={stop}
+            variant="danger-soft"
+          >
+            <Trans>Stop</Trans>
+          </Button>
+          {controlView.guide.visible ? (
+            <Tooltip>
               <Button
-                isDisabled={!controlView.stop.enabled}
-                isPending={controlView.stop.pending}
-                onPress={stop}
-                variant="danger-soft"
-              >
-                <Trans>Stop</Trans>
-              </Button>
-              {controlView.guide.visible ? (
-                <Tooltip>
-                  <Button
-                    render={(props) => <button {...props} aria-keyshortcuts={guideShortcut.aria} />}
-                    isDisabled={!controlView.guide.buttonEnabled}
-                    onPress={() => {
-                      submit(undefined, "guide");
-                    }}
-                    variant="secondary"
-                  >
-                    <Trans>Guide</Trans>
-                  </Button>
-                  <Tooltip.Content>{guideShortcut.visible}</Tooltip.Content>
-                </Tooltip>
-              ) : null}
-              <Button
-                isDisabled={!controlView.sendEnabled}
+                render={(props) => <button {...props} aria-keyshortcuts={guideShortcut.aria} />}
+                isDisabled={!controlView.guide.buttonEnabled}
                 onPress={() => {
-                  submit();
+                  submit(undefined, "guide");
                 }}
-                variant="outline"
+                variant="secondary"
               >
-                <Trans>Send</Trans>
+                <Trans>Guide</Trans>
               </Button>
-            </div>
-          </div>
-        </Surface>
-      </Surface>
-    </section>
+              <Tooltip.Content>{guideShortcut.visible}</Tooltip.Content>
+            </Tooltip>
+          ) : null}
+          <Button
+            isDisabled={!controlView.sendEnabled}
+            onPress={() => {
+              submit();
+            }}
+            variant="outline"
+          >
+            <Trans>Send</Trans>
+          </Button>
+        </>
+      }
+    />
   );
-}
-
-function useComposerFocusVisible(composerShellRef: {
-  readonly current: HTMLElement | null;
-}): boolean {
-  const [isFocusVisible, setIsFocusVisible] = useState(false);
-
-  useEffect(() => {
-    const composerPanel = composerShellRef.current?.querySelector(".composer-panel");
-    if (!(composerPanel instanceof HTMLElement)) {
-      return;
-    }
-
-    let lastModality: "keyboard" | "pointer" = "keyboard";
-    let publishedFocusVisible = false;
-    const publishFocusVisible = (nextFocusVisible: boolean): void => {
-      if (publishedFocusVisible === nextFocusVisible) {
-        return;
-      }
-      publishedFocusVisible = nextFocusVisible;
-      setIsFocusVisible(nextFocusVisible);
-    };
-    const handlePointerDown = (): void => {
-      lastModality = "pointer";
-      if (composerPanel.contains(document.activeElement)) {
-        publishFocusVisible(false);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== "Tab" && event.key !== "Escape") {
-        return;
-      }
-      lastModality = "keyboard";
-      if (composerPanel.contains(document.activeElement)) {
-        publishFocusVisible(true);
-      }
-    };
-    const handleVirtualClick = (event: MouseEvent): void => {
-      if (event.detail !== 0) {
-        return;
-      }
-      lastModality = "keyboard";
-      if (
-        composerPanel.contains(document.activeElement) ||
-        (event.target instanceof Node && composerPanel.contains(event.target))
-      ) {
-        publishFocusVisible(true);
-      }
-    };
-    const handleFocusIn = (): void => {
-      publishFocusVisible(lastModality === "keyboard");
-    };
-    const handleFocusOut = (event: FocusEvent): void => {
-      if (event.relatedTarget instanceof Node && composerPanel.contains(event.relatedTarget)) {
-        return;
-      }
-      publishFocusVisible(false);
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown, true);
-    document.addEventListener("keydown", handleKeyDown, true);
-    document.addEventListener("click", handleVirtualClick, true);
-    composerPanel.addEventListener("focusin", handleFocusIn);
-    composerPanel.addEventListener("focusout", handleFocusOut);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown, true);
-      document.removeEventListener("keydown", handleKeyDown, true);
-      document.removeEventListener("click", handleVirtualClick, true);
-      composerPanel.removeEventListener("focusin", handleFocusIn);
-      composerPanel.removeEventListener("focusout", handleFocusOut);
-    };
-  }, [composerShellRef]);
-
-  return isFocusVisible;
 }
 
 const subscribeUnavailableEditor = (): (() => void) => () => undefined;

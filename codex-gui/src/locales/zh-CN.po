@@ -97,8 +97,8 @@ msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 msgid "A message update is missing its associated turn, so it cannot be fully displayed."
 msgstr "收到的消息更新缺少所属轮次，暂时无法完整展示。"
 
-#: src/features/appShell/AppShellTopBar.tsx:167
-#: src/features/newSession/NewSessionPage.tsx:39
+#: src/features/appShell/AppShellTopBar.tsx:164
+#: src/features/newSession/NewSessionPage.tsx:36
 msgid "A working directory is required to start a session."
 msgstr "需要工作目录才能新建会话。"
 
@@ -132,7 +132,7 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
 #. Choose local files to attach to the current message
-#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:153
+#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:164
 msgid "Attach files"
 msgstr "添加文件"
 
@@ -142,7 +142,7 @@ msgid "Attachments are not ready"
 msgstr "附件尚未就绪"
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:243
+#: src/features/appShell/AppShellTopBar.tsx:240
 msgid "Browse task history"
 msgstr "浏览历史任务"
 
@@ -180,7 +180,7 @@ msgstr "关闭诊断信息"
 msgid "Close file upload"
 msgstr "关闭文件上传"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:123
+#: src/features/fileUpload/UploadedImagePreview.tsx:139
 msgid "Close image preview"
 msgstr "关闭图片预览"
 
@@ -334,12 +334,12 @@ msgid "Could not copy table. Try again."
 msgstr "无法复制表格。请重试。"
 
 #. Uploaded image could not be retrieved; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:87
+#: src/features/fileUpload/UploadedImagePreview.tsx:96
 msgid "Could not load the preview of {name}. The file may no longer be available."
 msgstr "无法加载 {name} 的预览。文件可能已不可用。"
 
-#: src/features/appShell/AppShellTopBar.tsx:59
-#: src/features/appShell/AppShellTopBar.tsx:199
+#: src/features/appShell/AppShellTopBar.tsx:57
+#: src/features/appShell/AppShellTopBar.tsx:196
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "当前任务"
@@ -484,12 +484,12 @@ msgstr "失败。"
 msgid "File saved on the Codex machine"
 msgstr "文件已保存到运行 Codex 的机器"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:87
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:69
 #: src/features/fileUpload/FileUploadDialog.tsx:95
 msgid "File upload failed."
 msgstr "文件上传失败。"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:81
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:63
 #: src/features/fileUpload/FileUploadDialog.tsx:93
 msgid "File upload is not authorized. Open the current GUI launch link."
 msgstr "文件上传未获授权。请打开当前 GUI 启动链接。"
@@ -503,7 +503,7 @@ msgid "Fork created"
 msgstr "分叉会话已创建"
 
 #. Button at the end of a chat turn; creates a new conversation including history through this turn
-#: src/features/threadFork/ThreadForkAction.tsx:36
+#: src/features/threadFork/ThreadForkAction.tsx:37
 msgid "Fork from here"
 msgstr "从此处分叉"
 
@@ -512,7 +512,7 @@ msgid "Go back home"
 msgstr "返回首页"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:401
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:273
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:257
 msgid "Guide"
 msgstr "引导"
 
@@ -528,8 +528,8 @@ msgstr "引导中"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
-#: src/features/appShell/AppShellTopBar.tsx:64
-#: src/features/appShell/AppShellTopBar.tsx:237
+#: src/features/appShell/AppShellTopBar.tsx:62
+#: src/features/appShell/AppShellTopBar.tsx:234
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "历史记录"
@@ -538,7 +538,7 @@ msgstr "历史记录"
 msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
-#: src/features/appShell/AppShellTopBar.tsx:61
+#: src/features/appShell/AppShellTopBar.tsx:59
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
 msgid "History detail"
@@ -550,7 +550,7 @@ msgstr "历史详情"
 msgid "Idle"
 msgstr "空闲"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:69
+#: src/features/fileUpload/UploadedImagePreview.tsx:76
 msgid "Image preview is not authorized. Open the current GUI launch link."
 msgstr "图片预览未获授权。请打开当前 GUI 启动链接。"
 
@@ -562,7 +562,7 @@ msgid "In progress"
 msgstr "进行中"
 
 #. Input may already belong to the existing task queue; do not offer another send
-#: src/features/newSession/NewSessionPage.tsx:115
+#: src/features/newSession/NewSessionPage.tsx:109
 msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 msgstr "无法确认消息是否已加入队列。请打开会话，检查队列后再继续。"
 
@@ -590,7 +590,7 @@ msgstr "已中断。"
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:43
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:92
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:110
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:105
 msgid "Invalid skill"
 msgstr "无效技能"
 
@@ -638,7 +638,7 @@ msgid "Loading more…"
 msgstr "正在加载更多…"
 
 #. Loading an uploaded image preview; name is the original file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:77
+#: src/features/fileUpload/UploadedImagePreview.tsx:85
 msgid "Loading preview of {name}…"
 msgstr "正在加载 {name} 的预览…"
 
@@ -658,11 +658,11 @@ msgstr "正在加载任务历史…"
 msgid "Loading task…"
 msgstr "正在加载任务…"
 
-#: src/features/appShell/AppShellTopBar.tsx:131
+#: src/features/appShell/AppShellTopBar.tsx:128
 msgid "Main navigation"
 msgstr "主导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:101
+#: src/features/appShell/AppShellTopBar.tsx:99
 msgid "Menu"
 msgstr "菜单"
 
@@ -670,14 +670,12 @@ msgstr "菜单"
 msgid "Message cannot be empty"
 msgstr "消息不能为空"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:205
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:215
-#: src/features/newSession/NewSessionPage.tsx:142
-#: src/features/newSession/NewSessionPage.tsx:158
+#: src/features/composerTurnControl/ComposerSurface.tsx:59
+#: src/features/composerTurnControl/ComposerSurface.tsx:60
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:189
+#: src/features/composerTurnControl/ComposerSurface.tsx:41
 msgid "Message composer"
 msgstr "消息输入区"
 
@@ -727,12 +725,12 @@ msgstr "移至队尾"
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:127
+#: src/features/appShell/AppShellTopBar.tsx:124
 msgid "Navigation"
 msgstr "导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:63
-#: src/features/appShell/AppShellTopBar.tsx:158
+#: src/features/appShell/AppShellTopBar.tsx:61
+#: src/features/appShell/AppShellTopBar.tsx:155
 #: src/features/documentTitle/DocumentTitleOwner.tsx:52
 msgid "New session"
 msgstr "新建会话"
@@ -783,7 +781,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:205
+#: src/features/appShell/AppShellTopBar.tsx:202
 msgid "Open current task"
 msgstr "打开当前任务"
 
@@ -792,7 +790,7 @@ msgstr "打开当前任务"
 msgid "Open fork"
 msgstr "打开分叉会话"
 
-#: src/features/newSession/NewSessionPage.tsx:104
+#: src/features/newSession/NewSessionPage.tsx:98
 msgid "Open session"
 msgstr "打开会话"
 
@@ -852,7 +850,7 @@ msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "待处理：排队 {ordinaryQueuedCount}"
 
 #. Open the uploaded image at a larger size; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:107
+#: src/features/fileUpload/UploadedImagePreview.tsx:117
 msgid "Preview {name}"
 msgstr "预览 {name}"
 
@@ -883,7 +881,7 @@ msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "已将已排队消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
 #. Attachment upload completed and it can be sent
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:77
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:59
 msgid "Ready"
 msgstr "已就绪"
 
@@ -933,13 +931,8 @@ msgstr "重新加载技能"
 msgid "Reloading skills…"
 msgstr "正在重新加载技能…"
 
-#. Remove an attachment from the draft
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:119
-msgid "Remove"
-msgstr "移除"
-
 #. Remove the named attachment from the draft
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:108
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:74
 msgid "Remove {name}"
 msgstr "移除 {name}"
 
@@ -1040,13 +1033,13 @@ msgid "Retry saving this task's state before removing it."
 msgstr "请先重试保存此任务的状态，再将其移出列表。"
 
 #. Manually resend the entire selected file after an upload failure
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:101
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:110
 #: src/features/fileUpload/FileUploadDialog.tsx:133
 msgid "Retry upload"
 msgstr "重试上传"
 
 #. Retry uploading the named attachment
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:95
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:104
 msgid "Retry upload {name}"
 msgstr "重试上传 {name}"
 
@@ -1086,13 +1079,13 @@ msgstr "将文件保存到运行 Codex 的机器，最大支持 50 MiB。上传�
 msgid "Scan with phone"
 msgstr "使用手机扫描"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:285
-#: src/features/newSession/NewSessionPage.tsx:182
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:269
+#: src/features/newSession/NewSessionPage.tsx:168
 msgid "Send"
 msgstr "发送"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:174
+#: src/features/newSession/NewSessionPage.tsx:160
 msgid "Sending"
 msgstr "正在发送"
 
@@ -1155,7 +1148,7 @@ msgstr "已启动 {receiver}（{model} {reasoningEffort}）"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "已启动 {receiver}（{reasoningEffort}）"
 
-#: src/features/appShell/AppShellTopBar.tsx:165
+#: src/features/appShell/AppShellTopBar.tsx:162
 msgid "Start a conversation"
 msgstr "开始新对话"
 
@@ -1164,11 +1157,11 @@ msgstr "开始新对话"
 msgid "Started <0/> <1/>"
 msgstr "已启动 <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:261
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:245
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:252
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:236
 msgid "Stop failed"
 msgstr "停止失败"
 
@@ -1231,12 +1224,12 @@ msgid "Task updates are paused"
 msgstr "任务内容更新已暂停"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:109
+#: src/features/appShell/AppShellTopBar.tsx:107
 msgid "Tasks or the connection need attention."
 msgstr "任务或连接存在待处理的异常。"
 
 #. Browser could not decode the uploaded image; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:91
+#: src/features/fileUpload/UploadedImagePreview.tsx:100
 msgid "The browser could not display {name} as an image."
 msgstr "浏览器无法将 {name} 显示为图片。"
 
@@ -1264,7 +1257,7 @@ msgid "The conversation shown here may be out of date. Restore sync to get the l
 msgstr "当前显示的对话可能不是最新内容。恢复同步可获取最新内容。"
 
 #. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
-#: src/features/newSession/NewSessionPage.tsx:121
+#: src/features/newSession/NewSessionPage.tsx:115
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "创建结果未知。重试可能留下额外的空会话。"
 
@@ -1277,7 +1270,7 @@ msgstr "当前任务未能加载。"
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当前任务再切换。"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:79
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:61
 #: src/features/fileUpload/FileUploadDialog.tsx:91
 msgid "The file exceeds the 50 MiB limit."
 msgstr "文件超过 50 MiB 限制。"
@@ -1480,7 +1473,7 @@ msgstr "无法重试此任务。请检查当前状态后再试。"
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
-#: src/features/newSession/NewSessionPage.tsx:111
+#: src/features/newSession/NewSessionPage.tsx:105
 msgid "Unable to start the conversation"
 msgstr "无法开始对话"
 
@@ -1502,7 +1495,7 @@ msgstr "状态未知"
 msgid "Unsaved pending message"
 msgstr "尚未保存的待发送消息"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:83
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:65
 msgid "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
 msgstr "不支持此图片格式。请使用 PNG、JPEG、GIF 或 WebP。"
 
@@ -1525,12 +1518,12 @@ msgstr "上传"
 msgid "Upload file"
 msgstr "上传文件"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:85
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:67
 msgid "Upload interrupted. Remove and add the file again."
 msgstr "上传已中断。请移除后重新添加文件。"
 
 #. Attachment is being transferred to the Codex machine
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:75
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:57
 msgid "Uploading"
 msgstr "上传中"
 
@@ -1661,7 +1654,7 @@ msgstr "修改尚未保存。可以返回复制内容，或丢弃修改后继续
 msgid "Your edits are retained below. Copy anything you want to keep before discarding."
 msgstr "编辑内容已保留在下方。请先复制需要保留的内容，再丢弃修改。"
 
-#: src/features/newSession/NewSessionPage.tsx:125
+#: src/features/newSession/NewSessionPage.tsx:119
 msgid "Your input is retained. Retry to continue."
 msgstr "输入内容已保留。重试以继续。"
 

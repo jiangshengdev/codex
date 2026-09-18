@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, server, userEvent } from "vitest/browser";
 import {
   attachResponse,
   createDeferred,
@@ -11,23 +11,25 @@ import {
   launchThreadId,
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
-} from "./appBrowserTestSupport";
+} from "@/__tests__/appBrowserTestSupport";
 import {
+  attachmentFileInput,
   dispatchGuideShortcut,
   renderActiveComposerQueueApp,
   steerTurnParamsAt,
-} from "./appComposerQueueBrowserTestSupport";
+} from "@/__tests__/appComposerQueueBrowserTestSupport";
 import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import { eventItemCompleted } from "@/features/projection/__tests__/projectionFixtures";
 import {
+  agentMessage,
   attachWithTurns,
   baseTurn,
   eventWithEnvelope,
   itemCompleted,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
+import { AppBrowserRenderHarness as App } from "@/__tests__/appBrowserRenderHarness";
 import { renderWithProviders } from "@/utils/test-utils";
 
 const host = vi.hoisted(() => ({
@@ -42,9 +44,9 @@ const startHost = host.startGuiHostConnection as unknown as StartGuiHostConnecti
 test("unsupported images block sending and can be removed as a whole", async () => {
   const upload = vi.spyOn(globalThis, "fetch");
   const { screen, composer } = await renderActiveComposerQueueApp(startHost);
-  await screen
-    .getByLabelText("Attach files", { exact: true })
-    .upload(new File(["unsupported"], "photo.heic", { type: "image/heic" }));
+  await attachmentFileInput(screen.container).upload(
+    new File(["unsupported"], "photo.heic", { type: "image/heic" }),
+  );
   await expect
     .element(composer.getByText("Unsupported image format. Use PNG, JPEG, GIF, or WebP."))
     .toBeVisible();
@@ -89,8 +91,209 @@ beforeEach(() => {
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
   vi.mocked(createComposerInputQueueCoordinator).mockClear();
 });
-afterEach(() => {
+afterEach(async () => {
   vi.restoreAllMocks();
+  await page.viewport(1280, 720);
+});
+
+test("narrow draft attachments preserve visible keyboard focus beside adjacent controls", async () => {
+  const png = Uint8Array.from(
+    atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+    ),
+    (char) => char.charCodeAt(0),
+  );
+  vi.spyOn(globalThis, "fetch").mockImplementation((_url, options) =>
+    Promise.resolve(
+      options?.method === "POST"
+        ? new Response("/tmp/focus.png", { status: 201 })
+        : new Response(png, { headers: { "Content-Type": "image/png" } }),
+    ),
+  );
+  const { screen, composer } = await renderActiveComposerQueueApp(startHost);
+  await page.viewport(400, 876);
+  await attachmentFileInput(screen.container).upload([
+    new File([png], "first.png", { type: "image/png" }),
+    new File([png], "second.png", { type: "image/png" }),
+    new File(["unsupported"], "long-failed-image-name-".repeat(8) + ".heic", {
+      type: "image/heic",
+    }),
+  ]);
+  const first = composer.getByRole("button", { name: "Preview first.png", exact: true });
+  await first.click();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(first).toHaveFocus();
+  await userEvent.tab();
+  const remove = composer.getByRole("button", { name: "Remove first.png", exact: true });
+  await expect.element(remove).toHaveFocus();
+  await expect
+    .poll(
+      () =>
+        remove
+          .element()
+          .getAnimations()
+          .filter((animation) => animation.playState === "running").length,
+    )
+    .toBe(0);
+  const focused = getComputedStyle(remove.element());
+  expect(focused.boxShadow).not.toBe("none");
+  expect(Number(focused.zIndex)).toBeGreaterThan(
+    Number(getComputedStyle(first.element()).zIndex) || 0,
+  );
+  // Focus shadows extend beyond the control. Measure their actual spread rather than a CSS class.
+  const spreads = [
+    ...focused.boxShadow.replace(/rgba?\([^)]*\)/g, "").matchAll(/(-?[\d.]+)px/g),
+  ].map((match) => Number(match[1]));
+  const outset = Math.max(...spreads);
+  expect(outset).toBeGreaterThan(0);
+  const bounds = remove.element().getBoundingClientRect();
+  const editorBounds = composer.element().getBoundingClientRect();
+  expect(bounds.left - outset).toBeGreaterThanOrEqual(editorBounds.left);
+  expect(bounds.right + outset).toBeLessThanOrEqual(editorBounds.right);
+  expect(bounds.top - outset).toBeGreaterThanOrEqual(editorBounds.top);
+  expect(bounds.bottom + outset).toBeLessThanOrEqual(editorBounds.bottom);
+  const next = composer
+    .getByRole("group", { name: "second.png", exact: true })
+    .element()
+    .getBoundingClientRect();
+  expect(bounds.right + outset <= next.left || bounds.bottom + outset <= next.top).toBe(true);
+  await expect
+    .element(composer.getByText("Unsupported image format. Use PNG, JPEG, GIF, or WebP."))
+    .toBeVisible();
+  expect(composer.element().scrollWidth).toBeLessThanOrEqual(composer.element().clientWidth);
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(400);
+  await composer.screenshot({ path: `__screenshots__/attachment-focus-${server.browser}.png` });
+});
+
+test("mixed file and image attachments align their bottom edges without overflowing narrow messages", async () => {
+  const png = Uint8Array.from(
+    atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+    ),
+    (char) => char.charCodeAt(0),
+  );
+  vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+    Promise.resolve(new Response(png, { headers: { "Content-Type": "image/png" } })),
+  );
+  const commands = createGuiHostCommands();
+  const screen = await renderWithProviders(<App />);
+  queueAttachProjectionResponse(
+    commands,
+    attachWithTurns(attachResponse, [
+      baseTurn("mixed-attachments", [
+        userMessage("mixed-message", [
+          {
+            type: "text",
+            text: "Before\n/tmp/a.txt/tmp/b.png\nbetween /tmp/long.txt\n/tmp/b.png after",
+            text_elements: [
+              { byteRange: { start: 7, end: 17 }, placeholder: "notes.txt" },
+              { byteRange: { start: 17, end: 27 }, placeholder: "picture.png" },
+              {
+                byteRange: { start: 36, end: 49 },
+                placeholder: "a-very-long-attachment-name-".repeat(8) + ".txt",
+              },
+              { byteRange: { start: 50, end: 60 }, placeholder: "second.png" },
+            ],
+          },
+          { type: "localImage", path: "/tmp/b.png" },
+        ]),
+        agentMessage("mixed-reply", "Agent typography stays unchanged"),
+      ]),
+    ]),
+  );
+  initializeHost(getHostOptions(startHost), commands);
+  const transcript = screen.getByRole("region", { name: "Committed transcript" });
+  const file = transcript.getByRole("button", { name: "notes.txt", exact: true });
+  const image = transcript.getByRole("button", { name: "Preview picture.png", exact: true });
+  await expect.element(image).toBeVisible();
+  const message = transcript.getByText(/^Before/);
+  await expect.element(message).toHaveStyle("font-size: 16px; line-height: 24px");
+  await expect
+    .element(message)
+    .toHaveTextContent(
+      `Before notes.txtpicture.png between ${"a-very-long-attachment-name-".repeat(8)}.txt second.png after`,
+    );
+  await expect
+    .element(transcript.getByText("Agent typography stays unchanged", { exact: true }))
+    .toHaveStyle("font-size: 16px; line-height: 24px");
+  await expect
+    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+    .toHaveStyle("font-size: 16px; line-height: 24px");
+  for (const width of [1440, 400]) {
+    await page.viewport(width, 900);
+    await expect
+      .poll(() =>
+        Math.abs(
+          file.element().getBoundingClientRect().bottom -
+            image.element().getBoundingClientRect().bottom,
+        ),
+      )
+      .toBeLessThanOrEqual(1);
+    expect(image.element().getBoundingClientRect().right).toBeLessThanOrEqual(width);
+    expect(file.element().getBoundingClientRect().left).toBeLessThan(
+      image.element().getBoundingClientRect().left,
+    );
+    const thumbnail = image.element().querySelector("img");
+    if (thumbnail == null) throw new Error("Missing attachment thumbnail");
+    const outer = image.element().getBoundingClientRect();
+    const inner = thumbnail.getBoundingClientRect();
+    const inset = inner.left - outer.left;
+    expect(inner.top - outer.top).toBeCloseTo(inset, 0);
+    expect(outer.bottom - inner.bottom).toBeCloseTo(inset, 0);
+    expect(
+      parseFloat(getComputedStyle(image.element()).borderTopLeftRadius) -
+        parseFloat(getComputedStyle(thumbnail).borderTopLeftRadius),
+    ).toBeCloseTo(inset, 0);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width);
+    await file.click();
+    await expect.element(screen.getByRole("dialog", { name: "notes.txt" })).toBeVisible();
+    await expect.element(screen.getByText("/tmp/a.txt", { exact: true })).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await expect.element(file).toHaveFocus();
+    await userEvent.tab();
+    await expect.element(image).toHaveFocus();
+    await expect
+      .poll(
+        () =>
+          image
+            .element()
+            .getAnimations()
+            .filter((a) => a.playState === "running").length,
+      )
+      .toBe(0);
+    const shadow = getComputedStyle(image.element()).boxShadow;
+    expect(shadow).not.toBe("none");
+    const outset = Math.max(
+      ...[...shadow.replace(/rgba?\([^)]*\)/g, "").matchAll(/(-?[\d.]+)px/g)].map((m) =>
+        Number(m[1]),
+      ),
+    );
+    expect(outset).toBeGreaterThan(0);
+    expect(image.element().getBoundingClientRect().left - outset).toBeGreaterThanOrEqual(
+      file.element().getBoundingClientRect().right,
+    );
+    await userEvent.keyboard("{Enter}");
+    await expect.element(screen.getByRole("dialog", { name: "picture.png" })).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await expect.element(image).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    await expect.element(file).toHaveFocus();
+    const messageBounds = message.element().getBoundingClientRect();
+    for (const button of message.getByRole("button").elements()) {
+      const bounds = button.getBoundingClientRect();
+      expect(bounds.left - outset).toBeGreaterThanOrEqual(messageBounds.left);
+      expect(bounds.right + outset).toBeLessThanOrEqual(messageBounds.right);
+      expect(bounds.top - outset).toBeGreaterThanOrEqual(messageBounds.top);
+      expect(bounds.bottom + outset).toBeLessThanOrEqual(messageBounds.bottom);
+    }
+    await expect
+      .element(transcript.getByRole("button", { name: /^Remove / }))
+      .not.toBeInTheDocument();
+    await transcript.screenshot({
+      path: `__screenshots__/attachment-layout-${server.browser}-${String(width)}-smooth-${String(CSS.supports("corner-shape", "squircle"))}.png`,
+    });
+  }
+  await page.viewport(1280, 720);
 });
 
 test("Composer uploads a file, blocks keyboard submission until ready, and displays its authoritative filename and path", async () => {
@@ -99,10 +302,9 @@ test("Composer uploads a file, blocks keyboard submission until ready, and displ
   const { screen, composer, steerTurn, options, activeTurn } =
     await renderActiveComposerQueueApp(startHost);
   await composer.fill("请看🙂 ");
-  await screen
-    .getByLabelText("Attach files", { exact: true })
-    .upload(new File(["original bytes"], "notes.txt"));
+  await attachmentFileInput(screen.container).upload(new File(["original bytes"], "notes.txt"));
   await expect.element(composer.getByText("notes.txt", { exact: true })).toBeVisible();
+  await expect.element(composer.getByRole("status")).toHaveTextContent("Uploading");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await composer.click();
   dispatchGuideShortcut(composer.element());
@@ -113,6 +315,7 @@ test("Composer uploads a file, blocks keyboard submission until ready, and displ
   expect(new Headers(request?.[1]?.headers).get("Authorization")).toBe("Bearer secret");
   response.resolve(new Response("/tmp/codex-upload-note.txt", { status: 201 }));
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+  await expect.element(composer.getByRole("status")).toHaveTextContent("Ready");
   dispatchGuideShortcut(composer.element());
   await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
   const params = steerTurnParamsAt(steerTurn, 0);
@@ -150,7 +353,7 @@ test("failed attachments retry independently and a removed upload cannot return"
     .mockResolvedValueOnce(new Response("/tmp/retried.txt", { status: 201 }))
     .mockImplementationOnce(() => late.promise);
   const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
-  const files = screen.getByLabelText("Attach files", { exact: true });
+  const files = attachmentFileInput(screen.container);
   await files.upload(new File(["retry bytes"], "retry.txt"));
   await expect.element(composer.getByText("File upload failed.")).toBeVisible();
   await composer.click();
@@ -163,6 +366,7 @@ test("failed attachments retry independently and a removed upload cannot return"
   await files.upload(new File(["late bytes"], "late.txt"));
   await expect.element(composer.getByText("late.txt", { exact: true })).toBeVisible();
   await composer.getByRole("button", { name: "Remove late.txt", exact: true }).click();
+  await expect.element(composer).toHaveFocus();
   late.resolve(new Response("/tmp/late.txt", { status: 201 }));
   await expect.element(composer.getByText("late.txt", { exact: true })).not.toBeInTheDocument();
   await composer.click();
@@ -209,9 +413,10 @@ test("a mixed-result batch keeps input order and retries only the failed file", 
     .mockResolvedValueOnce(new Response("failed", { status: 500 }))
     .mockResolvedValueOnce(new Response("/tmp/b.txt", { status: 201 }));
   const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
-  await screen
-    .getByLabelText("Attach files", { exact: true })
-    .upload([new File(["A"], "a.txt"), new File(["B"], "b.txt")]);
+  await attachmentFileInput(screen.container).upload([
+    new File(["A"], "a.txt"),
+    new File(["B"], "b.txt"),
+  ]);
   await expect.element(composer.getByText("a.txt", { exact: true })).toBeVisible();
   await expect.element(composer.getByText("File upload failed.")).toBeVisible();
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
@@ -273,14 +478,24 @@ test("an image is previewable in the draft and authoritative history and sends a
     );
   const { screen, composer, steerTurn, activeTurn, options } =
     await renderActiveComposerQueueApp(startHost);
-  await screen
-    .getByLabelText("Attach files", { exact: true })
-    .upload(new File([png], "picture.png", { type: "image/png" }));
+  await attachmentFileInput(screen.container).upload(
+    new File([png], "picture.png", { type: "image/png" }),
+  );
   const preview = composer.getByRole("button", { name: "Preview picture.png", exact: true });
+  await expect.element(preview).toBeVisible();
+  expect(composer.element().textContent.match(/picture\.png/g)).toHaveLength(1);
+  await expect.element(preview.getByRole("status")).toHaveTextContent("Ready");
+  const remove = composer.getByRole("button", { name: "Remove picture.png", exact: true });
+  await expect.element(remove).toHaveTextContent(/^$/);
   await preview.click();
   const dialog = screen.getByRole("dialog", { name: "picture.png", exact: true });
   await expect.element(dialog.getByRole("img", { name: "picture.png" })).toBeVisible();
   await dialog.getByRole("button", { name: "Close image preview" }).click();
+  await expect.element(preview).toHaveFocus();
+  await userEvent.tab();
+  await expect.element(remove).toHaveFocus();
+  await expect.element(screen.getByRole("tooltip")).toHaveTextContent("Remove picture.png");
+  await userEvent.tab({ shift: true });
   await expect.element(preview).toHaveFocus();
   await screen.getByRole("button", { name: "Guide", exact: true }).click();
   await expect.poll(() => steerTurn.mock.calls.length).toBe(1);

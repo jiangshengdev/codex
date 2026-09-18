@@ -176,6 +176,7 @@ export type RenderComposerTurnControlOptions = Readonly<{
   queue?: RenderComposerTurnControlQueue;
   skills?: ComposerSkillCatalogHarnessController;
   locale?: AppLocale;
+  authorizationToken?: string | null;
   guardCompositionEndEnter?: boolean;
   strictMode?: boolean;
 }>;
@@ -198,6 +199,7 @@ export async function renderComposerTurnControl({
   queue = { type: "created" },
   skills = createComposerSkillCatalogHarness().controller,
   locale = "en",
+  authorizationToken = null,
   guardCompositionEndEnter = false,
   strictMode = false,
 }: RenderComposerTurnControlOptions = {}): Promise<RenderedComposerTurnControl> {
@@ -212,7 +214,7 @@ export async function renderComposerTurnControl({
     if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") return null;
     return (
       <ComposerTurnControl
-        authorizationToken={null}
+        authorizationToken={authorizationToken}
         guardCompositionEndEnter={guardCompositionEndEnter}
         routeTarget={{ type: "currentTask", threadId }}
         sessionSnapshot={snapshot}

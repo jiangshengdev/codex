@@ -1,4 +1,5 @@
 import { expect, vi, type Mock } from "vitest";
+import { page } from "vitest/browser";
 import {
   attachResponse,
   createGuiHostCommands,
@@ -32,6 +33,12 @@ type ActiveAppCommandOverrides = Partial<{
 
 const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
   screen.getByRole("combobox", { name: "Message Codex", exact: true });
+
+export function attachmentFileInput(container: ParentNode = document) {
+  const input = container.querySelector('input[type="file"]');
+  if (input == null) throw new Error("Missing attachment file input");
+  return page.elementLocator(input);
+}
 
 export const renderActiveComposerQueueApp = async (
   startGuiHostConnectionMock: StartGuiHostConnectionMock,

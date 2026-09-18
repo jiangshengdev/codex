@@ -42,7 +42,10 @@ test("ready file and image attachments survive reload and submit without reuploa
     });
   });
   await host.open();
-  await page.getByLabel("Attach files", { exact: true }).setInputFiles([
+  const choosingFiles = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Attach files", exact: true }).click();
+  const fileChooser = await choosingFiles;
+  await fileChooser.setFiles([
     { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("notes") },
     { name: "picture.png", mimeType: "image/png", buffer: Buffer.from("image") },
   ]);
