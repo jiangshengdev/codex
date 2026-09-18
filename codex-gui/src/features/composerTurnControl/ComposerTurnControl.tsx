@@ -30,7 +30,6 @@ import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
 import { ComposerPendingInputRegion } from "./ComposerPendingInputRegion";
 import { ComposerSurface } from "./ComposerSurface";
 import { CurrentThreadStatus } from "./CurrentThreadStatus";
-import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
 import { ComposerPersistenceStatus } from "./ComposerPersistenceStatus";
 import { usePersistComposerDraft } from "./usePersistComposerDraft";
 
@@ -59,8 +58,6 @@ export function ComposerTurnControl({
   const [turnApplication] = useState(createComposerTurnApplication);
   const adapterLifecycleRef = useRef({ generation: 0, mounted: false });
   const recoveryDescriptionId = useId();
-  const composerShellRef = useRef<HTMLElement | null>(null);
-  const composerFocusVisible = useComposerFocusVisible(composerShellRef);
   const tokenUsage = useAppSelector((state) =>
     state.threadRuntime.byThreadId[sessionSnapshot.threadId]?.identity.instanceId ===
     sessionSnapshot.identity.instanceId
@@ -155,8 +152,6 @@ export function ComposerTurnControl({
     };
   }, [turnApplication]);
 
-  useRevealComposerOnViewportResize(composerShellRef);
-
   const submit = (
     requestedCapture?: ReturnType<ComposerEditorController["capture"]>,
     intent: ComposerEditorSubmitIntent = "ordinary",
@@ -185,9 +180,7 @@ export function ComposerTurnControl({
   return (
     <ComposerSurface
       disabled={!controlView.operationsEnabled}
-      shellRef={composerShellRef}
-      focusVisible={composerFocusVisible}
-      editorKey={sessionSnapshot.identity.instanceId}
+      key={sessionSnapshot.identity.instanceId}
       editor={{
         authorizationToken,
         disabled: !controlView.operationsEnabled,
@@ -279,80 +272,6 @@ export function ComposerTurnControl({
       }
     />
   );
-}
-
-function useComposerFocusVisible(composerShellRef: {
-  readonly current: HTMLElement | null;
-}): boolean {
-  const [isFocusVisible, setIsFocusVisible] = useState(false);
-
-  useEffect(() => {
-    const composerPanel = composerShellRef.current?.querySelector(".composer-panel");
-    if (!(composerPanel instanceof HTMLElement)) {
-      return;
-    }
-
-    let lastModality: "keyboard" | "pointer" = "keyboard";
-    let publishedFocusVisible = false;
-    const publishFocusVisible = (nextFocusVisible: boolean): void => {
-      if (publishedFocusVisible === nextFocusVisible) {
-        return;
-      }
-      publishedFocusVisible = nextFocusVisible;
-      setIsFocusVisible(nextFocusVisible);
-    };
-    const handlePointerDown = (): void => {
-      lastModality = "pointer";
-      if (composerPanel.contains(document.activeElement)) {
-        publishFocusVisible(false);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== "Tab" && event.key !== "Escape") {
-        return;
-      }
-      lastModality = "keyboard";
-      if (composerPanel.contains(document.activeElement)) {
-        publishFocusVisible(true);
-      }
-    };
-    const handleVirtualClick = (event: MouseEvent): void => {
-      if (event.detail !== 0) {
-        return;
-      }
-      lastModality = "keyboard";
-      if (
-        composerPanel.contains(document.activeElement) ||
-        (event.target instanceof Node && composerPanel.contains(event.target))
-      ) {
-        publishFocusVisible(true);
-      }
-    };
-    const handleFocusIn = (): void => {
-      publishFocusVisible(lastModality === "keyboard");
-    };
-    const handleFocusOut = (event: FocusEvent): void => {
-      if (event.relatedTarget instanceof Node && composerPanel.contains(event.relatedTarget)) {
-        return;
-      }
-      publishFocusVisible(false);
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown, true);
-    document.addEventListener("keydown", handleKeyDown, true);
-    document.addEventListener("click", handleVirtualClick, true);
-    composerPanel.addEventListener("focusin", handleFocusIn);
-    composerPanel.addEventListener("focusout", handleFocusOut);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown, true);
-      document.removeEventListener("keydown", handleKeyDown, true);
-      document.removeEventListener("click", handleVirtualClick, true);
-      composerPanel.removeEventListener("focusin", handleFocusIn);
-      composerPanel.removeEventListener("focusout", handleFocusOut);
-    };
-  }, [composerShellRef]);
-
-  return isFocusVisible;
 }
 
 const subscribeUnavailableEditor = (): (() => void) => () => undefined;
