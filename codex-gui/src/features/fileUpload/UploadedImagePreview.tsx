@@ -112,7 +112,7 @@ function ImagePreview({ path, name, authorizationToken, status }: UploadedImageP
   return (
     <Modal>
       <Button
-        variant="secondary"
+        variant="tertiary"
         className="h-auto max-w-full min-w-0 gap-2 rounded-xl p-1 align-bottom md:h-auto"
         aria-label={t({
           comment: "Open the uploaded image at a larger size; name is its file name",

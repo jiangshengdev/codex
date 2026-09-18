@@ -35,8 +35,8 @@ function TextInputContent({
         ) : (
           <Popover>
             <Button
-              className="inline-flex h-auto max-w-full min-w-0 px-2 py-0.5 align-bottom text-sm md:h-auto"
-              variant="secondary"
+              className="inline-flex h-auto max-w-full min-w-0 rounded-xl px-2 py-1 align-bottom text-sm md:h-auto"
+              variant="tertiary"
             >
               <span className="truncate">{label}</span>
             </Button>

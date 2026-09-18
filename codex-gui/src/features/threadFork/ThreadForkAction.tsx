@@ -45,7 +45,7 @@ function ForkButton({
         isIconOnly
         aria-label={label}
         className="justify-self-start"
-        variant="secondary"
+        variant="ghost"
         size="sm"
         isDisabled={!available || snapshot.pending}
         isPending={pending}

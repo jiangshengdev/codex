@@ -48,7 +48,8 @@ export function SelectedAttachmentToken({
     <Chip
       role="status"
       size="sm"
-      color={attachment.status === "failed" ? "danger" : "default"}
+      color={attachment.status === "failed" ? "danger" : "accent"}
+      variant="soft"
       className="h-auto max-w-full whitespace-normal"
     >
       <Chip.Label className="whitespace-normal wrap-anywhere">
@@ -76,7 +77,7 @@ export function SelectedAttachmentToken({
   });
   return (
     <ButtonGroup
-      className={`relative m-1 max-w-[calc(100%-0.5rem)] items-stretch rounded-xl align-bottom focus-within:z-10 ${selected ? "outline-2 outline-accent" : ""}`}
+      className={`relative m-1 max-w-[calc(100%-0.5rem)] items-stretch rounded-xl align-bottom focus-within:z-10 [&_.button]:rounded-none [&_.button:first-child]:rounded-s-xl [&_.button:last-child]:rounded-e-xl ${selected ? "outline-2 outline-accent" : ""}`}
       aria-label={name}
       onPointerDown={(event) => {
         if (!(event.target instanceof Element && event.target.closest("button"))) {
@@ -114,7 +115,7 @@ export function SelectedAttachmentToken({
           isDisabled={!editable}
           isIconOnly
           size="sm"
-          variant="secondary"
+          variant="tertiary"
           className="h-auto shrink-0 md:h-auto"
           aria-label={removeLabel}
           onPress={() => {
