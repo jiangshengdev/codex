@@ -1,4 +1,4 @@
-import { Button, Surface, Tooltip } from "@heroui/react";
+import { Button, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   useCallback,
@@ -13,7 +13,6 @@ import { useAppSelector } from "@/app/hooks";
 import type { ActiveThreadSessionSnapshot } from "@/features/activeThreadSession/activeThreadSession";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import {
-  ComposerEditor,
   type ComposerEditorController,
   type ComposerEditorSnapshot,
   type ComposerEditorSubmitIntent,
@@ -29,7 +28,7 @@ import {
 import { createComposerTurnApplication } from "./composerTurnApplication";
 import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
 import { ComposerPendingInputRegion } from "./ComposerPendingInputRegion";
-import { ComposerSkillMenuLayer } from "./ComposerSkillMenuLayer";
+import { ComposerSurface } from "./ComposerSurface";
 import { CurrentThreadStatus } from "./CurrentThreadStatus";
 import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
 import { ComposerPersistenceStatus } from "./ComposerPersistenceStatus";
@@ -61,10 +60,6 @@ export function ComposerTurnControl({
   const adapterLifecycleRef = useRef({ generation: 0, mounted: false });
   const recoveryDescriptionId = useId();
   const composerShellRef = useRef<HTMLElement | null>(null);
-  const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
-  const [attachmentControlsParent, setAttachmentControlsParent] = useState<HTMLDivElement | null>(
-    null,
-  );
   const composerFocusVisible = useComposerFocusVisible(composerShellRef);
   const tokenUsage = useAppSelector((state) =>
     state.threadRuntime.byThreadId[sessionSnapshot.threadId]?.identity.instanceId ===
@@ -188,39 +183,27 @@ export function ComposerTurnControl({
   };
 
   return (
-    <section
-      aria-label={t`Message composer`}
-      className="composer-shell task-bottom-shell sticky bottom-0 z-10"
-      ref={composerShellRef}
-    >
-      <Surface className="composer-frame" variant="secondary">
-        <Surface
-          aria-disabled={!controlView.operationsEnabled}
-          className="composer-panel task-bottom-panel composer-field grid gap-2"
-          data-disabled={!controlView.operationsEnabled}
-          data-focus-visible={composerFocusVisible}
-          variant="default"
-        >
-          <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
-          <ComposerEditor
-            authorizationToken={authorizationToken}
-            attachmentControlsParent={attachmentControlsParent}
-            key={sessionSnapshot.identity.instanceId}
-            ariaLabel={t`Message Codex`}
-            disabled={!controlView.operationsEnabled}
-            guardCompositionEndEnter={guardCompositionEndEnter}
-            onControllerChange={setComposerEditorController}
-            initialDraft={initialDraft}
-            onDraftChange={saveDraft}
-            onRetrySkillCatalog={() => {
-              skillsRole.retrySkills(revision);
-            }}
-            onSubmit={submit}
-            placeholder={t`Message Codex`}
-            skillCatalog={skillCatalog}
-            skillMenuParent={skillMenuParent}
-            skillValidity={skillValidity}
-          />
+    <ComposerSurface
+      disabled={!controlView.operationsEnabled}
+      shellRef={composerShellRef}
+      focusVisible={composerFocusVisible}
+      editorKey={sessionSnapshot.identity.instanceId}
+      editor={{
+        authorizationToken,
+        disabled: !controlView.operationsEnabled,
+        guardCompositionEndEnter,
+        onControllerChange: setComposerEditorController,
+        initialDraft,
+        onDraftChange: saveDraft,
+        onRetrySkillCatalog: () => {
+          skillsRole.retrySkills(revision);
+        },
+        onSubmit: submit,
+        skillCatalog,
+        skillValidity,
+      }}
+      afterEditor={
+        <>
           <ComposerPersistenceStatus sessionSnapshot={sessionSnapshot} />
           <ComposerPendingInputRegion
             canRecover={controlView.recoverEnabled}
@@ -240,60 +223,61 @@ export function ComposerTurnControl({
             pendingInputSnapshot={pendingInputSnapshot}
             triggerRef={pendingTriggerRef}
           />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="composer-footer-left flex shrink-0 items-center gap-2">
-              <div className="flex items-center" ref={setAttachmentControlsParent} />
-              <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
-              <CurrentThreadStatus status={sessionSnapshot.threadStatus} />
-            </div>
-            <div className="flex items-center gap-2">
-              <ContextUsagePopover
-                compaction={compaction}
-                onRequestCompaction={requestCompaction}
-                usage={contextUsage}
-              />
-              {controlView.stop.failed ? (
-                <span className="text-sm text-danger" role="status">
-                  <Trans>Stop failed</Trans>
-                </span>
-              ) : null}
+        </>
+      }
+      toolbarLeading={
+        <>
+          <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
+          <CurrentThreadStatus status={sessionSnapshot.threadStatus} />
+        </>
+      }
+      actions={
+        <>
+          <ContextUsagePopover
+            compaction={compaction}
+            onRequestCompaction={requestCompaction}
+            usage={contextUsage}
+          />
+          {controlView.stop.failed ? (
+            <span className="text-sm text-danger" role="status">
+              <Trans>Stop failed</Trans>
+            </span>
+          ) : null}
+          <Button
+            isDisabled={!controlView.stop.enabled}
+            isPending={controlView.stop.pending}
+            onPress={stop}
+            variant="danger-soft"
+          >
+            <Trans>Stop</Trans>
+          </Button>
+          {controlView.guide.visible ? (
+            <Tooltip>
               <Button
-                isDisabled={!controlView.stop.enabled}
-                isPending={controlView.stop.pending}
-                onPress={stop}
-                variant="danger-soft"
-              >
-                <Trans>Stop</Trans>
-              </Button>
-              {controlView.guide.visible ? (
-                <Tooltip>
-                  <Button
-                    render={(props) => <button {...props} aria-keyshortcuts={guideShortcut.aria} />}
-                    isDisabled={!controlView.guide.buttonEnabled}
-                    onPress={() => {
-                      submit(undefined, "guide");
-                    }}
-                    variant="secondary"
-                  >
-                    <Trans>Guide</Trans>
-                  </Button>
-                  <Tooltip.Content>{guideShortcut.visible}</Tooltip.Content>
-                </Tooltip>
-              ) : null}
-              <Button
-                isDisabled={!controlView.sendEnabled}
+                render={(props) => <button {...props} aria-keyshortcuts={guideShortcut.aria} />}
+                isDisabled={!controlView.guide.buttonEnabled}
                 onPress={() => {
-                  submit();
+                  submit(undefined, "guide");
                 }}
-                variant="outline"
+                variant="secondary"
               >
-                <Trans>Send</Trans>
+                <Trans>Guide</Trans>
               </Button>
-            </div>
-          </div>
-        </Surface>
-      </Surface>
-    </section>
+              <Tooltip.Content>{guideShortcut.visible}</Tooltip.Content>
+            </Tooltip>
+          ) : null}
+          <Button
+            isDisabled={!controlView.sendEnabled}
+            onPress={() => {
+              submit();
+            }}
+            variant="outline"
+          >
+            <Trans>Send</Trans>
+          </Button>
+        </>
+      }
+    />
   );
 }
 

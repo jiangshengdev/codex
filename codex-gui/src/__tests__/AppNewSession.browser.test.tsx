@@ -11,6 +11,7 @@ import type {
 import { attachWithThreadId } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createAppRouter } from "@/router";
 import { renderWithProviders } from "@/utils/test-utils";
+import { attachmentFileInput } from "./appComposerQueueBrowserTestSupport";
 import {
   attachResponse,
   createDeferred,
@@ -131,6 +132,84 @@ test.each(["/new", `/task/${launchThreadId}`])(
     expect(style.borderWidth).toBe("0px");
     expect(getComputedStyle(editor.element()).minHeight).toBe("96px");
     expect(style.boxShadow).not.toBe("none");
+    const attach = page.getByRole("button", { name: "Attach files", exact: true });
+    const send = page.getByRole("button", { name: "Send", exact: true });
+    await expect.element(attach).toBeVisible();
+    await expect.element(send).toBeVisible();
+    await expect
+      .poll(() => {
+        const attachmentBounds = attach.element().getBoundingClientRect();
+        const sendBounds = send.element().getBoundingClientRect();
+        return Math.abs(
+          attachmentBounds.top +
+            attachmentBounds.height / 2 -
+            (sendBounds.top + sendBounds.height / 2),
+        );
+      })
+      .toBeLessThanOrEqual(1);
+  },
+);
+
+test.each([
+  { route: "/new", width: 1280 },
+  { route: "/new", width: 390 },
+  { route: `/task/${launchThreadId}`, width: 1280 },
+  { route: `/task/${launchThreadId}`, width: 390 },
+])(
+  "keeps the toolbar usable with long text and attachments on $route at $width",
+  async ({ route, width }) => {
+    const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+    const upload = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(() =>
+        Promise.resolve(new Response("/tmp/layout-attachment.txt", { status: 201 })),
+      );
+    try {
+      await page.viewport(width, 900);
+      await mount(route);
+      const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
+      const attach = page.getByRole("button", { name: "Attach files", exact: true });
+      const send = page.getByRole("button", { name: "Send", exact: true });
+      const expectToolbar = async () => {
+        await expect.element(attach).toBeInViewport();
+        await expect.element(send).toBeInViewport();
+        await expect
+          .poll(() => {
+            const left = attach.element().getBoundingClientRect();
+            const right = send.element().getBoundingClientRect();
+            return {
+              aligned: Math.abs(left.top + left.height / 2 - right.top - right.height / 2) <= 1,
+              separated: left.right <= right.left,
+              withinViewport: left.left >= 0 && right.right <= width,
+              noOverflow: document.documentElement.scrollWidth <= width,
+              belowEditor:
+                Math.min(left.top, right.top) >= editor.element().getBoundingClientRect().bottom,
+            };
+          })
+          .toEqual({
+            aligned: true,
+            separated: true,
+            withinViewport: true,
+            noOverflow: true,
+            belowEditor: true,
+          });
+      };
+      await expectToolbar();
+      await editor.fill("Long message content ".repeat(300));
+      await expectToolbar();
+      expect(editor.element().scrollHeight).toBeGreaterThan(editor.element().clientHeight);
+      await attachmentFileInput().upload([
+        new File(["first"], "first.txt"),
+        new File(["second"], "second.txt"),
+        new File(["third"], "third.txt"),
+      ]);
+      await expect.poll(() => editor.getByText("Ready", { exact: true }).all().length).toBe(3);
+      await expectToolbar();
+      await expect.element(send).toBeEnabled();
+    } finally {
+      upload.mockRestore();
+      await page.viewport(originalViewport.width, originalViewport.height);
+    }
   },
 );
 
