@@ -1,5 +1,5 @@
-import { Alert, Button, Surface } from "@heroui/react";
-import { Trans, useLingui } from "@lingui/react/macro";
+import { Alert, Button } from "@heroui/react";
+import { Trans } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
@@ -11,12 +11,9 @@ import {
   useNewSessionSnapshot,
 } from "@/features/appShell/AppCapabilities";
 import { CURRENT_TASK_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
-import {
-  ComposerEditor,
-  type ComposerEditorController,
-} from "@/features/composerEditor/ComposerEditor";
+import { type ComposerEditorController } from "@/features/composerEditor/ComposerEditor";
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
-import { ComposerSkillMenuLayer } from "@/features/composerTurnControl/ComposerSkillMenuLayer";
+import { ComposerSurface } from "@/features/composerTurnControl/ComposerSurface";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { errorText } from "@/text/errorText";
 import type { NewSessionSnapshot } from "./newSessionOwner";
@@ -33,16 +30,13 @@ export function NewSessionPage() {
   }, [cwd, newSessionOwner]);
 
   return (
-    <main className="app-shell-content-boundary flex min-h-0 flex-1 flex-col justify-end gap-4 py-3">
+    <main className="app-shell-content-boundary flex min-h-0 flex-1 flex-col justify-end gap-4 pt-3">
       {snapshot == null ? (
         <p className="text-muted">
           <Trans>A working directory is required to start a session.</Trans>
         </p>
       ) : (
-        <Surface className="composer-frame flex flex-col gap-1" variant="secondary">
-          <NewSessionWorkingDirectory cwd={snapshot.cwd} />
-          <NewSessionEditor commands={commands} snapshot={snapshot} />
-        </Surface>
+        <NewSessionEditor commands={commands} snapshot={snapshot} />
       )}
     </main>
   );
@@ -55,7 +49,6 @@ function NewSessionEditor({
   commands: GuiHostCommands | null;
   snapshot: NonNullable<NewSessionSnapshot>;
 }>) {
-  const { t } = useLingui();
   const navigate = useNavigate();
   const { newSessionOwner, activeThreadSession, authorizationToken } = useAppCapabilities();
   const [controller, setController] = useState<ComposerEditorController | null>(null);
@@ -67,7 +60,6 @@ function NewSessionEditor({
     controller?.subscribe ?? subscribeUnavailableEditor,
     () => controller?.getSnapshot().attachmentsReady ?? false,
   );
-  const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
   const { skillCatalog, retry } = useNewSessionSkillCatalog(snapshot.cwd, commands);
   const pending = snapshot.phase === "creating" || snapshot.phase === "activating";
   const unknownHandoff = snapshot.phase === "handoffUnknown";
@@ -83,107 +75,100 @@ function NewSessionEditor({
   };
 
   return (
-    <>
-      {snapshot.failure == null ? null : (
-        <Alert role="alert" status="danger">
-          <Alert.Indicator />
-          <FailureLayout
-            actions={
-              unknownHandoff && snapshot.threadId != null ? (
-                <Button
-                  variant="primary"
-                  onPress={() => {
-                    const threadId = snapshot.threadId;
-                    if (threadId == null) return;
-                    void navigate({ to: CURRENT_TASK_ROUTE_PATH, params: { threadId } }).catch(
-                      (error: unknown) =>
-                        activeThreadSession?.setOperationError(threadId, "navigation", error),
-                    );
-                  }}
-                >
-                  <Trans>Open session</Trans>
-                </Button>
-              ) : null
-            }
-          >
-            <Alert.Content>
-              <Alert.Title>
-                <Trans>Unable to start the conversation</Trans>
-              </Alert.Title>
-              <Alert.Description>
-                {unknownHandoff ? (
-                  <Trans comment="Input may already belong to the existing task queue; do not offer another send">
-                    Input handoff could not be confirmed. Open the session to review its queue
-                    before continuing.
-                  </Trans>
-                ) : snapshot.failure.stage === "create" &&
-                  snapshot.failure.delivery === "deliveryUnknown" ? (
-                  <Trans comment="thread/start may have succeeded without returning an ID; an explicit retry can create another empty session">
-                    The creation result is unknown. Retrying may leave an extra empty session.
-                  </Trans>
-                ) : (
-                  <Trans>Your input is retained. Retry to continue.</Trans>
-                )}
-              </Alert.Description>
-              <FailureDiagnosticModal triggerClassName="mt-2 self-start">
-                {errorText(snapshot.failure.error)}
-              </FailureDiagnosticModal>
-            </Alert.Content>
-          </FailureLayout>
-        </Alert>
-      )}
-      <Surface
-        className="composer-field grid gap-2"
-        data-readonly={commands == null || snapshot.isInputLocked}
-      >
-        <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
-        <ComposerEditor
-          authorizationToken={authorizationToken}
-          ariaLabel={t`Message Codex`}
-          onControllerChange={setController}
-          disabled={commands == null || snapshot.isInputLocked}
-          guardCompositionEndEnter={
-            navigator.vendor === "Apple Computer, Inc." &&
-            navigator.platform === "MacIntel" &&
-            navigator.maxTouchPoints <= 1
+    <ComposerSurface
+      header={<NewSessionWorkingDirectory cwd={snapshot.cwd} />}
+      feedback={
+        snapshot.failure == null ? null : (
+          <Alert role="alert" status="danger">
+            <Alert.Indicator />
+            <FailureLayout
+              actions={
+                unknownHandoff && snapshot.threadId != null ? (
+                  <Button
+                    variant="primary"
+                    onPress={() => {
+                      const threadId = snapshot.threadId;
+                      if (threadId == null) return;
+                      void navigate({ to: CURRENT_TASK_ROUTE_PATH, params: { threadId } }).catch(
+                        (error: unknown) =>
+                          activeThreadSession?.setOperationError(threadId, "navigation", error),
+                      );
+                    }}
+                  >
+                    <Trans>Open session</Trans>
+                  </Button>
+                ) : null
+              }
+            >
+              <Alert.Content>
+                <Alert.Title>
+                  <Trans>Unable to start the conversation</Trans>
+                </Alert.Title>
+                <Alert.Description>
+                  {unknownHandoff ? (
+                    <Trans comment="Input may already belong to the existing task queue; do not offer another send">
+                      Input handoff could not be confirmed. Open the session to review its queue
+                      before continuing.
+                    </Trans>
+                  ) : snapshot.failure.stage === "create" &&
+                    snapshot.failure.delivery === "deliveryUnknown" ? (
+                    <Trans comment="thread/start may have succeeded without returning an ID; an explicit retry can create another empty session">
+                      The creation result is unknown. Retrying may leave an extra empty session.
+                    </Trans>
+                  ) : (
+                    <Trans>Your input is retained. Retry to continue.</Trans>
+                  )}
+                </Alert.Description>
+                <FailureDiagnosticModal triggerClassName="mt-2 self-start">
+                  {errorText(snapshot.failure.error)}
+                </FailureDiagnosticModal>
+              </Alert.Content>
+            </FailureLayout>
+          </Alert>
+        )
+      }
+      editor={{
+        authorizationToken,
+        onControllerChange: setController,
+        disabled: commands == null || snapshot.isInputLocked,
+        guardCompositionEndEnter:
+          navigator.vendor === "Apple Computer, Inc." &&
+          navigator.platform === "MacIntel" &&
+          navigator.maxTouchPoints <= 1,
+        initialDraft: snapshot.draft,
+        onDraftChange: (draft) => {
+          newSessionOwner.saveDraft(draft);
+        },
+        onRetrySkillCatalog: retry,
+        onSubmit: (capture) => {
+          void submit(capture);
+        },
+        skillCatalog,
+      }}
+      actions={
+        <RetryActionButton
+          variant="outline"
+          isDisabled={
+            commands == null ||
+            pending ||
+            unknownHandoff ||
+            draftText.trim().length === 0 ||
+            !attachmentsReady
           }
-          initialDraft={snapshot.draft}
-          onDraftChange={(draft) => {
-            newSessionOwner.saveDraft(draft);
+          isPending={pending}
+          pendingChildren={
+            <Trans comment="Pending state of Send while creating a session and handing off its first message">
+              Sending
+            </Trans>
+          }
+          onPress={() => {
+            void submit(snapshot.isInputLocked ? undefined : controller?.capture());
           }}
-          onRetrySkillCatalog={retry}
-          onSubmit={(capture) => {
-            void submit(capture);
-          }}
-          placeholder={t`Message Codex`}
-          skillCatalog={skillCatalog}
-          skillMenuParent={skillMenuParent}
-        />
-        <div className="flex justify-end">
-          <RetryActionButton
-            variant="outline"
-            isDisabled={
-              commands == null ||
-              pending ||
-              unknownHandoff ||
-              draftText.trim().length === 0 ||
-              !attachmentsReady
-            }
-            isPending={pending}
-            pendingChildren={
-              <Trans comment="Pending state of Send while creating a session and handing off its first message">
-                Sending
-              </Trans>
-            }
-            onPress={() => {
-              void submit(snapshot.isInputLocked ? undefined : controller?.capture());
-            }}
-          >
-            <Trans>Send</Trans>
-          </RetryActionButton>
-        </div>
-      </Surface>
-    </>
+        >
+          <Trans>Send</Trans>
+        </RetryActionButton>
+      }
+    />
   );
 }
 

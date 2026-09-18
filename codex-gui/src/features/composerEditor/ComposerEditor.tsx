@@ -63,6 +63,7 @@ export type ComposerEditorController = Readonly<{
 
 export type ComposerEditorProps = Readonly<{
   authorizationToken?: string | null;
+  attachmentControlsParent?: HTMLElement | null;
   ariaLabel: string;
   controllerRef?: Ref<ComposerEditorController>;
   disabled: boolean;
@@ -84,6 +85,7 @@ export type ComposerEditorProps = Readonly<{
 
 export function ComposerEditor({
   authorizationToken,
+  attachmentControlsParent,
   ariaLabel,
   controllerRef,
   disabled,
@@ -185,6 +187,7 @@ export function ComposerEditor({
           {authorizationToken == null ? null : (
             <ComposerAttachmentsPlugin
               authorizationToken={authorizationToken}
+              controlsParent={attachmentControlsParent}
               disabled={disabled}
             />
           )}

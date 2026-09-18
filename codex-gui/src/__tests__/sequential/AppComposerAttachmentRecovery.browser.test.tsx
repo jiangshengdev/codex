@@ -7,11 +7,12 @@ import {
   launchThreadId,
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
-} from "./appBrowserTestSupport";
+} from "@/__tests__/appBrowserTestSupport";
 import {
+  attachmentFileInput,
   renderActiveComposerQueueApp,
   startTurnParamsAt,
-} from "./appComposerQueueBrowserTestSupport";
+} from "@/__tests__/appComposerQueueBrowserTestSupport";
 import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import { eventTurnCompleted } from "@/features/projection/__tests__/projectionFixtures";
@@ -43,9 +44,7 @@ test("undoing removal of an unfinished upload restores an interrupted attachment
   const late = createDeferred<Response>();
   vi.spyOn(globalThis, "fetch").mockImplementation(() => late.promise);
   const { screen, composer } = await renderActiveComposerQueueApp(startHost);
-  await screen
-    .getByLabelText("Attach files", { exact: true })
-    .upload(new File(["late"], "late.txt"));
+  await attachmentFileInput(screen.container).upload(new File(["late"], "late.txt"));
   await composer.getByRole("button", { name: "Remove late.txt", exact: true }).click();
   await expect.element(composer.getByText("late.txt", { exact: true })).not.toBeInTheDocument();
   await userEvent.keyboard(
@@ -67,7 +66,7 @@ test("Pending editing restores an attachment and blocks Save and Enter until its
   const { screen, composer, startTurn, steerTurn, options, activeTurn } =
     await renderActiveComposerQueueApp(startHost);
 
-  await screen.getByLabelText("Attach files", { exact: true }).upload(new File(["A"], "a.txt"));
+  await attachmentFileInput(screen.container).upload(new File(["A"], "a.txt"));
   await expect.element(composer.getByText("a.txt", { exact: true })).toBeVisible();
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   await screen.getByRole("button", { name: "Send", exact: true }).click();
@@ -81,10 +80,7 @@ test("Pending editing restores an attachment and blocks Save and Enter until its
   await expect.element(pendingEditor.getByText("a.txt", { exact: true })).toBeVisible();
   await pendingEditor.getByText("a.txt", { exact: true }).click();
   await userEvent.keyboard("{ArrowRight}");
-  await screen
-    .getByRole("dialog")
-    .getByLabelText("Attach files", { exact: true })
-    .upload(new File(["B"], "b.txt"));
+  await attachmentFileInput(screen.getByRole("dialog").element()).upload(new File(["B"], "b.txt"));
   await expect.element(pendingEditor.getByText("b.txt", { exact: true })).toBeVisible();
   const save = screen.getByRole("button", { name: "Save", exact: true });
   await expect.element(save).toBeDisabled();
