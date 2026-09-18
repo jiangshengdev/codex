@@ -20,14 +20,12 @@ import {
 } from "./AppCapabilities";
 import { ActiveThreadCollectionMenu } from "./ActiveThreadCollectionMenu";
 import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation";
-import { FileUploadDialog } from "@/features/fileUpload/FileUploadDialog";
 
 export function AppShellTopBar() {
   const { t } = useLingui();
   const navigate = useNavigate();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const { routeTarget, status, newSessionOwner, connectionRecovery, authorizationToken } =
-    useAppCapabilities();
+  const { routeTarget, status, newSessionOwner, connectionRecovery } = useAppCapabilities();
   const newSession = useNewSessionSnapshot();
   const newSessionCwd = useNewSessionCwd();
   const canOpenNewSession = newSession != null || newSessionCwd != null;
@@ -111,7 +109,6 @@ export function AppShellTopBar() {
             </Trans>
           </span>
         ) : null}
-        <FileUploadDialog authorizationToken={authorizationToken} />
         <h1 className="min-w-0 flex-1 truncate text-base font-semibold" title={title}>
           {title}
         </h1>

@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 import {
   launchThreadId,
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
-} from "./appBrowserTestSupport";
+} from "@/__tests__/appBrowserTestSupport";
 import {
+  attachmentFileInput,
   renderActiveComposerQueueApp,
   steerTurnParamsAt,
-} from "./appComposerQueueBrowserTestSupport";
+} from "@/__tests__/appComposerQueueBrowserTestSupport";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 
@@ -26,6 +28,57 @@ beforeEach(() => {
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
 });
 afterEach(() => vi.restoreAllMocks());
+
+test("attachment button supports keyboard selection, cancellation and selecting the same file again", async () => {
+  const upload = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(() => Promise.resolve(new Response("/tmp/repeated.txt", { status: 201 })));
+  const { screen, composer } = await renderActiveComposerQueueApp(startHost);
+  const attach = screen.getByRole("button", { name: "Attach files", exact: true });
+  const input = screen.container.querySelector<HTMLInputElement>('input[type="file"]');
+  if (input == null) throw new Error("Missing file input");
+  const choose = vi.spyOn(input, "click").mockImplementation(() => {
+    // The actual native chooser is exercised by real-runtime acceptance.
+  });
+  await composer.click();
+  await userEvent.tab();
+  await expect.element(attach).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+  expect(choose).toHaveBeenCalledOnce();
+  await attachmentFileInput(screen.container).upload([]);
+  expect(upload).not.toHaveBeenCalled();
+  const file = new File(["repeated"], "repeated.txt");
+  await attachmentFileInput(screen.container).upload(file);
+  await expect.element(composer.getByText("Ready", { exact: true })).toBeVisible();
+  await composer.getByRole("button", { name: "Remove repeated.txt", exact: true }).click();
+  await attach.click();
+  expect(choose).toHaveBeenCalledTimes(2);
+  await attachmentFileInput(screen.container).upload(file);
+  await expect.element(composer.getByText("Ready", { exact: true })).toBeVisible();
+  expect(upload).toHaveBeenCalledTimes(2);
+});
+
+test("attachment icon shares the footer with QR access and replaces the top upload entry", async () => {
+  const { screen } = await renderActiveComposerQueueApp(startHost);
+  const attach = screen.getByRole("button", { name: "Attach files", exact: true });
+  const qr = screen.getByRole("button", { name: "Scan with phone", exact: true });
+  await expect.element(attach).toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Upload file", exact: true }))
+    .not.toBeInTheDocument();
+  const input = screen.container.querySelector<HTMLInputElement>('input[type="file"]');
+  expect(input).not.toBeNull();
+  await expect.element(input).not.toBeVisible();
+  for (const width of [1440, 400]) {
+    await page.viewport(width, 900);
+    const button = attach.element().getBoundingClientRect();
+    const code = qr.element().getBoundingClientRect();
+    expect(Math.abs(button.top - code.top)).toBeLessThanOrEqual(1);
+    expect(button.right).toBeLessThanOrEqual(code.left);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width);
+  }
+  await page.viewport(1280, 720);
+});
 
 test("dropping mixed files adds one ordered batch without navigating away", async () => {
   const upload = vi.spyOn(globalThis, "fetch").mockImplementation((url, options) =>

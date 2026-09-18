@@ -11,12 +11,13 @@ import {
   launchThreadId,
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
-} from "./appBrowserTestSupport";
+} from "@/__tests__/appBrowserTestSupport";
 import {
+  attachmentFileInput,
   dispatchGuideShortcut,
   renderActiveComposerQueueApp,
   steerTurnParamsAt,
-} from "./appComposerQueueBrowserTestSupport";
+} from "@/__tests__/appComposerQueueBrowserTestSupport";
 import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import { eventItemCompleted } from "@/features/projection/__tests__/projectionFixtures";
@@ -27,7 +28,7 @@ import {
   itemCompleted,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
+import { AppBrowserRenderHarness as App } from "@/__tests__/appBrowserRenderHarness";
 import { renderWithProviders } from "@/utils/test-utils";
 
 const host = vi.hoisted(() => ({
@@ -42,9 +43,9 @@ const startHost = host.startGuiHostConnection as unknown as StartGuiHostConnecti
 test("unsupported images block sending and can be removed as a whole", async () => {
   const upload = vi.spyOn(globalThis, "fetch");
   const { screen, composer } = await renderActiveComposerQueueApp(startHost);
-  await screen
-    .getByLabelText("Attach files", { exact: true })
-    .upload(new File(["unsupported"], "photo.heic", { type: "image/heic" }));
+  await attachmentFileInput(screen.container).upload(
+    new File(["unsupported"], "photo.heic", { type: "image/heic" }),
+  );
   await expect
     .element(composer.getByText("Unsupported image format. Use PNG, JPEG, GIF, or WebP."))
     .toBeVisible();
@@ -172,9 +173,7 @@ test("Composer uploads a file, blocks keyboard submission until ready, and displ
   const { screen, composer, steerTurn, options, activeTurn } =
     await renderActiveComposerQueueApp(startHost);
   await composer.fill("请看🙂 ");
-  await screen
-    .getByLabelText("Attach files", { exact: true })
-    .upload(new File(["original bytes"], "notes.txt"));
+  await attachmentFileInput(screen.container).upload(new File(["original bytes"], "notes.txt"));
   await expect.element(composer.getByText("notes.txt", { exact: true })).toBeVisible();
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await composer.click();
@@ -223,7 +222,7 @@ test("failed attachments retry independently and a removed upload cannot return"
     .mockResolvedValueOnce(new Response("/tmp/retried.txt", { status: 201 }))
     .mockImplementationOnce(() => late.promise);
   const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
-  const files = screen.getByLabelText("Attach files", { exact: true });
+  const files = attachmentFileInput(screen.container);
   await files.upload(new File(["retry bytes"], "retry.txt"));
   await expect.element(composer.getByText("File upload failed.")).toBeVisible();
   await composer.click();
@@ -282,9 +281,10 @@ test("a mixed-result batch keeps input order and retries only the failed file", 
     .mockResolvedValueOnce(new Response("failed", { status: 500 }))
     .mockResolvedValueOnce(new Response("/tmp/b.txt", { status: 201 }));
   const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
-  await screen
-    .getByLabelText("Attach files", { exact: true })
-    .upload([new File(["A"], "a.txt"), new File(["B"], "b.txt")]);
+  await attachmentFileInput(screen.container).upload([
+    new File(["A"], "a.txt"),
+    new File(["B"], "b.txt"),
+  ]);
   await expect.element(composer.getByText("a.txt", { exact: true })).toBeVisible();
   await expect.element(composer.getByText("File upload failed.")).toBeVisible();
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
@@ -346,9 +346,9 @@ test("an image is previewable in the draft and authoritative history and sends a
     );
   const { screen, composer, steerTurn, activeTurn, options } =
     await renderActiveComposerQueueApp(startHost);
-  await screen
-    .getByLabelText("Attach files", { exact: true })
-    .upload(new File([png], "picture.png", { type: "image/png" }));
+  await attachmentFileInput(screen.container).upload(
+    new File([png], "picture.png", { type: "image/png" }),
+  );
   const preview = composer.getByRole("button", { name: "Preview picture.png", exact: true });
   await preview.click();
   const dialog = screen.getByRole("dialog", { name: "picture.png", exact: true });

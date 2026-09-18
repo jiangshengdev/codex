@@ -25,6 +25,9 @@ const expectComposerDisabled = async (screen: RenderedComposerTurnControl): Prom
   await expect.element(screen.composer()).toHaveAttribute("contenteditable", "false");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+  await expect
+    .element(screen.getByRole("button", { name: "Attach files", exact: true }))
+    .toBeDisabled();
 };
 
 const getComposerPanel = (screen: RenderedComposerTurnControl): HTMLElement => {
@@ -41,7 +44,7 @@ afterEach(() => {
 
 test("disables controls while the projection is unavailable", async () => {
   expect.hasAssertions();
-  const screen = await renderComposerTurnControl();
+  const screen = await renderComposerTurnControl({ authorizationToken: "test-token" });
   const activeSnapshot = screen.sessionHarness.session.getSnapshot();
   if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
   screen.sessionHarness.publish(
@@ -76,7 +79,7 @@ test("disables controls while the projection is unavailable", async () => {
 });
 
 test("keeps the editor and retains its stale draft when closing then unmounting", async () => {
-  const screen = await renderComposerTurnControl();
+  const screen = await renderComposerTurnControl({ authorizationToken: "test-token" });
   const role = screen.sessionHarness.composerRole;
   vi.spyOn(role, "saveDraft").mockImplementation(() => ({
     type: "unavailable",
@@ -314,7 +317,7 @@ test("disposes active Composer applications once after a real StrictMode unmount
 test("manual reconnect disables composer operations", async () => {
   expect.hasAssertions();
 
-  const screen = await renderComposerTurnControl();
+  const screen = await renderComposerTurnControl({ authorizationToken: "test-token" });
   const activeSnapshot = screen.sessionHarness.session.getSnapshot();
   if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
   screen.sessionHarness.publish(

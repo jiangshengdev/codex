@@ -62,6 +62,9 @@ export function ComposerTurnControl({
   const recoveryDescriptionId = useId();
   const composerShellRef = useRef<HTMLElement | null>(null);
   const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
+  const [attachmentControlsParent, setAttachmentControlsParent] = useState<HTMLDivElement | null>(
+    null,
+  );
   const composerFocusVisible = useComposerFocusVisible(composerShellRef);
   const tokenUsage = useAppSelector((state) =>
     state.threadRuntime.byThreadId[sessionSnapshot.threadId]?.identity.instanceId ===
@@ -201,6 +204,7 @@ export function ComposerTurnControl({
           <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
           <ComposerEditor
             authorizationToken={authorizationToken}
+            attachmentControlsParent={attachmentControlsParent}
             key={sessionSnapshot.identity.instanceId}
             ariaLabel={t`Message Codex`}
             disabled={!controlView.operationsEnabled}
@@ -238,6 +242,7 @@ export function ComposerTurnControl({
           />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="composer-footer-left flex shrink-0 items-center gap-2">
+              <div className="flex items-center" ref={setAttachmentControlsParent} />
               <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
               <CurrentThreadStatus status={sessionSnapshot.threadStatus} />
             </div>

@@ -1,5 +1,8 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLingui } from "@lingui/react/macro";
+import { Button } from "@heroui/react";
+import { Paperclip } from "lucide-react";
+import { createPortal } from "react-dom";
 import {
   $getNodeByKey,
   $getRoot,
@@ -27,12 +30,15 @@ import {
 export function ComposerAttachmentsPlugin({
   authorizationToken,
   disabled,
+  controlsParent,
 }: {
   authorizationToken: string;
   disabled: boolean;
+  controlsParent?: HTMLElement | null;
 }) {
   const [editor] = useLexicalComposerContext();
   const { t } = useLingui();
+  const inputRef = useRef<HTMLInputElement>(null);
   const uploads = useRef(new Map<NodeKey, { file: File; request: AbortController | null }>());
   useEffect(() => {
     const entries = uploads.current;
@@ -148,22 +154,35 @@ export function ComposerAttachmentsPlugin({
       });
     }
   }, [authorizationToken, editor]);
-  return (
-    <input
-      aria-label={t({
-        comment: "Choose local files to attach to the current message",
-        message: "Attach files",
-      })}
-      className="mx-3 max-w-full text-sm"
-      type="file"
-      multiple
-      disabled={disabled}
-      onChange={(event) => {
-        const files = Array.from(event.currentTarget.files ?? []);
-        event.currentTarget.value = "";
-        editor.dispatchCommand(ADD_ATTACHMENTS_COMMAND, files);
-        editor.focus();
-      }}
-    />
+  const picker = (
+    <>
+      <Button
+        isIconOnly
+        size="sm"
+        variant="tertiary"
+        isDisabled={disabled}
+        aria-label={t({
+          comment: "Choose local files to attach to the current message",
+          message: "Attach files",
+        })}
+        onPress={() => inputRef.current?.click()}
+      >
+        <Paperclip aria-hidden="true" size={18} />
+      </Button>
+      <input
+        ref={inputRef}
+        hidden
+        type="file"
+        multiple
+        disabled={disabled}
+        onChange={(event) => {
+          const files = Array.from(event.currentTarget.files ?? []);
+          event.currentTarget.value = "";
+          editor.dispatchCommand(ADD_ATTACHMENTS_COMMAND, files);
+          editor.focus();
+        }}
+      />
+    </>
   );
+  return controlsParent == null ? picker : createPortal(picker, controlsParent);
 }
