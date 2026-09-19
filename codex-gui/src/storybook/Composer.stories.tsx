@@ -9,7 +9,7 @@ import { ComposerStopPreview } from "./composer/ComposerStopPreview";
 const meta = {
   title: "Composer/Input and send",
   component: ComposerPreview,
-  parameters: { layout: "padded" },
+  parameters: { layout: "fullscreen" },
   decorators: [
     (Story, context) => (
       <StorybookStatefulEnvironment storyId={context.id}>

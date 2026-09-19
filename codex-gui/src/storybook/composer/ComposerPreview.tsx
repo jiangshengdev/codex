@@ -69,7 +69,10 @@ export function ComposerSimulation({
     skillsRole,
   };
   return (
-    <Surface className="mx-auto grid w-full max-w-2xl gap-4 rounded-3xl p-4">
+    <Surface
+      className="app-shell-content-boundary grid gap-4 rounded-3xl py-4"
+      data-app-shell-content-layout="reading"
+    >
       <p className="text-sm text-muted">
         <Trans>
           Local simulation. Requests and runtime events advance only when you use the simulation
