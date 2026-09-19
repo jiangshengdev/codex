@@ -11,11 +11,13 @@ import { DevOnly } from "../DevOnly";
 import { PendingInputPreview } from "../pendingInput/PendingInputScenarioView";
 import { definiteFailure, guideRefusal } from "../pendingInput/recovery/recoveryScenario";
 import { ComposerSimulation } from "./ComposerPreview";
-import { createComposerScenario, type ComposerScenario } from "./composerScenario";
+import { createComposerGuideScenario, type ComposerGuidePreset } from "./composerGuideScenario";
 
-function GuideControls({ scenario }: Readonly<{ scenario: ComposerScenario }>) {
+function GuideControls({
+  scenario,
+}: Readonly<{ scenario: ReturnType<typeof createComposerGuideScenario> }>) {
   const requests = useSyncExternalStore(scenario.steers.subscribe, scenario.steers.getSnapshot);
-  const [receipts, setReceipts] = useState<(typeof requests)[number]["params"][]>([]);
+  const [receipts, setReceipts] = useState(scenario.initialGuideReceipts);
   return (
     <DevOnly className="grid gap-3">
       <Button
@@ -98,13 +100,13 @@ function GuideControls({ scenario }: Readonly<{ scenario: ComposerScenario }>) {
   );
 }
 
-export function ComposerGuidePreview() {
+export function ComposerGuidePreview({
+  preset = "empty",
+}: Readonly<{ preset?: ComposerGuidePreset }>) {
   return (
     <StrictMode>
       <Toast.Provider placement="top" />
-      <PendingInputPreview
-        createScenario={() => createComposerScenario(undefined, "preview-active")}
-      >
+      <PendingInputPreview key={preset} createScenario={() => createComposerGuideScenario(preset)}>
         {(scenario) => (
           <ComposerSimulation scenario={scenario}>
             {() => <GuideControls scenario={scenario} />}

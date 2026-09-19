@@ -54,6 +54,7 @@ export const SavingFailed: Story = {
   render: () => <ComposerDraftPreview initialSaveFailure />,
 };
 export const RunningQueue: Story = { render: () => <ComposerQueuePreview /> };
+// RunningGuide already displays the running empty Composer; keep that direct entry.
 export const RunningGuide: Story = { render: () => <ComposerGuidePreview /> };
 export const RunningStop: Story = { render: () => <ComposerStopPreview /> };
 // Empty and RunningQueue offer interactive send paths, not these initial states.
@@ -69,4 +70,22 @@ export const SendFailed: Story = {
 };
 export const SendUnknown: Story = {
   render: () => <ComposerSendPreview preset="unknown" />,
+};
+export const RunningWithInput: Story = {
+  render: () => <ComposerGuidePreview preset="withInput" />,
+};
+export const GuideRequestPending: Story = {
+  render: () => <ComposerGuidePreview preset="requestPending" />,
+};
+export const GuideRuntimePending: Story = {
+  render: () => <ComposerGuidePreview preset="runtimePending" />,
+};
+export const GuideUnavailable: Story = {
+  render: () => <ComposerGuidePreview preset="unavailable" />,
+};
+export const GuideFailed: Story = {
+  render: () => <ComposerGuidePreview preset="failed" />,
+};
+export const GuideUnknown: Story = {
+  render: () => <ComposerGuidePreview preset="unknown" />,
 };
