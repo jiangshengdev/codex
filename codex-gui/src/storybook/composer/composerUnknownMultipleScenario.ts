@@ -8,14 +8,18 @@ import { createComposerInputQueue } from "@/features/composerInputQueue/composer
 import { createComposerInterruptState } from "@/features/composerInputQueue/composerInterruptState";
 import { createComposerScenario } from "./composerScenario";
 import { composerLongSendText } from "./composerLongSendText";
+import { mixedMessageText } from "../mixedMessageText";
 
-export function createComposerUnknownMultipleScenario(longText = false) {
+export function createComposerUnknownMultipleScenario(longText = false, longList = false) {
   const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "preview-history" });
-  for (const text of [
-    longText ? composerLongSendText : "Review the fictional implementation.",
-    "Check the fictional tests and edge cases.",
-    "Summarize the fictional changes and remaining questions.",
-  ]) {
+  const texts = longList
+    ? Array.from({ length: 23 }, (_, index) => mixedMessageText("Historical guide", index + 1))
+    : [
+        longText ? composerLongSendText : "Review the fictional implementation.",
+        "Check the fictional tests and edge cases.",
+        "Summarize the fictional changes and remaining questions.",
+      ];
+  for (const text of texts) {
     const capture = composerDraftCapture(text);
     const effect = queue.submitSteer({
       type: "recoverable",

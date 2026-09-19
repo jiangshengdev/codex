@@ -10,11 +10,15 @@ export type ComposerSendPreset =
   | "runtimePending"
   | "failed"
   | "unknown"
+  | "unknownLongList"
   | "unknownMultiple";
 
 export function createComposerSendScenario(preset: ComposerSendPreset, longText = false) {
-  if (preset === "unknownMultiple") {
-    return { ...createComposerUnknownMultipleScenario(longText), initialResponseTurnId: null };
+  if (preset === "unknownMultiple" || preset === "unknownLongList") {
+    return {
+      ...createComposerUnknownMultipleScenario(longText, preset === "unknownLongList"),
+      initialResponseTurnId: null,
+    };
   }
   const scenario = createComposerScenario();
   scenario.coordinator.submit(

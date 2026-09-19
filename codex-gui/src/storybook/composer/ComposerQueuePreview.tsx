@@ -3,10 +3,12 @@ import { StrictMode, useState } from "react";
 import { PendingInputPreview } from "../pendingInput/PendingInputScenarioView";
 import { ComposerSimulation } from "./ComposerPreview";
 import { createComposerQueueScenario } from "./composerQueueScenario";
+import { PendingInputBrowsingInitialState } from "../pendingInput/PendingInputBrowsingInitialState";
 
 function QueueSimulation({
   environment,
-}: Readonly<{ environment: ReturnType<typeof createComposerQueueScenario> }>) {
+  longList,
+}: Readonly<{ environment: ReturnType<typeof createComposerQueueScenario>; longList: boolean }>) {
   const [session, setSession] = useState(() => environment.createSession());
   return (
     <ComposerSimulation
@@ -15,16 +17,21 @@ function QueueSimulation({
       onRestoreQueue={(activeTurnId) => {
         setSession(environment.restore(activeTurnId));
       }}
-    />
+    >
+      {longList ? () => <PendingInputBrowsingInitialState /> : undefined}
+    </ComposerSimulation>
   );
 }
 
-export function ComposerQueuePreview() {
+export function ComposerQueuePreview({ longList = false }: Readonly<{ longList?: boolean }>) {
   return (
     <StrictMode>
       <Toast.Provider placement="top" />
-      <PendingInputPreview createScenario={createComposerQueueScenario}>
-        {(environment) => <QueueSimulation environment={environment} />}
+      <PendingInputPreview
+        key={String(longList)}
+        createScenario={() => createComposerQueueScenario(longList)}
+      >
+        {(environment) => <QueueSimulation environment={environment} longList={longList} />}
       </PendingInputPreview>
     </StrictMode>
   );

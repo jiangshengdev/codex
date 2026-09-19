@@ -39,3 +39,14 @@ export const SendUnknownMultipleLongText: Story = {
   ...SendUnknownMultiple,
   render: () => <ComposerSendPreview preset="unknownMultiple" longText />,
 };
+export const SendUnknownLongList: Story = {
+  render: () => <ComposerSendPreview preset="unknownLongList" />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "23 unresolved historical guide records restored through isolated persistence. The shared unknown-result panel scrolls at 375×720 and 1280×720. These are not concurrent ordinary sends and are never automatically resent.",
+      },
+    },
+  },
+};

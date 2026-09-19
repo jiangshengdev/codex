@@ -12,6 +12,7 @@ import { PendingInputPreview } from "../pendingInput/PendingInputScenarioView";
 import { definiteFailure, guideRefusal } from "../pendingInput/recovery/recoveryScenario";
 import { ComposerSimulation } from "./ComposerPreview";
 import { createComposerGuideScenario, type ComposerGuidePreset } from "./composerGuideScenario";
+import { PendingInputBrowsingInitialState } from "../pendingInput/PendingInputBrowsingInitialState";
 
 function GuideControls({
   scenario,
@@ -109,7 +110,12 @@ export function ComposerGuidePreview({
       <PendingInputPreview key={preset} createScenario={() => createComposerGuideScenario(preset)}>
         {(scenario) => (
           <ComposerSimulation scenario={scenario}>
-            {() => <GuideControls scenario={scenario} />}
+            {() => (
+              <>
+                <GuideControls scenario={scenario} />
+                {preset === "queuedLongList" ? <PendingInputBrowsingInitialState /> : null}
+              </>
+            )}
           </ComposerSimulation>
         )}
       </PendingInputPreview>

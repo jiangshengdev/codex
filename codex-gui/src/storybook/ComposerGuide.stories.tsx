@@ -28,3 +28,14 @@ export const GuideFailed: Story = {
 export const GuideUnknown: Story = {
   render: () => <ComposerGuidePreview preset="unknown" />,
 };
+export const GuideQueuedLongList: Story = {
+  render: () => <ComposerGuidePreview preset="queuedLongList" />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "23 mixed-length guides: one issuing request and 22 queued, not concurrent requests. The real drawer initially loads 20 and scrolls at 375×720 and 1280×720.",
+      },
+    },
+  },
+};

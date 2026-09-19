@@ -1,6 +1,8 @@
 import { createComposerScenario, type ComposerScenario } from "./composerScenario";
+import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
+import { mixedMessageText } from "../mixedMessageText";
 
-export function createComposerQueueScenario() {
+export function createComposerQueueScenario(longList = false) {
   const records = new Map<string, string>();
   const persistence = {
     authorizationContext: crypto.randomUUID(),
@@ -14,7 +16,14 @@ export function createComposerQueueScenario() {
   let session: ComposerScenario | null = null;
   return {
     createSession() {
-      session ??= createComposerScenario(persistence, "preview-active");
+      if (session == null) {
+        session = createComposerScenario(persistence, "preview-active");
+        if (longList)
+          for (let index = 1; index <= 23; index++)
+            session.coordinator.submit(
+              composerDraftCapture(mixedMessageText("Ordinary message", index)),
+            );
+      }
       return session;
     },
     restore(activeTurnId: string | null) {
