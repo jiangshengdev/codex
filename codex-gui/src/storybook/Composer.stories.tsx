@@ -5,6 +5,7 @@ import { ComposerDraftPreview } from "./composer/ComposerDraftPreview";
 import { ComposerQueuePreview } from "./composer/ComposerQueuePreview";
 import { ComposerGuidePreview } from "./composer/ComposerGuidePreview";
 import { ComposerStopPreview } from "./composer/ComposerStopPreview";
+import { ComposerSendPreview } from "./composer/ComposerSendPreview";
 
 const meta = {
   title: "Composer/Input and send",
@@ -55,3 +56,17 @@ export const SavingFailed: Story = {
 export const RunningQueue: Story = { render: () => <ComposerQueuePreview /> };
 export const RunningGuide: Story = { render: () => <ComposerGuidePreview /> };
 export const RunningStop: Story = { render: () => <ComposerStopPreview /> };
+// Empty and RunningQueue offer interactive send paths, not these initial states.
+// Reuse the product Pending input region for failure and unknown-delivery context.
+export const SendRequestPending: Story = {
+  render: () => <ComposerSendPreview preset="requestPending" />,
+};
+export const SendRuntimePending: Story = {
+  render: () => <ComposerSendPreview preset="runtimePending" />,
+};
+export const SendFailed: Story = {
+  render: () => <ComposerSendPreview preset="failed" />,
+};
+export const SendUnknown: Story = {
+  render: () => <ComposerSendPreview preset="unknown" />,
+};

@@ -22,12 +22,14 @@ export function ComposerSimulation({
   onRestoreQueue,
   interruptOnCompletion = false,
   initialSkillAvailable = true,
+  initialResponseTurnId = null,
 }: Readonly<{
   scenario: ComposerScenario;
   children?: (isIdle: boolean) => ReactNode;
   onRestoreQueue?: (activeTurnId: string | null) => void;
   interruptOnCompletion?: boolean;
   initialSkillAvailable?: boolean;
+  initialResponseTurnId?: string | null;
 }>) {
   const composer = useSyncExternalStore(
     scenario.coordinator.subscribe,
@@ -35,7 +37,7 @@ export function ComposerSimulation({
   );
   const requests = useSyncExternalStore(scenario.starts.subscribe, scenario.starts.getSnapshot);
   const [activeTurnId, setActiveTurnId] = useState(scenario.initialActiveTurnId);
-  const [responseTurnId, setResponseTurnId] = useState<string | null>(null);
+  const [responseTurnId, setResponseTurnId] = useState(initialResponseTurnId);
   const [skillAvailable, setSkillAvailable] = useState(initialSkillAvailable);
   const release = scenario.coordinator.getReleaseReadiness();
   // Restoring a saved queue deliberately retains queued and unknown-send records.
