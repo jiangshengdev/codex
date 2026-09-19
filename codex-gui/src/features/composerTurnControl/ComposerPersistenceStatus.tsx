@@ -27,6 +27,7 @@ export function ComposerPersistenceStatus({
           <FailureLayout
             actions={
               <Button
+                size="sm"
                 variant="primary"
                 isDisabled={!enabled}
                 onPress={() => {
@@ -47,7 +48,9 @@ export function ComposerPersistenceStatus({
                 <Trans>Your input is still here. Sending is blocked until saving succeeds.</Trans>
               </Alert.Description>
               {persistence.error !== "" ? (
-                <FailureDiagnosticModal>{persistence.error}</FailureDiagnosticModal>
+                <FailureDiagnosticModal triggerClassName="mt-2 self-start" triggerSize="sm">
+                  {persistence.error}
+                </FailureDiagnosticModal>
               ) : null}
             </Alert.Content>
           </FailureLayout>
