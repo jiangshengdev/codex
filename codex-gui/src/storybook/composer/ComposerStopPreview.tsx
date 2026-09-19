@@ -5,7 +5,8 @@ import { DevOnly } from "../DevOnly";
 import { PendingInputPreview } from "../pendingInput/PendingInputScenarioView";
 import { definiteFailure } from "../pendingInput/recovery/recoveryScenario";
 import { ComposerSimulation } from "./ComposerPreview";
-import { createComposerScenario, type ComposerScenario } from "./composerScenario";
+import type { ComposerScenario } from "./composerScenario";
+import { createComposerStopScenario, type ComposerStopPreset } from "./composerStopScenario";
 
 function StopControls({ scenario }: Readonly<{ scenario: ComposerScenario }>) {
   const requests = useSyncExternalStore(
@@ -45,13 +46,13 @@ function StopControls({ scenario }: Readonly<{ scenario: ComposerScenario }>) {
   );
 }
 
-export function ComposerStopPreview() {
+export function ComposerStopPreview({
+  preset = "running",
+}: Readonly<{ preset?: ComposerStopPreset }>) {
   return (
     <StrictMode>
       <Toast.Provider placement="top" />
-      <PendingInputPreview
-        createScenario={() => createComposerScenario(undefined, "preview-active")}
-      >
+      <PendingInputPreview key={preset} createScenario={() => createComposerStopScenario(preset)}>
         {(scenario) => (
           <ComposerSimulation scenario={scenario} interruptOnCompletion>
             {() => <StopControls scenario={scenario} />}
