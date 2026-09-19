@@ -64,6 +64,38 @@ test("multiple unknown sends can be removed independently without resending or l
 });
 
 for (const width of [375, 1280]) {
+  for (const preset of ["send-unknown-long-text", "send-unknown-multiple-long-text"]) {
+    test(`${preset} keeps long content separated from the notice at ${String(width)}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(
+        `http://localhost:6006/iframe.html?id=composer-input-and-send-send--${preset}`,
+      );
+      const remove = page.getByRole("button", { name: "Remove local record", exact: true });
+      const panel = page.getByRole("status").filter({ has: remove });
+      const list = panel.getByRole("list");
+      const description = panel.getByText(/These messages will not be sent again automatically/);
+      await expect(remove).toHaveCount(preset.includes("multiple") ? 3 : 1);
+      await expect(list).toContainText("End of the fictional long message.");
+      await expect
+        .poll(async () => {
+          const notice = await description.boundingBox();
+          const messages = await list.boundingBox();
+          return notice != null && messages != null ? messages.y - notice.y - notice.height : 0;
+        })
+        .toBeGreaterThanOrEqual(16);
+      await expect
+        .poll(() => panel.evaluate((element) => element.scrollWidth <= element.clientWidth))
+        .toBe(true);
+      await remove.first().click();
+      await expect(list.getByText(/End of the fictional long message/)).toHaveCount(0);
+      await expect(remove).toHaveCount(preset.includes("multiple") ? 2 : 0);
+      await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
+      await expect(list).toContainText("End of the fictional long message.");
+    });
+  }
+
   test(`unknown send action matches recovery button sizing at ${String(width)}px`, async ({
     page,
     context,

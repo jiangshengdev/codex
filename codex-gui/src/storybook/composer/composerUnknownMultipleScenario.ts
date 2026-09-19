@@ -7,11 +7,12 @@ import {
 import { createComposerInputQueue } from "@/features/composerInputQueue/composerInputQueue";
 import { createComposerInterruptState } from "@/features/composerInputQueue/composerInterruptState";
 import { createComposerScenario } from "./composerScenario";
+import { composerLongSendText } from "./composerLongSendText";
 
-export function createComposerUnknownMultipleScenario() {
+export function createComposerUnknownMultipleScenario(longText = false) {
   const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "preview-history" });
   for (const text of [
-    "Review the fictional implementation.",
+    longText ? composerLongSendText : "Review the fictional implementation.",
     "Check the fictional tests and edge cases.",
     "Summarize the fictional changes and remaining questions.",
   ]) {

@@ -32,3 +32,10 @@ export const SendUnknownMultiple: Story = {
     },
   },
 };
+export const SendUnknownLongText: Story = {
+  render: () => <ComposerSendPreview preset="unknown" longText />,
+};
+export const SendUnknownMultipleLongText: Story = {
+  ...SendUnknownMultiple,
+  render: () => <ComposerSendPreview preset="unknownMultiple" longText />,
+};

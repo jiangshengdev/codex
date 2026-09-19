@@ -3,6 +3,7 @@ import { baseTurn } from "@/features/projection/__tests__/projectionTestBuilders
 import { definiteFailure } from "../pendingInput/recovery/recoveryScenario";
 import { createComposerScenario } from "./composerScenario";
 import { createComposerUnknownMultipleScenario } from "./composerUnknownMultipleScenario";
+import { composerLongSendText } from "./composerLongSendText";
 
 export type ComposerSendPreset =
   | "requestPending"
@@ -11,12 +12,14 @@ export type ComposerSendPreset =
   | "unknown"
   | "unknownMultiple";
 
-export function createComposerSendScenario(preset: ComposerSendPreset) {
+export function createComposerSendScenario(preset: ComposerSendPreset, longText = false) {
   if (preset === "unknownMultiple") {
-    return { ...createComposerUnknownMultipleScenario(), initialResponseTurnId: null };
+    return { ...createComposerUnknownMultipleScenario(longText), initialResponseTurnId: null };
   }
   const scenario = createComposerScenario();
-  scenario.coordinator.submit(composerDraftCapture("Review this fictional send."));
+  scenario.coordinator.submit(
+    composerDraftCapture(longText ? composerLongSendText : "Review this fictional send."),
+  );
   const initialResponseTurnId = preset === "runtimePending" ? "preview-send-accepted" : null;
   if (initialResponseTurnId != null) {
     scenario.starts.getSnapshot()[0]?.resolve({
