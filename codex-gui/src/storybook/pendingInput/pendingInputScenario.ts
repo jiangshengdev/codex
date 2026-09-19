@@ -13,6 +13,7 @@ import {
   eventForThreadOwner,
   turnCompleted,
   turnStarted,
+  turnWithStatus,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createListenerSet } from "@/subscriptions/listenerSet";
 
@@ -127,11 +128,18 @@ export function createPendingInputScenario({
   for (let index = 1; index <= guidingCount; index++)
     coordinator.submitSteer(composerDraftCapture(`Guide message ${String(index)}`));
   const owner = { threadId: "thread-1", subscriptionId: "preview-subscription" };
-  const completeTurn = (id = "preview-active") => {
+  const completeTurn = (
+    id = "preview-active",
+    status: Parameters<typeof turnWithStatus>[1] = "completed",
+  ) => {
     coordinator.observeAcceptedEvent({
       replay: "live",
       notification: eventForThreadOwner(
-        turnCompleted(eventTurnCompleted, `preview-completed-${crypto.randomUUID()}`, baseTurn(id)),
+        turnCompleted(
+          eventTurnCompleted,
+          `preview-completed-${crypto.randomUUID()}`,
+          turnWithStatus(baseTurn(id), status),
+        ),
         owner,
       ),
     });

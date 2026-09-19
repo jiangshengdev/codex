@@ -19,10 +19,12 @@ export function ComposerSimulation({
   scenario,
   children,
   onRestoreQueue,
+  interruptOnCompletion = false,
 }: Readonly<{
   scenario: ComposerScenario;
   children?: (isIdle: boolean) => ReactNode;
   onRestoreQueue?: (activeTurnId: string | null) => void;
+  interruptOnCompletion?: boolean;
 }>) {
   const composer = useSyncExternalStore(
     scenario.coordinator.subscribe,
@@ -129,11 +131,20 @@ export function ComposerSimulation({
           isDisabled={activeTurnId == null}
           onPress={() => {
             if (activeTurnId == null) return;
-            scenario.completeTurn(activeTurnId);
+            scenario.completeTurn(
+              activeTurnId,
+              interruptOnCompletion ? "interrupted" : "completed",
+            );
             setActiveTurnId(null);
           }}
         >
-          <Trans>Simulate current turn completed</Trans>
+          {interruptOnCompletion ? (
+            <Trans comment="Inject the interrupted terminal event for the current simulated turn, separately from the stop request response">
+              Simulate current turn interrupted
+            </Trans>
+          ) : (
+            <Trans>Simulate current turn completed</Trans>
+          )}
         </Button>
         <Button
           variant="secondary"

@@ -4,6 +4,7 @@ import { ComposerPreview } from "./composer/ComposerPreview";
 import { ComposerDraftPreview } from "./composer/ComposerDraftPreview";
 import { ComposerQueuePreview } from "./composer/ComposerQueuePreview";
 import { ComposerGuidePreview } from "./composer/ComposerGuidePreview";
+import { ComposerStopPreview } from "./composer/ComposerStopPreview";
 
 const meta = {
   title: "Composer/Input and send",
@@ -23,3 +24,4 @@ export const Empty: Story = {};
 export const RestoredDraft: Story = { render: () => <ComposerDraftPreview /> };
 export const RunningQueue: Story = { render: () => <ComposerQueuePreview /> };
 export const RunningGuide: Story = { render: () => <ComposerGuidePreview /> };
+export const RunningStop: Story = { render: () => <ComposerStopPreview /> };
