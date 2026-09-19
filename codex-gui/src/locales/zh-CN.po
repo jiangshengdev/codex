@@ -132,7 +132,7 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
 #. Choose local files to attach to the current message
-#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:164
+#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:166
 msgid "Attach files"
 msgstr "添加文件"
 
@@ -154,11 +154,11 @@ msgstr "取消"
 msgid "Changes copied"
 msgstr "已复制修改内容"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:44
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:45
 msgid "Changes could not be saved"
 msgstr "无法保存更改"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:79
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:82
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "继续前，请检查队列、其他打开的页面和会话历史。发送结果未知的消息仍会阻塞后续发送。"
 
@@ -291,7 +291,7 @@ msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗�
 
 #. Resumes sending this page's restored queue; does not open the queue
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:125
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:68
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:71
 msgid "Continue sending"
 msgstr "继续发送"
 
@@ -943,7 +943,7 @@ msgid "Remove from list"
 msgstr "移出列表"
 
 #. Drops only this local unknown-send record, without retracting server work
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:113
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:117
 msgid "Remove local record"
 msgstr "移除本地记录"
 
@@ -994,7 +994,7 @@ msgstr "恢复同步"
 msgid "Restore task"
 msgstr "恢复任务"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:76
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:79
 msgid "Restored messages are paused"
 msgstr "恢复的消息已暂停发送"
 
@@ -1024,7 +1024,7 @@ msgid "Resuming sending"
 msgstr "正在继续发送"
 
 #. Retries saving the composer draft and queue in this browser tab
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:36
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:37
 msgid "Retry saving"
 msgstr "重试保存"
 
@@ -1089,7 +1089,7 @@ msgstr "发送"
 msgid "Sending"
 msgstr "正在发送"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:93
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:96
 msgid "Sending result unknown"
 msgstr "发送结果未知"
 
@@ -1365,7 +1365,7 @@ msgstr "任务切换已提交，但连接已中断。重新连接后请确认当
 msgid "Theme preference"
 msgstr "主题偏好"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:96
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:99
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "这些消息不会自动重发。移除本地记录不会取消或撤回服务端的消息。"
 
@@ -1658,6 +1658,6 @@ msgstr "编辑内容已保留在下方。请先复制需要保留的内容，再
 msgid "Your input is retained. Retry to continue."
 msgstr "输入内容已保留。重试以继续。"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:47
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:48
 msgid "Your input is still here. Sending is blocked until saving succeeds."
 msgstr "输入内容仍保留在此处。保存成功前无法发送。"

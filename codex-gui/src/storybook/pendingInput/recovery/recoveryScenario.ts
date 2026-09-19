@@ -44,13 +44,17 @@ export function guideRefusal() {
   });
 }
 
-export function createRecoveryScenario(preset: RecoveryPreset) {
+export function createRecoveryScenario(preset: RecoveryPreset, mixedText = false) {
   const recoveryPreset =
     preset === "unsent" || preset === "recoveryDisabled" || preset === "recovering";
   const scenario = createPendingInputScenario(
     recoveryPreset
-      ? { ordinaryCount: 1, startSending: true }
-      : { ordinaryCount: 3, guidingCount: preset === "combined" ? 2 : 1 },
+      ? { ordinaryCount: mixedText ? 23 : 1, startSending: true, mixedText }
+      : {
+          ordinaryCount: mixedText ? 23 : 3,
+          guidingCount: mixedText ? 23 : preset === "combined" ? 2 : 1,
+          mixedText,
+        },
   );
   const guideReceipts = manualRequests<
     Parameters<CreateComposerInputQueueCoordinatorInput["steerTurn"]>[0],

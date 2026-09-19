@@ -1,6 +1,35 @@
 import { expect, test } from "@playwright/test";
+import { expectScrollableContent } from "./storybookTextAssertions";
 
 test.use({ locale: "en" });
+
+for (const width of [375, 1280]) {
+  test(`directly displays sortable mixed text at ${String(width)}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 720 });
+    await page.goto(
+      "http://localhost:6006/iframe.html?id=composer-pending-input-reordering--mixed-text",
+    );
+    const dialog = page.getByRole("dialog");
+    const rows = dialog.getByRole("group", { name: /^Ordinary message / });
+    await expect(rows).toHaveCount(20);
+    await expectScrollableContent(rows.first());
+    await dialog
+      .getByRole("button", { name: "Move up pending message: Ordinary message 2", exact: true })
+      .click();
+    await expect(rows.first()).toHaveAccessibleName("Ordinary message 2");
+    await dialog.getByRole("button", { name: "Show more queued messages", exact: true }).click();
+    await expect(rows).toHaveCount(23);
+    await rows.last().getByRole("button", { name: "View full message", exact: true }).click();
+    await expect(page.getByRole("dialog").last()).toContainText("END OF Ordinary message 23");
+    await page.reload();
+    await expect(rows.first()).toHaveAccessibleName(/^Ordinary message 1 /);
+    await expect(rows).toHaveCount(20);
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
+    await expect(rows.first()).toHaveAccessibleName(/^Ordinary message 1 /);
+    await expect(dialog.getByRole("group", { name: /^Guide message / })).toHaveCount(20);
+  });
+}
 
 test("moves queued messages immediately with all four actions and preserves boundaries", async ({
   page,

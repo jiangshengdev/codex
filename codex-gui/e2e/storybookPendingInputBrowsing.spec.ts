@@ -1,6 +1,53 @@
 import { expect, test } from "@playwright/test";
+import { expectScrollableContent } from "./storybookTextAssertions";
 
 test.use({ locale: "en" });
+
+for (const width of [375, 1280]) {
+  test(`directly previews mixed lists and long details at ${String(width)}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 720 });
+    for (const [story, label] of [
+      ["guide-detail", "Guide"],
+      ["ordinary-detail", "Ordinary"],
+    ] as const) {
+      await page.goto(
+        `http://localhost:6006/iframe.html?id=composer-pending-input-browsing--${story}`,
+      );
+      const detail = page.getByRole("dialog", { name: "Pending details", exact: true }).last();
+      await expect(detail).toContainText(`END OF ${label} message 1`);
+      await expect(detail).toContainText("end-of-reference");
+      await expect(detail).toContainText(/message 1\nReview/);
+      await expect(detail).toContainText(/\n\nCheck the narrow-screen/);
+      await page.reload();
+      await expect(detail).toContainText(`END OF ${label} message 1`);
+      await detail.getByRole("button", { name: "Close", exact: true }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(1);
+      await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
+      await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
+      await expect(detail).toContainText(`END OF ${label} message 1`);
+    }
+    await page.goto(
+      "http://localhost:6006/iframe.html?id=composer-pending-input-browsing--mixed-text",
+    );
+    const dialog = page.getByRole("dialog");
+    const ordinary = dialog.getByRole("group", { name: /^Ordinary message / });
+    const guides = dialog.getByRole("group", { name: /^Guide message / });
+    await expect(ordinary).toHaveCount(20);
+    await expect(guides).toHaveCount(20);
+    await expect(dialog.getByText("Ordinary message 2", { exact: true })).toBeVisible();
+    await expectScrollableContent(ordinary.first());
+    await dialog.getByRole("button", { name: "Show more guiding messages", exact: true }).click();
+    await expect(guides).toHaveCount(23);
+    await expect(ordinary).toHaveCount(20);
+    await dialog.getByRole("button", { name: "Show more queued messages", exact: true }).click();
+    await expect(ordinary).toHaveCount(23);
+    await ordinary.last().scrollIntoViewIfNeeded();
+    await expect(ordinary.last()).toBeInViewport();
+    await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-browsing--queued");
+    await expect(page.getByRole("group", { name: "Pending: Queued 3", exact: true })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+}
 
 test("returns to the main draft when the last queued message starts sending during exit", async ({
   page,

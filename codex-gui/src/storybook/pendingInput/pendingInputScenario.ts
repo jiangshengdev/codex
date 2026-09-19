@@ -13,8 +13,10 @@ import {
   eventForThreadOwner,
   turnCompleted,
   turnStarted,
+  turnWithStatus,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createListenerSet } from "@/subscriptions/listenerSet";
+import { mixedMessageText } from "../mixedMessageText";
 
 type Commands = CreateComposerInputQueueCoordinatorInput;
 
@@ -56,14 +58,20 @@ export type PendingInputScenarioOptions = Readonly<{
   ordinaryCount?: number;
   guidingCount?: number;
   longText?: boolean;
+  mixedText?: boolean;
   startSending?: boolean;
+  persistence?: Commands["persistence"];
+  activeTurnId?: Commands["activeTurnId"];
 }>;
 
 export function createPendingInputScenario({
   ordinaryCount = 3,
   guidingCount = 0,
   longText = false,
+  mixedText = false,
   startSending = false,
+  persistence,
+  activeTurnId = "preview-active",
 }: PendingInputScenarioOptions = {}) {
   const records = new Map<string, string>();
   const starts = manualRequests<
@@ -80,8 +88,8 @@ export function createPendingInputScenario({
   >();
   const coordinator = createComposerInputQueueCoordinator({
     threadId: "thread-1",
-    activeTurnId: "preview-active",
-    persistence: {
+    activeTurnId,
+    persistence: persistence ?? {
       authorizationContext: crypto.randomUUID(),
       storage: {
         getItem: (key) => records.get(key) ?? null,
@@ -116,19 +124,31 @@ export function createPendingInputScenario({
   for (let index = 1; index <= ordinaryCount; index++) {
     coordinator.submit(
       composerDraftCapture(
-        `Ordinary message ${String(index)}${longText && index === 1 ? " — " + "Fictional queue content. ".repeat(80) + "END OF LONG MESSAGE" : ""}`,
+        mixedText
+          ? mixedMessageText("Ordinary message", index)
+          : `Ordinary message ${String(index)}${longText && index === 1 ? " — " + "Fictional queue content. ".repeat(80) + "END OF LONG MESSAGE" : ""}`,
       ),
     );
   }
   for (let index = 1; index <= guidingCount; index++)
-    coordinator.submitSteer(composerDraftCapture(`Guide message ${String(index)}`));
-  let eventId = 0;
+    coordinator.submitSteer(
+      composerDraftCapture(
+        mixedText ? mixedMessageText("Guide message", index) : `Guide message ${String(index)}`,
+      ),
+    );
   const owner = { threadId: "thread-1", subscriptionId: "preview-subscription" };
-  const completeTurn = (id = "preview-active") => {
+  const completeTurn = (
+    id = "preview-active",
+    status: Parameters<typeof turnWithStatus>[1] = "completed",
+  ) => {
     coordinator.observeAcceptedEvent({
       replay: "live",
       notification: eventForThreadOwner(
-        turnCompleted(eventTurnCompleted, `preview-completed-${String(++eventId)}`, baseTurn(id)),
+        turnCompleted(
+          eventTurnCompleted,
+          `preview-completed-${crypto.randomUUID()}`,
+          turnWithStatus(baseTurn(id), status),
+        ),
         owner,
       ),
     });
@@ -137,7 +157,7 @@ export function createPendingInputScenario({
     coordinator.observeAcceptedEvent({
       replay: "live",
       notification: eventForThreadOwner(
-        turnStarted(eventTurnStarted, `preview-started-${String(++eventId)}`, {
+        turnStarted(eventTurnStarted, `preview-started-${crypto.randomUUID()}`, {
           ...baseTurn(id),
           status: "inProgress",
         }),

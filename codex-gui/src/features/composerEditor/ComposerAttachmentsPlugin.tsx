@@ -32,7 +32,7 @@ export function ComposerAttachmentsPlugin({
   disabled,
   controlsParent,
 }: {
-  authorizationToken: string;
+  authorizationToken: string | null;
   disabled: boolean;
   controlsParent?: HTMLElement | null;
 }) {
@@ -41,6 +41,8 @@ export function ComposerAttachmentsPlugin({
   const inputRef = useRef<HTMLInputElement>(null);
   const uploads = useRef(new Map<NodeKey, { file: File; request: AbortController | null }>());
   useEffect(() => {
+    if (authorizationToken == null) return;
+    const uploadAuthorizationToken = authorizationToken;
     const entries = uploads.current;
     const unregister = mergeRegister(
       editor.registerCommand(
@@ -140,7 +142,7 @@ export function ComposerAttachmentsPlugin({
         if ($isAttachmentNode(node))
           node.setAttachment({ ...node.getAttachment(), status: "uploading", failure: null });
       });
-      const result = await uploadFile(entry.file, authorizationToken, request.signal);
+      const result = await uploadFile(entry.file, uploadAuthorizationToken, request.signal);
       if (request.signal.aborted || entries.get(key) !== entry) return;
       entry.request = null;
       editor.update(() => {
@@ -160,7 +162,7 @@ export function ComposerAttachmentsPlugin({
         isIconOnly
         size="sm"
         variant="tertiary"
-        isDisabled={disabled}
+        isDisabled={disabled || authorizationToken == null}
         aria-label={t({
           comment: "Choose local files to attach to the current message",
           message: "Attach files",
@@ -174,7 +176,7 @@ export function ComposerAttachmentsPlugin({
         hidden
         type="file"
         multiple
-        disabled={disabled}
+        disabled={disabled || authorizationToken == null}
         onChange={(event) => {
           const files = Array.from(event.currentTarget.files ?? []);
           event.currentTarget.value = "";

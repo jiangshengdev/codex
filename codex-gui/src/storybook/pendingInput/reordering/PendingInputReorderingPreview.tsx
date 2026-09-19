@@ -9,7 +9,10 @@ import {
 } from "../pendingInputScenario";
 import { DevOnly } from "../../DevOnly";
 
-type ReorderingOptions = Pick<PendingInputScenarioOptions, "ordinaryCount" | "guidingCount"> &
+type ReorderingOptions = Pick<
+  PendingInputScenarioOptions,
+  "ordinaryCount" | "guidingCount" | "mixedText"
+> &
   Readonly<{
     failure?: "notApplied" | "refreshFailed";
     showFailureInitially?: boolean;
@@ -17,8 +20,13 @@ type ReorderingOptions = Pick<PendingInputScenarioOptions, "ordinaryCount" | "gu
     mutationsEnabled?: boolean;
   }>;
 
-function createReorderingScenario({ failure, ordinaryCount, guidingCount }: ReorderingOptions) {
-  const scenario = createPendingInputScenario({ ordinaryCount, guidingCount });
+function createReorderingScenario({
+  failure,
+  ordinaryCount,
+  guidingCount,
+  mixedText,
+}: ReorderingOptions) {
+  const scenario = createPendingInputScenario({ ordinaryCount, guidingCount, mixedText });
   let failNextMove = failure != null;
   let staleReadsRemaining = 0;
   const role: ActiveThreadComposerRole = {
@@ -97,6 +105,7 @@ function FailureDescription({ failure }: Pick<ReorderingOptions, "failure">) {
 export function PendingInputReorderingPreview(options: ReorderingOptions) {
   return (
     <PendingInputPreview
+      key={JSON.stringify(options)}
       createScenario={() => createReorderingScenario(options)}
       renderDrawerControls={() => <FailureDescription failure={options.failure} />}
     >

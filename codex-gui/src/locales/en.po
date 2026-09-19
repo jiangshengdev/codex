@@ -132,7 +132,7 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
 #. Choose local files to attach to the current message
-#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:164
+#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:166
 msgid "Attach files"
 msgstr "Attach files"
 
@@ -154,11 +154,11 @@ msgstr "Cancel"
 msgid "Changes copied"
 msgstr "Changes copied"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:44
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:45
 msgid "Changes could not be saved"
 msgstr "Changes could not be saved"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:79
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:82
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 
@@ -291,7 +291,7 @@ msgstr "Context usage details, {usedTokensLabel} tokens used, context window cap
 
 #. Resumes sending this page's restored queue; does not open the queue
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:125
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:68
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:71
 msgid "Continue sending"
 msgstr "Continue sending"
 
@@ -943,7 +943,7 @@ msgid "Remove from list"
 msgstr "Remove from list"
 
 #. Drops only this local unknown-send record, without retracting server work
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:113
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:117
 msgid "Remove local record"
 msgstr "Remove local record"
 
@@ -994,7 +994,7 @@ msgstr "Restore sync"
 msgid "Restore task"
 msgstr "Restore task"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:76
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:79
 msgid "Restored messages are paused"
 msgstr "Restored messages are paused"
 
@@ -1024,7 +1024,7 @@ msgid "Resuming sending"
 msgstr "Resuming sending"
 
 #. Retries saving the composer draft and queue in this browser tab
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:36
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:37
 msgid "Retry saving"
 msgstr "Retry saving"
 
@@ -1089,7 +1089,7 @@ msgstr "Send"
 msgid "Sending"
 msgstr "Sending"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:93
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:96
 msgid "Sending result unknown"
 msgstr "Sending result unknown"
 
@@ -1365,7 +1365,7 @@ msgstr "The task switch was committed, but the connection was interrupted. Recon
 msgid "Theme preference"
 msgstr "Theme preference"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:96
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:99
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 
@@ -1658,6 +1658,6 @@ msgstr "Your edits are retained below. Copy anything you want to keep before dis
 msgid "Your input is retained. Retry to continue."
 msgstr "Your input is retained. Retry to continue."
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:47
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:48
 msgid "Your input is still here. Sending is blocked until saving succeeds."
 msgstr "Your input is still here. Sending is blocked until saving succeeds."

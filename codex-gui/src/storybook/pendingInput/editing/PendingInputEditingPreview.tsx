@@ -7,7 +7,12 @@ import { PendingInputPreview, PendingInputScenarioView } from "../PendingInputSc
 import { createPendingInputEditingScenario } from "./pendingInputEditingScenario";
 import { DevOnly } from "../../DevOnly";
 
-type InitialEditingState = "queue" | "editing" | "deleteConfirmation" | "retained";
+type InitialEditingState =
+  | "queue"
+  | "editing"
+  | "deleteConfirmation"
+  | "retained"
+  | "discardConfirmation";
 
 function InitialState({
   scenario,
@@ -20,6 +25,7 @@ function InitialState({
   const { t } = useLingui();
   const snapshot = useSyncExternalStore(host.subscribe, host.getSnapshot);
   const retainedInitialized = useRef(false);
+  const discardInitialized = useRef(false);
   const [initializationError, setInitializationError] = useState<{ error: unknown } | null>(null);
   const deleteLabel = t`Delete`;
 
@@ -35,7 +41,11 @@ function InitialState({
       const initializeDeletion = async () => {
         const dialog = await within(document.body).findByRole("dialog");
         if (!isCurrent()) return;
-        const button = await within(dialog).findByRole("button", { name: deleteLabel });
+        const item = await within(dialog).findByRole("group", {
+          name: /^Ordinary message 1(?:\s|$)/,
+        });
+        if (!isCurrent()) return;
+        const button = await within(item).findByRole("button", { name: deleteLabel });
         if (!isCurrent()) return;
         await userEvent.click(button);
       };
@@ -62,7 +72,7 @@ function InitialState({
     const edit = snapshot.pending.view?.edit;
     const binding = snapshot.connection?.binding;
     if (
-      initialState !== "retained" ||
+      (initialState !== "retained" && initialState !== "discardConfirmation") ||
       retainedInitialized.current ||
       edit?.phase !== "active" ||
       binding == null
@@ -72,6 +82,19 @@ function InitialState({
     scenario.loseEditingSession();
     host.session.saveEdit(binding, edit.preparationToken);
   }, [host, initialState, scenario, snapshot]);
+
+  useEffect(() => {
+    const binding = snapshot.connection?.binding;
+    if (
+      initialState !== "discardConfirmation" ||
+      discardInitialized.current ||
+      snapshot.pending.view?.edit?.phase !== "retained" ||
+      binding == null
+    )
+      return;
+    discardInitialized.current = true;
+    host.session.requestClose(binding);
+  }, [host, initialState, snapshot]);
 
   if (initializationError != null) throw initializationError.error;
   return null;
@@ -131,9 +154,15 @@ function EditingControls({
 export function PendingInputEditingPreview({
   initialState = "queue",
   ...options
-}: Readonly<{ guiding?: boolean; sendingConflict?: boolean; initialState?: InitialEditingState }>) {
+}: Readonly<{
+  guiding?: boolean;
+  sendingConflict?: boolean;
+  mixedText?: boolean;
+  initialState?: InitialEditingState;
+}>) {
   return (
     <PendingInputPreview
+      key={JSON.stringify({ ...options, initialState })}
       createScenario={() => createPendingInputEditingScenario(options)}
       renderDrawerControls={(scenario) => <EditingControls scenario={scenario} />}
     >

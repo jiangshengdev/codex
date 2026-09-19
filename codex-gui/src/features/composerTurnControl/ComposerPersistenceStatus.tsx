@@ -27,6 +27,7 @@ export function ComposerPersistenceStatus({
           <FailureLayout
             actions={
               <Button
+                size="sm"
                 variant="primary"
                 isDisabled={!enabled}
                 onPress={() => {
@@ -47,7 +48,9 @@ export function ComposerPersistenceStatus({
                 <Trans>Your input is still here. Sending is blocked until saving succeeds.</Trans>
               </Alert.Description>
               {persistence.error !== "" ? (
-                <FailureDiagnosticModal>{persistence.error}</FailureDiagnosticModal>
+                <FailureDiagnosticModal triggerClassName="mt-2 self-start" triggerSize="sm">
+                  {persistence.error}
+                </FailureDiagnosticModal>
               ) : null}
             </Alert.Content>
           </FailureLayout>
@@ -98,12 +101,13 @@ export function ComposerPersistenceStatus({
                 not cancel or retract a message on the server.
               </Trans>
             </Alert.Description>
-            <ul className="grid w-full min-w-0 gap-2">
+            <ul className="mt-4 grid w-full min-w-0 gap-2">
               {persistence.unknownMessages.map((message) => (
                 <li key={message.id} className="min-w-0">
                   <FailureLayout
                     actions={
                       <Button
+                        size="sm"
                         variant="danger"
                         isDisabled={!enabled || persistence.error != null}
                         onPress={() => {
