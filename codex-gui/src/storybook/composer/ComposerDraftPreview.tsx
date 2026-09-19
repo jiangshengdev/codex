@@ -9,7 +9,11 @@ import type { ComposerScenario } from "./composerScenario";
 
 function DraftSimulation({
   environment,
-}: Readonly<{ environment: ReturnType<typeof createComposerDraftScenario> }>) {
+  initialSkillAvailable,
+}: Readonly<{
+  environment: ReturnType<typeof createComposerDraftScenario>;
+  initialSkillAvailable: boolean;
+}>) {
   const [session, setSession] = useState<ComposerScenario | null>(() =>
     environment.createSession(),
   );
@@ -35,7 +39,7 @@ function DraftSimulation({
       </DevOnly>
     </>
   ) : (
-    <ComposerSimulation scenario={session}>
+    <ComposerSimulation scenario={session} initialSkillAvailable={initialSkillAvailable}>
       {(isIdle) => (
         <DraftVisitControls
           session={session}
@@ -103,12 +107,19 @@ function DraftVisitControls({
   );
 }
 
-export function ComposerDraftPreview() {
+export function ComposerDraftPreview({
+  initialSkillAvailable = true,
+}: Readonly<{ initialSkillAvailable?: boolean }>) {
   return (
     <StrictMode>
       <Toast.Provider placement="top" />
       <PendingInputPreview createScenario={createComposerDraftScenario}>
-        {(environment) => <DraftSimulation environment={environment} />}
+        {(environment) => (
+          <DraftSimulation
+            environment={environment}
+            initialSkillAvailable={initialSkillAvailable}
+          />
+        )}
       </PendingInputPreview>
     </StrictMode>
   );

@@ -8,6 +8,7 @@ import { DevOnly } from "../DevOnly";
 import { PendingInputPreview } from "../pendingInput/PendingInputScenarioView";
 import { definiteFailure } from "../pendingInput/recovery/recoveryScenario";
 import { createComposerScenario, previewSkill, type ComposerScenario } from "./composerScenario";
+import { createComposerTextScenario } from "./composerTextScenario";
 
 const skillsRole = {
   invalidateSkills: () => false,
@@ -20,11 +21,13 @@ export function ComposerSimulation({
   children,
   onRestoreQueue,
   interruptOnCompletion = false,
+  initialSkillAvailable = true,
 }: Readonly<{
   scenario: ComposerScenario;
   children?: (isIdle: boolean) => ReactNode;
   onRestoreQueue?: (activeTurnId: string | null) => void;
   interruptOnCompletion?: boolean;
+  initialSkillAvailable?: boolean;
 }>) {
   const composer = useSyncExternalStore(
     scenario.coordinator.subscribe,
@@ -33,7 +36,7 @@ export function ComposerSimulation({
   const requests = useSyncExternalStore(scenario.starts.subscribe, scenario.starts.getSnapshot);
   const [activeTurnId, setActiveTurnId] = useState(scenario.initialActiveTurnId);
   const [responseTurnId, setResponseTurnId] = useState<string | null>(null);
-  const [skillAvailable, setSkillAvailable] = useState(true);
+  const [skillAvailable, setSkillAvailable] = useState(initialSkillAvailable);
   const release = scenario.coordinator.getReleaseReadiness();
   // Restoring a saved queue deliberately retains queued and unknown-send records.
   // Other blockers can contain unsaved edits or unfinished control operations.
@@ -197,11 +200,16 @@ export function ComposerSimulation({
   );
 }
 
-export function ComposerPreview() {
+export function ComposerPreview({ initialText }: Readonly<{ initialText?: string }>) {
   return (
     <StrictMode>
       <Toast.Provider placement="top" />
-      <PendingInputPreview createScenario={createComposerScenario}>
+      <PendingInputPreview
+        key={initialText}
+        createScenario={() =>
+          initialText == null ? createComposerScenario() : createComposerTextScenario(initialText)
+        }
+      >
         {(scenario) => <ComposerSimulation scenario={scenario} />}
       </PendingInputPreview>
     </StrictMode>
