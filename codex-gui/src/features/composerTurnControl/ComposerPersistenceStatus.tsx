@@ -107,6 +107,7 @@ export function ComposerPersistenceStatus({
                   <FailureLayout
                     actions={
                       <Button
+                        size="sm"
                         variant="danger"
                         isDisabled={!enabled || persistence.error != null}
                         onPress={() => {

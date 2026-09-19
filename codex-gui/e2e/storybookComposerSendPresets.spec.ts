@@ -23,6 +23,48 @@ test("unknown send preset never resends and removes only its local record", asyn
   await expect(response).toBeDisabled();
 });
 
+for (const width of [375, 1280]) {
+  test(`unknown send action matches recovery button sizing at ${String(width)}px`, async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--send-unknown");
+    const remove = page.getByRole("button", { name: "Remove local record", exact: true });
+    await expect(remove).toBeVisible();
+    const reference = await context.newPage();
+    await reference.setViewportSize({ width, height: 900 });
+    await reference.goto(
+      "http://localhost:6006/iframe.html?id=feedback-connection-recovery-states--reconnect-failed",
+    );
+    const reconnect = reference.getByRole("button", { name: "Reconnect", exact: true });
+    await expect(reconnect).toBeVisible();
+    const measureButton = (element: HTMLElement | SVGElement) => {
+      const style = getComputedStyle(element);
+      return {
+        height: element.getBoundingClientRect().height,
+        padding: style.padding,
+        fontSize: style.fontSize,
+        lineHeight: style.lineHeight,
+      };
+    };
+    expect(await remove.evaluate(measureButton)).toEqual(await reconnect.evaluate(measureButton));
+    const panel = page.getByRole("status").filter({ has: remove });
+    await expect(panel).toContainText("Sending result unknown");
+    await expect(panel.getByRole("button")).toHaveCount(1);
+    await expect
+      .poll(() => panel.evaluate((element) => element.scrollWidth <= element.clientWidth))
+      .toBe(true);
+    await remove.focus();
+    await page.keyboard.press("Enter");
+    await expect(panel).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Simulate send response", exact: true }),
+    ).toBeDisabled();
+    await reference.close();
+  });
+}
+
 test("send failure preset preserves unsent content and permits explicit recovery", async ({
   page,
 }) => {
