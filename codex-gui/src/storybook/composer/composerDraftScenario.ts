@@ -3,7 +3,7 @@ import { captureComposerDraft } from "@/features/composerEditor/composerDraft";
 import { $createSkillNode, SkillNode } from "@/features/composerEditor/SkillNode";
 import { createComposerScenario, previewSkill, type ComposerScenario } from "./composerScenario";
 
-export function createComposerDraftScenario() {
+export function createComposerDraftScenario(initialSaveFailure = false) {
   const records = new Map<string, string>();
   let failWrites = false;
   const persistence = {
@@ -45,11 +45,18 @@ export function createComposerDraftScenario() {
   seed.coordinator.saveDraft(captureComposerDraft(editor.getEditorState()).draft);
   seed.dispose();
   let session: ComposerScenario | null = null;
+  let presetPending = initialSaveFailure;
   return {
     createSession() {
       session ??= createComposerScenario(persistence);
+      if (presetPending) {
+        presetPending = false;
+        failWrites = true;
+        session.coordinator.retryPersistence();
+      }
       return session;
     },
+    isWriteFailure: () => failWrites,
     leave() {
       session?.dispose();
       session = null;

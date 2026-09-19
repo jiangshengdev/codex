@@ -67,7 +67,7 @@ function DraftVisitControls({
   onLeave: () => void;
 }>) {
   useSyncExternalStore(session.coordinator.subscribe, session.coordinator.getSnapshot);
-  const [storageUnavailable, setStorageUnavailable] = useState(false);
+  const [storageUnavailable, setStorageUnavailable] = useState(environment.isWriteFailure);
   return (
     <DevOnly>
       <p className="text-sm text-muted">
@@ -109,11 +109,15 @@ function DraftVisitControls({
 
 export function ComposerDraftPreview({
   initialSkillAvailable = true,
-}: Readonly<{ initialSkillAvailable?: boolean }>) {
+  initialSaveFailure = false,
+}: Readonly<{ initialSkillAvailable?: boolean; initialSaveFailure?: boolean }>) {
   return (
     <StrictMode>
       <Toast.Provider placement="top" />
-      <PendingInputPreview createScenario={createComposerDraftScenario}>
+      <PendingInputPreview
+        key={`${String(initialSkillAvailable)}-${String(initialSaveFailure)}`}
+        createScenario={() => createComposerDraftScenario(initialSaveFailure)}
+      >
         {(environment) => (
           <DraftSimulation
             environment={environment}

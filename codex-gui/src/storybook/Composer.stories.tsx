@@ -48,6 +48,10 @@ export const RestoredDraft: Story = {
 export const InvalidSkill: Story = {
   render: () => <ComposerDraftPreview initialSkillAvailable={false} />,
 };
+// RestoredDraft owns the healthy saved draft; this entry starts at the real save error.
+export const SavingFailed: Story = {
+  render: () => <ComposerDraftPreview initialSaveFailure />,
+};
 export const RunningQueue: Story = { render: () => <ComposerQueuePreview /> };
 export const RunningGuide: Story = { render: () => <ComposerGuidePreview /> };
 export const RunningStop: Story = { render: () => <ComposerStopPreview /> };
