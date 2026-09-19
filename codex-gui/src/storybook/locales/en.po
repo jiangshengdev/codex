@@ -19,36 +19,36 @@ msgid "Create read-model slot"
 msgstr "Create read-model slot"
 
 #. A simulated assistant turn blocks automatic dispatch of ordinary queued messages
-#: src/storybook/composer/ComposerPreview.tsx:171
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:249
+#: src/storybook/composer/ComposerPreview.tsx:179
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:250
 msgid "Current turn is running"
 msgstr "Current turn is running"
 
 #. Explains that only post-move page reads are injected in this Story
-#: src/storybook/pendingInput/reordering/PendingInputReorderingPreview.tsx:87
+#: src/storybook/pendingInput/reordering/PendingInputReorderingPreview.tsx:95
 msgid "Injected feedback: the first move changes the real queue, then its refreshed list cannot load. Close and reopen the queue to read the updated order."
 msgstr "Injected feedback: the first move changes the real queue, then its refreshed list cannot load. Close and reopen the queue to read the updated order."
 
 #. Explains the bounded role-interface failure in the queue sorting Story
-#: src/storybook/pendingInput/reordering/PendingInputReorderingPreview.tsx:82
+#: src/storybook/pendingInput/reordering/PendingInputReorderingPreview.tsx:90
 msgid "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
 msgstr "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
 
-#: src/storybook/composer/ComposerDraftPreview.tsx:70
+#: src/storybook/composer/ComposerDraftPreview.tsx:74
 msgid "Leaving keeps the saved draft. Restarting resets it. Finish simulated sending and save changes before leaving."
 msgstr "Leaving keeps the saved draft. Restarting resets it. Finish simulated sending and save changes before leaving."
 
-#: src/storybook/composer/ComposerPreview.tsx:74
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:80
+#: src/storybook/composer/ComposerPreview.tsx:82
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:81
 msgid "Local simulation. Requests and runtime events advance only when you use the simulation controls."
 msgstr "Local simulation. Requests and runtime events advance only when you use the simulation controls."
 
-#: src/storybook/composer/ComposerDraftPreview.tsx:19
+#: src/storybook/composer/ComposerDraftPreview.tsx:23
 msgid "Local simulation. The composer is unmounted; its saved draft is kept until you return or restart the simulation."
 msgstr "Local simulation. The composer is unmounted; its saved draft is kept until you return or restart the simulation."
 
 #. Accessible name for the separate main composer draft in the pending-input Storybook simulation
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:87
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:88
 msgid "Main draft"
 msgstr "Main draft"
 
@@ -68,71 +68,71 @@ msgid "Release recovery display"
 msgstr "Release recovery display"
 
 #. The request succeeded but the simulated runtime acceptance event has not been injected
-#: src/storybook/composer/ComposerPreview.tsx:169
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:241
+#: src/storybook/composer/ComposerPreview.tsx:177
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:242
 msgid "Response received; waiting for runtime confirmation"
 msgstr "Response received; waiting for runtime confirmation"
 
 #. Reset the local pending-input Storybook scenario to its initial state
 #. Storybook control that resets the local connection recovery demo
 #: src/storybook/ConnectionRecoverySimulation.tsx:41
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:134
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:135
 msgid "Restart simulation"
 msgstr "Restart simulation"
 
 #. Return the fictional skill to the local catalog
-#: src/storybook/composer/ComposerPreview.tsx:160
+#: src/storybook/composer/ComposerPreview.tsx:168
 msgid "Restore simulated skill"
 msgstr "Restore simulated skill"
 
 #. Make local storage writes available again; the product Retry saving action still must be used
-#: src/storybook/composer/ComposerDraftPreview.tsx:93
+#: src/storybook/composer/ComposerDraftPreview.tsx:97
 msgid "Restore simulated storage"
 msgstr "Restore simulated storage"
 
 #. The preview injected the runtime acceptance event for the queued message
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:245
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:246
 msgid "Runtime confirmation received"
 msgstr "Runtime confirmation received"
 
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
-#: src/storybook/composer/ComposerPreview.tsx:146
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:201
+#: src/storybook/composer/ComposerPreview.tsx:154
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:202
 #: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:104
 msgid "Simulate current turn completed"
 msgstr "Simulate current turn completed"
 
 #. Inject the interrupted terminal event for the current simulated turn, separately from the stop request response
-#: src/storybook/composer/ComposerPreview.tsx:142
+#: src/storybook/composer/ComposerPreview.tsx:150
 msgid "Simulate current turn interrupted"
 msgstr "Simulate current turn interrupted"
 
 #. Inject a failed save in the local pending-message editor simulation
-#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:110
+#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:133
 msgid "Simulate editing session lost"
 msgstr "Simulate editing session lost"
 
 #. Reject the simulated Guide request as definitely not accepted
-#: src/storybook/composer/ComposerGuidePreview.tsx:78
+#: src/storybook/composer/ComposerGuidePreview.tsx:81
 msgid "Simulate guide failure"
 msgstr "Simulate guide failure"
 
 #. Reject guidance because the simulated active turn cannot be steered
 #. Reject guidance because the simulated active turn cannot be steered
-#: src/storybook/composer/ComposerGuidePreview.tsx:69
+#: src/storybook/composer/ComposerGuidePreview.tsx:72
 #: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:42
 msgid "Simulate guide refusal"
 msgstr "Simulate guide refusal"
 
 #. Resolve a simulated Guide request without confirming runtime acceptance
-#: src/storybook/composer/ComposerGuidePreview.tsx:31
+#: src/storybook/composer/ComposerGuidePreview.tsx:34
 msgid "Simulate guide response"
 msgstr "Simulate guide response"
 
 #. Inject the runtime user-message event confirming accepted guide delivery
 #. Inject the runtime user-message event confirming accepted guide delivery
-#: src/storybook/composer/ComposerGuidePreview.tsx:60
+#: src/storybook/composer/ComposerGuidePreview.tsx:63
 #: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:33
 msgid "Simulate guide runtime confirmation"
 msgstr "Simulate guide runtime confirmation"
@@ -144,95 +144,95 @@ msgstr "Simulate guide success"
 
 #. Leave delivery of the local guide request uncertain
 #. Leave delivery of the local guide request uncertain
-#: src/storybook/composer/ComposerGuidePreview.tsx:93
+#: src/storybook/composer/ComposerGuidePreview.tsx:96
 #: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:51
 msgid "Simulate guide unknown"
 msgstr "Simulate guide unknown"
 
 #. Unmount the local Composer while preserving this simulation's saved draft
-#: src/storybook/composer/ComposerDraftPreview.tsx:80
+#: src/storybook/composer/ComposerDraftPreview.tsx:84
 msgid "Simulate leaving"
 msgstr "Simulate leaving"
 
 #. Remount the local Composer with a new session that reads the same isolated draft storage
-#: src/storybook/composer/ComposerDraftPreview.tsx:31
+#: src/storybook/composer/ComposerDraftPreview.tsx:35
 msgid "Simulate returning"
 msgstr "Simulate returning"
 
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
-#: src/storybook/composer/ComposerPreview.tsx:127
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:231
+#: src/storybook/composer/ComposerPreview.tsx:135
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:232
 #: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:140
 msgid "Simulate runtime confirmation"
 msgstr "Simulate runtime confirmation"
 
 #. Remount the Composer using its isolated saved queue and current simulated runtime
-#: src/storybook/composer/ComposerPreview.tsx:186
+#: src/storybook/composer/ComposerPreview.tsx:194
 msgid "Simulate saved queue restore"
 msgstr "Simulate saved queue restore"
 
 #. Make isolated draft storage writes fail and attempt saving through the real coordinator
-#: src/storybook/composer/ComposerDraftPreview.tsx:97
+#: src/storybook/composer/ComposerDraftPreview.tsx:101
 msgid "Simulate saving failure"
 msgstr "Simulate saving failure"
 
 #. Reject the simulated ordinary send as definitely not accepted
 #. Reject the simulated sending request with definite non-delivery
-#: src/storybook/composer/ComposerPreview.tsx:104
+#: src/storybook/composer/ComposerPreview.tsx:112
 #: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:126
 msgid "Simulate send failure"
 msgstr "Simulate send failure"
 
 #. Resolve the local start-turn request without injecting a runtime event
 #. Resolve the pending local start-turn request without injecting a runtime event
-#: src/storybook/composer/ComposerPreview.tsx:97
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:216
+#: src/storybook/composer/ComposerPreview.tsx:105
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:217
 #: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:117
 msgid "Simulate send response"
 msgstr "Simulate send response"
 
 #. Settle the simulated ordinary send without knowing whether it was accepted
-#: src/storybook/composer/ComposerPreview.tsx:113
+#: src/storybook/composer/ComposerPreview.tsx:121
 msgid "Simulate send unknown"
 msgstr "Simulate send unknown"
 
 #. Remove the fictional skill from the local catalog to exercise selected-skill validation
-#: src/storybook/composer/ComposerPreview.tsx:156
+#: src/storybook/composer/ComposerPreview.tsx:164
 msgid "Simulate skill unavailable"
 msgstr "Simulate skill unavailable"
 
 #. Reject the simulated stop request as definitely not accepted
-#: src/storybook/composer/ComposerStopPreview.tsx:31
+#: src/storybook/composer/ComposerStopPreview.tsx:32
 msgid "Simulate stop failure"
 msgstr "Simulate stop failure"
 
 #. Accept the simulated stop request without ending the running turn
-#: src/storybook/composer/ComposerStopPreview.tsx:22
+#: src/storybook/composer/ComposerStopPreview.tsx:23
 msgid "Simulate stop response"
 msgstr "Simulate stop response"
 
 #. Leave acceptance of the simulated stop request uncertain while waiting for a runtime terminal event
-#: src/storybook/composer/ComposerStopPreview.tsx:40
+#: src/storybook/composer/ComposerStopPreview.tsx:41
 msgid "Simulate stop unknown"
 msgstr "Simulate stop unknown"
 
 #. Complete the simulated target turn while its guiding message is being edited
-#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:122
+#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:145
 msgid "Simulate target turn closed"
 msgstr "Simulate target turn closed"
 
 #. No simulated assistant turn or start-turn request remains active
-#: src/storybook/composer/ComposerPreview.tsx:173
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:253
+#: src/storybook/composer/ComposerPreview.tsx:181
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:254
 msgid "Simulation is idle"
 msgstr "Simulation is idle"
 
-#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:95
+#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:118
 msgid "This control injects a lost editing-session result for previewing content protection."
 msgstr "This control injects a lost editing-session result for previewing content protection."
 
-#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:90
+#: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:113
 msgid "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
 msgstr "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
 
@@ -241,7 +241,7 @@ msgid "This preview freezes the brief recovery notification. Release it to inspe
 msgstr "This preview freezes the brief recovery notification. Release it to inspect the pending send request."
 
 #. The local start-turn request remains unresolved until the preview response control is used
-#: src/storybook/composer/ComposerPreview.tsx:167
-#: src/storybook/pendingInput/PendingInputScenarioView.tsx:237
+#: src/storybook/composer/ComposerPreview.tsx:175
+#: src/storybook/pendingInput/PendingInputScenarioView.tsx:238
 msgid "Waiting for send response"
 msgstr "Waiting for send response"
