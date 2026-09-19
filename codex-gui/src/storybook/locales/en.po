@@ -108,12 +108,26 @@ msgstr "Simulate current turn completed"
 msgid "Simulate editing session lost"
 msgstr "Simulate editing session lost"
 
+#. Reject the simulated Guide request as definitely not accepted
+#: src/storybook/composer/ComposerGuidePreview.tsx:78
+msgid "Simulate guide failure"
+msgstr "Simulate guide failure"
+
 #. Reject guidance because the simulated active turn cannot be steered
+#. Reject guidance because the simulated active turn cannot be steered
+#: src/storybook/composer/ComposerGuidePreview.tsx:69
 #: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:42
 msgid "Simulate guide refusal"
 msgstr "Simulate guide refusal"
 
+#. Resolve a simulated Guide request without confirming runtime acceptance
+#: src/storybook/composer/ComposerGuidePreview.tsx:31
+msgid "Simulate guide response"
+msgstr "Simulate guide response"
+
 #. Inject the runtime user-message event confirming accepted guide delivery
+#. Inject the runtime user-message event confirming accepted guide delivery
+#: src/storybook/composer/ComposerGuidePreview.tsx:60
 #: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:33
 msgid "Simulate guide runtime confirmation"
 msgstr "Simulate guide runtime confirmation"
@@ -124,6 +138,8 @@ msgid "Simulate guide success"
 msgstr "Simulate guide success"
 
 #. Leave delivery of the local guide request uncertain
+#. Leave delivery of the local guide request uncertain
+#: src/storybook/composer/ComposerGuidePreview.tsx:93
 #: src/storybook/pendingInput/recovery/PendingInputRecoveryPreview.tsx:51
 msgid "Simulate guide unknown"
 msgstr "Simulate guide unknown"
