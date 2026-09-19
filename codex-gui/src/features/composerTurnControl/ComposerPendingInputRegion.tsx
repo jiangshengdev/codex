@@ -101,7 +101,7 @@ export function ComposerPendingInputRegion({
     groups.push({
       key: "recovery",
       node: (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 px-3">
           <span id={recoveryDescriptionId}>
             <Plural
               value={snapshot.recoveryCount}
