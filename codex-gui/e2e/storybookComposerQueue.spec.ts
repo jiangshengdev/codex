@@ -5,7 +5,7 @@ test.use({ locale: "en" });
 test("ordinary rejection preserves unsent content and gates new input until recovery", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--empty");
+  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send-input--empty");
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   const response = page.getByRole("button", { name: "Simulate send response", exact: true });
@@ -28,7 +28,9 @@ test("ordinary rejection preserves unsent content and gates new input until reco
 test("queued edits and order survive restoration while unknown delivery blocks later sends", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--running-queue");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-queue--running-queue",
+  );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   const response = page.getByRole("button", { name: "Simulate send response", exact: true });
@@ -91,7 +93,9 @@ test("queued edits and order survive restoration while unknown delivery blocks l
 test("hidden DEV keeps queue recovery usable and restart and navigation discard restored work", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/?path=/story/composer-input-and-send--running-queue");
+  await page.goto(
+    "http://localhost:6006/?path=/story/composer-input-and-send-queue--running-queue",
+  );
   const preview = page.frameLocator("#storybook-preview-iframe");
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = preview.getByRole("button", { name: "Send", exact: true });
@@ -128,9 +132,12 @@ test("hidden DEV keeps queue recovery usable and restart and navigation discard 
   await send.click();
   await restore.click();
   await expect(preview.getByText("Restored messages are paused", { exact: true })).toBeVisible();
-  await page.locator('a[href="/?path=/story/composer-input-and-send--empty"]').click();
+  await page.getByRole("button", { name: "Input", exact: true }).click();
+  await page.locator('a[href="/?path=/story/composer-input-and-send-input--empty"]').click();
   await expect(editor).toBeEmpty();
-  await page.locator('a[href="/?path=/story/composer-input-and-send--running-queue"]').click();
+  await page
+    .locator('a[href="/?path=/story/composer-input-and-send-queue--running-queue"]')
+    .click();
   await expect(editor).toBeEmpty();
   await expect(preview.getByText("Restored messages are paused", { exact: true })).toHaveCount(0);
   await expect(preview.getByRole("button", { name: "Queued 1", exact: true })).toHaveCount(0);

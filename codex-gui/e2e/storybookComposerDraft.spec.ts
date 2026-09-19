@@ -3,7 +3,9 @@ import { expect, test } from "@playwright/test";
 test.use({ locale: "en" });
 
 test("restored multi-paragraph skill draft remains editable and sendable", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--restored-draft");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-draft--restored-draft",
+  );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(editor).toContainText("Review this fictional change.");
   await expect(editor).toContainText("Keep the draft paragraphs and selected skill.");
@@ -23,7 +25,9 @@ test("restored multi-paragraph skill draft remains editable and sendable", async
 test("failed saving retains edits and real Retry saving restores sending and persistence", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--restored-draft");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-draft--restored-draft",
+  );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   const failure = page.getByText("Changes could not be saved", { exact: true });
@@ -61,7 +65,9 @@ test("failed saving retains edits and real Retry saving restores sending and per
 test("leaving and returning restores live text and skills while reset discards them", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--restored-draft");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-draft--restored-draft",
+  );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await editor.focus();
   await editor.press("ControlOrMeta+A");
@@ -114,7 +120,9 @@ test("leaving and returning restores live text and skills while reset discards t
 test("draft simulation keeps product actions without DEV and isolates story navigation", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/?path=/story/composer-input-and-send--restored-draft");
+  await page.goto(
+    "http://localhost:6006/?path=/story/composer-input-and-send-draft--restored-draft",
+  );
   const preview = page.frameLocator("#storybook-preview-iframe");
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const failure = preview.getByText("Changes could not be saved", { exact: true });
@@ -129,9 +137,12 @@ test("draft simulation keeps product actions without DEV and isolates story navi
   await expect(failure).toHaveCount(0);
   await editor.press("ControlOrMeta+End");
   await editor.pressSequentially(" Discard when switching stories.");
-  await page.locator('a[href="/?path=/story/composer-input-and-send--empty"]').click();
+  await page.getByRole("button", { name: "Input", exact: true }).click();
+  await page.locator('a[href="/?path=/story/composer-input-and-send-input--empty"]').click();
   await expect(editor).toBeEmpty();
-  await page.locator('a[href="/?path=/story/composer-input-and-send--restored-draft"]').click();
+  await page
+    .locator('a[href="/?path=/story/composer-input-and-send-draft--restored-draft"]')
+    .click();
   await expect(editor).toContainText("Review this fictional change.");
   await expect(editor).not.toContainText("Discard when switching stories.");
   await expect(failure).toHaveCount(0);

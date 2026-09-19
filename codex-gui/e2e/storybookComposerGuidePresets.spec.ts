@@ -5,7 +5,9 @@ test.use({ locale: "en" });
 test("unknown guide preset supports hidden DEV local removal, reset, late facts and story isolation", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/?path=/story/composer-input-and-send--guide-unknown");
+  await page.goto(
+    "http://localhost:6006/?path=/story/composer-input-and-send-guide--guide-unknown",
+  );
   const preview = page.frameLocator("#storybook-preview-iframe");
   const unknown = preview.getByText("Guide status unknown", { exact: true });
   const response = preview.getByRole("button", { name: "Simulate guide response", exact: true });
@@ -34,6 +36,7 @@ test("unknown guide preset supports hidden DEV local removal, reset, late facts 
   await expect(unknown).toHaveCount(0);
   await preview.getByRole("button", { name: "Restart simulation", exact: true }).click();
   await expect(unknown).toBeVisible();
+  await page.getByRole("button", { name: "Input", exact: true }).click();
   await page.getByRole("link", { name: "Empty", exact: true }).click();
   await expect(unknown).toHaveCount(0);
   await expect(editor).toBeEmpty();
@@ -44,7 +47,9 @@ test("unknown guide preset supports hidden DEV local removal, reset, late facts 
 });
 
 test("guide failure preset gates a separate draft until explicit recovery", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--guide-failed");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-guide--guide-failed",
+  );
   const unsent = page.getByText("1 message has not been sent", { exact: true });
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const response = page.getByRole("button", { name: "Simulate guide response", exact: true });
@@ -69,7 +74,7 @@ test("guide failure preset gates a separate draft until explicit recovery", asyn
 
 test("guide refusal preset is priority delivery rather than failure recovery", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-input-and-send--guide-unavailable",
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-guide--guide-unavailable",
   );
   const priority = page.getByRole("heading", { name: "Will send first", exact: true });
   await expect(priority).toBeVisible();
@@ -95,7 +100,7 @@ test("accepted guide preset opens pending runtime and retains manual confirmatio
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-input-and-send--guide-runtime-pending",
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-guide--guide-runtime-pending",
   );
   const pending = page.getByRole("button", { name: "Guide 1", exact: true });
   const response = page.getByRole("button", { name: "Simulate guide response", exact: true });
@@ -117,7 +122,7 @@ test("guide request preset waits for response and runtime without losing a new d
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-input-and-send--guide-request-pending",
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-guide--guide-request-pending",
   );
   const pending = page.getByRole("button", { name: "Guide 1", exact: true });
   const response = page.getByRole("button", { name: "Simulate guide response", exact: true });
@@ -147,7 +152,7 @@ test("running text preset enables real Send and Guide while existing RunningGuid
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-input-and-send--running-with-input",
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-guide--running-with-input",
   );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
@@ -166,7 +171,9 @@ test("running text preset enables real Send and Guide while existing RunningGuid
   await expect(editor).toHaveText("Review this fictional running turn.");
   await send.click();
   await expect(page.getByRole("button", { name: "Queued 1", exact: true })).toBeVisible();
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--running-guide");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-guide--running-guide",
+  );
   await expect(editor).toBeEmpty();
   await expect(send).toBeDisabled();
   await expect(guide).toBeDisabled();

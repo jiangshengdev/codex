@@ -5,7 +5,9 @@ test.use({ locale: "en" });
 test("presets retain product interaction with DEV hidden and reset when switching stories", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/?path=/story/composer-input-and-send--invalid-skill");
+  await page.goto(
+    "http://localhost:6006/?path=/story/composer-input-and-send-draft--invalid-skill",
+  );
   const preview = page.frameLocator("#storybook-preview-iframe");
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const invalid = preview.getByRole("group", {
@@ -25,6 +27,7 @@ test("presets retain product interaction with DEV hidden and reset when switchin
   await expect(send).toBeEnabled();
   await send.click();
   await expect(editor).toBeEmpty();
+  await page.getByRole("button", { name: "Input", exact: true }).click();
   await page.getByRole("link", { name: "Valid Text", exact: true }).click();
   await expect(editor).toHaveText("Review this fictional change.");
   await expect(send).toBeEnabled();
@@ -41,7 +44,9 @@ test.describe("localized presets", () => {
   test.use({ locale: "zh-CN" });
 
   test("invalid skill keeps the existing Chinese product messages", async ({ page }) => {
-    await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--invalid-skill");
+    await page.goto(
+      "http://localhost:6006/iframe.html?id=composer-input-and-send-draft--invalid-skill",
+    );
     await expect(
       page.getByRole("combobox", { name: "向 Codex 发送消息", exact: true }),
     ).toContainText("Review this fictional change.");
@@ -53,7 +58,9 @@ test.describe("localized presets", () => {
 test("invalid skill opens blocked and can be restored or removed without losing text", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--invalid-skill");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-draft--invalid-skill",
+  );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const invalid = page.getByRole("group", {
     name: "preview-review skill details, Invalid skill",
@@ -86,7 +93,9 @@ test("long content opens with bounded scrolling and reachable controls on a narr
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--long-content");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-input--long-content",
+  );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(editor).toContainText("Review section 1:");
   await expect(editor).toContainText("Review section 20:");
@@ -124,7 +133,7 @@ test("long content opens with bounded scrolling and reachable controls on a narr
 });
 
 test("valid text opens ready to send without inserting content first", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--valid-text");
+  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send-input--valid-text");
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(editor).toHaveText("Review this fictional change.");
   const send = page.getByRole("button", { name: "Send", exact: true });
@@ -139,7 +148,7 @@ test("valid text opens ready to send without inserting content first", async ({ 
 test("whitespace opens directly with sending disabled and remains editable after reset", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--whitespace");
+  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send-input--whitespace");
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   await expect(editor).toHaveText(/^ {3}$/);

@@ -5,7 +5,9 @@ test.use({ locale: "en" });
 test("accepted stop waits for termination and preserves queued input for explicit recovery", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--running-stop");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-stop--running-stop",
+  );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   const stop = page.getByRole("button", { name: "Stop", exact: true });
@@ -61,7 +63,9 @@ test("accepted stop waits for termination and preserves queued input for explici
 });
 
 test("definite stop failure retains the active turn and permits retry", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--running-stop");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-stop--running-stop",
+  );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   const stop = page.getByRole("button", { name: "Stop", exact: true });
@@ -93,7 +97,7 @@ test("definite stop failure retains the active turn and permits retry", async ({
 test("unknown stop waits without retry and hidden DEV recovery and lifecycle isolation remain usable", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/?path=/story/composer-input-and-send--running-stop");
+  await page.goto("http://localhost:6006/?path=/story/composer-input-and-send-stop--running-stop");
   const preview = page.frameLocator("#storybook-preview-iframe");
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = preview.getByRole("button", { name: "Send", exact: true });
@@ -151,10 +155,11 @@ test("unknown stop waits without retry and hidden DEV recovery and lifecycle iso
   await expect(stop).toBeEnabled();
   await stop.click();
   await expect(response).toBeEnabled();
-  await page.locator('a[href="/?path=/story/composer-input-and-send--empty"]').click();
+  await page.getByRole("button", { name: "Input", exact: true }).click();
+  await page.locator('a[href="/?path=/story/composer-input-and-send-input--empty"]').click();
   await expect(editor).toBeEmpty();
   await expect(stop).toBeDisabled();
-  await page.locator('a[href="/?path=/story/composer-input-and-send--running-stop"]').click();
+  await page.locator('a[href="/?path=/story/composer-input-and-send-stop--running-stop"]').click();
   await expect(editor).toBeEmpty();
   await expect(stop).toBeEnabled();
   await expect(stop).not.toHaveAttribute("data-pending");
@@ -165,7 +170,9 @@ test("unknown stop waits without retry and hidden DEV recovery and lifecycle iso
 test("terminal before stop response defers recovery until the request settles", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--running-stop");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-stop--running-stop",
+  );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const stop = page.getByRole("button", { name: "Stop", exact: true });
   const response = page.getByRole("button", { name: "Simulate stop response", exact: true });

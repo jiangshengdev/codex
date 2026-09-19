@@ -5,7 +5,7 @@ test.use({ locale: "en" });
 test("real Composer gates empty input and keeps send response separate from runtime events", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--empty");
+  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send-input--empty");
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   const response = page.getByRole("button", { name: "Simulate send response", exact: true });
@@ -38,7 +38,7 @@ test("real Composer gates empty input and keeps send response separate from runt
 });
 
 test("selected skills follow the real validation gate and remain removable", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--empty");
+  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send-input--empty");
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   await editor.fill("$preview");
@@ -108,7 +108,7 @@ test("DEV visibility preserves the Composer and reset and story switching releas
       businessRequests.push(`WebSocket ${url.pathname}`);
     }
   });
-  await page.goto("http://localhost:6006/?path=/story/composer-input-and-send--empty");
+  await page.goto("http://localhost:6006/?path=/story/composer-input-and-send-input--empty");
   const preview = page.frameLocator("#storybook-preview-iframe");
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = preview.getByRole("button", { name: "Send", exact: true });
@@ -133,7 +133,7 @@ test("DEV visibility preserves the Composer and reset and story switching releas
   await page.getByRole("button", { name: "Browsing", exact: true }).click();
   await page.getByRole("link", { name: "Queued", exact: true }).click();
   await expect(preview.getByRole("textbox", { name: "Main draft", exact: true })).toBeVisible();
-  await page.locator('a[href="/?path=/story/composer-input-and-send--empty"]').click();
+  await page.locator('a[href="/?path=/story/composer-input-and-send-input--empty"]').click();
   await expect(editor).toBeEmpty();
   await expect(response).toBeDisabled();
   await expect(

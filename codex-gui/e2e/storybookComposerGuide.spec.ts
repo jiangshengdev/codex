@@ -3,7 +3,9 @@ import { expect, test } from "@playwright/test";
 test.use({ locale: "en" });
 
 test("guide response leaves input pending until runtime acceptance", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--running-guide");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-guide--running-guide",
+  );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const guide = page.getByRole("button", { name: "Guide", exact: true });
   const response = page.getByRole("button", { name: "Simulate guide response", exact: true });
@@ -28,7 +30,9 @@ test("guide response leaves input pending until runtime acceptance", async ({ pa
 });
 
 test("guide rejection recovers separately from unsteerable priority delivery", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--running-guide");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-guide--running-guide",
+  );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const guide = page.getByRole("button", { name: "Guide", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
@@ -68,7 +72,9 @@ test("guide rejection recovers separately from unsteerable priority delivery", a
 test("unknown guidance keeps queue editing and hidden DEV recovery available without resending", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/?path=/story/composer-input-and-send--running-guide");
+  await page.goto(
+    "http://localhost:6006/?path=/story/composer-input-and-send-guide--running-guide",
+  );
   const preview = page.frameLocator("#storybook-preview-iframe");
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = preview.getByRole("button", { name: "Send", exact: true });
@@ -141,9 +147,12 @@ test("unknown guidance keeps queue editing and hidden DEV recovery available wit
   await expect(preview.getByRole("button", { name: "Queued 2", exact: true })).toHaveCount(0);
   await editor.fill("Dispose unresolved guidance");
   await guide.click();
-  await page.locator('a[href="/?path=/story/composer-input-and-send--empty"]').click();
+  await page.getByRole("button", { name: "Input", exact: true }).click();
+  await page.locator('a[href="/?path=/story/composer-input-and-send-input--empty"]').click();
   await expect(editor).toBeEmpty();
-  await page.locator('a[href="/?path=/story/composer-input-and-send--running-guide"]').click();
+  await page
+    .locator('a[href="/?path=/story/composer-input-and-send-guide--running-guide"]')
+    .click();
   await expect(editor).toBeEmpty();
   await expect(response).toBeDisabled();
   await expect(confirmation).toBeDisabled();

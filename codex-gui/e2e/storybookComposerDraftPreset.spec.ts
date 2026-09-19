@@ -5,7 +5,9 @@ test.use({ locale: "en" });
 test("saving failure opens with retained text and skill, recovers, and resets to failure", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--saving-failed");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-draft--saving-failed",
+  );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const failure = page.getByText("Changes could not be saved", { exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
@@ -74,7 +76,9 @@ for (const width of [375, 1280]) {
     context,
   }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--saving-failed");
+    await page.goto(
+      "http://localhost:6006/iframe.html?id=composer-input-and-send-draft--saving-failed",
+    );
     const panel = page.getByRole("alert");
     const title = panel.getByText("Changes could not be saved", { exact: true });
     const description = panel.getByText(
@@ -167,7 +171,9 @@ test("existing pending edit error panels retain the connection recovery presenta
   context,
 }) => {
   await page.setViewportSize({ width: 375, height: 900 });
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send--running-queue");
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-queue--running-queue",
+  );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await editor.fill("$preview");
   await page.getByRole("option", { name: /preview-review/ }).click();
