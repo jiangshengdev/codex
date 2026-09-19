@@ -4,10 +4,12 @@ import { createPendingInputScenario } from "../pendingInputScenario";
 export function createPendingInputEditingScenario({
   guiding = false,
   sendingConflict = false,
-}: Readonly<{ guiding?: boolean; sendingConflict?: boolean }> = {}) {
+  mixedText = false,
+}: Readonly<{ guiding?: boolean; sendingConflict?: boolean; mixedText?: boolean }> = {}) {
   const scenario = createPendingInputScenario({
-    ordinaryCount: guiding ? 0 : 1,
+    ordinaryCount: guiding ? 0 : mixedText ? 3 : 1,
     guidingCount: guiding ? 2 : 0,
+    mixedText,
   });
   let loseEdit = false;
   const role: ActiveThreadComposerRole = {

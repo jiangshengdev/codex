@@ -745,7 +745,7 @@ function DrawerEditorFixture({
   return (
     <div
       aria-label="Edit pending input"
-      className="h-56 w-96 max-w-full overflow-hidden"
+      className="h-64 w-96 max-w-full overflow-hidden"
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           onDialogEscape?.();

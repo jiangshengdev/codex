@@ -184,13 +184,11 @@ export function ComposerEditor({
             />
           )}
           <ComposerClipboardPlugin />
-          {authorizationToken == null ? null : (
-            <ComposerAttachmentsPlugin
-              authorizationToken={authorizationToken}
-              controlsParent={attachmentControlsParent}
-              disabled={disabled}
-            />
-          )}
+          <ComposerAttachmentsPlugin
+            authorizationToken={authorizationToken ?? null}
+            controlsParent={attachmentControlsParent}
+            disabled={disabled}
+          />
         </SelectedSkillPresentationEnvironment>
       </AttachmentAuthorizationContext>
     </LexicalComposer>

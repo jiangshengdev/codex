@@ -164,9 +164,13 @@ function RecoveryView({
 
 export function PendingInputRecoveryPreview({
   preset = "guiding",
-}: Readonly<{ preset?: RecoveryPreset }>) {
+  mixedText = false,
+}: Readonly<{ preset?: RecoveryPreset; mixedText?: boolean }>) {
   return (
-    <PendingInputPreview key={preset} createScenario={() => createRecoveryScenario(preset)}>
+    <PendingInputPreview
+      key={`${preset}-${String(mixedText)}`}
+      createScenario={() => createRecoveryScenario(preset, mixedText)}
+    >
       {(scenario) => <RecoveryView scenario={scenario} preset={preset} />}
     </PendingInputPreview>
   );
