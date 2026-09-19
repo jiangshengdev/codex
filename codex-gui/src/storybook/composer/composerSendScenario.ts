@@ -2,10 +2,19 @@ import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/co
 import { baseTurn } from "@/features/projection/__tests__/projectionTestBuilders";
 import { definiteFailure } from "../pendingInput/recovery/recoveryScenario";
 import { createComposerScenario } from "./composerScenario";
+import { createComposerUnknownMultipleScenario } from "./composerUnknownMultipleScenario";
 
-export type ComposerSendPreset = "requestPending" | "runtimePending" | "failed" | "unknown";
+export type ComposerSendPreset =
+  | "requestPending"
+  | "runtimePending"
+  | "failed"
+  | "unknown"
+  | "unknownMultiple";
 
 export function createComposerSendScenario(preset: ComposerSendPreset) {
+  if (preset === "unknownMultiple") {
+    return { ...createComposerUnknownMultipleScenario(), initialResponseTurnId: null };
+  }
   const scenario = createComposerScenario();
   scenario.coordinator.submit(composerDraftCapture("Review this fictional send."));
   const initialResponseTurnId = preset === "runtimePending" ? "preview-send-accepted" : null;

@@ -25,6 +25,44 @@ test("unknown send preset never resends and removes only its local record", asyn
   await expect(response).toBeDisabled();
 });
 
+test("multiple unknown sends can be removed independently without resending or losing the draft", async ({
+  page,
+}) => {
+  await page.goto(
+    "http://localhost:6006/iframe.html?id=composer-input-and-send-send--send-unknown-multiple",
+  );
+  const remove = page.getByRole("button", { name: "Remove local record", exact: true });
+  const response = page.getByRole("button", { name: "Simulate send response", exact: true });
+  const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
+  const messages = [
+    "Review the fictional implementation.",
+    "Check the fictional tests and edge cases.",
+    "Summarize the fictional changes and remaining questions.",
+  ] as const;
+  await expect(remove).toHaveCount(3);
+  for (const message of messages) {
+    await expect(page.getByText(message, { exact: true })).toBeVisible();
+  }
+  await expect(response).toBeDisabled();
+  await editor.fill("Keep this separate draft");
+  await remove.nth(1).click();
+  await expect(remove).toHaveCount(2);
+  await expect(page.getByText(messages[1], { exact: true })).toHaveCount(0);
+  await expect(page.getByText(messages[0], { exact: true })).toBeVisible();
+  await expect(page.getByText(messages[2], { exact: true })).toBeVisible();
+  await expect(editor).toHaveText("Keep this separate draft");
+  await expect(response).toBeDisabled();
+  await remove.first().click();
+  await remove.first().click();
+  await expect(page.getByText("Sending result unknown", { exact: true })).toHaveCount(0);
+  await expect(editor).toHaveText("Keep this separate draft");
+  await expect(response).toBeDisabled();
+  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
+  await expect(remove).toHaveCount(3);
+  await expect(editor).toBeEmpty();
+  await expect(response).toBeDisabled();
+});
+
 for (const width of [375, 1280]) {
   test(`unknown send action matches recovery button sizing at ${String(width)}px`, async ({
     page,

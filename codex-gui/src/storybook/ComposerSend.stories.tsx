@@ -21,3 +21,14 @@ export const SendFailed: Story = {
 export const SendUnknown: Story = {
   render: () => <ComposerSendPreview preset="unknown" />,
 };
+export const SendUnknownMultiple: Story = {
+  render: () => <ComposerSendPreview preset="unknownMultiple" />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Three unresolved historical guide messages restored from isolated storage. This previews the shared sending-result-unknown panel; ordinary sends remain serial. Remove records independently or restart to restore all three.",
+      },
+    },
+  },
+};
