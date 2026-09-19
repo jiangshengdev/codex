@@ -111,7 +111,7 @@ export function PendingInputScenarioView({
   );
 }
 
-export function PendingInputPreview<Scenario extends PendingInputScenario>({
+export function PendingInputPreview<Scenario extends Pick<PendingInputScenario, "dispose">>({
   createScenario,
   children,
   renderDrawerControls,
@@ -147,7 +147,7 @@ export function PendingInputPreview<Scenario extends PendingInputScenario>({
   );
 }
 
-function PendingInputPreviewInstance<Scenario extends PendingInputScenario>({
+function PendingInputPreviewInstance<Scenario extends Pick<PendingInputScenario, "dispose">>({
   createScenario,
   children,
   renderDrawerControls,

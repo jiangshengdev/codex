@@ -1,6 +1,9 @@
 import { createActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
 import type { SkillCatalogCandidate } from "@/features/skillCatalog/skillCatalogOwner";
-import { createPendingInputScenario } from "../pendingInput/pendingInputScenario";
+import {
+  createPendingInputScenario,
+  type PendingInputScenarioOptions,
+} from "../pendingInput/pendingInputScenario";
 
 export const previewSkill: SkillCatalogCandidate = {
   name: "preview-review",
@@ -10,10 +13,9 @@ export const previewSkill: SkillCatalogCandidate = {
   scope: "repo",
 };
 
-export function createComposerScenario() {
-  const queue = createPendingInputScenario({ ordinaryCount: 0 });
-  // Start the shared queue fixture in an idle runtime, with no queued input.
-  queue.completeTurn();
+export function createComposerScenario(persistence?: PendingInputScenarioOptions["persistence"]) {
+  const queue = createPendingInputScenario({ ordinaryCount: 0, persistence, activeTurnId: null });
+  queue.coordinator.completeRestoreReconciliation();
   return {
     ...queue,
     identity: createActiveThreadSessionIdentity("thread-1"),

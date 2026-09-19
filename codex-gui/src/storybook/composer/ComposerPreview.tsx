@@ -1,6 +1,6 @@
 import { Button, Surface, Toast } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
-import { StrictMode, useRef, useState, useSyncExternalStore } from "react";
+import { StrictMode, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ActiveThreadSessionSnapshot } from "@/features/activeThreadSession/activeThreadSession";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
 import { baseTurn } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -14,7 +14,10 @@ const skillsRole = {
   retrySkills: () => false,
 };
 
-function ComposerSimulation({ scenario }: Readonly<{ scenario: ComposerScenario }>) {
+export function ComposerSimulation({
+  scenario,
+  children,
+}: Readonly<{ scenario: ComposerScenario; children?: (isIdle: boolean) => ReactNode }>) {
   const composer = useSyncExternalStore(
     scenario.coordinator.subscribe,
     scenario.coordinator.getSnapshot,
@@ -23,7 +26,6 @@ function ComposerSimulation({ scenario }: Readonly<{ scenario: ComposerScenario 
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [responseTurnId, setResponseTurnId] = useState<string | null>(null);
   const [skillAvailable, setSkillAvailable] = useState(true);
-  const nextTurn = useRef(0);
   const snapshot: Extract<ActiveThreadSessionSnapshot, { phase: "active" }> = {
     phase: "active",
     revision: 1,
@@ -67,7 +69,7 @@ function ComposerSimulation({ scenario }: Readonly<{ scenario: ComposerScenario 
           onPress={() => {
             const request = requests[0];
             if (request == null) return;
-            const id = `composer-preview-${String(++nextTurn.current)}`;
+            const id = `composer-preview-${crypto.randomUUID()}`;
             request.resolve({ turn: { ...baseTurn(id), status: "inProgress" } });
             setResponseTurnId(id);
           }}
@@ -125,6 +127,7 @@ function ComposerSimulation({ scenario }: Readonly<{ scenario: ComposerScenario 
           )}
         </p>
       </DevOnly>
+      {children?.(activeTurnId == null && responseTurnId == null && requests.length === 0)}
     </Surface>
   );
 }

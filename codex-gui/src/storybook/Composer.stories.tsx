@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/tanstack-react";
 import { StorybookStatefulEnvironment } from "./StorybookStatefulEnvironment";
 import { ComposerPreview } from "./composer/ComposerPreview";
+import { ComposerDraftPreview } from "./composer/ComposerDraftPreview";
 
 const meta = {
   title: "Composer/Input and send",
@@ -17,3 +18,4 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Empty: Story = {};
+export const RestoredDraft: Story = { render: () => <ComposerDraftPreview /> };
