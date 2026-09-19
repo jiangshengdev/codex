@@ -16,6 +16,7 @@ import {
   turnWithStatus,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createListenerSet } from "@/subscriptions/listenerSet";
+import { mixedMessageText } from "../mixedMessageText";
 
 type Commands = CreateComposerInputQueueCoordinatorInput;
 
@@ -57,6 +58,7 @@ export type PendingInputScenarioOptions = Readonly<{
   ordinaryCount?: number;
   guidingCount?: number;
   longText?: boolean;
+  mixedText?: boolean;
   startSending?: boolean;
   persistence?: Commands["persistence"];
   activeTurnId?: Commands["activeTurnId"];
@@ -66,6 +68,7 @@ export function createPendingInputScenario({
   ordinaryCount = 3,
   guidingCount = 0,
   longText = false,
+  mixedText = false,
   startSending = false,
   persistence,
   activeTurnId = "preview-active",
@@ -121,12 +124,18 @@ export function createPendingInputScenario({
   for (let index = 1; index <= ordinaryCount; index++) {
     coordinator.submit(
       composerDraftCapture(
-        `Ordinary message ${String(index)}${longText && index === 1 ? " — " + "Fictional queue content. ".repeat(80) + "END OF LONG MESSAGE" : ""}`,
+        mixedText
+          ? mixedMessageText("Ordinary message", index)
+          : `Ordinary message ${String(index)}${longText && index === 1 ? " — " + "Fictional queue content. ".repeat(80) + "END OF LONG MESSAGE" : ""}`,
       ),
     );
   }
   for (let index = 1; index <= guidingCount; index++)
-    coordinator.submitSteer(composerDraftCapture(`Guide message ${String(index)}`));
+    coordinator.submitSteer(
+      composerDraftCapture(
+        mixedText ? mixedMessageText("Guide message", index) : `Guide message ${String(index)}`,
+      ),
+    );
   const owner = { threadId: "thread-1", subscriptionId: "preview-subscription" };
   const completeTurn = (
     id = "preview-active",

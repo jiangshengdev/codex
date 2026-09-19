@@ -25,6 +25,7 @@ import {
   type PendingInputScenarioOptions,
 } from "./pendingInputScenario";
 import { DevOnly } from "../DevOnly";
+import { PendingInputBrowsingInitialState } from "./PendingInputBrowsingInitialState";
 
 const skills: SkillCatalogState = { type: "ready", candidates: [], partialErrorCount: 0 };
 const noop = () => {
@@ -261,14 +262,27 @@ function SendingControls({ scenario }: Readonly<{ scenario: PendingInputScenario
 
 export function PendingInputBrowsingPreview({
   mutationsEnabled = true,
+  openInitially = false,
+  detail,
   ...options
-}: PendingInputScenarioOptions & Readonly<{ mutationsEnabled?: boolean }>) {
+}: PendingInputScenarioOptions &
+  Readonly<{
+    mutationsEnabled?: boolean;
+    openInitially?: boolean;
+    detail?: "ordinary" | "guiding";
+  }>) {
   return (
     <StrictMode>
-      <PendingInputPreview createScenario={() => createPendingInputScenario(options)}>
+      <PendingInputPreview
+        key={JSON.stringify({ ...options, mutationsEnabled, openInitially, detail })}
+        createScenario={() => createPendingInputScenario(options)}
+      >
         {(scenario) => (
           <PendingInputScenarioView scenario={scenario} mutationsEnabled={mutationsEnabled}>
             <SendingControls scenario={scenario} />
+            {openInitially || detail != null ? (
+              <PendingInputBrowsingInitialState detail={detail} />
+            ) : null}
           </PendingInputScenarioView>
         )}
       </PendingInputPreview>
