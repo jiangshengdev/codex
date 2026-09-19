@@ -1,0 +1,19 @@
+import type { Meta, StoryObj } from "@storybook/tanstack-react";
+import { StorybookStatefulEnvironment } from "./StorybookStatefulEnvironment";
+import { ComposerPreview } from "./composer/ComposerPreview";
+
+const meta = {
+  title: "Composer/Input and send",
+  component: ComposerPreview,
+  parameters: { layout: "padded" },
+  decorators: [
+    (Story, context) => (
+      <StorybookStatefulEnvironment storyId={context.id}>
+        <Story />
+      </StorybookStatefulEnvironment>
+    ),
+  ],
+} satisfies Meta<typeof ComposerPreview>;
+export default meta;
+type Story = StoryObj<typeof meta>;
+export const Empty: Story = {};
