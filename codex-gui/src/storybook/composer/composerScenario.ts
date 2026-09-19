@@ -13,11 +13,15 @@ export const previewSkill: SkillCatalogCandidate = {
   scope: "repo",
 };
 
-export function createComposerScenario(persistence?: PendingInputScenarioOptions["persistence"]) {
-  const queue = createPendingInputScenario({ ordinaryCount: 0, persistence, activeTurnId: null });
+export function createComposerScenario(
+  persistence?: PendingInputScenarioOptions["persistence"],
+  activeTurnId: PendingInputScenarioOptions["activeTurnId"] = null,
+) {
+  const queue = createPendingInputScenario({ ordinaryCount: 0, persistence, activeTurnId });
   queue.coordinator.completeRestoreReconciliation();
   return {
     ...queue,
+    initialActiveTurnId: activeTurnId,
     identity: createActiveThreadSessionIdentity("thread-1"),
     dispose() {
       queue.dispose();
