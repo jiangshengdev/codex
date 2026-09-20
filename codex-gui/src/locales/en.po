@@ -920,11 +920,6 @@ msgstr "Queued"
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "Queued message moved to position {movedPosition} of {movedCount}."
 
-#. Attachment upload completed and it can be sent
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:59
-#~ msgid "Ready"
-#~ msgstr "Ready"
-
 #. Manually re-establish the shared GUI host connection
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:31
 msgid "Reconnect"
@@ -1543,15 +1538,6 @@ msgstr "Unknown"
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:266
 msgid "Unsaved pending message"
 msgstr "Unsaved pending message"
-
-#. Compact attachment upload status; supported formats are available in details
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:98
-#~ msgid "Unsupported image format"
-#~ msgstr "Unsupported image format"
-
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:169
-#~ msgid "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
-#~ msgstr "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
 
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:41
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:215
