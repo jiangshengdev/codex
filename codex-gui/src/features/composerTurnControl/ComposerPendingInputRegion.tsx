@@ -85,7 +85,7 @@ export function ComposerPendingInputRegion({
           <p className="text-sm text-warning" role="status">
             <Trans>Currently unable to guide; added to queue</Trans>
           </p>
-          <ul className="grid min-w-0 gap-2">
+          <ul className="grid max-h-[min(30vh,240px)] min-w-0 gap-2 overflow-y-auto">
             {snapshot.rejectedSteers.map((item) => (
               <li className="min-w-0" key={item.key}>
                 <ComposerInputPreviewContent preview={item.preview} />
