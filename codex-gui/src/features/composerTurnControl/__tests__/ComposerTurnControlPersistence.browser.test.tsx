@@ -80,6 +80,120 @@ test("bounds unknown records while keeping their explanation and removal reachab
   }
 });
 
+test("opens the complete unknown message from a three-line preview and restores focus", async () => {
+  const text = Array.from({ length: 80 }, (_, index) => `Line ${String(index + 1)}`).join("\n");
+  const harness = createQueueControllerHarness(
+    queueSnapshot({
+      persistence: {
+        error: null,
+        restoredPaused: false,
+        revision: 7,
+        unknownMessages: [{ id: "long-unknown", text }],
+      },
+    }),
+  );
+  const screen = await renderComposerTurnControl({
+    queue: { type: "provided", controller: harness.controller },
+    strictMode: true,
+  });
+  const preview = screen.getByRole("listitem").getByText(text, { exact: true }).element();
+  await expect
+    .poll(() => preview.clientHeight / Number.parseFloat(getComputedStyle(preview).lineHeight))
+    .toBe(3);
+  expect(preview.scrollHeight).toBeGreaterThan(preview.clientHeight);
+  const trigger = screen.getByRole("button", { name: "View full message", exact: true });
+  await expect.element(trigger).toBeVisible();
+  trigger.element().focus();
+  await screen.user.keyboard("{Enter}");
+  const dialog = screen.getByRole("dialog");
+  await expect.element(dialog).toBeVisible();
+  const fullText = dialog.getByText(text, { exact: true });
+  await expect.element(fullText).toBeVisible();
+  const body = fullText.element().parentElement;
+  if (body == null) throw new Error("Full message must have a scroll container");
+  expect(body.scrollHeight).toBeGreaterThan(body.clientHeight);
+  body.scrollTop = body.scrollHeight;
+  await expect.poll(() => body.scrollTop).toBeGreaterThan(0);
+  await expect.element(dialog.getByRole("button", { name: "Close", exact: true })).toBeVisible();
+  await screen.user.keyboard("{Escape}");
+  await expect.element(dialog).not.toBeInTheDocument();
+  await expect.element(trigger).toHaveFocus();
+  expect(harness.submit).not.toHaveBeenCalled();
+  expect(harness.controller.discardUnknown).not.toHaveBeenCalled();
+  expect(harness.controller.resumeRestored).not.toHaveBeenCalled();
+});
+
+test("updates unknown previews for text and width changes without dismissing an open detail", async () => {
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  const persistence = {
+    error: null,
+    restoredPaused: false,
+    revision: 7,
+    unknownMessages: [{ id: "changing-unknown", text: "One\nTwo\nThree\nFour" }],
+  };
+  try {
+    await page.viewport(1280, 1000);
+    const harness = createQueueControllerHarness(queueSnapshot({ persistence }));
+    const screen = await renderComposerTurnControl({
+      queue: { type: "provided", controller: harness.controller },
+    });
+    const trigger = screen.getByRole("button", { name: "View full message", exact: true });
+    await expect.element(trigger).toBeVisible();
+    const publishText = (text: string) => {
+      harness.publish(
+        queueSnapshot({
+          persistence: { ...persistence, unknownMessages: [{ id: "changing-unknown", text }] },
+        }),
+      );
+    };
+    publishText("One\nTwo\nThree");
+    await expect.element(trigger).not.toBeInTheDocument();
+    const text = "Review the complete message before removing its local record. ".repeat(4).trim();
+    publishText(text);
+    await expect
+      .element(screen.getByRole("listitem").getByText(text, { exact: true }))
+      .toBeVisible();
+    await expect.element(trigger).not.toBeInTheDocument();
+    await page.viewport(375, 600);
+    await expect.element(trigger).toBeVisible();
+    const preview = screen.getByRole("listitem").getByText(text, { exact: true }).element();
+    expect(preview.clientHeight / Number.parseFloat(getComputedStyle(preview).lineHeight)).toBe(3);
+    const remove = screen.getByRole("button", { name: "Remove local record", exact: true });
+    const list = screen.getByRole("list").element();
+    expect(list.scrollWidth).toBeLessThanOrEqual(list.clientWidth);
+    list.scrollTop = list.scrollHeight;
+    await trigger.click();
+    const dialog = screen.getByRole("dialog");
+    await expect.element(dialog.getByText(text, { exact: true })).toBeVisible();
+    await page.viewport(1280, 1000);
+    await expect.poll(() => preview.scrollHeight).toBe(preview.clientHeight);
+    // Allow resize observation and its scheduled rendering to settle before interacting.
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          resolve();
+        }),
+      ),
+    );
+    await expect.element(dialog).toBeVisible();
+    await screen.user.keyboard("{Escape}");
+    await expect.element(dialog).not.toBeInTheDocument();
+    await expect.element(trigger).not.toBeInTheDocument();
+    publishText("x".repeat(1000));
+    await expect.element(trigger).toBeVisible();
+    expect(list.scrollWidth).toBeLessThanOrEqual(list.clientWidth);
+    await expect.element(remove).toBeVisible();
+    await remove.click();
+    expect(harness.controller.discardUnknown).toHaveBeenCalledExactlyOnceWith(
+      "changing-unknown",
+      7,
+    );
+    expect(harness.submit).not.toHaveBeenCalled();
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
 test("restores the ordinary draft in StrictMode and persists subsequent content changes", async () => {
   const harness = createQueueControllerHarness(queueSnapshot());
   harness.controller.getDraft.mockReturnValue(composerCapture("Restored ordinary draft").draft);
