@@ -1,4 +1,4 @@
-import { Button, Modal, Tooltip } from "@heroui/react";
+import { Button, ButtonGroup, Modal, Tooltip } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { Info } from "lucide-react";
 import type { ReactNode } from "react";
@@ -25,6 +25,7 @@ export function ImagePreviewFailureDetails({
           className="h-auto shrink-0 md:h-auto"
           aria-label={label}
         >
+          <ButtonGroup.Separator />
           <Info size={16} aria-hidden="true" />
         </Button>
         <Tooltip.Content>{label}</Tooltip.Content>

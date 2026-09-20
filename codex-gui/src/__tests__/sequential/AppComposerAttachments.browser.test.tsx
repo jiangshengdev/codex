@@ -654,7 +654,7 @@ test("failed attachments retry independently and a removed upload cannot return"
   expect(upload).toHaveBeenCalledTimes(3);
 });
 
-test("upload retry keeps its failure visible and prevents duplicate requests until success", async () => {
+test("upload retry shows only progress and prevents duplicate requests until success", async () => {
   const retried = createDeferred<Response>();
   const upload = vi
     .spyOn(globalThis, "fetch")
@@ -665,15 +665,29 @@ test("upload retry keeps its failure visible and prevents duplicate requests unt
   const retry = composer.getByRole("button", { name: "Retry upload retry.txt", exact: true });
   await expect.element(retry).toBeVisible();
   await expect.element(retry).toHaveTextContent(/^$/);
+  await expect
+    .element(retry.element().querySelector<HTMLSpanElement>(".button-group__separator"))
+    .toBeVisible();
   await retry.click();
   await expect.element(retry).toBeDisabled();
-  await expect.element(composer.getByRole("status")).toHaveTextContent("File upload failed.");
-  await expect.element(composer.getByRole("status")).toHaveTextContent("Uploading");
+  await expect.element(composer.getByRole("status")).toHaveTextContent(/^Uploading$/);
+  await expect.element(composer.getByRole("status")).toHaveClass("chip--accent");
+  await expect
+    .element(retry.element().querySelector<HTMLSpanElement>(".button-group__separator"))
+    .toBeVisible();
   await userEvent.keyboard("{Enter}{Enter}");
   expect(upload).toHaveBeenCalledTimes(2);
   retried.resolve(new Response("/tmp/retry.txt", { status: 201 }));
   await expect.element(composer.getByRole("status")).toHaveTextContent("Uploaded");
   await expect.element(retry).not.toBeInTheDocument();
+  await expect
+    .element(
+      composer
+        .getByRole("button", { name: "Remove retry.txt", exact: true })
+        .element()
+        .querySelector<HTMLSpanElement>(".button-group__separator"),
+    )
+    .toBeVisible();
 });
 
 test.each([
@@ -710,6 +724,9 @@ test.each([
     const bounds = attachment.element().getBoundingClientRect();
     const controls = attachment.getByRole("button").elements();
     for (const control of controls) {
+      await expect
+        .element(control.querySelector<HTMLSpanElement>(".button-group__separator"))
+        .toBeVisible();
       const rect = control.getBoundingClientRect();
       expect(rect.left).toBeGreaterThanOrEqual(bounds.left);
       expect(rect.right).toBeLessThanOrEqual(bounds.right + 1);

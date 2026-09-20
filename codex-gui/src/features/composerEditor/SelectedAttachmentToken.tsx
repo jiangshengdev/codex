@@ -74,20 +74,13 @@ export function SelectedAttachmentToken({
     <Chip
       role="status"
       size="sm"
-      color={attachment.failure != null ? "danger" : "accent"}
+      color={attachment.status !== "uploading" && attachment.failure != null ? "danger" : "accent"}
       variant="soft"
       className="h-auto max-w-full whitespace-normal"
     >
       <Chip.Label className="whitespace-normal wrap-anywhere">
         {attachment.status === "uploading" ? (
-          <>
-            {attachment.failure === "upload" ? (
-              <>
-                <Trans>File upload failed.</Trans>{" "}
-              </>
-            ) : null}
-            <Trans comment="Attachment is being transferred to the Codex machine">Uploading</Trans>
-          </>
+          <Trans comment="Attachment is being transferred to the Codex machine">Uploading</Trans>
         ) : attachment.status === "ready" ? (
           <Trans comment="Attachment transfer completed; image preview may still be loading or failed">
             Uploaded
@@ -147,6 +140,7 @@ export function SelectedAttachmentToken({
             aria-label={retryLabel}
             onPress={() => editor.dispatchCommand(RETRY_ATTACHMENT_COMMAND, nodeKey)}
           >
+            <ButtonGroup.Separator />
             {attachment.status === "uploading" ? (
               <Spinner size="sm" aria-hidden="true" />
             ) : (

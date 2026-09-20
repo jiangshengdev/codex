@@ -1,5 +1,5 @@
 import { FILE_PREVIEW_PATH, type GuiFilePreviewParams } from "@codex-gui-host-contract";
-import { Button, Modal, Spinner, Tooltip } from "@heroui/react";
+import { Button, ButtonGroup, Modal, Spinner, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { RotateCw } from "lucide-react";
@@ -126,6 +126,7 @@ function ImagePreview({ path, name, authorizationToken, draft }: UploadedImagePr
                 setAttempt((value) => value + 1);
               }}
             >
+              <ButtonGroup.Separator />
               {retrying ? (
                 <Spinner size="sm" aria-hidden="true" />
               ) : (
