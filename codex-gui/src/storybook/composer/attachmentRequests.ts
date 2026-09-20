@@ -1,4 +1,9 @@
-import { UPLOAD_PATH } from "@codex-gui-host-contract";
+import {
+  FILE_PREVIEW_PATH,
+  UPLOAD_PATH,
+  type GuiFilePreviewParams,
+  type GuiUploadParams,
+} from "@codex-gui-host-contract";
 import { createListenerSet } from "@/subscriptions/listenerSet";
 
 const tokenPrefix = "storybook-attachments-";
@@ -32,31 +37,64 @@ export function createAttachmentRequests() {
     id: string;
     name: string;
     removed: boolean;
+    kind: "upload" | "preview";
     complete(): void;
     fail(status?: number): void;
+    decodeFailure(): void;
   }>[] = [];
+  // The real Composer owns selected Files until removal. A weak association
+  // lets preview reads use those exact bytes without extending their lifetime.
+  const images = new Map<string, WeakRef<Blob>>();
   const cleanups = new Set<() => void>();
   let disposed = false;
   let connected = false;
   const handle: typeof fetch = (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-    if (disposed || url.pathname !== UPLOAD_PATH || init?.method !== "POST") {
+    const kind =
+      url.pathname === UPLOAD_PATH && init?.method === "POST"
+        ? "upload"
+        : url.pathname === FILE_PREVIEW_PATH && (init?.method ?? "GET") === "GET"
+          ? "preview"
+          : null;
+    if (disposed || kind == null) {
       return Promise.resolve(new Response(null, { status: 410 }));
     }
-    const name = url.searchParams.get("filename") ?? "";
-    const signal = init.signal;
+    const previewPath = url.searchParams.get("path" satisfies keyof GuiFilePreviewParams) ?? "";
+    const name =
+      kind === "upload"
+        ? (url.searchParams.get("filename" satisfies keyof GuiUploadParams) ?? "")
+        : (previewPath.split("/").at(-1) ?? "");
+    const signal = init?.signal;
     const id = crypto.randomUUID();
+    const path = `/storybook/attachments/${id}/${name}`;
+    let bytes =
+      kind === "upload" && init?.body instanceof Blob
+        ? init.body
+        : images.get(previewPath)?.deref();
     return new Promise<Response>((resolve) => {
-      const settle = (status = 201) => {
+      const settle = (status = kind === "upload" ? 201 : 200, corrupt = false) => {
         signal?.removeEventListener("abort", abort);
         cleanups.delete(settle);
         requests = requests.filter((request) => request.id !== id);
-        resolve(new Response(`/storybook/attachments/${id}/${name}`, { status }));
+        if (kind === "upload" && status === 201 && !signal?.aborted && bytes != null) {
+          images.set(path, new WeakRef(bytes));
+        }
+        resolve(
+          new Response(
+            kind === "upload" ? path : corrupt ? "Invalid image bytes" : (bytes ?? null),
+            { status },
+          ),
+        );
+        bytes = undefined;
         listeners.notify();
       };
       const abort = () => {
-        // Keep only response metadata to demonstrate a late completion. No File
-        // or request body is retained here; the real plugin owns cancellation.
+        // A late result keeps metadata only, never the removed file's bytes.
+        bytes = undefined;
+        if (kind === "preview") {
+          settle(410);
+          return;
+        }
         requests = requests.map((request) =>
           request.id === id ? { ...request, removed: true } : request,
         );
@@ -68,12 +106,16 @@ export function createAttachmentRequests() {
         {
           id,
           name,
+          kind,
           removed: signal?.aborted ?? false,
           complete: () => {
             settle();
           },
           fail: (status = 500) => {
             settle(status);
+          },
+          decodeFailure: () => {
+            settle(200, true);
           },
         },
       ];
@@ -101,6 +143,7 @@ export function createAttachmentRequests() {
       disposed = true;
       handlers.delete(token);
       for (const cleanup of cleanups) cleanup();
+      images.clear();
     },
   };
 }

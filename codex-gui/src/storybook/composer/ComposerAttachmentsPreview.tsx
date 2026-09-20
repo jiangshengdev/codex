@@ -1,6 +1,6 @@
 import { Button, Toast } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
-import { StrictMode, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { StrictMode, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { AttachmentState } from "@/features/composerEditor/AttachmentNode";
 import { createListenerSet } from "@/subscriptions/listenerSet";
 import { DevOnly } from "../DevOnly";
@@ -8,8 +8,10 @@ import { PendingInputPreview } from "../pendingInput/PendingInputScenarioView";
 import { ComposerSimulation } from "./ComposerPreview";
 import { createComposerTextScenario } from "./composerTextScenario";
 import { createAttachmentRequests } from "./attachmentRequests";
+import { createSampleImage } from "./sampleImage";
 
 type Preset = "interactive" | "uploading" | "ready" | NonNullable<AttachmentState["failure"]>;
+type PreviewPreset = "manual" | "ready" | "readFailure" | "decodeFailure";
 
 function createScenario() {
   const composer = createComposerTextScenario("Review this fictional attachment: ");
@@ -40,10 +42,18 @@ function createScenario() {
 function AttachmentSimulation({
   scenario,
   preset,
-}: Readonly<{ scenario: ReturnType<typeof createScenario>; preset: Preset }>) {
+  image = false,
+  previewPreset = "manual",
+}: Readonly<{
+  scenario: ReturnType<typeof createScenario>;
+  preset: Preset;
+  image?: boolean;
+  previewPreset?: PreviewPreset;
+}>) {
   const root = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
   const completedPreset = useRef(false);
+  const completedPreview = useRef(false);
   const [composerGeneration, setComposerGeneration] = useState(0);
   const draft = useSyncExternalStore(scenario.subscribeDraft, scenario.coordinator.getDraft);
   const draftBeforeSample = useRef(draft);
@@ -56,20 +66,25 @@ function AttachmentSimulation({
     };
   }, [scenario]);
 
-  const addSample = (unsupported = false) => {
-    const input = root.current?.querySelector<HTMLInputElement>('input[type="file"]');
-    if (input == null) return;
-    const transfer = new DataTransfer();
-    transfer.items.add(
-      unsupported
-        ? new File(['<svg xmlns="http://www.w3.org/2000/svg"/>'], "sample.svg", {
-            type: "image/svg+xml",
-          })
-        : new File(["Fictional review notes."], "review-notes.txt", { type: "text/plain" }),
-    );
-    input.files = transfer.files;
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  };
+  const addSample = useCallback(
+    (unsupported = false) => {
+      const input = root.current?.querySelector<HTMLInputElement>('input[type="file"]');
+      if (input == null) return;
+      const transfer = new DataTransfer();
+      transfer.items.add(
+        unsupported
+          ? new File(['<svg xmlns="http://www.w3.org/2000/svg"/>'], "sample.svg", {
+              type: "image/svg+xml",
+            })
+          : image
+            ? createSampleImage()
+            : new File(["Fictional review notes."], "review-notes.txt", { type: "text/plain" }),
+      );
+      input.files = transfer.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    },
+    [image],
+  );
   useEffect(() => {
     if (!connected || initialized.current || preset === "interactive") return;
     let cancelled = false;
@@ -82,7 +97,7 @@ function AttachmentSimulation({
     return () => {
       cancelled = true;
     };
-  }, [connected, preset, scenario]);
+  }, [connected, preset, scenario, addSample]);
   useEffect(() => {
     if (completedPreset.current || requests.length === 0) return;
     if (preset === "interactive" || preset === "uploading" || preset === "unsupportedImage") return;
@@ -114,6 +129,26 @@ function AttachmentSimulation({
       }
     }
   }, [draft, preset, requests]);
+  useEffect(() => {
+    const request = requests.find((item) => item.kind === "preview" && !item.removed);
+    if (completedPreview.current || request == null || previewPreset === "manual") return;
+    completedPreview.current = true;
+    switch (previewPreset) {
+      case "ready":
+        request.complete();
+        break;
+      case "readFailure":
+        request.fail();
+        break;
+      case "decodeFailure":
+        request.decodeFailure();
+        break;
+      default: {
+        const unhandled: never = previewPreset;
+        throw new Error(`Unhandled preview preset: ${String(unhandled)}`);
+      }
+    }
+  }, [requests, previewPreset]);
 
   return (
     <div ref={root} className="grid gap-3">
@@ -139,16 +174,28 @@ function AttachmentSimulation({
           }}
           isDisabled={!connected}
         >
-          <Trans comment="Insert a fictional local file through the Composer file input">
-            Add sample file
-          </Trans>
+          {image ? (
+            <Trans comment="Insert a fictional PNG through the Composer file input">
+              Add sample image
+            </Trans>
+          ) : (
+            <Trans comment="Insert a fictional local file through the Composer file input">
+              Add sample file
+            </Trans>
+          )}
         </Button>
-        {requests.map(({ id, name, removed, complete, fail }) => (
+        {requests.map(({ id, name, kind, removed, complete, fail, decodeFailure }) => (
           <div key={id} className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" onPress={complete}>
-              <Trans comment="Resolve the simulated upload for the named file, including a response arriving after removal">
-                Complete upload {name}
-              </Trans>
+              {kind === "preview" ? (
+                <Trans comment="Return the selected image bytes to the real preview component">
+                  Complete preview {name}
+                </Trans>
+              ) : (
+                <Trans comment="Resolve the simulated upload for the named file, including a response arriving after removal">
+                  Complete upload {name}
+                </Trans>
+              )}
             </Button>
             <Button
               variant="secondary"
@@ -156,10 +203,23 @@ function AttachmentSimulation({
                 fail();
               }}
             >
-              <Trans comment="Return a simulated upload failure for the named file">
-                Fail upload {name}
-              </Trans>
+              {kind === "preview" ? (
+                <Trans comment="Simulate a failure reading the uploaded image without changing upload status">
+                  Fail preview read {name}
+                </Trans>
+              ) : (
+                <Trans comment="Return a simulated upload failure for the named file">
+                  Fail upload {name}
+                </Trans>
+              )}
             </Button>
+            {kind === "preview" ? (
+              <Button variant="secondary" onPress={decodeFailure}>
+                <Trans comment="Return invalid bytes so the browser cannot decode the uploaded image">
+                  Fail preview decode {name}
+                </Trans>
+              </Button>
+            ) : null}
             {removed ? (
               <span className="text-sm text-muted">
                 <Trans>Removed; a late result must not restore this attachment.</Trans>
@@ -174,12 +234,24 @@ function AttachmentSimulation({
 
 export function ComposerAttachmentsPreview({
   preset = "interactive",
-}: Readonly<{ preset?: Preset }>) {
+  image = false,
+  previewPreset = "manual",
+}: Readonly<{ preset?: Preset; image?: boolean; previewPreset?: PreviewPreset }>) {
   return (
     <StrictMode>
       <Toast.Provider placement="top" />
-      <PendingInputPreview key={preset} createScenario={createScenario}>
-        {(scenario) => <AttachmentSimulation scenario={scenario} preset={preset} />}
+      <PendingInputPreview
+        key={`${preset}-${String(image)}-${previewPreset}`}
+        createScenario={createScenario}
+      >
+        {(scenario) => (
+          <AttachmentSimulation
+            scenario={scenario}
+            preset={preset}
+            image={image}
+            previewPreset={previewPreset}
+          />
+        )}
       </PendingInputPreview>
     </StrictMode>
   );
