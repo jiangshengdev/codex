@@ -53,7 +53,7 @@ export function ComposerAttachmentsPlugin({
             const node = $createAttachmentNode({
               id: randomUuid(),
               name: file.name,
-              mediaType: attachmentMedia(file) === "file" ? "file" : "image",
+              mediaType: attachmentMedia(file),
               status: "uploading",
               path: "",
               failure: null,
@@ -123,24 +123,12 @@ export function ComposerAttachmentsPlugin({
     async function startUpload(key: NodeKey): Promise<void> {
       const entry = entries.get(key);
       if (entry == null || entry.request != null) return;
-      if (attachmentMedia(entry.file) === "unsupportedImage") {
-        editor.update(() => {
-          const node = $getNodeByKey(key);
-          if ($isAttachmentNode(node))
-            node.setAttachment({
-              ...node.getAttachment(),
-              status: "failed",
-              failure: "unsupportedImage",
-            });
-        });
-        return;
-      }
       const request = new AbortController();
       entry.request = request;
       editor.update(() => {
         const node = $getNodeByKey(key);
         if ($isAttachmentNode(node))
-          node.setAttachment({ ...node.getAttachment(), status: "uploading", failure: null });
+          node.setAttachment({ ...node.getAttachment(), status: "uploading" });
       });
       const result = await uploadFile(entry.file, uploadAuthorizationToken, request.signal);
       if (request.signal.aborted || entries.get(key) !== entry) return;

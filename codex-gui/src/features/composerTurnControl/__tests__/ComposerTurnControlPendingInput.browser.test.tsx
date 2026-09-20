@@ -1,6 +1,6 @@
-import { Toast } from "@heroui/react";
+import { Button, Toast } from "@heroui/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
@@ -114,6 +114,75 @@ afterEach(() => {
   restoreMotion = undefined;
   vi.restoreAllMocks();
 });
+
+test.each([375, 1280])(
+  "uses compact queue controls and regular send at %i pixels",
+  async (width) => {
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    try {
+      await page.viewport(width, 900);
+      restoreMotion = disableMotionForTest();
+      const reference = await renderWithProviders(
+        <>
+          <Button size="sm">Compact reference</Button>
+          <Button size="md">Regular reference</Button>
+        </>,
+      );
+      const harness = createQueueControllerHarness(
+        queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1 }),
+        {
+          ordinary: [
+            pendingInputItem("queued-one", "ordinary", {
+              type: "text",
+              text: "Queued message",
+              truncated: false,
+            }),
+          ],
+          steer: [],
+        },
+      );
+      const screen = await renderComposerTurnControl({
+        queue: { type: "provided", controller: harness.controller },
+      });
+      const compactHeight = reference
+        .getByRole("button", { name: "Compact reference" })
+        .element()
+        .getBoundingClientRect().height;
+      const regularHeight = reference
+        .getByRole("button", { name: "Regular reference" })
+        .element()
+        .getBoundingClientRect().height;
+      const trigger = screen
+        .getByRole("group", { name: "Pending: Queued 1", exact: true })
+        .getByRole("button", { name: "Queued 1", exact: true });
+      expect(trigger.element().getBoundingClientRect().height).toBe(compactHeight);
+      expect(
+        screen.getByRole("button", { name: "Send", exact: true }).element().getBoundingClientRect()
+          .height,
+      ).toBe(regularHeight);
+      await trigger.click();
+      const drawer = screen.getByRole("dialog", { name: "Pending details", exact: true });
+      await expect.element(drawer).toBeVisible();
+      await waitForPendingDrawerOpen();
+      const group = drawer.getByRole("button", { name: "Queued 1", exact: true });
+      expect(group.element().getBoundingClientRect().height).toBe(compactHeight);
+      group.element().focus();
+      await screen.user.keyboard("{Enter}");
+      await expect.element(group).toHaveAttribute("aria-expanded", "false");
+      const panelId = group.element().getAttribute("aria-controls");
+      const panel = panelId == null ? null : document.getElementById(panelId);
+      if (panel == null) throw new Error("Queue group must control a disclosure panel");
+      // Disclosure clips its panel; a retained child's own box can remain visible to WebKit.
+      await expect.poll(() => panel.getBoundingClientRect().height).toBe(0);
+      await screen.user.keyboard("{Enter}");
+      await expect.element(group).toHaveAttribute("aria-expanded", "true");
+      await expect.poll(() => panel.getBoundingClientRect().height).toBeGreaterThan(0);
+      await expect.element(drawer.getByText("Queued message", { exact: true })).toBeVisible();
+    } finally {
+      await page.viewport(viewport.width, viewport.height);
+    }
+  },
+);
 
 test("keeps submit and pending-input open available after StrictMode effect replay", async () => {
   const harness = createQueueControllerHarness(

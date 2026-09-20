@@ -85,6 +85,7 @@ function NewSessionEditor({
               actions={
                 unknownHandoff && snapshot.threadId != null ? (
                   <Button
+                    size="sm"
                     variant="primary"
                     onPress={() => {
                       const threadId = snapshot.threadId;

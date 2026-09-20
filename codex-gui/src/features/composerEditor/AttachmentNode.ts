@@ -18,7 +18,7 @@ export type AttachmentState = Readonly<{
   mediaType: "file" | "image";
   status: "uploading" | "ready" | "failed";
   path: string;
-  failure: UploadFailure | "interrupted" | "unsupportedImage" | null;
+  failure: UploadFailure | "interrupted" | null;
 }>;
 type SerializedAttachmentNode = Spread<
   { type: "attachment"; version: 1; attachment: AttachmentState },

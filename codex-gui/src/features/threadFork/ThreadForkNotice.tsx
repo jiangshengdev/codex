@@ -27,7 +27,7 @@ function ForkNotice({
           <Alert.Indicator />
           <FailureLayout
             actions={
-              <Button variant="tertiary" onPress={owner.dismissFailure}>
+              <Button size="sm" variant="tertiary" onPress={owner.dismissFailure}>
                 <Trans comment="Dismiss the fork creation error notice">Dismiss</Trans>
               </Button>
             }
@@ -55,6 +55,7 @@ function ForkNotice({
           <FailureLayout
             actions={
               <Button
+                size="sm"
                 variant="primary"
                 isDisabled={!available}
                 onPress={() => {

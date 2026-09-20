@@ -300,7 +300,12 @@ describe("transcript state committed messages reducer", () => {
       id: "user-started-leading",
       turnId: "turn-started-leading-user",
       role: "user",
-      rendering: { mode: "plainText", source: "Prompt" },
+      rendering: {
+        mode: "userText",
+        source: "Prompt",
+        inputs: [{ type: "text", text: "Prompt", text_elements: [] }],
+        images: [],
+      },
       revision: 0,
     });
     expect(

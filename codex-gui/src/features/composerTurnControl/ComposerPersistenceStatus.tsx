@@ -3,6 +3,7 @@ import { Trans } from "@lingui/react/macro";
 import type { ActiveThreadSessionSnapshot } from "@/features/activeThreadSession/activeThreadSession";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
+import { ComposerUnknownMessagePreview } from "./ComposerUnknownMessagePreview";
 
 export function ComposerPersistenceStatus({
   sessionSnapshot,
@@ -63,6 +64,7 @@ export function ComposerPersistenceStatus({
             actions={
               <Button
                 variant="primary"
+                size="sm"
                 isDisabled={!enabled || persistence.error != null}
                 onPress={() => {
                   composerRole.resumeRestored(revision, persistence.revision);
@@ -101,7 +103,7 @@ export function ComposerPersistenceStatus({
                 not cancel or retract a message on the server.
               </Trans>
             </Alert.Description>
-            <ul className="mt-4 grid w-full min-w-0 gap-2">
+            <ul className="mt-4 grid max-h-[min(30vh,240px)] w-full min-w-0 gap-2 overflow-y-auto">
               {persistence.unknownMessages.map((message) => (
                 <li key={message.id} className="min-w-0">
                   <FailureLayout
@@ -120,7 +122,7 @@ export function ComposerPersistenceStatus({
                       </Button>
                     }
                   >
-                    <p className="whitespace-pre-wrap wrap-anywhere">{message.text}</p>
+                    <ComposerUnknownMessagePreview text={message.text} />
                   </FailureLayout>
                 </li>
               ))}

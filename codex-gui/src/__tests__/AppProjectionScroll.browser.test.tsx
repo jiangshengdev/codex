@@ -263,7 +263,6 @@ test("App flushes pending projection deltas before structural projection events"
       turnId: "turn-raf-flush-event",
       role: "assistant",
       source: "Completed answer",
-      sourceKind: "markdown",
       phase: "final_answer",
       revision: 2,
     });
