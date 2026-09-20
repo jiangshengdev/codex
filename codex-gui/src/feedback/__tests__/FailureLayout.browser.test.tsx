@@ -218,6 +218,29 @@ test("wraps long compact actions without a card, preserves their order and disab
 });
 
 for (const viewportWidth of [375, 1280]) {
+  test(`uses native compact diagnostic actions at viewport ${String(viewportWidth)}`, async () => {
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    try {
+      await page.viewport(viewportWidth, 900);
+      const screen = await renderWithProviders(
+        <>
+          <Button size="sm">Reference action</Button>
+          <FailureExample locale="en" diagnostic retry />
+        </>,
+      );
+      expect(
+        screen
+          .getByRole("button", { name: "View diagnostic information" })
+          .element()
+          .getBoundingClientRect().height,
+      ).toBe(
+        screen.getByRole("button", { name: "Reference action" }).element().getBoundingClientRect()
+          .height,
+      );
+    } finally {
+      await page.viewport(viewport.width, viewport.height);
+    }
+  });
   for (const buttonSize of ["sm", "md", "lg"] as const) {
     test(`preserves ordinary ${buttonSize} button height at viewport ${String(viewportWidth)}`, async () => {
       const viewport = { width: window.innerWidth, height: window.innerHeight };

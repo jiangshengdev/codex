@@ -1,4 +1,4 @@
-import { toast } from "@heroui/react";
+import { Button, toast } from "@heroui/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
@@ -14,6 +14,7 @@ import {
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { detailThreadId, renderDetail } from "./threadHistoryDetailBrowserHarness";
+import { renderWithProviders } from "@/utils/test-utils";
 
 const historyThread = (
   turns: typeof attachResponse.snapshot.thread.turns,
@@ -93,6 +94,33 @@ test("reports an unresolved current thread without flashing pending and links th
   const returnAction = alert.getByRole("button", { name: "Return to current task" });
   await expect.element(returnAction).toBeVisible();
   await expect.element(returnAction).toBeEnabled();
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  const reference = await renderWithProviders(
+    <>
+      <Button size="sm">Compact reference</Button>
+      <Button size="md">Page action reference</Button>
+    </>,
+  );
+  try {
+    for (const width of [375, 1280]) {
+      await page.viewport(width, 900);
+      const compactHeight = reference
+        .getByRole("button", { name: "Compact reference" })
+        .element()
+        .getBoundingClientRect().height;
+      const regularHeight = reference
+        .getByRole("button", { name: "Page action reference" })
+        .element()
+        .getBoundingClientRect().height;
+      await expect
+        .poll(() => returnAction.element().getBoundingClientRect().height)
+        .toBe(compactHeight);
+      await expect.poll(() => action.element().getBoundingClientRect().height).toBe(regularHeight);
+    }
+  } finally {
+    await reference.unmount();
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
 });
 
 test("pushes an unresolved continuation return target and preserves the history detail back stack", async () => {

@@ -1,4 +1,6 @@
+import { Button } from "@heroui/react";
 import { expect, test, vi } from "vitest";
+import { renderWithProviders } from "@/utils/test-utils";
 import { page } from "vitest/browser";
 import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import { exportComposerDraft } from "@/features/composerEditor/composerDraft";
@@ -23,6 +25,46 @@ import {
   pendingInputItem,
   queueSnapshot,
 } from "./composerTurnControlPendingInputBrowserTestSupport";
+
+test.each([375, 1280])("matches native compact recovery actions at %i pixels", async (width) => {
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  try {
+    await page.viewport(width, 900);
+    const reference = await renderWithProviders(<Button size="sm">Reference action</Button>);
+    const harness = createQueueControllerHarness(
+      queueSnapshot({
+        persistence: {
+          error: null,
+          restoredPaused: true,
+          revision: 7,
+          unknownMessages: [
+            { id: "unknown-one", text: "First message" },
+            { id: "unknown-two", text: "Second message" },
+          ],
+        },
+      }),
+    );
+    const screen = await renderComposerTurnControl({
+      queue: { type: "provided", controller: harness.controller },
+    });
+    const height = reference
+      .getByRole("button", { name: "Reference action" })
+      .element()
+      .getBoundingClientRect().height;
+    const remove = screen
+      .getByRole("button", { name: "Remove local record", exact: true })
+      .elements();
+    expect(remove).toHaveLength(2);
+    for (const button of [
+      screen.getByRole("button", { name: "Continue sending", exact: true }).element(),
+      ...remove,
+    ]) {
+      expect(button.getBoundingClientRect().height).toBe(height);
+    }
+  } finally {
+    await page.viewport(viewport.width, viewport.height);
+  }
+});
 
 test("bounds unknown records while keeping their explanation and removal reachable", async () => {
   const originalViewport = { width: window.innerWidth, height: window.innerHeight };

@@ -157,6 +157,7 @@ function PendingInputGroup({
           >
             <Button
               slot="trigger"
+              size="sm"
               variant={isExpanded ? "secondary" : "tertiary"}
               className={`w-full border-none ${isExpanded ? "" : "bg-transparent"}`}
             >
