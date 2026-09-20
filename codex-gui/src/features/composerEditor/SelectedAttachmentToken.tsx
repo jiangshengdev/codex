@@ -15,6 +15,7 @@ import { use, useEffect } from "react";
 import { RotateCw, X } from "lucide-react";
 import { UploadedImagePreview } from "@/features/fileUpload/UploadedImagePreview";
 import { AttachmentSummary } from "@/features/fileUpload/AttachmentSummary";
+import { AttachmentFailureDetails } from "@/features/fileUpload/AttachmentFailureDetails";
 import { AttachmentAuthorizationContext } from "./attachmentEnvironment";
 import { RETRY_ATTACHMENT_COMMAND, type AttachmentState } from "./AttachmentNode";
 
@@ -86,13 +87,21 @@ export function SelectedAttachmentToken({
             Uploaded
           </Trans>
         ) : attachment.failure === "size" ? (
-          <Trans>The file exceeds the 50 MiB limit.</Trans>
+          <Trans comment="Compact attachment upload status; size limit is available in details">
+            File too large
+          </Trans>
         ) : attachment.failure === "authorization" ? (
-          <Trans>File upload is not authorized. Open the current GUI launch link.</Trans>
+          <Trans comment="Compact attachment upload status; recovery instructions are available in details">
+            Upload not authorized
+          </Trans>
         ) : attachment.failure === "unsupportedImage" ? (
-          <Trans>Unsupported image format. Use PNG, JPEG, GIF, or WebP.</Trans>
+          <Trans comment="Compact attachment upload status; supported formats are available in details">
+            Unsupported image format
+          </Trans>
         ) : attachment.failure === "interrupted" ? (
-          <Trans>Upload interrupted. Remove and add the file again.</Trans>
+          <Trans comment="Compact attachment upload status; recovery instructions are available in details">
+            Upload interrupted
+          </Trans>
         ) : (
           <Trans>File upload failed.</Trans>
         )}
@@ -149,6 +158,23 @@ export function SelectedAttachmentToken({
           </Button>
           <Tooltip.Content>{retryLabel}</Tooltip.Content>
         </Tooltip>
+      ) : null}
+      {attachment.status === "failed" ? (
+        <AttachmentFailureDetails name={name}>
+          {attachment.failure === "size" ? (
+            <Trans>The file exceeds the 50 MiB limit.</Trans>
+          ) : attachment.failure === "authorization" ? (
+            <Trans>File upload is not authorized. Open the current GUI launch link.</Trans>
+          ) : attachment.failure === "unsupportedImage" ? (
+            <Trans>Unsupported image format. Use PNG, JPEG, GIF, or WebP.</Trans>
+          ) : attachment.failure === "interrupted" ? (
+            <Trans>Upload interrupted. Remove and add the file again.</Trans>
+          ) : (
+            <Trans comment="Recovery guidance in the attachment upload failure details dialog">
+              File upload failed. Retry the upload, or remove and add the file again.
+            </Trans>
+          )}
+        </AttachmentFailureDetails>
       ) : null}
       <Tooltip>
         <Button

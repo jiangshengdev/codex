@@ -3,7 +3,7 @@ import { useLingui } from "@lingui/react/macro";
 import { Info } from "lucide-react";
 import type { ReactNode } from "react";
 
-export function ImagePreviewFailureDetails({
+export function AttachmentFailureDetails({
   name,
   children,
 }: {
@@ -12,7 +12,7 @@ export function ImagePreviewFailureDetails({
 }) {
   const { t } = useLingui();
   const label = t({
-    comment: "Opens preview failure details for the named draft attachment",
+    comment: "Opens upload or preview failure details for the named draft attachment",
     message: `Failure details for ${name}`,
   });
   return (
@@ -35,7 +35,7 @@ export function ImagePreviewFailureDetails({
           <Modal.Dialog>
             <Modal.CloseTrigger
               aria-label={t({
-                comment: "Closes the attachment preview failure dialog",
+                comment: "Closes the attachment failure dialog",
                 message: "Close failure details",
               })}
             />

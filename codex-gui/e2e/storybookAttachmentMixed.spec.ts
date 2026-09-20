@@ -170,11 +170,7 @@ test("reset and story switching release the mixed batch and hidden DEV keeps rea
   await frame.getByRole("button", { name: "Close image preview", exact: true }).click();
   await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
   await frame.getByRole("button", { name: "Retry upload review-notes.txt", exact: true }).click();
-  await expect(editor.getByRole("status")).toHaveText([
-    "File upload failed. Uploading",
-    "Uploaded",
-    "Uploading",
-  ]);
+  await expect(editor.getByRole("status")).toHaveText(["Uploading", "Uploaded", "Uploading"]);
   await frame.getByRole("button", { name: "Restart simulation", exact: true }).click();
   await expect(editor.getByRole("status")).toHaveText([
     "File upload failed.",

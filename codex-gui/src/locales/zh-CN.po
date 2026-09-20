@@ -151,7 +151,7 @@ msgid "Cancel"
 msgstr "取消"
 
 #. Compact status for a browser image decoding failure
-#: src/features/fileUpload/UploadedImagePreview.tsx:102
+#: src/features/fileUpload/UploadedImagePreview.tsx:106
 msgid "Cannot display preview"
 msgstr "无法显示预览"
 
@@ -181,8 +181,8 @@ msgstr "清理诊断信息："
 msgid "Close diagnostics"
 msgstr "关闭诊断信息"
 
-#. Closes the attachment preview failure dialog
-#: src/features/fileUpload/ImagePreviewFailureDetails.tsx:37
+#. Closes the attachment failure dialog
+#: src/features/fileUpload/AttachmentFailureDetails.tsx:37
 msgid "Close failure details"
 msgstr "关闭失败详情"
 
@@ -190,7 +190,7 @@ msgstr "关闭失败详情"
 msgid "Close file upload"
 msgstr "关闭文件上传"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:223
+#: src/features/fileUpload/UploadedImagePreview.tsx:228
 msgid "Close image preview"
 msgstr "关闭图片预览"
 
@@ -344,11 +344,11 @@ msgid "Could not copy table. Try again."
 msgstr "无法复制表格。请重试。"
 
 #. Uploaded image could not be retrieved; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:181
+#: src/features/fileUpload/UploadedImagePreview.tsx:186
 msgid "Could not load the preview of {name}. The file may no longer be available."
 msgstr "无法加载 {name} 的预览。文件可能已不可用。"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:149
+#: src/features/fileUpload/UploadedImagePreview.tsx:154
 msgid "Could not read the image preview. Check the connection and access permissions."
 msgstr "无法读取图片预览。请检查网络连接和访问权限。"
 
@@ -494,8 +494,8 @@ msgstr "失败"
 msgid "Failed."
 msgstr "失败。"
 
-#. Opens preview failure details for the named draft attachment
-#: src/features/fileUpload/ImagePreviewFailureDetails.tsx:14
+#. Opens upload or preview failure details for the named draft attachment
+#: src/features/fileUpload/AttachmentFailureDetails.tsx:14
 msgid "Failure details for {name}"
 msgstr "{name} 的失败详情"
 
@@ -503,12 +503,22 @@ msgstr "{name} 的失败详情"
 msgid "File saved on the Codex machine"
 msgstr "文件已保存到运行 Codex 的机器"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:97
+#. Compact attachment upload status; size limit is available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:90
+msgid "File too large"
+msgstr "文件过大"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:106
 #: src/features/fileUpload/FileUploadDialog.tsx:95
 msgid "File upload failed."
 msgstr "文件上传失败。"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:91
+#. Recovery guidance in the attachment upload failure details dialog
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:173
+msgid "File upload failed. Retry the upload, or remove and add the file again."
+msgstr "文件上传失败。请重试上传，或移除后重新添加文件。"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:167
 #: src/features/fileUpload/FileUploadDialog.tsx:93
 msgid "File upload is not authorized. Open the current GUI launch link."
 msgstr "文件上传未获授权。请打开当前 GUI 启动链接。"
@@ -569,8 +579,8 @@ msgstr "历史详情"
 msgid "Idle"
 msgstr "空闲"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:142
-#: src/features/fileUpload/UploadedImagePreview.tsx:163
+#: src/features/fileUpload/UploadedImagePreview.tsx:147
+#: src/features/fileUpload/UploadedImagePreview.tsx:168
 msgid "Image preview is not authorized. Open the current GUI launch link."
 msgstr "图片预览未获授权。请打开当前 GUI 启动链接。"
 
@@ -658,12 +668,12 @@ msgid "Loading more…"
 msgstr "正在加载更多…"
 
 #. Loading an uploaded image preview; name is the original file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:171
+#: src/features/fileUpload/UploadedImagePreview.tsx:176
 msgid "Loading preview of {name}…"
 msgstr "正在加载 {name} 的预览…"
 
 #. Image preview is loading independently of the completed upload
-#: src/features/fileUpload/UploadedImagePreview.tsx:98
+#: src/features/fileUpload/UploadedImagePreview.tsx:102
 msgid "Loading preview…"
 msgstr "预览加载中…"
 
@@ -875,12 +885,12 @@ msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "待处理：排队 {ordinaryQueuedCount}"
 
 #. Open the uploaded image at a larger size; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:201
+#: src/features/fileUpload/UploadedImagePreview.tsx:206
 msgid "Preview {name}"
 msgstr "预览 {name}"
 
 #. Compact status for a failed image preview request
-#: src/features/fileUpload/UploadedImagePreview.tsx:106
+#: src/features/fileUpload/UploadedImagePreview.tsx:110
 msgid "Preview read failed"
 msgstr "预览读取失败"
 
@@ -962,7 +972,7 @@ msgid "Reloading skills…"
 msgstr "正在重新加载技能…"
 
 #. Remove the named attachment from the draft
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:102
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:111
 msgid "Remove {name}"
 msgstr "移除 {name}"
 
@@ -1073,7 +1083,7 @@ msgid "Retry upload"
 msgstr "重试上传"
 
 #. Retry uploading the named attachment
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:106
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:115
 msgid "Retry upload {name}"
 msgstr "重试上传 {name}"
 
@@ -1263,12 +1273,12 @@ msgstr "任务内容更新已暂停"
 msgid "Tasks or the connection need attention."
 msgstr "任务或连接存在待处理的异常。"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:144
+#: src/features/fileUpload/UploadedImagePreview.tsx:149
 msgid "The browser could not decode this image. Remove the attachment and choose another file."
 msgstr "浏览器无法解码此图片。请移除附件后选择其他文件。"
 
 #. Browser could not decode the uploaded image; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:185
+#: src/features/fileUpload/UploadedImagePreview.tsx:190
 msgid "The browser could not display {name} as an image."
 msgstr "浏览器无法将 {name} 显示为图片。"
 
@@ -1309,7 +1319,7 @@ msgstr "当前任务未能加载。"
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当前任务再切换。"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:89
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:165
 #: src/features/fileUpload/FileUploadDialog.tsx:91
 msgid "The file exceeds the 50 MiB limit."
 msgstr "文件超过 50 MiB 限制。"
@@ -1534,7 +1544,12 @@ msgstr "状态未知"
 msgid "Unsaved pending message"
 msgstr "尚未保存的待发送消息"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:93
+#. Compact attachment upload status; supported formats are available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:98
+msgid "Unsupported image format"
+msgstr "不支持此图片格式"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:169
 msgid "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
 msgstr "不支持此图片格式。请使用 PNG、JPEG、GIF 或 WebP。"
 
@@ -1557,17 +1572,27 @@ msgstr "上传"
 msgid "Upload file"
 msgstr "上传文件"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:95
+#. Compact attachment upload status; recovery instructions are available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:102
+msgid "Upload interrupted"
+msgstr "上传已中断"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:171
 msgid "Upload interrupted. Remove and add the file again."
 msgstr "上传已中断。请移除后重新添加文件。"
 
+#. Compact attachment upload status; recovery instructions are available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:94
+msgid "Upload not authorized"
+msgstr "上传未获授权"
+
 #. Attachment transfer completed; image preview may still be loading or failed
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:85
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:86
 msgid "Uploaded"
 msgstr "已上传"
 
 #. Attachment is being transferred to the Codex machine
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:83
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:84
 msgid "Uploading"
 msgstr "上传中"
 

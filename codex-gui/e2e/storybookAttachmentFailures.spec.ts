@@ -38,7 +38,7 @@ test("upload failure waits for manual retry and can fail again before succeeding
   await retry.click();
   await expect(editor).toContainText("Uploading");
   await expect(retry).toBeDisabled();
-  await expect(editor).toContainText("File upload failed.");
+  await expect(editor).not.toContainText("File upload failed.");
   await expect(send).toBeDisabled();
   await editor.press("Enter");
   await expect(editor).toContainText("review-notes.txt");
@@ -51,29 +51,39 @@ test("upload failure waits for manual retry and can fail again before succeeding
   await expect(retry).toHaveCount(0);
 });
 
-for (const { story, message, name, retryable } of [
-  { story: "upload", message: "File upload failed.", name: "review-notes.txt", retryable: true },
+for (const { story, message, details, name, retryable } of [
+  {
+    story: "upload",
+    message: "File upload failed.",
+    details: "File upload failed. Retry the upload, or remove and add the file again.",
+    name: "review-notes.txt",
+    retryable: true,
+  },
   {
     story: "size",
-    message: "The file exceeds the 50 MiB limit.",
+    message: "File too large",
+    details: "The file exceeds the 50 MiB limit.",
     name: "review-notes.txt",
     retryable: false,
   },
   {
     story: "authorization",
-    message: "File upload is not authorized. Open the current GUI launch link.",
+    message: "Upload not authorized",
+    details: "File upload is not authorized. Open the current GUI launch link.",
     name: "review-notes.txt",
     retryable: false,
   },
   {
     story: "unsupported-image",
-    message: "Unsupported image format. Use PNG, JPEG, GIF, or WebP.",
+    message: "Unsupported image format",
+    details: "Unsupported image format. Use PNG, JPEG, GIF, or WebP.",
     name: "sample.svg",
     retryable: false,
   },
   {
     story: "interrupted",
-    message: "Upload interrupted. Remove and add the file again.",
+    message: "Upload interrupted",
+    details: "Upload interrupted. Remove and add the file again.",
     name: "review-notes.txt",
     retryable: false,
   },
@@ -82,6 +92,17 @@ for (const { story, message, name, retryable } of [
     await page.goto(`http://localhost:6006/iframe.html?id=composer-attachments-failures--${story}`);
     const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
     await expect(editor).toContainText(message);
+    await expect(editor.getByRole("status")).toHaveText(message);
+    const info = editor.getByRole("button", { name: `Failure details for ${name}`, exact: true });
+    await info.click();
+    const dialog = page.getByRole("dialog", { name: `Failure details for ${name}`, exact: true });
+    await expect(dialog).toContainText(details);
+    await page.keyboard.press("Escape");
+    await expect(info).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Close failure details", exact: true }).click();
+    await expect(info).toBeFocused();
     await expect(
       page.getByRole("button", { name: `Retry upload ${name}`, exact: true }),
     ).toHaveCount(retryable ? 1 : 0);
@@ -132,9 +153,9 @@ test("interrupted attachment ignores its old response and recovers by adding the
     "http://localhost:6006/iframe.html?id=composer-attachments-failures--interrupted",
   );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
-  await expect(editor).toContainText("Upload interrupted.");
+  await expect(editor).toContainText("Upload interrupted");
   await page.getByRole("button", { name: "Complete upload review-notes.txt", exact: true }).click();
-  await expect(editor).toContainText("Upload interrupted.");
+  await expect(editor).toContainText("Upload interrupted");
   await page.getByRole("button", { name: "Remove review-notes.txt", exact: true }).click();
   await page.getByRole("button", { name: "Add sample file", exact: true }).click();
   await expect(editor).toContainText("Uploading");
@@ -155,7 +176,7 @@ test("local unsupported image selection uses the actual format rejection", async
     buffer: Buffer.from("Fictional unsupported image"),
   });
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
-  await expect(editor).toContainText("Unsupported image format. Use PNG, JPEG, GIF, or WebP.");
+  await expect(editor.getByRole("status")).toHaveText("Unsupported image format");
   await expect(
     page.getByRole("button", { name: "Retry upload fictional.heic", exact: true }),
   ).toHaveCount(0);

@@ -151,7 +151,7 @@ msgid "Cancel"
 msgstr "Cancel"
 
 #. Compact status for a browser image decoding failure
-#: src/features/fileUpload/UploadedImagePreview.tsx:102
+#: src/features/fileUpload/UploadedImagePreview.tsx:106
 msgid "Cannot display preview"
 msgstr "Cannot display preview"
 
@@ -181,8 +181,8 @@ msgstr "Cleanup diagnostic:"
 msgid "Close diagnostics"
 msgstr "Close diagnostics"
 
-#. Closes the attachment preview failure dialog
-#: src/features/fileUpload/ImagePreviewFailureDetails.tsx:37
+#. Closes the attachment failure dialog
+#: src/features/fileUpload/AttachmentFailureDetails.tsx:37
 msgid "Close failure details"
 msgstr "Close failure details"
 
@@ -190,7 +190,7 @@ msgstr "Close failure details"
 msgid "Close file upload"
 msgstr "Close file upload"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:223
+#: src/features/fileUpload/UploadedImagePreview.tsx:228
 msgid "Close image preview"
 msgstr "Close image preview"
 
@@ -344,11 +344,11 @@ msgid "Could not copy table. Try again."
 msgstr "Could not copy table. Try again."
 
 #. Uploaded image could not be retrieved; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:181
+#: src/features/fileUpload/UploadedImagePreview.tsx:186
 msgid "Could not load the preview of {name}. The file may no longer be available."
 msgstr "Could not load the preview of {name}. The file may no longer be available."
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:149
+#: src/features/fileUpload/UploadedImagePreview.tsx:154
 msgid "Could not read the image preview. Check the connection and access permissions."
 msgstr "Could not read the image preview. Check the connection and access permissions."
 
@@ -494,8 +494,8 @@ msgstr "Failed"
 msgid "Failed."
 msgstr "Failed."
 
-#. Opens preview failure details for the named draft attachment
-#: src/features/fileUpload/ImagePreviewFailureDetails.tsx:14
+#. Opens upload or preview failure details for the named draft attachment
+#: src/features/fileUpload/AttachmentFailureDetails.tsx:14
 msgid "Failure details for {name}"
 msgstr "Failure details for {name}"
 
@@ -503,12 +503,22 @@ msgstr "Failure details for {name}"
 msgid "File saved on the Codex machine"
 msgstr "File saved on the Codex machine"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:97
+#. Compact attachment upload status; size limit is available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:90
+msgid "File too large"
+msgstr "File too large"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:106
 #: src/features/fileUpload/FileUploadDialog.tsx:95
 msgid "File upload failed."
 msgstr "File upload failed."
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:91
+#. Recovery guidance in the attachment upload failure details dialog
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:173
+msgid "File upload failed. Retry the upload, or remove and add the file again."
+msgstr "File upload failed. Retry the upload, or remove and add the file again."
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:167
 #: src/features/fileUpload/FileUploadDialog.tsx:93
 msgid "File upload is not authorized. Open the current GUI launch link."
 msgstr "File upload is not authorized. Open the current GUI launch link."
@@ -569,8 +579,8 @@ msgstr "History detail"
 msgid "Idle"
 msgstr "Idle"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:142
-#: src/features/fileUpload/UploadedImagePreview.tsx:163
+#: src/features/fileUpload/UploadedImagePreview.tsx:147
+#: src/features/fileUpload/UploadedImagePreview.tsx:168
 msgid "Image preview is not authorized. Open the current GUI launch link."
 msgstr "Image preview is not authorized. Open the current GUI launch link."
 
@@ -658,12 +668,12 @@ msgid "Loading more…"
 msgstr "Loading more…"
 
 #. Loading an uploaded image preview; name is the original file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:171
+#: src/features/fileUpload/UploadedImagePreview.tsx:176
 msgid "Loading preview of {name}…"
 msgstr "Loading preview of {name}…"
 
 #. Image preview is loading independently of the completed upload
-#: src/features/fileUpload/UploadedImagePreview.tsx:98
+#: src/features/fileUpload/UploadedImagePreview.tsx:102
 msgid "Loading preview…"
 msgstr "Loading preview…"
 
@@ -875,12 +885,12 @@ msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "Pending: Queued {ordinaryQueuedCount}"
 
 #. Open the uploaded image at a larger size; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:201
+#: src/features/fileUpload/UploadedImagePreview.tsx:206
 msgid "Preview {name}"
 msgstr "Preview {name}"
 
 #. Compact status for a failed image preview request
-#: src/features/fileUpload/UploadedImagePreview.tsx:106
+#: src/features/fileUpload/UploadedImagePreview.tsx:110
 msgid "Preview read failed"
 msgstr "Preview read failed"
 
@@ -962,7 +972,7 @@ msgid "Reloading skills…"
 msgstr "Reloading skills…"
 
 #. Remove the named attachment from the draft
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:102
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:111
 msgid "Remove {name}"
 msgstr "Remove {name}"
 
@@ -1073,7 +1083,7 @@ msgid "Retry upload"
 msgstr "Retry upload"
 
 #. Retry uploading the named attachment
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:106
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:115
 msgid "Retry upload {name}"
 msgstr "Retry upload {name}"
 
@@ -1263,12 +1273,12 @@ msgstr "Task updates are paused"
 msgid "Tasks or the connection need attention."
 msgstr "Tasks or the connection need attention."
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:144
+#: src/features/fileUpload/UploadedImagePreview.tsx:149
 msgid "The browser could not decode this image. Remove the attachment and choose another file."
 msgstr "The browser could not decode this image. Remove the attachment and choose another file."
 
 #. Browser could not decode the uploaded image; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:185
+#: src/features/fileUpload/UploadedImagePreview.tsx:190
 msgid "The browser could not display {name} as an image."
 msgstr "The browser could not display {name} as an image."
 
@@ -1309,7 +1319,7 @@ msgstr "The current task could not be loaded."
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:89
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:165
 #: src/features/fileUpload/FileUploadDialog.tsx:91
 msgid "The file exceeds the 50 MiB limit."
 msgstr "The file exceeds the 50 MiB limit."
@@ -1534,7 +1544,12 @@ msgstr "Unknown"
 msgid "Unsaved pending message"
 msgstr "Unsaved pending message"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:93
+#. Compact attachment upload status; supported formats are available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:98
+msgid "Unsupported image format"
+msgstr "Unsupported image format"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:169
 msgid "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
 msgstr "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
 
@@ -1557,17 +1572,27 @@ msgstr "Upload"
 msgid "Upload file"
 msgstr "Upload file"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:95
+#. Compact attachment upload status; recovery instructions are available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:102
+msgid "Upload interrupted"
+msgstr "Upload interrupted"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:171
 msgid "Upload interrupted. Remove and add the file again."
 msgstr "Upload interrupted. Remove and add the file again."
 
+#. Compact attachment upload status; recovery instructions are available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:94
+msgid "Upload not authorized"
+msgstr "Upload not authorized"
+
 #. Attachment transfer completed; image preview may still be loading or failed
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:85
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:86
 msgid "Uploaded"
 msgstr "Uploaded"
 
 #. Attachment is being transferred to the Codex machine
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:83
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:84
 msgid "Uploading"
 msgstr "Uploading"
 

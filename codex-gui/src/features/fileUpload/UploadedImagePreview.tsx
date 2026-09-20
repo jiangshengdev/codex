@@ -1,10 +1,10 @@
 import { FILE_PREVIEW_PATH, type GuiFilePreviewParams } from "@codex-gui-host-contract";
-import { Button, ButtonGroup, Modal, Spinner, Tooltip } from "@heroui/react";
+import { Button, ButtonGroup, Chip, Modal, Spinner, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { RotateCw } from "lucide-react";
 import { AttachmentSummary } from "./AttachmentSummary";
-import { ImagePreviewFailureDetails } from "./ImagePreviewFailureDetails";
+import { AttachmentFailureDetails } from "./AttachmentFailureDetails";
 
 type UploadedImagePreviewProps = {
   path: string;
@@ -90,24 +90,29 @@ function ImagePreview({ path, name, authorizationToken, draft }: UploadedImagePr
       <>
         <AttachmentSummary name={name}>
           {draft.status}
-          <span
+          <Chip
             role={failed ? "alert" : "status"}
-            className={`min-w-0 wrap-anywhere ${failed ? "text-danger" : "text-muted"}`}
+            size="sm"
+            color={failed ? "danger" : "default"}
+            variant="soft"
+            className="h-auto max-w-full whitespace-normal"
           >
-            {!failed ? (
-              <Trans comment="Image preview is loading independently of the completed upload">
-                Loading preview…
-              </Trans>
-            ) : outcome?.type === "failed" && outcome.reason === "decode" ? (
-              <Trans comment="Compact status for a browser image decoding failure">
-                Cannot display preview
-              </Trans>
-            ) : (
-              <Trans comment="Compact status for a failed image preview request">
-                Preview read failed
-              </Trans>
-            )}
-          </span>
+            <Chip.Label className="whitespace-normal wrap-anywhere">
+              {!failed ? (
+                <Trans comment="Image preview is loading independently of the completed upload">
+                  Loading preview…
+                </Trans>
+              ) : outcome?.type === "failed" && outcome.reason === "decode" ? (
+                <Trans comment="Compact status for a browser image decoding failure">
+                  Cannot display preview
+                </Trans>
+              ) : (
+                <Trans comment="Compact status for a failed image preview request">
+                  Preview read failed
+                </Trans>
+              )}
+            </Chip.Label>
+          </Chip>
         </AttachmentSummary>
         {authorizationToken != null && outcome?.type === "failed" && outcome.reason === "read" ? (
           <Tooltip>
@@ -137,7 +142,7 @@ function ImagePreview({ path, name, authorizationToken, draft }: UploadedImagePr
           </Tooltip>
         ) : null}
         {failed ? (
-          <ImagePreviewFailureDetails name={name}>
+          <AttachmentFailureDetails name={name}>
             {authorizationToken == null ? (
               <Trans>Image preview is not authorized. Open the current GUI launch link.</Trans>
             ) : outcome?.type === "failed" && outcome.reason === "decode" ? (
@@ -150,7 +155,7 @@ function ImagePreview({ path, name, authorizationToken, draft }: UploadedImagePr
                 Could not read the image preview. Check the connection and access permissions.
               </Trans>
             )}
-          </ImagePreviewFailureDetails>
+          </AttachmentFailureDetails>
         ) : null}
       </>
     );

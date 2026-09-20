@@ -249,7 +249,7 @@ test("unsupported images block sending and can be removed as a whole", async () 
     new File(["unsupported"], "photo.heic", { type: "image/heic" }),
   );
   await expect
-    .element(composer.getByText("Unsupported image format. Use PNG, JPEG, GIF, or WebP."))
+    .element(composer.getByText("Unsupported image format", { exact: true }))
     .toBeVisible();
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   expect(upload).not.toHaveBeenCalled();
@@ -427,7 +427,7 @@ test("narrow draft attachments preserve visible keyboard focus beside adjacent c
     .getBoundingClientRect();
   expect(bounds.right + outset <= next.left || bounds.bottom + outset <= next.top).toBe(true);
   await expect
-    .element(composer.getByText("Unsupported image format. Use PNG, JPEG, GIF, or WebP."))
+    .element(composer.getByText("Unsupported image format", { exact: true }))
     .toBeVisible();
   expect(composer.element().scrollWidth).toBeLessThanOrEqual(composer.element().clientWidth);
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(400);
@@ -717,6 +717,11 @@ test.each([
   await expect.element(attachment.getByText("picture.png", { exact: true })).toBeVisible();
   await expect.element(attachment.getByText("Uploaded", { exact: true })).toBeVisible();
   await expect.element(attachment.getByText(status, { exact: true })).toBeVisible();
+  await expect
+    .element(
+      attachment.getByRole(state === "loading" ? "status" : "alert").filter({ hasText: status }),
+    )
+    .toHaveClass(state === "loading" ? "chip--default" : "chip--danger");
   const remove = attachment.getByRole("button", { name: "Remove picture.png", exact: true });
   for (const width of [1280, 375]) {
     await page.viewport(width, 800);

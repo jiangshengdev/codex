@@ -50,9 +50,7 @@ test("undoing removal of an unfinished upload restores an interrupted attachment
   await userEvent.keyboard(
     navigator.platform.startsWith("Mac") ? "{Meta>}z{/Meta}" : "{Control>}z{/Control}",
   );
-  await expect
-    .element(composer.getByText("Upload interrupted. Remove and add the file again."))
-    .toBeVisible();
+  await expect.element(composer.getByText("Upload interrupted", { exact: true })).toBeVisible();
   late.resolve(new Response("/tmp/late.txt", { status: 201 }));
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
 });
