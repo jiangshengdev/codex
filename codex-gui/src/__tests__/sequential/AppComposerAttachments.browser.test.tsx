@@ -41,6 +41,38 @@ vi.mock("@/features/guiHost/guiHostClient", () => ({
 vi.mock("@/features/composerInputQueue/composerInputQueueCoordinator", { spy: true });
 const startHost = host.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
+test("plain user messages preserve literal text and body typography after completion", async () => {
+  const { screen, options, activeTurn } = await renderActiveComposerQueueApp(startHost);
+  const first = "原文🙂  **bold**\n\n";
+  const second = "<b>literal</b>\n" + "long-user-text-".repeat(60);
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(
+      itemCompleted(
+        eventItemCompleted,
+        "plain-text-commit",
+        activeTurn.id,
+        userMessage("plain-text-message", [
+          { type: "text", text: first, text_elements: [] },
+          { type: "text", text: second, text_elements: [] },
+        ]),
+      ),
+      { parentCommitId: attachResponse.snapshot.headCommitId },
+    ),
+  );
+  const transcript = screen.getByRole("region", { name: "Committed transcript" });
+  const message = transcript.getByText(/^原文🙂/);
+  await expect.element(message).toHaveStyle("font-size: 16px; line-height: 24px");
+  expect(message.element().textContent).toBe(first + second);
+  expect(message.element().querySelector("b, strong")).toBeNull();
+  for (const width of [1440, 400]) {
+    await page.viewport(width, 900);
+    await expect.element(message).toHaveStyle("white-space: pre-wrap");
+    expect(message.element().scrollWidth).toBeLessThanOrEqual(message.element().clientWidth);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width);
+  }
+});
+
 test("unsupported images block sending and can be removed as a whole", async () => {
   const upload = vi.spyOn(globalThis, "fetch");
   const { screen, composer } = await renderActiveComposerQueueApp(startHost);
@@ -55,6 +87,74 @@ test("unsupported images block sending and can be removed as a whole", async () 
   await composer.getByText("photo.heic", { exact: true }).click();
   await userEvent.keyboard("{Backspace}");
   await expect.element(composer.getByText("photo.heic", { exact: true })).not.toBeInTheDocument();
+});
+
+test("user history keeps literal typography and image-only messages after reconnect", async () => {
+  const png = Uint8Array.from(
+    atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+    ),
+    (char) => char.charCodeAt(0),
+  );
+  vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+    Promise.resolve(new Response(png, { headers: { "Content-Type": "image/png" } })),
+  );
+  const commands = createGuiHostCommands();
+  const screen = await renderWithProviders(<App />);
+  const history = attachWithTurns(attachResponse, [
+    baseTurn("literal-history", [
+      userMessage("literal-prompt", [
+        { type: "text", text: "历史🙂  **literal**\n\n", text_elements: [] },
+        { type: "text", text: "<b>原文</b>", text_elements: [] },
+      ]),
+      userMessage("image-only-prompt", [{ type: "localImage", path: "/tmp/only.png" }]),
+      userMessage("marked-prompt", [
+        {
+          type: "text",
+          text: "文件🙂 /tmp/history.txt  后文",
+          text_elements: [{ byteRange: { start: 11, end: 27 }, placeholder: "历史文件.txt" }],
+        },
+      ]),
+    ]),
+  ]);
+  queueAttachProjectionResponse(commands, history);
+  const options = getHostOptions(startHost);
+  initializeHost(options, commands);
+  const transcript = screen.getByRole("region", { name: "Committed transcript" });
+  const message = transcript.getByText(/^历史🙂/);
+  const image = transcript.getByRole("button", { name: "Preview only.png", exact: true });
+  for (const reconnect of [false, true]) {
+    if (reconnect) {
+      options.onCommandsUnavailable?.();
+      options.onStatus?.({ label: "closed" });
+      await screen.getByRole("button", { name: "Reconnect", exact: true }).click();
+      const replacement = createGuiHostCommands();
+      queueAttachProjectionResponse(replacement, history);
+      initializeHost(getHostOptions(startHost), replacement);
+    }
+    await expect
+      .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+      .toHaveAttribute("contenteditable", "true");
+    await expect.element(message).toHaveStyle("font-size: 16px; line-height: 24px");
+    expect(message.element().textContent).toBe("历史🙂  **literal**\n\n<b>原文</b>");
+    expect(message.element().querySelector("b, strong")).toBeNull();
+    await expect.element(image).toBeVisible();
+    const marked = transcript.getByText(/^文件🙂/);
+    await expect.element(marked).toHaveStyle("font-size: 16px; line-height: 24px");
+    expect(marked.element().textContent).toBe("文件🙂 历史文件.txt  后文");
+    const file = transcript.getByRole("button", { name: "历史文件.txt", exact: true });
+    await file.click();
+    await expect.element(screen.getByText("/tmp/history.txt", { exact: true })).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await expect.element(file).toHaveFocus();
+    await image.click();
+    await expect.element(screen.getByRole("dialog", { name: "only.png" })).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await expect.element(image).toHaveFocus();
+    await expect
+      .element(transcript.getByRole("button", { name: "Remove only.png", exact: true }))
+      .not.toBeInTheDocument();
+  }
 });
 
 test("reloaded image history keeps its filename and reports an unavailable preview", async () => {
@@ -339,6 +439,9 @@ test("Composer uploads a file, blocks keyboard submission until ready, and displ
     ),
   );
   const transcript = screen.getByRole("region", { name: "Committed transcript" });
+  await expect
+    .element(transcript.getByText(/^请看🙂/))
+    .toHaveStyle("font-size: 16px; line-height: 24px");
   await transcript.getByRole("button", { name: "notes.txt", exact: true }).click();
   await expect
     .element(screen.getByText("/tmp/codex-upload-note.txt", { exact: true }))

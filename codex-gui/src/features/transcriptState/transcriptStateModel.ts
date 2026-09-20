@@ -139,18 +139,21 @@ export type TranscriptSubAgentActivityStoredEntry = {
 };
 
 export type TranscriptEntry =
-  | {
+  | ({
       type: "message";
       id: string;
       turnId: string;
-      role: "user" | "assistant";
       source: string;
-      sourceKind: "plainText" | "markdown";
-      textInputs?: Extract<UserInput, { type: "text" }>[];
-      imageInputs?: Extract<UserInput, { type: "localImage" }>[];
       phase: TranscriptMessagePhase;
       revision: number;
-    }
+    } & (
+      | {
+          role: "user";
+          textInputs: Extract<UserInput, { type: "text" }>[];
+          imageInputs: Extract<UserInput, { type: "localImage" }>[];
+        }
+      | { role: "assistant" }
+    ))
   | {
       type: "status";
       id: string;
@@ -187,7 +190,6 @@ export type TranscriptStoredEntry =
   | TranscriptStreamingReasoningStoredEntry;
 
 export type TranscriptMessageRendering =
-  | { mode: "plainText"; source: string }
   | {
       mode: "userText";
       inputs: Extract<UserInput, { type: "text" }>[];

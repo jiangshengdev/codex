@@ -104,7 +104,8 @@ describe("transcript state snapshot reducer", () => {
           turnId,
           role: "user",
           source: "Question",
-          sourceKind: "plainText",
+          textInputs: [{ type: "text", text: "Question", text_elements: [] }],
+          imageInputs: [],
           phase: null,
           revision: 0,
         },
@@ -114,7 +115,6 @@ describe("transcript state snapshot reducer", () => {
           turnId,
           role: "assistant",
           source: "Answer",
-          sourceKind: "markdown",
           phase: "final_answer",
           revision: 0,
         },
@@ -266,7 +266,15 @@ describe("transcript state snapshot reducer", () => {
       id: "user-snapshot",
       turnId: "turn-snapshot",
       role: "user",
-      rendering: { mode: "plainText", source: "Hello there" },
+      rendering: {
+        mode: "userText",
+        source: "Hello there",
+        inputs: [
+          { type: "text", text: "Hello ", text_elements: [] },
+          { type: "text", text: "there", text_elements: [] },
+        ],
+        images: [],
+      },
       revision: 0,
     });
     expect(
@@ -422,7 +430,12 @@ describe("transcript state snapshot reducer", () => {
         id: "user-follow-up",
         turnId: "turn-layout",
         role: "user",
-        rendering: { mode: "plainText", source: "Extra input" },
+        rendering: {
+          mode: "userText",
+          source: "Extra input",
+          inputs: [{ type: "text", text: "Extra input", text_elements: [] }],
+          images: [],
+        },
         revision: 0,
       },
       {
@@ -726,7 +739,12 @@ describe("transcript state snapshot reducer", () => {
         id: "user-after-final",
         turnId: "turn-final-first",
         role: "user",
-        rendering: { mode: "plainText", source: "After final" },
+        rendering: {
+          mode: "userText",
+          source: "After final",
+          inputs: [{ type: "text", text: "After final", text_elements: [] }],
+          images: [],
+        },
         revision: 0,
       },
     ]);

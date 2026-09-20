@@ -77,15 +77,6 @@ const MessageEntryBody = ({
   switch (rendering.mode) {
     case "userText":
       return <UserMessageText inputs={rendering.inputs} images={rendering.images} />;
-    case "plainText":
-      return (
-        <Typography
-          className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word leading-6"
-          type="body-sm"
-        >
-          {rendering.source}
-        </Typography>
-      );
     case "staticMarkdown":
       return <MarkdownText enableMath={enableMath} source={rendering.source} />;
     case "streamingMarkdown":
