@@ -1,13 +1,17 @@
 import { Plural, Trans } from "@lingui/react/macro";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import type { ComposerInputPreview } from "@/features/composerInputQueue/composerInputPreview";
 
 export function ComposerInputPreviewContent({
   preview,
-}: Readonly<{ preview: ComposerInputPreview }>) {
+  textRef,
+}: Readonly<{ preview: ComposerInputPreview; textRef?: Ref<HTMLParagraphElement> }>) {
   if (preview.type === "text")
     return (
-      <p className="min-w-0 line-clamp-3 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">
+      <p
+        ref={textRef}
+        className="min-w-0 line-clamp-3 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]"
+      >
         {preview.text}
       </p>
     );

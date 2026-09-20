@@ -3,6 +3,7 @@ import { Trans } from "@lingui/react/macro";
 import type { ActiveThreadSessionSnapshot } from "@/features/activeThreadSession/activeThreadSession";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
+import { ComposerUnknownMessagePreview } from "./ComposerUnknownMessagePreview";
 
 export function ComposerPersistenceStatus({
   sessionSnapshot,
@@ -120,7 +121,7 @@ export function ComposerPersistenceStatus({
                       </Button>
                     }
                   >
-                    <p className="whitespace-pre-wrap wrap-anywhere">{message.text}</p>
+                    <ComposerUnknownMessagePreview text={message.text} />
                   </FailureLayout>
                 </li>
               ))}
