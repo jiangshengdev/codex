@@ -132,7 +132,7 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
 #. Choose local files to attach to the current message
-#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:166
+#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:154
 msgid "Attach files"
 msgstr "Attach files"
 
@@ -508,17 +508,17 @@ msgstr "File saved on the Codex machine"
 msgid "File too large"
 msgstr "File too large"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:106
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:102
 #: src/features/fileUpload/FileUploadDialog.tsx:95
 msgid "File upload failed."
 msgstr "File upload failed."
 
 #. Recovery guidance in the attachment upload failure details dialog
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:173
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:167
 msgid "File upload failed. Retry the upload, or remove and add the file again."
 msgstr "File upload failed. Retry the upload, or remove and add the file again."
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:167
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:163
 #: src/features/fileUpload/FileUploadDialog.tsx:93
 msgid "File upload is not authorized. Open the current GUI launch link."
 msgstr "File upload is not authorized. Open the current GUI launch link."
@@ -972,7 +972,7 @@ msgid "Reloading skills…"
 msgstr "Reloading skills…"
 
 #. Remove the named attachment from the draft
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:111
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:107
 msgid "Remove {name}"
 msgstr "Remove {name}"
 
@@ -1083,7 +1083,7 @@ msgid "Retry upload"
 msgstr "Retry upload"
 
 #. Retry uploading the named attachment
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:115
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:111
 msgid "Retry upload {name}"
 msgstr "Retry upload {name}"
 
@@ -1319,7 +1319,7 @@ msgstr "The current task could not be loaded."
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:165
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:161
 #: src/features/fileUpload/FileUploadDialog.tsx:91
 msgid "The file exceeds the 50 MiB limit."
 msgstr "The file exceeds the 50 MiB limit."
@@ -1546,12 +1546,12 @@ msgstr "Unsaved pending message"
 
 #. Compact attachment upload status; supported formats are available in details
 #: src/features/composerEditor/SelectedAttachmentToken.tsx:98
-msgid "Unsupported image format"
-msgstr "Unsupported image format"
+#~ msgid "Unsupported image format"
+#~ msgstr "Unsupported image format"
 
 #: src/features/composerEditor/SelectedAttachmentToken.tsx:169
-msgid "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
-msgstr "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
+#~ msgid "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
+#~ msgstr "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
 
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:41
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:215
@@ -1573,11 +1573,11 @@ msgid "Upload file"
 msgstr "Upload file"
 
 #. Compact attachment upload status; recovery instructions are available in details
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:102
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:98
 msgid "Upload interrupted"
 msgstr "Upload interrupted"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:171
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:165
 msgid "Upload interrupted. Remove and add the file again."
 msgstr "Upload interrupted. Remove and add the file again."
 

@@ -242,20 +242,42 @@ test("plain user messages preserve literal text and body typography after comple
   }
 });
 
-test("unsupported images block sending and can be removed as a whole", async () => {
-  const upload = vi.spyOn(globalThis, "fetch");
-  const { screen, composer } = await renderActiveComposerQueueApp(startHost);
-  await attachmentFileInput(screen.container).upload(
-    new File(["unsupported"], "photo.heic", { type: "image/heic" }),
-  );
-  await expect
-    .element(composer.getByText("Unsupported image format", { exact: true }))
-    .toBeVisible();
+test.each([
+  { name: "photo.heic", type: "image/heic" },
+  { name: "drawing.svg", type: "image/svg+xml" },
+  { name: "photo.AVIF", type: "" },
+])("$name uploads and sends as an ordinary file", async ({ name, type }) => {
+  const pending = createDeferred<Response>();
+  const upload = vi.spyOn(globalThis, "fetch").mockImplementationOnce(() => pending.promise);
+  const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
+  const file = new File(["original bytes"], name, { type });
+  await attachmentFileInput(screen.container).upload(file);
+  await expect.element(composer.getByRole("status")).toHaveTextContent("Uploading");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
-  expect(upload).not.toHaveBeenCalled();
-  await composer.getByText("photo.heic", { exact: true }).click();
-  await userEvent.keyboard("{Backspace}");
-  await expect.element(composer.getByText("photo.heic", { exact: true })).not.toBeInTheDocument();
+  expect(upload).toHaveBeenCalledOnce();
+  const uploaded = upload.mock.calls[0]?.[1]?.body;
+  if (!(uploaded instanceof File)) throw new Error("Expected original file upload");
+  expect(uploaded.name).toBe(name);
+  expect(await uploaded.text()).toBe("original bytes");
+  pending.resolve(new Response("/tmp/attachment", { status: 201 }));
+  await expect.element(composer.getByRole("status")).toHaveTextContent("Uploaded");
+  await expect.element(composer.getByRole("img")).not.toBeInTheDocument();
+  await expect
+    .element(composer.getByRole("button", { name: `Preview ${name}`, exact: true }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(composer.getByRole("button", { name: `Failure details for ${name}`, exact: true }))
+    .not.toBeInTheDocument();
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  expect(steerTurnParamsAt(steerTurn, 0).input).toEqual([
+    {
+      type: "text",
+      text: "/tmp/attachment",
+      text_elements: [{ byteRange: { start: 0, end: 15 }, placeholder: name }],
+    },
+  ]);
+  expect(upload).toHaveBeenCalledOnce();
 });
 
 test("user history keeps literal typography and image-only messages after reconnect", async () => {
@@ -374,9 +396,11 @@ test("narrow draft attachments preserve visible keyboard focus beside adjacent c
   );
   vi.spyOn(globalThis, "fetch").mockImplementation((_url, options) =>
     Promise.resolve(
-      options?.method === "POST"
-        ? new Response("/tmp/focus.png", { status: 201 })
-        : new Response(png, { headers: { "Content-Type": "image/png" } }),
+      typeof _url === "string" && _url.includes(".heic")
+        ? new Response("upload failed", { status: 503 })
+        : options?.method === "POST"
+          ? new Response("/tmp/focus.png", { status: 201 })
+          : new Response(png, { headers: { "Content-Type": "image/png" } }),
     ),
   );
   const { screen, composer } = await renderActiveComposerQueueApp(startHost);
@@ -426,9 +450,7 @@ test("narrow draft attachments preserve visible keyboard focus beside adjacent c
     .element()
     .getBoundingClientRect();
   expect(bounds.right + outset <= next.left || bounds.bottom + outset <= next.top).toBe(true);
-  await expect
-    .element(composer.getByText("Unsupported image format", { exact: true }))
-    .toBeVisible();
+  await expect.element(composer.getByText("File upload failed.", { exact: true })).toBeVisible();
   expect(composer.element().scrollWidth).toBeLessThanOrEqual(composer.element().clientWidth);
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(400);
   await composer.screenshot({ path: `__screenshots__/attachment-focus-${server.browser}.png` });
@@ -654,41 +676,50 @@ test("failed attachments retry independently and a removed upload cannot return"
   expect(upload).toHaveBeenCalledTimes(3);
 });
 
-test("upload retry shows only progress and prevents duplicate requests until success", async () => {
-  const retried = createDeferred<Response>();
-  const upload = vi
-    .spyOn(globalThis, "fetch")
-    .mockResolvedValueOnce(new Response("failed", { status: 500 }))
-    .mockImplementationOnce(() => retried.promise);
-  const { screen, composer } = await renderActiveComposerQueueApp(startHost);
-  await attachmentFileInput(screen.container).upload(new File(["bytes"], "retry.txt"));
-  const retry = composer.getByRole("button", { name: "Retry upload retry.txt", exact: true });
-  await expect.element(retry).toBeVisible();
-  await expect.element(retry).toHaveTextContent(/^$/);
-  await expect
-    .element(retry.element().querySelector<HTMLSpanElement>(".button-group__separator"))
-    .toBeVisible();
-  await retry.click();
-  await expect.element(retry).toBeDisabled();
-  await expect.element(composer.getByRole("status")).toHaveTextContent(/^Uploading$/);
-  await expect.element(composer.getByRole("status")).toHaveClass("chip--accent");
-  await expect
-    .element(retry.element().querySelector<HTMLSpanElement>(".button-group__separator"))
-    .toBeVisible();
-  await userEvent.keyboard("{Enter}{Enter}");
-  expect(upload).toHaveBeenCalledTimes(2);
-  retried.resolve(new Response("/tmp/retry.txt", { status: 201 }));
-  await expect.element(composer.getByRole("status")).toHaveTextContent("Uploaded");
-  await expect.element(retry).not.toBeInTheDocument();
-  await expect
-    .element(
-      composer
-        .getByRole("button", { name: "Remove retry.txt", exact: true })
-        .element()
-        .querySelector<HTMLSpanElement>(".button-group__separator"),
-    )
-    .toBeVisible();
-});
+test.each([
+  { name: "retry.txt", type: "text/plain" },
+  { name: "retry.heic", type: "image/heic" },
+])(
+  "$name upload retry shows only progress and prevents duplicate requests until success",
+  async ({ name, type }) => {
+    const retried = createDeferred<Response>();
+    const upload = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("failed", { status: 500 }))
+      .mockImplementationOnce(() => retried.promise);
+    const { screen, composer } = await renderActiveComposerQueueApp(startHost);
+    await attachmentFileInput(screen.container).upload(new File(["bytes"], name, { type }));
+    const retry = composer.getByRole("button", { name: `Retry upload ${name}`, exact: true });
+    await expect.element(retry).toBeVisible();
+    await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+    await expect.element(retry).toHaveTextContent(/^$/);
+    await expect
+      .element(retry.element().querySelector<HTMLSpanElement>(".button-group__separator"))
+      .toBeVisible();
+    await retry.click();
+    await expect.element(retry).toBeDisabled();
+    await expect.element(composer.getByRole("status")).toHaveTextContent(/^Uploading$/);
+    await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+    await expect.element(composer.getByRole("status")).toHaveClass("chip--accent");
+    await expect
+      .element(retry.element().querySelector<HTMLSpanElement>(".button-group__separator"))
+      .toBeVisible();
+    await userEvent.keyboard("{Enter}{Enter}");
+    expect(upload).toHaveBeenCalledTimes(2);
+    retried.resolve(new Response("/tmp/retry.txt", { status: 201 }));
+    await expect.element(composer.getByRole("status")).toHaveTextContent("Uploaded");
+    await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+    await expect.element(retry).not.toBeInTheDocument();
+    await expect
+      .element(
+        composer
+          .getByRole("button", { name: `Remove ${name}`, exact: true })
+          .element()
+          .querySelector<HTMLSpanElement>(".button-group__separator"),
+      )
+      .toBeVisible();
+  },
+);
 
 test.each([
   { state: "loading", status: "Loading preview…" },

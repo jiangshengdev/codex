@@ -20,3 +20,4 @@ type Story = StoryObj<typeof meta>;
 export const Interactive: Story = { args: { preset: "interactive" } };
 export const Uploading: Story = { args: { preset: "uploading" } };
 export const Ready: Story = { args: { preset: "ready" } };
+export const ImageAsFile: Story = { args: { preset: "imageAsFile" } };

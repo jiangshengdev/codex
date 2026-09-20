@@ -94,10 +94,6 @@ export function SelectedAttachmentToken({
           <Trans comment="Compact attachment upload status; recovery instructions are available in details">
             Upload not authorized
           </Trans>
-        ) : attachment.failure === "unsupportedImage" ? (
-          <Trans comment="Compact attachment upload status; supported formats are available in details">
-            Unsupported image format
-          </Trans>
         ) : attachment.failure === "interrupted" ? (
           <Trans comment="Compact attachment upload status; recovery instructions are available in details">
             Upload interrupted
@@ -165,8 +161,6 @@ export function SelectedAttachmentToken({
             <Trans>The file exceeds the 50 MiB limit.</Trans>
           ) : attachment.failure === "authorization" ? (
             <Trans>File upload is not authorized. Open the current GUI launch link.</Trans>
-          ) : attachment.failure === "unsupportedImage" ? (
-            <Trans>Unsupported image format. Use PNG, JPEG, GIF, or WebP.</Trans>
           ) : attachment.failure === "interrupted" ? (
             <Trans>Upload interrupted. Remove and add the file again.</Trans>
           ) : (

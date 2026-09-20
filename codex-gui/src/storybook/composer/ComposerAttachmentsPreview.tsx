@@ -14,6 +14,7 @@ type Preset =
   | "interactive"
   | "uploading"
   | "ready"
+  | "imageAsFile"
   | "mixedResults"
   | NonNullable<AttachmentState["failure"]>;
 type PreviewPreset = "manual" | "ready" | "readFailure" | "decodeFailure";
@@ -74,12 +75,12 @@ function AttachmentSimulation({
   }, [scenario]);
 
   const addSample = useCallback(
-    (unsupported = false) => {
+    (imageAsFile = false) => {
       const input = root.current?.querySelector<HTMLInputElement>('input[type="file"]');
       if (input == null) return;
       const transfer = new DataTransfer();
       transfer.items.add(
-        unsupported
+        imageAsFile
           ? new File(['<svg xmlns="http://www.w3.org/2000/svg"/>'], "sample.svg", {
               type: "image/svg+xml",
             })
@@ -105,7 +106,7 @@ function AttachmentSimulation({
       if (cancelled) return;
       initialized.current = true;
       draftBeforeSample.current = scenario.coordinator.getDraft();
-      addSample(preset === "unsupportedImage");
+      addSample(preset === "imageAsFile");
     });
     return () => {
       cancelled = true;
@@ -113,7 +114,7 @@ function AttachmentSimulation({
   }, [connected, preset, scenario, addSample]);
   useEffect(() => {
     if (completedPreset.current || requests.length === 0) return;
-    if (preset === "interactive" || preset === "uploading" || preset === "unsupportedImage") return;
+    if (preset === "interactive" || preset === "uploading") return;
     if (preset === "mixedResults" && requests.length < 3) return;
     // A fetch can begin before Lexical persists the attachment. Wait for that
     // draft before restoring the Composer, so its real import marks it interrupted.
@@ -130,6 +131,7 @@ function AttachmentSimulation({
         });
         break;
       case "ready":
+      case "imageAsFile":
         requests[0]?.complete();
         break;
       case "size":

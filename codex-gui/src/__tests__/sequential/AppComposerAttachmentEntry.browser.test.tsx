@@ -156,3 +156,32 @@ test("pasted image bytes enter the attachment flow without pasting their HTML re
   ]);
   expect(fetch.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
 });
+
+test.each([
+  { name: "pasted.heic", type: "image/heic" },
+  { name: "pasted.svg", type: "" },
+])("pasted $name uploads and sends only its local file path", async ({ name, type }) => {
+  const upload = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValue(new Response("/tmp/pasted", { status: 201 }));
+  const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
+  const data = new DataTransfer();
+  data.items.add(new File(["original pasted bytes"], name, { type }));
+  const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "clipboardData", { value: data });
+  composer.element().dispatchEvent(event);
+  await expect.element(composer.getByRole("status")).toHaveTextContent("Uploaded");
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  expect(steerTurnParamsAt(steerTurn, 0).input).toEqual([
+    {
+      type: "text",
+      text: "/tmp/pasted",
+      text_elements: [{ byteRange: { start: 0, end: 11 }, placeholder: name }],
+    },
+  ]);
+  expect(upload).toHaveBeenCalledOnce();
+  const uploaded = upload.mock.calls[0]?.[1]?.body;
+  if (!(uploaded instanceof File)) throw new Error("Expected original pasted file");
+  expect(await uploaded.text()).toBe("original pasted bytes");
+});

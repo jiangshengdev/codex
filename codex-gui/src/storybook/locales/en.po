@@ -14,27 +14,27 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. Insert fictional files and a PNG together through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:196
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:198
 msgid "Add mixed sample"
 msgstr "Add mixed sample"
 
 #. Insert a fictional local file through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:204
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:206
 msgid "Add sample file"
 msgstr "Add sample file"
 
 #. Insert a fictional PNG through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:200
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:202
 msgid "Add sample image"
 msgstr "Add sample image"
 
 #. Return the selected image bytes to the real preview component
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:213
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:215
 msgid "Complete preview {name}"
 msgstr "Complete preview {name}"
 
 #. Resolve the simulated upload for the named file, including a response arriving after removal
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:217
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:219
 msgid "Complete upload {name}"
 msgstr "Complete upload {name}"
 
@@ -50,21 +50,21 @@ msgid "Current turn is running"
 msgstr "Current turn is running"
 
 #. Return invalid bytes so the browser cannot decode the uploaded image
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:240
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:242
 msgid "Fail preview decode {name}"
 msgstr "Fail preview decode {name}"
 
 #. Simulate a failure reading the uploaded image without changing upload status
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:229
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:231
 msgid "Fail preview read {name}"
 msgstr "Fail preview read {name}"
 
 #. Return a simulated upload failure for the named file
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:233
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:235
 msgid "Fail upload {name}"
 msgstr "Fail upload {name}"
 
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:174
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:176
 msgid "Files stay in this browser. Uploads are simulated; sending leaves the draft unchanged and never contacts a model."
 msgstr "Files stay in this browser. Uploads are simulated; sending leaves the draft unchanged and never contacts a model."
 
@@ -111,7 +111,7 @@ msgstr "Redux slots: {count}; route: {pathname}"
 msgid "Release recovery display"
 msgstr "Release recovery display"
 
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:247
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:249
 msgid "Removed; a late result must not restore this attachment."
 msgstr "Removed; a late result must not restore this attachment."
 

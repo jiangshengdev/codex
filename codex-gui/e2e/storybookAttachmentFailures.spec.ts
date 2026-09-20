@@ -74,13 +74,6 @@ for (const { story, message, details, name, retryable } of [
     retryable: false,
   },
   {
-    story: "unsupported-image",
-    message: "Unsupported image format",
-    details: "Unsupported image format. Use PNG, JPEG, GIF, or WebP.",
-    name: "sample.svg",
-    retryable: false,
-  },
-  {
     story: "interrupted",
     message: "Upload interrupted",
     details: "Upload interrupted. Remove and add the file again.",
@@ -164,7 +157,7 @@ test("interrupted attachment ignores its old response and recovers by adding the
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
 });
 
-test("local unsupported image selection uses the actual format rejection", async ({ page }) => {
+test("local HEIC selection uploads as an ordinary file", async ({ page }) => {
   await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-files--interactive");
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Attach files", exact: true }).click();
@@ -176,13 +169,35 @@ test("local unsupported image selection uses the actual format rejection", async
     buffer: Buffer.from("Fictional unsupported image"),
   });
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
-  await expect(editor.getByRole("status")).toHaveText("Unsupported image format");
+  await expect(editor.getByRole("status")).toHaveText("Uploading");
+  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await expect(
     page.getByRole("button", { name: "Retry upload fictional.heic", exact: true }),
   ).toHaveCount(0);
+  await page.getByRole("button", { name: "Complete upload fictional.heic", exact: true }).click();
+  await expect(editor.getByRole("status")).toHaveText("Uploaded");
+  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   await expect(
-    page.getByRole("button", { name: "Complete upload fictional.heic", exact: true }),
+    editor.getByRole("button", { name: "Preview fictional.heic", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    editor.getByRole("button", { name: "Failure details for fictional.heic", exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Remove fictional.heic", exact: true }).click();
   await expect(editor).not.toContainText("fictional.heic");
+});
+
+test("image-as-file preset shows an uploaded ordinary file after reset", async ({ page }) => {
+  await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-files--image-as-file");
+  const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
+  await expect(editor).toContainText("sample.svg");
+  await expect(editor.getByRole("status")).toHaveText("Uploaded");
+  await expect(editor.getByRole("button", { name: "Preview sample.svg", exact: true })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
+  await expect(editor).toContainText("sample.svg");
+  await expect(editor.getByRole("status")).toHaveText("Uploaded");
+  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
 });

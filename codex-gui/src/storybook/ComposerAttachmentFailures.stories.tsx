@@ -20,5 +20,4 @@ type Story = StoryObj<typeof meta>;
 export const Upload: Story = { args: { preset: "upload" } };
 export const Size: Story = { args: { preset: "size" } };
 export const Authorization: Story = { args: { preset: "authorization" } };
-export const UnsupportedImage: Story = { args: { preset: "unsupportedImage" } };
 export const Interrupted: Story = { args: { preset: "interrupted" } };
