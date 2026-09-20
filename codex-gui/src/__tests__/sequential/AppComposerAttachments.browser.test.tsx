@@ -415,7 +415,7 @@ test("Composer uploads a file, blocks keyboard submission until ready, and displ
   expect(new Headers(request?.[1]?.headers).get("Authorization")).toBe("Bearer secret");
   response.resolve(new Response("/tmp/codex-upload-note.txt", { status: 201 }));
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
-  await expect.element(composer.getByRole("status")).toHaveTextContent("Ready");
+  await expect.element(composer.getByRole("status")).toHaveTextContent("Uploaded");
   dispatchGuideShortcut(composer.element());
   await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
   const params = steerTurnParamsAt(steerTurn, 0);
@@ -485,6 +485,86 @@ test("failed attachments retry independently and a removed upload cannot return"
   expect(upload).toHaveBeenCalledTimes(3);
 });
 
+test("upload retry keeps its failure visible and prevents duplicate requests until success", async () => {
+  const retried = createDeferred<Response>();
+  const upload = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(new Response("failed", { status: 500 }))
+    .mockImplementationOnce(() => retried.promise);
+  const { screen, composer } = await renderActiveComposerQueueApp(startHost);
+  await attachmentFileInput(screen.container).upload(new File(["bytes"], "retry.txt"));
+  const retry = composer.getByRole("button", { name: "Retry upload retry.txt", exact: true });
+  await expect.element(retry).toBeVisible();
+  await expect.element(retry).toHaveTextContent(/^$/);
+  await retry.click();
+  await expect.element(retry).toBeDisabled();
+  await expect.element(composer.getByRole("status")).toHaveTextContent("File upload failed.");
+  await expect.element(composer.getByRole("status")).toHaveTextContent("Uploading");
+  await userEvent.keyboard("{Enter}{Enter}");
+  expect(upload).toHaveBeenCalledTimes(2);
+  retried.resolve(new Response("/tmp/retry.txt", { status: 201 }));
+  await expect.element(composer.getByRole("status")).toHaveTextContent("Uploaded");
+  await expect.element(retry).not.toBeInTheDocument();
+});
+
+test.each([
+  { state: "loading", status: "Loading preview…" },
+  { state: "read", status: "Preview read failed" },
+  { state: "decode", status: "Cannot display preview" },
+])("$state preview preserves attachment layout and actual sending", async ({ state, status }) => {
+  const pending = createDeferred<Response>();
+  vi.spyOn(globalThis, "fetch").mockImplementation((url, options) => {
+    if (options?.method === "POST") {
+      const name =
+        new URL(url instanceof Request ? url.url : url, location.href).searchParams.get(
+          "filename",
+        ) ?? "";
+      return Promise.resolve(new Response(`/tmp/${name}`, { status: 201 }));
+    }
+    return state === "loading"
+      ? pending.promise
+      : Promise.resolve(new Response("invalid", { status: state === "read" ? 503 : 200 }));
+  });
+  const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
+  await attachmentFileInput(screen.container).upload([
+    new File(["A"], "a.txt"),
+    new File(["image"], "picture.png", { type: "image/png" }),
+  ]);
+  const attachment = composer.getByRole("group", { name: "picture.png", exact: true });
+  await expect.element(attachment.getByText("picture.png", { exact: true })).toBeVisible();
+  await expect.element(attachment.getByText("Uploaded", { exact: true })).toBeVisible();
+  await expect.element(attachment.getByText(status, { exact: true })).toBeVisible();
+  const remove = attachment.getByRole("button", { name: "Remove picture.png", exact: true });
+  for (const width of [1280, 375]) {
+    await page.viewport(width, 800);
+    await expect.element(remove).toBeVisible();
+    const bounds = attachment.element().getBoundingClientRect();
+    const controls = attachment.getByRole("button").elements();
+    for (const control of controls) {
+      const rect = control.getBoundingClientRect();
+      expect(rect.left).toBeGreaterThanOrEqual(bounds.left);
+      expect(rect.right).toBeLessThanOrEqual(bounds.right + 1);
+      expect(rect.width).toBeGreaterThanOrEqual(28);
+      expect(rect.height).toBeGreaterThanOrEqual(28);
+    }
+    expect(attachment.element().scrollWidth).toBeLessThanOrEqual(attachment.element().clientWidth);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width);
+  }
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  expect(steerTurnParamsAt(steerTurn, 0).input).toEqual([
+    {
+      type: "text",
+      text: "/tmp/a.txt /tmp/picture.png",
+      text_elements: [
+        { byteRange: { start: 0, end: 10 }, placeholder: "a.txt" },
+        { byteRange: { start: 11, end: 27 }, placeholder: "picture.png" },
+      ],
+    },
+    { type: "localImage", path: "/tmp/picture.png" },
+  ]);
+});
+
 test("reloaded authoritative history retains a filename and its path without a local upload", async () => {
   const commands = createGuiHostCommands();
   const screen = await renderWithProviders(<App />);
@@ -524,7 +604,7 @@ test("a mixed-result batch keeps input order and retries only the failed file", 
   await expect.element(composer.getByText("File upload failed.")).toBeVisible();
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   first.resolve(new Response("/tmp/a.txt", { status: 201 }));
-  await expect.element(composer.getByText("Ready", { exact: true })).toBeVisible();
+  await expect.element(composer.getByText("Uploaded", { exact: true })).toBeVisible();
   await composer.click();
   dispatchGuideShortcut(composer.element());
   expect(steerTurn).not.toHaveBeenCalled();
@@ -587,7 +667,7 @@ test("an image is previewable in the draft and authoritative history and sends a
   const preview = composer.getByRole("button", { name: "Preview picture.png", exact: true });
   await expect.element(preview).toBeVisible();
   expect(composer.element().textContent.match(/picture\.png/g)).toHaveLength(1);
-  await expect.element(preview.getByRole("status")).toHaveTextContent("Ready");
+  await expect.element(preview.getByRole("status")).toHaveTextContent("Uploaded");
   const remove = composer.getByRole("button", { name: "Remove picture.png", exact: true });
   await expect.element(remove).toHaveTextContent(/^$/);
   await preview.click();
@@ -638,3 +718,45 @@ test("an image is previewable in the draft and authoritative history and sends a
       ),
   ).toBe(true);
 });
+
+test.each(["read", "decode"])(
+  "%s preview failure details support pointer and keyboard with focus restoration",
+  async (state) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((_url, options) =>
+      Promise.resolve(
+        options?.method === "POST"
+          ? new Response("/tmp/picture.png", { status: 201 })
+          : new Response("invalid", { status: state === "read" ? 503 : 200 }),
+      ),
+    );
+    const { screen, composer } = await renderActiveComposerQueueApp(startHost);
+    await attachmentFileInput(screen.container).upload(
+      new File(["image"], "picture.png", { type: "image/png" }),
+    );
+    const attachment = composer.getByRole("group", { name: "picture.png", exact: true });
+    const remove = attachment.getByRole("button", { name: "Remove picture.png", exact: true });
+    const label = "Failure details for picture.png";
+    const details = attachment.getByRole("button", { name: label, exact: true });
+    await expect.element(details).toHaveTextContent(/^$/);
+    await details.click();
+    const dialog = screen.getByRole("dialog", { name: label, exact: true });
+    await expect.element(dialog).toBeVisible();
+    await expect
+      .element(dialog)
+      .toHaveTextContent(
+        state === "read"
+          ? "Could not read the image preview. Check the connection and access permissions."
+          : "The browser could not decode this image. Remove the attachment and choose another file.",
+      );
+    await dialog.getByRole("button", { name: "Close failure details", exact: true }).click();
+    await expect.element(details).toHaveFocus();
+    await userEvent.tab();
+    await expect.element(remove).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    await expect.element(screen.getByRole("tooltip")).toHaveTextContent(label);
+    await userEvent.keyboard("{Enter}");
+    await expect.element(dialog).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await expect.element(details).toHaveFocus();
+  },
+);

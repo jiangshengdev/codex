@@ -45,7 +45,7 @@ test("upload failure waits for manual retry and can fail again before succeeding
   await expect(editor).toContainText("File upload failed.");
   await retry.click();
   await complete.click();
-  await expect(editor).toContainText("Ready");
+  await expect(editor).toContainText("Uploaded");
   await expect(send).toBeEnabled();
   await expect(retry).toHaveCount(0);
 });
@@ -138,7 +138,7 @@ test("interrupted attachment ignores its old response and recovers by adding the
   await page.getByRole("button", { name: "Add sample file", exact: true }).click();
   await expect(editor).toContainText("Uploading");
   await page.getByRole("button", { name: "Complete upload review-notes.txt", exact: true }).click();
-  await expect(editor).toContainText("Ready");
+  await expect(editor).toContainText("Uploaded");
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
 });
 

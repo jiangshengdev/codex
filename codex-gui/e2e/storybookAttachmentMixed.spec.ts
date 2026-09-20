@@ -23,7 +23,7 @@ test("mixed results preset resets and removes each state without disturbing its 
   await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-mixed--mixed-results");
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const statuses = editor.getByRole("status");
-  await expect(statuses).toHaveText(["File upload failed.", "Ready", "Uploading"]);
+  await expect(statuses).toHaveText(["File upload failed.", "Uploaded", "Uploading"]);
   const image = editor
     .getByRole("button", { name: "Preview sample.png", exact: true })
     .locator("img");
@@ -31,10 +31,10 @@ test("mixed results preset resets and removes each state without disturbing its 
   const url = await image.getAttribute("src");
   await page.getByRole("button", { name: "Remove checklist.txt", exact: true }).click();
   await page.getByRole("button", { name: "Complete upload checklist.txt", exact: true }).click();
-  await expect(statuses).toHaveText(["File upload failed.", "Ready"]);
+  await expect(statuses).toHaveText(["File upload failed.", "Uploaded"]);
   await expect(editor).not.toContainText("checklist.txt");
   await page.getByRole("button", { name: "Remove review-notes.txt", exact: true }).click();
-  await expect(statuses).toHaveText(["Ready"]);
+  await expect(statuses).toHaveText(["Uploaded"]);
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Remove sample.png", exact: true }).click();
   await expect(statuses).toHaveCount(0);
@@ -49,7 +49,7 @@ test("mixed results preset resets and removes each state without disturbing its 
     }, url),
   ).toBe(true);
   await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(statuses).toHaveText(["File upload failed.", "Ready", "Uploading"]);
+  await expect(statuses).toHaveText(["File upload failed.", "Uploaded", "Uploading"]);
   await expect(image).toBeVisible();
 });
 
@@ -75,7 +75,7 @@ test("mixed sample preserves input order through independent results and targete
   await page.getByRole("button", { name: "Fail upload review-notes.txt", exact: true }).click();
   await expect(editor.getByRole("status")).toHaveText([
     "File upload failed.",
-    "Ready",
+    "Uploaded",
     "Uploading",
   ]);
   await expect(send).toBeDisabled();
@@ -88,7 +88,7 @@ test("mixed sample preserves input order through independent results and targete
   await page.getByRole("button", { name: "Complete upload checklist.txt", exact: true }).click();
   await expect(send).toBeDisabled();
   await page.getByRole("button", { name: "Complete upload review-notes.txt", exact: true }).click();
-  await expect(editor.getByRole("status")).toHaveText(["Ready", "Ready", "Ready"]);
+  await expect(editor.getByRole("status")).toHaveText(["Uploaded", "Uploaded", "Uploaded"]);
   expect(
     await order.evaluateAll((buttons) =>
       buttons.map((button) => button.getAttribute("aria-label")),
@@ -138,7 +138,7 @@ test("one local selection keeps text, file and original image through out-of-ord
   await page
     .getByRole("button", { name: "Complete upload fictional-local.txt", exact: true })
     .click();
-  await expect(editor.getByRole("status")).toHaveText(["Ready", "Ready"]);
+  await expect(editor.getByRole("status")).toHaveText(["Uploaded", "Uploaded"]);
   expect(
     await editor
       .getByRole("button", { name: /^Remove / })
@@ -161,7 +161,7 @@ test("reset and story switching release the mixed batch and hidden DEV keeps rea
   await expect(frame.getByRole("button", { name: "Add mixed sample", exact: true })).toHaveCount(0);
   await expect(editor.getByRole("status")).toHaveText([
     "File upload failed.",
-    "Ready",
+    "Uploaded",
     "Uploading",
   ]);
   await expect(editor).toContainText("Review this fictional attachment:");
@@ -170,11 +170,15 @@ test("reset and story switching release the mixed batch and hidden DEV keeps rea
   await frame.getByRole("button", { name: "Close image preview", exact: true }).click();
   await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
   await frame.getByRole("button", { name: "Retry upload review-notes.txt", exact: true }).click();
-  await expect(editor.getByRole("status")).toHaveText(["Uploading", "Ready", "Uploading"]);
+  await expect(editor.getByRole("status")).toHaveText([
+    "File upload failed. Uploading",
+    "Uploaded",
+    "Uploading",
+  ]);
   await frame.getByRole("button", { name: "Restart simulation", exact: true }).click();
   await expect(editor.getByRole("status")).toHaveText([
     "File upload failed.",
-    "Ready",
+    "Uploaded",
     "Uploading",
   ]);
   await expect(preview).toBeVisible();

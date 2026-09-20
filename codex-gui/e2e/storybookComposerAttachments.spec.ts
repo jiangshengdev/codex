@@ -32,7 +32,7 @@ test("local file selection waits for manual completion and preserves the draft",
   await editor.press("Enter");
   await expect(editor).toContainText("Review this file:");
   await page.getByRole("button", { name: "Complete upload notes.txt", exact: true }).click();
-  await expect(editor).toContainText("Ready");
+  await expect(editor).toContainText("Uploaded");
   await expect(send).toBeEnabled();
   await send.click();
   await expect(editor).toContainText("notes.txt");
@@ -89,7 +89,7 @@ test("uploading preset survives late completion after removal and restarts indep
 test("ready preset and repeated sample selection use independent uploads", async ({ page }) => {
   await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-files--ready");
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
-  await expect(editor).toContainText("Ready");
+  await expect(editor).toContainText("Uploaded");
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Add sample file", exact: true }).click();
   await expect(

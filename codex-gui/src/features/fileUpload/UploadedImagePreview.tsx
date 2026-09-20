@@ -2,12 +2,14 @@ import { FILE_PREVIEW_PATH, type GuiFilePreviewParams } from "@codex-gui-host-co
 import { Button, Modal } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useState, type ReactNode } from "react";
+import { AttachmentSummary } from "./AttachmentSummary";
+import { ImagePreviewFailureDetails } from "./ImagePreviewFailureDetails";
 
 type UploadedImagePreviewProps = {
   path: string;
   name: string;
   authorizationToken: string | null;
-  status?: ReactNode;
+  draft?: { status: ReactNode; isDisabled: boolean };
 };
 
 type ImagePreviewOutcome =
@@ -18,7 +20,7 @@ export function UploadedImagePreview(props: UploadedImagePreviewProps) {
   return <ImagePreview key={JSON.stringify([props.path, props.authorizationToken])} {...props} />;
 }
 
-function ImagePreview({ path, name, authorizationToken, status }: UploadedImagePreviewProps) {
+function ImagePreview({ path, name, authorizationToken, draft }: UploadedImagePreviewProps) {
   const { t } = useLingui();
   const [outcome, setOutcome] = useState<ImagePreviewOutcome | null>(null);
 
@@ -69,12 +71,56 @@ function ImagePreview({ path, name, authorizationToken, status }: UploadedImageP
     };
   }, [path, authorizationToken]);
 
+  if (draft != null && (authorizationToken == null || outcome?.type !== "ready")) {
+    const failed = authorizationToken == null || outcome?.type === "failed";
+    return (
+      <>
+        <AttachmentSummary name={name}>
+          {draft.status}
+          <span
+            role={failed ? "alert" : "status"}
+            className={`min-w-0 wrap-anywhere ${failed ? "text-danger" : "text-muted"}`}
+          >
+            {!failed ? (
+              <Trans comment="Image preview is loading independently of the completed upload">
+                Loading preview…
+              </Trans>
+            ) : outcome?.type === "failed" && outcome.reason === "decode" ? (
+              <Trans comment="Compact status for a browser image decoding failure">
+                Cannot display preview
+              </Trans>
+            ) : (
+              <Trans comment="Compact status for a failed image preview request">
+                Preview read failed
+              </Trans>
+            )}
+          </span>
+        </AttachmentSummary>
+        {failed ? (
+          <ImagePreviewFailureDetails name={name}>
+            {authorizationToken == null ? (
+              <Trans>Image preview is not authorized. Open the current GUI launch link.</Trans>
+            ) : outcome?.type === "failed" && outcome.reason === "decode" ? (
+              <Trans>
+                The browser could not decode this image. Remove the attachment and choose another
+                file.
+              </Trans>
+            ) : (
+              <Trans>
+                Could not read the image preview. Check the connection and access permissions.
+              </Trans>
+            )}
+          </ImagePreviewFailureDetails>
+        ) : null}
+      </>
+    );
+  }
+
   if (authorizationToken == null) {
     return (
       <span role="alert" className="min-w-0 wrap-anywhere text-sm text-danger">
         <span>{name}</span>{" "}
         <Trans>Image preview is not authorized. Open the current GUI launch link.</Trans>
-        {status}
       </span>
     );
   }
@@ -85,7 +131,6 @@ function ImagePreview({ path, name, authorizationToken, status }: UploadedImageP
         <Trans comment="Loading an uploaded image preview; name is the original file name">
           Loading preview of {name}…
         </Trans>
-        {status}
       </span>
     );
   }
@@ -101,7 +146,6 @@ function ImagePreview({ path, name, authorizationToken, status }: UploadedImageP
             The browser could not display {name} as an image.
           </Trans>
         )}
-        {status}
       </span>
     );
   }
@@ -126,7 +170,7 @@ function ImagePreview({ path, name, authorizationToken, status }: UploadedImageP
           onError={reportDecodeFailure}
         />
         <span className="truncate">{name}</span>
-        {status}
+        {draft?.status}
       </Button>
       <Modal.Backdrop>
         <Modal.Container scroll="inside" placement="center" className="p-4 sm:p-4">

@@ -140,7 +140,7 @@ export function ComposerAttachmentsPlugin({
       editor.update(() => {
         const node = $getNodeByKey(key);
         if ($isAttachmentNode(node))
-          node.setAttachment({ ...node.getAttachment(), status: "uploading", failure: null });
+          node.setAttachment({ ...node.getAttachment(), status: "uploading" });
       });
       const result = await uploadFile(entry.file, uploadAuthorizationToken, request.signal);
       if (request.signal.aborted || entries.get(key) !== entry) return;

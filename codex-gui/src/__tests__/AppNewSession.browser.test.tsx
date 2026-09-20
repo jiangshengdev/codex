@@ -203,7 +203,7 @@ test.each([
         new File(["second"], "second.txt"),
         new File(["third"], "third.txt"),
       ]);
-      await expect.poll(() => editor.getByText("Ready", { exact: true }).all().length).toBe(3);
+      await expect.poll(() => editor.getByText("Uploaded", { exact: true }).all().length).toBe(3);
       await expectToolbar();
       await expect.element(send).toBeEnabled();
     } finally {

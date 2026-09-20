@@ -19,15 +19,15 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const [story, message] of [
-  ["loading", "Loading preview of sample.png"],
-  ["read-failure", "Could not load the preview of sample.png"],
-  ["decode-failure", "The browser could not display sample.png as an image."],
+  ["loading", "Loading preview…"],
+  ["read-failure", "Preview read failed"],
+  ["decode-failure", "Cannot display preview"],
 ] as const) {
   test(`${story} preset keeps upload ready and can reset`, async ({ page }) => {
     await page.goto(`http://localhost:6006/iframe.html?id=composer-attachments-images--${story}`);
     const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
     await expect(editor).toContainText(message);
-    await expect(editor).toContainText("Ready");
+    await expect(editor).toContainText("Uploaded");
     await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
     await expect(editor.getByRole("button", { name: /Retry upload/ })).toHaveCount(0);
     await editor.press("Enter");
@@ -47,8 +47,8 @@ test("sample image uploads before its independently controlled preview opens", a
   await expect(editor).toContainText("Uploading");
   await expect(send).toBeDisabled();
   await page.getByRole("button", { name: "Complete upload sample.png", exact: true }).click();
-  await expect(editor).toContainText("Loading preview of sample.png");
-  await expect(editor).toContainText("Ready");
+  await expect(editor).toContainText("Loading preview…");
+  await expect(editor).toContainText("Uploaded");
   await expect(send).toBeEnabled();
   await page.getByRole("button", { name: "Complete preview sample.png", exact: true }).click();
   const preview = editor.getByRole("button", { name: "Preview sample.png", exact: true });
@@ -91,7 +91,7 @@ test("local image bytes and filename survive upload and preview", async ({ page 
   await page
     .getByRole("button", { name: "Complete upload fictional-local.png", exact: true })
     .click();
-  await expect(editor).toContainText("Loading preview of fictional-local.png");
+  await expect(editor).toContainText("Loading preview…");
   await page
     .getByRole("button", { name: "Complete preview fictional-local.png", exact: true })
     .click();
@@ -135,15 +135,15 @@ test("pending reads cancel on removal and reset without affecting the next image
 });
 
 for (const [control, message] of [
-  ["Fail preview read sample.png", "Could not load the preview"],
-  ["Fail preview decode sample.png", "The browser could not display"],
+  ["Fail preview read sample.png", "Preview read failed"],
+  ["Fail preview decode sample.png", "Cannot display preview"],
 ] as const) {
   test(`${control} is independent of successful upload`, async ({ page }) => {
     await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-images--loading");
     await page.getByRole("button", { name: control, exact: true }).click();
     const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
     await expect(editor).toContainText(message);
-    await expect(editor).toContainText("Ready");
+    await expect(editor).toContainText("Uploaded");
     await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   });
 }
@@ -151,7 +151,7 @@ for (const [control, message] of [
 test("switching stories cancels a read and opens a fresh ready preview", async ({ page }) => {
   await page.goto("http://localhost:6006/?path=/story/composer-attachments-images--loading");
   const frame = page.frameLocator("#storybook-preview-iframe");
-  await expect(frame.getByText("Loading preview of sample.png…", { exact: false })).toBeVisible();
+  await expect(frame.getByText("Loading preview…", { exact: false })).toBeVisible();
   await page.locator('a[href="/?path=/story/composer-attachments-images--ready"]').click();
   await expect(
     frame.getByRole("button", { name: "Complete preview sample.png", exact: true }),
