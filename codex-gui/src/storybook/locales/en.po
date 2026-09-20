@@ -14,12 +14,12 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. Insert a fictional local file through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:92
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:142
 msgid "Add sample file"
 msgstr "Add sample file"
 
 #. Resolve the simulated upload for the named file, including a response arriving after removal
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:99
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:149
 msgid "Complete upload {name}"
 msgstr "Complete upload {name}"
 
@@ -34,7 +34,12 @@ msgstr "Create read-model slot"
 msgid "Current turn is running"
 msgstr "Current turn is running"
 
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:78
+#. Return a simulated upload failure for the named file
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:159
+msgid "Fail upload {name}"
+msgstr "Fail upload {name}"
+
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:121
 msgid "Files stay in this browser. Uploads are simulated; sending leaves the draft unchanged and never contacts a model."
 msgstr "Files stay in this browser. Uploads are simulated; sending leaves the draft unchanged and never contacts a model."
 
@@ -81,7 +86,7 @@ msgstr "Redux slots: {count}; route: {pathname}"
 msgid "Release recovery display"
 msgstr "Release recovery display"
 
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:105
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:165
 msgid "Removed; a late result must not restore this attachment."
 msgstr "Removed; a late result must not restore this attachment."
 

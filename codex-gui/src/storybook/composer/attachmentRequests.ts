@@ -33,6 +33,7 @@ export function createAttachmentRequests() {
     name: string;
     removed: boolean;
     complete(): void;
+    fail(status?: number): void;
   }>[] = [];
   const cleanups = new Set<() => void>();
   let disposed = false;
@@ -46,11 +47,11 @@ export function createAttachmentRequests() {
     const signal = init.signal;
     const id = crypto.randomUUID();
     return new Promise<Response>((resolve) => {
-      const settle = () => {
+      const settle = (status = 201) => {
         signal?.removeEventListener("abort", abort);
         cleanups.delete(settle);
         requests = requests.filter((request) => request.id !== id);
-        resolve(new Response(`/storybook/attachments/${id}/${name}`, { status: 201 }));
+        resolve(new Response(`/storybook/attachments/${id}/${name}`, { status }));
         listeners.notify();
       };
       const abort = () => {
@@ -62,7 +63,20 @@ export function createAttachmentRequests() {
         listeners.notify();
       };
       cleanups.add(settle);
-      requests = [...requests, { id, name, removed: signal?.aborted ?? false, complete: settle }];
+      requests = [
+        ...requests,
+        {
+          id,
+          name,
+          removed: signal?.aborted ?? false,
+          complete: () => {
+            settle();
+          },
+          fail: (status = 500) => {
+            settle(status);
+          },
+        },
+      ];
       signal?.addEventListener("abort", abort, { once: true });
       listeners.notify();
     });
