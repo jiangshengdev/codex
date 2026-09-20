@@ -101,7 +101,7 @@ export function ComposerPersistenceStatus({
                 not cancel or retract a message on the server.
               </Trans>
             </Alert.Description>
-            <ul className="mt-4 grid w-full min-w-0 gap-2">
+            <ul className="mt-4 grid max-h-[min(30vh,240px)] w-full min-w-0 gap-2 overflow-y-auto">
               {persistence.unknownMessages.map((message) => (
                 <li key={message.id} className="min-w-0">
                   <FailureLayout
