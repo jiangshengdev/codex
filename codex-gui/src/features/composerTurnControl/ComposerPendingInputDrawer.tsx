@@ -265,6 +265,7 @@ export function ComposerPendingInputDrawer({
                     ref={retainedRef}
                     aria-label={t`Unsaved pending message`}
                     readOnly
+                    rows={10}
                     value={edit.text}
                     fullWidth
                   />
