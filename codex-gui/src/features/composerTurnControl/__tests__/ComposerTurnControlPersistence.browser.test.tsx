@@ -31,8 +31,8 @@ test("bounds unknown records while keeping their explanation and removal reachab
     restoredPaused: false,
     revision: 7,
     unknownMessages: Array.from({ length: 12 }, (_, index) => ({
-      id: `unknown-${index}`,
-      text: `Unknown message ${index}`,
+      id: `unknown-${String(index)}`,
+      text: `Unknown message ${String(index)}`,
     })),
   };
   try {
