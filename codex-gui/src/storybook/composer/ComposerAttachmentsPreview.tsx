@@ -10,7 +10,12 @@ import { createComposerTextScenario } from "./composerTextScenario";
 import { createAttachmentRequests } from "./attachmentRequests";
 import { createSampleImage } from "./sampleImage";
 
-type Preset = "interactive" | "uploading" | "ready" | NonNullable<AttachmentState["failure"]>;
+type Preset =
+  | "interactive"
+  | "uploading"
+  | "ready"
+  | "mixedResults"
+  | NonNullable<AttachmentState["failure"]>;
 type PreviewPreset = "manual" | "ready" | "readFailure" | "decodeFailure";
 
 function createScenario() {
@@ -44,11 +49,13 @@ function AttachmentSimulation({
   preset,
   image = false,
   previewPreset = "manual",
+  mixed = false,
 }: Readonly<{
   scenario: ReturnType<typeof createScenario>;
   preset: Preset;
   image?: boolean;
   previewPreset?: PreviewPreset;
+  mixed?: boolean;
 }>) {
   const root = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
@@ -80,10 +87,16 @@ function AttachmentSimulation({
             ? createSampleImage()
             : new File(["Fictional review notes."], "review-notes.txt", { type: "text/plain" }),
       );
+      if (mixed) {
+        transfer.items.add(createSampleImage());
+        transfer.items.add(
+          new File(["Fictional checklist."], "checklist.txt", { type: "text/plain" }),
+        );
+      }
       input.files = transfer.files;
       input.dispatchEvent(new Event("change", { bubbles: true }));
     },
-    [image],
+    [image, mixed],
   );
   useEffect(() => {
     if (!connected || initialized.current || preset === "interactive") return;
@@ -101,11 +114,16 @@ function AttachmentSimulation({
   useEffect(() => {
     if (completedPreset.current || requests.length === 0) return;
     if (preset === "interactive" || preset === "uploading" || preset === "unsupportedImage") return;
+    if (preset === "mixedResults" && requests.length < 3) return;
     // A fetch can begin before Lexical persists the attachment. Wait for that
     // draft before restoring the Composer, so its real import marks it interrupted.
     if (preset === "interrupted" && draft === draftBeforeSample.current) return;
     completedPreset.current = true;
     switch (preset) {
+      case "mixedResults":
+        requests[0]?.fail();
+        requests[1]?.complete();
+        break;
       case "interrupted":
         queueMicrotask(() => {
           setComposerGeneration((value) => value + 1);
@@ -174,7 +192,11 @@ function AttachmentSimulation({
           }}
           isDisabled={!connected}
         >
-          {image ? (
+          {mixed ? (
+            <Trans comment="Insert fictional files and a PNG together through the Composer file input">
+              Add mixed sample
+            </Trans>
+          ) : image ? (
             <Trans comment="Insert a fictional PNG through the Composer file input">
               Add sample image
             </Trans>
@@ -236,12 +258,13 @@ export function ComposerAttachmentsPreview({
   preset = "interactive",
   image = false,
   previewPreset = "manual",
-}: Readonly<{ preset?: Preset; image?: boolean; previewPreset?: PreviewPreset }>) {
+  mixed = false,
+}: Readonly<{ preset?: Preset; image?: boolean; previewPreset?: PreviewPreset; mixed?: boolean }>) {
   return (
     <StrictMode>
       <Toast.Provider placement="top" />
       <PendingInputPreview
-        key={`${preset}-${String(image)}-${previewPreset}`}
+        key={`${preset}-${String(image)}-${previewPreset}-${String(mixed)}`}
         createScenario={createScenario}
       >
         {(scenario) => (
@@ -250,6 +273,7 @@ export function ComposerAttachmentsPreview({
             preset={preset}
             image={image}
             previewPreset={previewPreset}
+            mixed={mixed}
           />
         )}
       </PendingInputPreview>

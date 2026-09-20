@@ -13,23 +13,28 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#. Insert fictional files and a PNG together through the Composer file input
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:196
+msgid "Add mixed sample"
+msgstr "添加混合示例"
+
 #. Insert a fictional local file through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:182
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:204
 msgid "Add sample file"
 msgstr "添加示例文件"
 
 #. Insert a fictional PNG through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:178
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:200
 msgid "Add sample image"
 msgstr "添加示例图片"
 
 #. Return the selected image bytes to the real preview component
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:191
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:213
 msgid "Complete preview {name}"
 msgstr "完成 {name} 的预览读取"
 
 #. Resolve the simulated upload for the named file, including a response arriving after removal
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:195
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:217
 msgid "Complete upload {name}"
 msgstr "完成 {name} 的上传"
 
@@ -45,21 +50,21 @@ msgid "Current turn is running"
 msgstr "当前轮次正在运行"
 
 #. Return invalid bytes so the browser cannot decode the uploaded image
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:218
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:240
 msgid "Fail preview decode {name}"
 msgstr "模拟 {name} 预览解码失败"
 
 #. Simulate a failure reading the uploaded image without changing upload status
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:207
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:229
 msgid "Fail preview read {name}"
 msgstr "模拟 {name} 预览读取失败"
 
 #. Return a simulated upload failure for the named file
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:211
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:233
 msgid "Fail upload {name}"
 msgstr "模拟 {name} 上传失败"
 
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:156
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:174
 msgid "Files stay in this browser. Uploads are simulated; sending leaves the draft unchanged and never contacts a model."
 msgstr "文件仅保留在此浏览器中。上传为本地模拟；发送操作保留草稿，不会联系模型。"
 
@@ -106,7 +111,7 @@ msgstr "Redux 槽位：{count}；路由：{pathname}"
 msgid "Release recovery display"
 msgstr "结束恢复状态展示"
 
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:225
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:247
 msgid "Removed; a late result must not restore this attachment."
 msgstr "已移除；迟到的结果不应恢复此附件。"
 
