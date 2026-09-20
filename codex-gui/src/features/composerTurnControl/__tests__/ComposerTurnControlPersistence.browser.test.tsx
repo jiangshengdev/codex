@@ -24,6 +24,62 @@ import {
   queueSnapshot,
 } from "./composerTurnControlPendingInputBrowserTestSupport";
 
+test("bounds unknown records while keeping their explanation and removal reachable", async () => {
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  const persistence = {
+    error: null,
+    restoredPaused: false,
+    revision: 7,
+    unknownMessages: Array.from({ length: 12 }, (_, index) => ({
+      id: `unknown-${index}`,
+      text: `Unknown message ${index}`,
+    })),
+  };
+  try {
+    await page.viewport(1280, 1000);
+    const harness = createQueueControllerHarness(queueSnapshot({ persistence }));
+    const screen = await renderComposerTurnControl({
+      queue: { type: "provided", controller: harness.controller },
+    });
+    const list = screen.getByRole("list").element();
+    const title = screen.getByText("Sending result unknown", { exact: true }).element();
+    const description = screen
+      .getByText(
+        "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server.",
+        { exact: true },
+      )
+      .element();
+    await expect.poll(() => list.getBoundingClientRect().height).toBeCloseTo(240, 0);
+    await page.viewport(375, 600);
+    await expect.poll(() => list.getBoundingClientRect().height).toBeCloseTo(180, 0);
+    expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
+    expect(list.scrollWidth).toBeLessThanOrEqual(list.clientWidth);
+    const titleTop = title.getBoundingClientRect().top;
+    const descriptionTop = description.getBoundingClientRect().top;
+    list.scrollTop = list.scrollHeight;
+    await expect.poll(() => list.scrollTop).toBeGreaterThan(0);
+    expect(title.getBoundingClientRect().top).toBe(titleTop);
+    expect(description.getBoundingClientRect().top).toBe(descriptionTop);
+    const remove = screen.getByRole("button", { name: "Remove local record", exact: true }).last();
+    const bounds = remove.element().getBoundingClientRect();
+    expect(bounds.top).toBeGreaterThanOrEqual(list.getBoundingClientRect().top);
+    expect(bounds.bottom).toBeLessThanOrEqual(list.getBoundingClientRect().bottom + 1);
+    expect(harness.submit).not.toHaveBeenCalled();
+    expect(harness.controller.discardUnknown).not.toHaveBeenCalled();
+    await remove.click();
+    expect(harness.controller.discardUnknown).toHaveBeenCalledExactlyOnceWith("unknown-11", 7);
+    harness.publish(
+      queueSnapshot({
+        persistence: { ...persistence, unknownMessages: persistence.unknownMessages.slice(0, 1) },
+      }),
+    );
+    await expect.poll(() => list.getBoundingClientRect().height).toBeLessThan(180);
+    expect(list.scrollHeight).toBe(list.clientHeight);
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
 test("restores the ordinary draft in StrictMode and persists subsequent content changes", async () => {
   const harness = createQueueControllerHarness(queueSnapshot());
   harness.controller.getDraft.mockReturnValue(composerCapture("Restored ordinary draft").draft);
