@@ -37,7 +37,8 @@ test("upload failure waits for manual retry and can fail again before succeeding
   await expect(editor).toContainText("review-notes.txt");
   await retry.click();
   await expect(editor).toContainText("Uploading");
-  await expect(retry).toHaveCount(0);
+  await expect(retry).toBeDisabled();
+  await expect(editor).toContainText("File upload failed.");
   await expect(send).toBeDisabled();
   await editor.press("Enter");
   await expect(editor).toContainText("review-notes.txt");
