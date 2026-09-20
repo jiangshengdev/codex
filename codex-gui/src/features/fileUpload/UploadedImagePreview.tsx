@@ -1,7 +1,8 @@
 import { FILE_PREVIEW_PATH, type GuiFilePreviewParams } from "@codex-gui-host-contract";
-import { Button, Modal } from "@heroui/react";
+import { Button, Modal, Spinner, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { RotateCw } from "lucide-react";
 import { AttachmentSummary } from "./AttachmentSummary";
 import { ImagePreviewFailureDetails } from "./ImagePreviewFailureDetails";
 
@@ -23,6 +24,13 @@ export function UploadedImagePreview(props: UploadedImagePreviewProps) {
 function ImagePreview({ path, name, authorizationToken, draft }: UploadedImagePreviewProps) {
   const { t } = useLingui();
   const [outcome, setOutcome] = useState<ImagePreviewOutcome | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [retrying, setRetrying] = useState(false);
+  const retryPending = useRef(false);
+  const retryLabel = t({
+    comment: "Retry reading the named uploaded image preview without uploading again",
+    message: `Retry preview ${name}`,
+  });
 
   useEffect(() => {
     if (authorizationToken == null) return;
@@ -59,6 +67,11 @@ function ImagePreview({ path, name, authorizationToken, draft }: UploadedImagePr
         if (!controller.signal.aborted) {
           setOutcome({ type: "failed", reason });
         }
+      } finally {
+        if (!controller.signal.aborted) {
+          retryPending.current = false;
+          setRetrying(false);
+        }
       }
     };
     void load();
@@ -69,7 +82,7 @@ function ImagePreview({ path, name, authorizationToken, draft }: UploadedImagePr
         objectUrl = null;
       }
     };
-  }, [path, authorizationToken]);
+  }, [path, authorizationToken, attempt]);
 
   if (draft != null && (authorizationToken == null || outcome?.type !== "ready")) {
     const failed = authorizationToken == null || outcome?.type === "failed";
@@ -96,6 +109,32 @@ function ImagePreview({ path, name, authorizationToken, draft }: UploadedImagePr
             )}
           </span>
         </AttachmentSummary>
+        {authorizationToken != null && outcome?.type === "failed" && outcome.reason === "read" ? (
+          <Tooltip>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="tertiary"
+              className="h-auto shrink-0 md:h-auto"
+              isDisabled={draft.isDisabled}
+              isPending={retrying}
+              aria-label={retryLabel}
+              onPress={() => {
+                if (retryPending.current) return;
+                retryPending.current = true;
+                setRetrying(true);
+                setAttempt((value) => value + 1);
+              }}
+            >
+              {retrying ? (
+                <Spinner size="sm" aria-hidden="true" />
+              ) : (
+                <RotateCw size={16} aria-hidden="true" />
+              )}
+            </Button>
+            <Tooltip.Content>{retryLabel}</Tooltip.Content>
+          </Tooltip>
+        ) : null}
         {failed ? (
           <ImagePreviewFailureDetails name={name}>
             {authorizationToken == null ? (

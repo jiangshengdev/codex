@@ -148,6 +148,56 @@ for (const [control, message] of [
   });
 }
 
+for (const { control, status, previews, retries } of [
+  { control: "Complete preview sample.png", status: "Uploaded", previews: 1, retries: 0 },
+  {
+    control: "Fail preview read sample.png",
+    status: "Preview read failed",
+    previews: 0,
+    retries: 1,
+  },
+  {
+    control: "Fail preview decode sample.png",
+    status: "Cannot display preview",
+    previews: 0,
+    retries: 0,
+  },
+]) {
+  test(`read failure retry supports ${control}`, async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto(
+      "http://localhost:6006/iframe.html?id=composer-attachments-images--read-failure",
+    );
+    const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
+    const retry = editor.getByRole("button", { name: "Retry preview sample.png", exact: true });
+    await expect(retry).toBeVisible();
+    await retry.focus();
+    await expect(page.getByRole("tooltip")).toHaveText("Retry preview sample.png");
+    await retry.press("Enter");
+    await expect(retry).toBeDisabled();
+    await retry.press("Enter");
+    await expect(editor).toContainText("Preview read failed");
+    await expect(editor).toContainText("Uploaded");
+    await expect(page.getByRole("button", { name: /^Complete upload / })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Complete preview sample.png", exact: true }),
+    ).toHaveCount(1);
+    await page.getByRole("button", { name: control, exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Complete preview sample.png", exact: true }),
+    ).toHaveCount(0);
+    await expect(editor).toContainText(status);
+    await expect(
+      editor.getByRole("button", { name: "Preview sample.png", exact: true }),
+    ).toHaveCount(previews);
+    await expect(retry).toHaveCount(retries);
+    await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      375,
+    );
+  });
+}
+
 test("switching stories cancels a read and opens a fresh ready preview", async ({ page }) => {
   await page.goto("http://localhost:6006/?path=/story/composer-attachments-images--loading");
   const frame = page.frameLocator("#storybook-preview-iframe");

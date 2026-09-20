@@ -41,6 +41,175 @@ vi.mock("@/features/guiHost/guiHostClient", () => ({
 vi.mock("@/features/composerInputQueue/composerInputQueueCoordinator", { spy: true });
 const startHost = host.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
+test("preview read retry preserves the uploaded path and recovers without uploading again", async () => {
+  const pending = createDeferred<Response>();
+  const png = Uint8Array.from(
+    atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+    ),
+    (char) => char.charCodeAt(0),
+  );
+  const request = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(new Response("/tmp/a.txt", { status: 201 }))
+    .mockResolvedValueOnce(new Response("/tmp/picture.png", { status: 201 }))
+    .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+    .mockImplementationOnce(() => pending.promise);
+  const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
+  await attachmentFileInput(screen.container).upload([
+    new File(["A"], "a.txt"),
+    new File([png], "picture.png", { type: "image/png" }),
+  ]);
+  const retry = composer.getByRole("button", { name: "Retry preview picture.png", exact: true });
+  await expect.element(retry).toBeVisible();
+  await expect.element(retry).toHaveTextContent(/^$/);
+  await retry.click();
+  await expect.element(retry).toBeDisabled();
+  await expect.element(composer.getByRole("alert")).toHaveTextContent("Preview read failed");
+  await expect.element(retry).toHaveFocus();
+  await userEvent.keyboard("{Enter}{Enter}");
+  expect(request).toHaveBeenCalledTimes(4);
+  pending.resolve(new Response(png, { headers: { "Content-Type": "image/png" } }));
+  const preview = composer.getByRole("button", { name: "Preview picture.png", exact: true });
+  await preview.click();
+  await expect
+    .element(screen.getByRole("dialog").getByRole("img", { name: "picture.png" }))
+    .toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(preview).toHaveFocus();
+  await expect.element(retry).not.toBeInTheDocument();
+  await expect.element(composer.getByRole("alert")).not.toBeInTheDocument();
+  expect(request.mock.calls.map(([url, options]) => [url, options?.method ?? "GET"])).toEqual([
+    ["/upload?filename=a.txt", "POST"],
+    ["/upload?filename=picture.png", "POST"],
+    ["/upload/preview?path=%2Ftmp%2Fpicture.png", "GET"],
+    ["/upload/preview?path=%2Ftmp%2Fpicture.png", "GET"],
+  ]);
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  expect(steerTurnParamsAt(steerTurn, 0).input).toEqual([
+    {
+      type: "text",
+      text: "/tmp/a.txt /tmp/picture.png",
+      text_elements: [
+        { byteRange: { start: 0, end: 10 }, placeholder: "a.txt" },
+        { byteRange: { start: 11, end: 27 }, placeholder: "picture.png" },
+      ],
+    },
+    { type: "localImage", path: "/tmp/picture.png" },
+  ]);
+});
+
+test.each([
+  { responseStatus: 503, message: "Preview read failed", retryCount: 1 },
+  { responseStatus: 200, message: "Cannot display preview", retryCount: 0 },
+])(
+  "preview retry ending with $message keeps the image sendable",
+  async ({ responseStatus, message, retryCount }) => {
+    const request = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("/tmp/picture.png", { status: 201 }))
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockResolvedValueOnce(new Response("invalid", { status: responseStatus }));
+    const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
+    await attachmentFileInput(screen.container).upload(
+      new File(["image"], "picture.png", { type: "image/png" }),
+    );
+    const retry = composer.getByRole("button", { name: "Retry preview picture.png", exact: true });
+    await retry.click();
+    await expect.element(composer.getByRole("alert")).toHaveTextContent(message);
+    await expect.poll(() => retry.all().length).toBe(retryCount);
+    await composer
+      .getByRole("button", { name: "Failure details for picture.png", exact: true })
+      .click();
+    await expect.element(screen.getByRole("dialog")).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await screen.getByRole("button", { name: "Guide", exact: true }).click();
+    await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+    expect(steerTurnParamsAt(steerTurn, 0).input).toEqual([
+      {
+        type: "text",
+        text: "/tmp/picture.png",
+        text_elements: [{ byteRange: { start: 0, end: 16 }, placeholder: "picture.png" }],
+      },
+      { type: "localImage", path: "/tmp/picture.png" },
+    ]);
+    expect(request.mock.calls.map(([, options]) => options?.method ?? "GET")).toEqual([
+      "POST",
+      "GET",
+      "GET",
+    ]);
+  },
+);
+
+test("an image can be sent during a preview retry and its late response is cancelled", async () => {
+  const pending = createDeferred<Response>();
+  const request = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(new Response("/tmp/picture.png", { status: 201 }))
+    .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+    .mockImplementationOnce(() => pending.promise);
+  const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
+  await attachmentFileInput(screen.container).upload(
+    new File(["image"], "picture.png", { type: "image/png" }),
+  );
+  const retry = composer.getByRole("button", { name: "Retry preview picture.png", exact: true });
+  await retry.click();
+  await expect.element(retry).toBeDisabled();
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  expect(steerTurnParamsAt(steerTurn, 0).input).toEqual([
+    {
+      type: "text",
+      text: "/tmp/picture.png",
+      text_elements: [{ byteRange: { start: 0, end: 16 }, placeholder: "picture.png" }],
+    },
+    { type: "localImage", path: "/tmp/picture.png" },
+  ]);
+  await expect.poll(() => request.mock.calls[2]?.[1]?.signal?.aborted).toBe(true);
+  pending.resolve(new Response("late", { status: 503 }));
+  await expect.element(composer.getByText("picture.png", { exact: true })).not.toBeInTheDocument();
+});
+
+test("removing a retrying preview cancels the read without affecting another attachment", async () => {
+  const pending = createDeferred<Response>();
+  const png = Uint8Array.from(
+    atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+    ),
+    (char) => char.charCodeAt(0),
+  );
+  const request = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(new Response("/tmp/picture.png", { status: 201 }))
+    .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+    .mockImplementationOnce(() => pending.promise)
+    .mockResolvedValueOnce(new Response("/tmp/other.png", { status: 201 }))
+    .mockResolvedValueOnce(new Response(png, { headers: { "Content-Type": "image/png" } }));
+  const { screen, composer } = await renderActiveComposerQueueApp(startHost);
+  await attachmentFileInput(screen.container).upload(
+    new File([png], "picture.png", { type: "image/png" }),
+  );
+  await composer.getByRole("button", { name: "Retry preview picture.png", exact: true }).click();
+  await composer.getByRole("button", { name: "Remove picture.png", exact: true }).click();
+  await expect.element(composer).toHaveFocus();
+  expect(request.mock.calls[2]?.[1]?.signal?.aborted).toBe(true);
+  await attachmentFileInput(screen.container).upload(
+    new File([png], "other.png", { type: "image/png" }),
+  );
+  const preview = composer.getByRole("button", { name: "Preview other.png", exact: true });
+  await expect.element(preview).toBeVisible();
+  pending.resolve(new Response(png, { headers: { "Content-Type": "image/png" } }));
+  await preview.click();
+  await expect
+    .element(screen.getByRole("dialog").getByRole("img", { name: "other.png", exact: true }))
+    .toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(composer.getByText("picture.png", { exact: true })).not.toBeInTheDocument();
+  await expect.element(preview).toBeVisible();
+  expect(request).toHaveBeenCalledTimes(5);
+});
+
 test("plain user messages preserve literal text and body typography after completion", async () => {
   const { screen, options, activeTurn } = await renderActiveComposerQueueApp(startHost);
   const first = "原文🙂  **bold**\n\n";

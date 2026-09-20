@@ -3,7 +3,14 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
-import { $getNodeByKey, CLICK_COMMAND, COMMAND_PRIORITY_LOW, type NodeKey } from "lexical";
+import {
+  $getNodeByKey,
+  CLICK_COMMAND,
+  COMMAND_PRIORITY_HIGH,
+  COMMAND_PRIORITY_LOW,
+  KEY_DOWN_COMMAND,
+  type NodeKey,
+} from "lexical";
 import { use, useEffect } from "react";
 import { RotateCw, X } from "lucide-react";
 import { UploadedImagePreview } from "@/features/fileUpload/UploadedImagePreview";
@@ -24,6 +31,24 @@ export function SelectedAttachmentToken({
   const { t } = useLingui();
   const authorizationToken = use(AttachmentAuthorizationContext);
   const name = attachment.name;
+  useEffect(
+    () =>
+      editor.registerCommand(
+        KEY_DOWN_COMMAND,
+        (event) => {
+          const element = editor.getElementByKey(nodeKey);
+          // Attachment controls own their keys, including Enter while pending.
+          // Leave browser/React Aria handling intact without dispatching editor shortcuts.
+          return (
+            event.target instanceof Element &&
+            event.target.closest("button") != null &&
+            element?.contains(event.target) === true
+          );
+        },
+        COMMAND_PRIORITY_HIGH,
+      ),
+    [editor, nodeKey],
+  );
   useEffect(
     () =>
       editor.registerCommand(
