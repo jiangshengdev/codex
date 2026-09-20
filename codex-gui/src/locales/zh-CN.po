@@ -132,12 +132,12 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
 #. Choose local files to attach to the current message
-#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:166
+#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:154
 msgid "Attach files"
 msgstr "添加文件"
 
 #. Pending message cannot be saved while an attachment is uploading or failed
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:437
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:443
 msgid "Attachments are not ready"
 msgstr "附件尚未就绪"
 
@@ -146,11 +146,16 @@ msgstr "附件尚未就绪"
 msgid "Browse task history"
 msgstr "浏览历史任务"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:298
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:299
 msgid "Cancel"
 msgstr "取消"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:274
+#. Compact status for a browser image decoding failure
+#: src/features/fileUpload/UploadedImagePreview.tsx:106
+msgid "Cannot display preview"
+msgstr "无法显示预览"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:275
 msgid "Changes copied"
 msgstr "已复制修改内容"
 
@@ -158,7 +163,7 @@ msgstr "已复制修改内容"
 msgid "Changes could not be saved"
 msgstr "无法保存更改"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:83
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:84
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "继续前，请检查队列、其他打开的页面和会话历史。发送结果未知的消息仍会阻塞后续发送。"
 
@@ -166,8 +171,8 @@ msgstr "继续前，请检查队列、其他打开的页面和会话历史。发
 msgid "Choose a file"
 msgstr "选择文件"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:215
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:243
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:217
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:245
 msgid "Cleanup diagnostic:"
 msgstr "清理诊断信息："
 
@@ -176,11 +181,16 @@ msgstr "清理诊断信息："
 msgid "Close diagnostics"
 msgstr "关闭诊断信息"
 
+#. Closes the attachment failure dialog
+#: src/features/fileUpload/AttachmentFailureDetails.tsx:37
+msgid "Close failure details"
+msgstr "关闭失败详情"
+
 #: src/features/fileUpload/FileUploadDialog.tsx:59
 msgid "Close file upload"
 msgstr "关闭文件上传"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:139
+#: src/features/fileUpload/UploadedImagePreview.tsx:228
 msgid "Close image preview"
 msgstr "关闭图片预览"
 
@@ -291,7 +301,7 @@ msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗�
 
 #. Resumes sending this page's restored queue; does not open the queue
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:125
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:72
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:73
 msgid "Continue sending"
 msgstr "继续发送"
 
@@ -304,7 +314,7 @@ msgid "Continuing this task…"
 msgstr "正在继续此任务…"
 
 #. Copy the unsaved pending-message edit to the clipboard
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:313
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:314
 msgid "Copy changes"
 msgstr "复制修改内容"
 
@@ -313,7 +323,7 @@ msgstr "复制修改内容"
 msgid "Copy code"
 msgstr "复制代码"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:276
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:277
 msgid "Copy failed. Select the text and copy it manually."
 msgstr "复制失败。请选中文字并手动复制。"
 
@@ -334,9 +344,13 @@ msgid "Could not copy table. Try again."
 msgstr "无法复制表格。请重试。"
 
 #. Uploaded image could not be retrieved; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:96
+#: src/features/fileUpload/UploadedImagePreview.tsx:186
 msgid "Could not load the preview of {name}. The file may no longer be available."
 msgstr "无法加载 {name} 的预览。文件可能已不可用。"
+
+#: src/features/fileUpload/UploadedImagePreview.tsx:154
+msgid "Could not read the image preview. Check the connection and access permissions."
+msgstr "无法读取图片预览。请检查网络连接和访问权限。"
 
 #: src/features/appShell/AppShellTopBar.tsx:57
 #: src/features/appShell/AppShellTopBar.tsx:196
@@ -385,12 +399,12 @@ msgstr "当前无法引导，已加入队列"
 msgid "Dark theme"
 msgstr "深色主题"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:321
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:399
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:322
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:400
 msgid "Delete"
 msgstr "删除"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:302
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:303
 msgid "Delete this pending message?"
 msgstr "删除这条待处理消息？"
 
@@ -405,12 +419,12 @@ msgstr "诊断信息："
 
 #. Discard only the unsaved edit, not the original queued message
 #. Discard only the unsaved edit, not the original queued message
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:323
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:363
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:324
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:364
 msgid "Discard changes"
 msgstr "丢弃修改"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:337
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:338
 msgid "Discard unsaved changes?"
 msgstr "丢弃尚未保存的修改？"
 
@@ -424,7 +438,7 @@ msgstr "关闭提示"
 msgid "Duration {duration}"
 msgstr "用时 {duration}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:387
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:388
 msgid "Edit"
 msgstr "编辑"
 
@@ -439,7 +453,7 @@ msgstr "编辑待处理消息"
 msgid "Elapsed {duration}"
 msgstr "已用时 {duration}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:474
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:480
 msgid "Enter a message before saving."
 msgstr "请先输入消息再保存。"
 
@@ -476,20 +490,35 @@ msgid "Failed"
 msgstr "失败"
 
 #. Status entry indicating that transcript processing failed
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:114
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:105
 msgid "Failed."
 msgstr "失败。"
+
+#. Opens upload or preview failure details for the named draft attachment
+#: src/features/fileUpload/AttachmentFailureDetails.tsx:14
+msgid "Failure details for {name}"
+msgstr "{name} 的失败详情"
 
 #: src/features/fileUpload/FileUploadDialog.tsx:110
 msgid "File saved on the Codex machine"
 msgstr "文件已保存到运行 Codex 的机器"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:69
+#. Compact attachment upload status; size limit is available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:90
+msgid "File too large"
+msgstr "文件过大"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:102
 #: src/features/fileUpload/FileUploadDialog.tsx:95
 msgid "File upload failed."
 msgstr "文件上传失败。"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:63
+#. Recovery guidance in the attachment upload failure details dialog
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:167
+msgid "File upload failed. Retry the upload, or remove and add the file again."
+msgstr "文件上传失败。请重试上传，或移除后重新添加文件。"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:163
 #: src/features/fileUpload/FileUploadDialog.tsx:93
 msgid "File upload is not authorized. Open the current GUI launch link."
 msgstr "文件上传未获授权。请打开当前 GUI 启动链接。"
@@ -498,7 +527,7 @@ msgstr "文件上传未获授权。请打开当前 GUI 启动链接。"
 msgid "Finished waiting"
 msgstr "等待结束"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:72
+#: src/features/threadFork/ThreadForkNotice.tsx:73
 msgid "Fork created"
 msgstr "分叉会话已创建"
 
@@ -511,7 +540,7 @@ msgstr "从此处分叉"
 msgid "Go back home"
 msgstr "返回首页"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:401
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:407
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:257
 msgid "Guide"
 msgstr "引导"
@@ -520,7 +549,7 @@ msgstr "引导"
 msgid "Guide status unknown"
 msgstr "引导状态未知"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:164
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:165
 msgid "Guiding"
 msgstr "引导中"
 
@@ -550,7 +579,8 @@ msgstr "历史详情"
 msgid "Idle"
 msgstr "空闲"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:76
+#: src/features/fileUpload/UploadedImagePreview.tsx:147
+#: src/features/fileUpload/UploadedImagePreview.tsx:168
 msgid "Image preview is not authorized. Open the current GUI launch link."
 msgstr "图片预览未获授权。请打开当前 GUI 启动链接。"
 
@@ -562,7 +592,7 @@ msgid "In progress"
 msgstr "进行中"
 
 #. Input may already belong to the existing task queue; do not offer another send
-#: src/features/newSession/NewSessionPage.tsx:109
+#: src/features/newSession/NewSessionPage.tsx:110
 msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 msgstr "无法确认消息是否已加入队列。请打开会话，检查队列后再继续。"
 
@@ -584,7 +614,7 @@ msgid "Interrupted <0/> <1/>"
 msgstr "已中断 <0/> <1/>"
 
 #. Status entry indicating that transcript processing was interrupted
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:108
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:99
 msgid "Interrupted."
 msgstr "已中断。"
 
@@ -594,7 +624,7 @@ msgstr "已中断。"
 msgid "Invalid skill"
 msgstr "无效技能"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:311
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:312
 msgid "Keep"
 msgstr "保留"
 
@@ -604,13 +634,13 @@ msgid "Light theme"
 msgstr "浅色主题"
 
 #. Button to load the historical task list
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:316
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:317
 msgid "Load history"
 msgstr "加载历史记录"
 
 #. Button to request another page of historical tasks
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:178
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:312
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:313
 msgid "Load more"
 msgstr "加载更多"
 
@@ -621,33 +651,38 @@ msgid "Load task"
 msgstr "加载任务"
 
 #. Button to read the selected task's historical messages
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:108
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:109
 msgid "Load task history"
 msgstr "加载任务历史"
 
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:189
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:307
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:308
 msgid "Loading history…"
 msgstr "正在加载历史记录…"
 
 #. Progress while requesting another history page
 #. Progress while requesting another history page
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:173
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:303
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:304
 msgid "Loading more…"
 msgstr "正在加载更多…"
 
 #. Loading an uploaded image preview; name is the original file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:85
+#: src/features/fileUpload/UploadedImagePreview.tsx:176
 msgid "Loading preview of {name}…"
 msgstr "正在加载 {name} 的预览…"
+
+#. Image preview is loading independently of the completed upload
+#: src/features/fileUpload/UploadedImagePreview.tsx:102
+msgid "Loading preview…"
+msgstr "预览加载中…"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:442
 msgid "Loading skills…"
 msgstr "正在加载技能…"
 
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:106
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:107
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
@@ -666,7 +701,7 @@ msgstr "主导航"
 msgid "Menu"
 msgstr "菜单"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:435
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:441
 msgid "Message cannot be empty"
 msgstr "消息不能为空"
 
@@ -692,7 +727,7 @@ msgstr "消息更新顺序不一致，对话内容可能不完整。"
 msgid "Message updates have piled up, so synchronization has paused."
 msgstr "消息更新积压，同步已暂停。"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:354
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:355
 msgid "More move options for pending message: {previewText}"
 msgstr "待处理消息的更多移动选项：{previewText}"
 
@@ -701,27 +736,27 @@ msgstr "待处理消息的更多移动选项：{previewText}"
 msgid "More options for {title}"
 msgstr "{title} 的更多操作"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:341
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:342
 msgid "Move down pending message: {previewText}"
 msgstr "下移待处理消息：{previewText}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:371
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:372
 msgid "Move pending message to first"
 msgstr "将待处理消息移至队首"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:376
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:377
 msgid "Move pending message to last"
 msgstr "将待处理消息移至队尾"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:373
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:374
 msgid "Move to first"
 msgstr "移至队首"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:378
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:379
 msgid "Move to last"
 msgstr "移至队尾"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:329
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:330
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
@@ -786,11 +821,11 @@ msgid "Open current task"
 msgstr "打开当前任务"
 
 #. Resume opening an already created fork without creating it again
-#: src/features/threadFork/ThreadForkNotice.tsx:64
+#: src/features/threadFork/ThreadForkNotice.tsx:65
 msgid "Open fork"
 msgstr "打开分叉会话"
 
-#: src/features/newSession/NewSessionPage.tsx:98
+#: src/features/newSession/NewSessionPage.tsx:99
 msgid "Open session"
 msgstr "打开会话"
 
@@ -802,7 +837,7 @@ msgstr "打开任务"
 msgid "Opening task…"
 msgstr "正在打开任务…"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:239
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:241
 msgid "Operation diagnostic:"
 msgstr "操作诊断信息："
 
@@ -812,7 +847,7 @@ msgid "Page not found"
 msgstr "找不到页面"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:206
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:271
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:272
 msgid "Pending details"
 msgstr "待处理详情"
 
@@ -821,7 +856,7 @@ msgstr "待处理详情"
 msgid "Pending init"
 msgstr "等待初始化"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:445
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:451
 msgid "Pending message changed"
 msgstr "待处理消息已发生变化"
 
@@ -829,7 +864,7 @@ msgstr "待处理消息已发生变化"
 msgid "Pending message editor"
 msgstr "待发送消息编辑区"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:441
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:447
 msgid "Pending message was not reordered"
 msgstr "待处理消息未重新排序"
 
@@ -837,22 +872,27 @@ msgstr "待处理消息未重新排序"
 msgid "Pending messages"
 msgstr "待处理消息"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:390
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:391
 msgid "Pending: Guide {guidingCount}"
 msgstr "待处理：引导 {guidingCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:388
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:389
 msgid "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
 msgstr "待处理：引导 {guidingCount}，排队 {ordinaryQueuedCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:391
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:392
 msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "待处理：排队 {ordinaryQueuedCount}"
 
 #. Open the uploaded image at a larger size; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:117
+#: src/features/fileUpload/UploadedImagePreview.tsx:206
 msgid "Preview {name}"
 msgstr "预览 {name}"
+
+#. Compact status for a failed image preview request
+#: src/features/fileUpload/UploadedImagePreview.tsx:110
+msgid "Preview read failed"
+msgstr "预览读取失败"
 
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:68
 msgid "Previous"
@@ -871,19 +911,14 @@ msgstr "GUI 启动令牌尚未就绪，暂时无法通过二维码访问。"
 msgid "QR code for current GUI URL"
 msgstr "当前 GUI URL 的二维码。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:415
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:164
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:421
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:165
 msgid "Queued"
 msgstr "已排队"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:220
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "已将已排队消息移到第 {movedPosition} 项，共 {movedCount} 项。"
-
-#. Attachment upload completed and it can be sent
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:59
-msgid "Ready"
-msgstr "已就绪"
 
 #. Manually re-establish the shared GUI host connection
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:31
@@ -904,7 +939,7 @@ msgstr "正在重新连接…"
 msgid "Recover this task's connection before removing it."
 msgstr "请先恢复此任务的连接，再将其移出列表。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:478
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:484
 msgid "Refresh complete. Try the action again."
 msgstr "已刷新，请重试此操作。"
 
@@ -932,7 +967,7 @@ msgid "Reloading skills…"
 msgstr "正在重新加载技能…"
 
 #. Remove the named attachment from the draft
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:74
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:107
 msgid "Remove {name}"
 msgstr "移除 {name}"
 
@@ -943,7 +978,7 @@ msgid "Remove from list"
 msgstr "移出列表"
 
 #. Drops only this local unknown-send record, without retracting server work
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:118
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:119
 msgid "Remove local record"
 msgstr "移除本地记录"
 
@@ -994,7 +1029,7 @@ msgstr "恢复同步"
 msgid "Restore task"
 msgstr "恢复任务"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:80
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:81
 msgid "Restored messages are paused"
 msgstr "恢复的消息已暂停发送"
 
@@ -1023,6 +1058,11 @@ msgstr "正在恢复 {receiver}"
 msgid "Resuming sending"
 msgstr "正在继续发送"
 
+#. Retry reading the named uploaded image preview without uploading again
+#: src/features/fileUpload/UploadedImagePreview.tsx:30
+msgid "Retry preview {name}"
+msgstr "重试预览 {name}"
+
 #. Retries saving the composer draft and queue in this browser tab
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:38
 msgid "Retry saving"
@@ -1033,23 +1073,22 @@ msgid "Retry saving this task's state before removing it."
 msgstr "请先重试保存此任务的状态，再将其移出列表。"
 
 #. Manually resend the entire selected file after an upload failure
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:110
 #: src/features/fileUpload/FileUploadDialog.tsx:133
 msgid "Retry upload"
 msgstr "重试上传"
 
 #. Retry uploading the named attachment
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:104
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:111
 msgid "Retry upload {name}"
 msgstr "重试上传 {name}"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:131
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:163
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:132
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:165
 msgid "Return to current task"
 msgstr "返回当前任务"
 
 #. Return to the pending-message edit without discarding it
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:353
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:354
 msgid "Return to edit"
 msgstr "返回编辑"
 
@@ -1066,7 +1105,7 @@ msgstr "请先检查此任务中尚未处理完的消息，再将其移出列表
 msgid "Running"
 msgstr "运行中"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:301
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:302
 msgid "Save"
 msgstr "保存"
 
@@ -1080,16 +1119,16 @@ msgid "Scan with phone"
 msgstr "使用手机扫描"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:269
-#: src/features/newSession/NewSessionPage.tsx:168
+#: src/features/newSession/NewSessionPage.tsx:169
 msgid "Send"
 msgstr "发送"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:160
+#: src/features/newSession/NewSessionPage.tsx:161
 msgid "Sending"
 msgstr "正在发送"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:97
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:98
 #: src/features/composerTurnControl/ComposerUnknownMessagePreview.tsx:47
 msgid "Sending result unknown"
 msgstr "发送结果未知"
@@ -1099,15 +1138,15 @@ msgstr "发送结果未知"
 msgid "Sent input to {receiver}"
 msgstr "已向 {receiver} 发送输入"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:202
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:203
 msgid "Show more"
 msgstr "显示更多"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:194
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:195
 msgid "Show more guiding messages"
 msgstr "显示更多引导消息"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:194
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:195
 msgid "Show more queued messages"
 msgstr "显示更多排队消息"
 
@@ -1167,7 +1206,7 @@ msgid "Stop failed"
 msgstr "停止失败"
 
 #: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:33
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:241
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:242
 msgid "Structured input"
 msgstr "结构化输入"
 
@@ -1215,7 +1254,7 @@ msgstr "连接恢复前无法查看任务历史。"
 msgid "Task opened"
 msgstr "任务已打开"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:194
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:196
 msgid "Task switched, but cannot be opened"
 msgstr "任务已切换，但当前无法打开"
 
@@ -1229,8 +1268,12 @@ msgstr "任务内容更新已暂停"
 msgid "Tasks or the connection need attention."
 msgstr "任务或连接存在待处理的异常。"
 
+#: src/features/fileUpload/UploadedImagePreview.tsx:149
+msgid "The browser could not decode this image. Remove the attachment and choose another file."
+msgstr "浏览器无法解码此图片。请移除附件后选择其他文件。"
+
 #. Browser could not decode the uploaded image; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:100
+#: src/features/fileUpload/UploadedImagePreview.tsx:190
 msgid "The browser could not display {name} as an image."
 msgstr "浏览器无法将 {name} 显示为图片。"
 
@@ -1244,7 +1287,7 @@ msgstr "压缩请求结果不明。确认结果前，仍无法发送消息或再
 msgid "The connection could not be restored. You can try again."
 msgstr "连接恢复失败，可以再次尝试。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:200
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:202
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "连接在任务切换完成前中断。重新连接后请重试。"
 
@@ -1258,7 +1301,7 @@ msgid "The conversation shown here may be out of date. Restore sync to get the l
 msgstr "当前显示的对话可能不是最新内容。恢复同步可获取最新内容。"
 
 #. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
-#: src/features/newSession/NewSessionPage.tsx:115
+#: src/features/newSession/NewSessionPage.tsx:116
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "创建结果未知。重试可能留下额外的空会话。"
 
@@ -1267,11 +1310,11 @@ msgstr "创建结果未知。重试可能留下额外的空会话。"
 msgid "The current task could not be loaded."
 msgstr "当前任务未能加载。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:173
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:175
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当前任务再切换。"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:61
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:161
 #: src/features/fileUpload/FileUploadDialog.tsx:91
 msgid "The file exceeds the 50 MiB limit."
 msgstr "文件超过 50 MiB 限制。"
@@ -1280,19 +1323,19 @@ msgstr "文件超过 50 MiB 限制。"
 msgid "The file may already have been saved. Retrying uploads the entire file again and may create another copy."
 msgstr "文件可能已经保存。重试会重新上传整个文件，可能生成另一份副本。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:463
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:469
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "消息已移动，但队列反复变化，无法加载更新后的顺序。"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:75
+#: src/features/threadFork/ThreadForkNotice.tsx:76
 msgid "The new conversation is saved. Continue opening it without creating another fork."
 msgstr "新会话已保存。继续打开该会话，不会重复创建分叉。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:458
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:464
 msgid "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
 msgstr "待处理消息的顺序没有改变，但由于队列持续变化，无法加载刷新后的顺序。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:456
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:462
 msgid "The pending-message order did not change. Refresh complete; try again."
 msgstr "待处理消息的顺序没有改变。已刷新，请重试。"
 
@@ -1309,7 +1352,7 @@ msgstr "创建结果未知。请先检查历史记录；再次点击分叉可能
 msgid "The specified turn was not found."
 msgstr "未找到指定对话轮次。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:468
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:474
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
@@ -1321,15 +1364,15 @@ msgstr "任务操作未能完成。"
 msgid "The task changed. Review its current state and try again."
 msgstr "任务状态已变化。请检查当前状态后重试。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:266
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:268
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:270
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:272
 msgid "The task connection could not be prepared."
 msgstr "无法准备任务连接。"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:68
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:142
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:272
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:143
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:274
 msgid "The task could not be activated."
 msgstr "无法激活任务。"
 
@@ -1341,7 +1384,7 @@ msgstr "任务未能打开。"
 msgid "The task could not be removed."
 msgstr "任务未能移出列表。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:264
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:266
 msgid "The task could not be resumed."
 msgstr "无法恢复任务。"
 
@@ -1357,7 +1400,7 @@ msgstr "任务已打开，但部分状态同步未完成。"
 msgid "The task recovery could not be completed."
 msgstr "任务恢复未能完成。"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:205
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:207
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "任务切换已提交，但连接已中断。重新连接后请确认当前任务。"
 
@@ -1366,27 +1409,27 @@ msgstr "任务切换已提交，但连接已中断。重新连接后请确认当
 msgid "Theme preference"
 msgstr "主题偏好"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:100
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:101
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "这些消息不会自动重发。移除本地记录不会取消或撤回服务端的消息。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:476
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:482
 msgid "This editing session is no longer available."
 msgstr "本次编辑已失效，无法继续保存。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:470
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:476
 msgid "This message has entered the sending process and can no longer be managed."
 msgstr "这条消息已进入发送流程，无法再管理。"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:417
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:418
 msgid "This message has entered the sending process."
 msgstr "这条消息已进入发送流程。"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:415
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:416
 msgid "This message is being edited."
 msgstr "这条消息正在编辑。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:450
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:456
 msgid "This pending message cannot be edited."
 msgstr "无法编辑这条待处理消息。"
 
@@ -1438,9 +1481,9 @@ msgstr "轮次 {resolvedTurnId}"
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:43
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:65
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:95
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:138
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:192
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:230
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:139
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:194
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:232
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
@@ -1448,11 +1491,11 @@ msgstr "无法继续此任务"
 msgid "Unable to create fork"
 msgstr "无法创建分叉会话"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:324
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:325
 msgid "Unable to load history"
 msgstr "无法加载历史记录"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:117
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:118
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
@@ -1474,12 +1517,12 @@ msgstr "无法重试此任务。请检查当前状态后再试。"
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
-#: src/features/newSession/NewSessionPage.tsx:105
+#: src/features/newSession/NewSessionPage.tsx:106
 msgid "Unable to start the conversation"
 msgstr "无法开始对话"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:109
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:169
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:171
 msgid "Unable to switch tasks yet"
 msgstr "暂时无法切换任务"
 
@@ -1496,16 +1539,12 @@ msgstr "状态未知"
 msgid "Unsaved pending message"
 msgstr "尚未保存的待发送消息"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:65
-msgid "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
-msgstr "不支持此图片格式。请使用 PNG、JPEG、GIF 或 WebP。"
-
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:41
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:215
 msgid "Untitled task"
 msgstr "未命名任务"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:443
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:449
 msgid "Updated pending order could not be loaded"
 msgstr "无法加载更新后的待处理顺序"
 
@@ -1519,12 +1558,27 @@ msgstr "上传"
 msgid "Upload file"
 msgstr "上传文件"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:67
+#. Compact attachment upload status; recovery instructions are available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:98
+msgid "Upload interrupted"
+msgstr "上传已中断"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:165
 msgid "Upload interrupted. Remove and add the file again."
 msgstr "上传已中断。请移除后重新添加文件。"
 
+#. Compact attachment upload status; recovery instructions are available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:94
+msgid "Upload not authorized"
+msgstr "上传未获授权"
+
+#. Attachment transfer completed; image preview may still be loading or failed
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:86
+msgid "Uploaded"
+msgstr "已上传"
+
 #. Attachment is being transferred to the Codex machine
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:57
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:84
 msgid "Uploading"
 msgstr "上传中"
 
@@ -1546,7 +1600,7 @@ msgstr "查看诊断信息"
 
 #. Open a dialog containing the complete pending message
 #. Open a dialog containing the complete unknown-send message
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:261
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:262
 #: src/features/composerTurnControl/ComposerUnknownMessagePreview.tsx:37
 msgid "View full message"
 msgstr "查看全文"
@@ -1584,7 +1638,7 @@ msgstr "请等待此任务加载完成，再将其移出列表。"
 msgid "Wait for this task's recovery to finish."
 msgstr "请等待此任务恢复完成。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:452
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:458
 msgid "Wait for uploads to finish, or retry or remove failed attachments before saving."
 msgstr "保存前请等待上传完成，或重试、移除上传失败的附件。"
 
@@ -1649,7 +1703,7 @@ msgstr "昨天"
 msgid "Yesterday {time}"
 msgstr "昨天 {time}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:341
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:342
 msgid "Your changes have not been saved. Return to copy them, or discard them to continue."
 msgstr "修改尚未保存。可以返回复制内容，或丢弃修改后继续。"
 
@@ -1657,7 +1711,7 @@ msgstr "修改尚未保存。可以返回复制内容，或丢弃修改后继续
 msgid "Your edits are retained below. Copy anything you want to keep before discarding."
 msgstr "编辑内容已保留在下方。请先复制需要保留的内容，再丢弃修改。"
 
-#: src/features/newSession/NewSessionPage.tsx:119
+#: src/features/newSession/NewSessionPage.tsx:120
 msgid "Your input is retained. Retry to continue."
 msgstr "输入内容已保留。重试以继续。"
 

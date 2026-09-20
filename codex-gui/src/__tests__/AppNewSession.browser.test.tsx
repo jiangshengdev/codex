@@ -1,4 +1,4 @@
-import { toast } from "@heroui/react";
+import { Button, toast } from "@heroui/react";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
@@ -203,7 +203,7 @@ test.each([
         new File(["second"], "second.txt"),
         new File(["third"], "third.txt"),
       ]);
-      await expect.poll(() => editor.getByText("Ready", { exact: true }).all().length).toBe(3);
+      await expect.poll(() => editor.getByText("Uploaded", { exact: true }).all().length).toBe(3);
       await expectToolbar();
       await expect.element(send).toBeEnabled();
     } finally {
@@ -562,6 +562,48 @@ test("unknown creation retains input and retries only after an explicit action",
   await expect
     .element(page.getByRole("combobox", { name: "Message Codex" }))
     .toHaveTextContent("retry explicitly");
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  const reference = await renderWithProviders(
+    <>
+      <Button size="sm">Compact reference</Button>
+      <Button size="md">Page action reference</Button>
+    </>,
+  );
+  try {
+    for (const width of [375, 1280]) {
+      await page.viewport(width, 900);
+      const compactHeight = reference
+        .getByRole("button", { name: "Compact reference", exact: true })
+        .element()
+        .getBoundingClientRect().height;
+      const regularHeight = reference
+        .getByRole("button", { name: "Page action reference", exact: true })
+        .element()
+        .getBoundingClientRect().height;
+      await expect
+        .poll(
+          () =>
+            page
+              .getByRole("alert")
+              .getByRole("button", { name: "View diagnostic information", exact: true })
+              .element()
+              .getBoundingClientRect().height,
+        )
+        .toBe(compactHeight);
+      await expect
+        .poll(
+          () =>
+            page
+              .getByRole("button", { name: "Send", exact: true })
+              .element()
+              .getBoundingClientRect().height,
+        )
+        .toBe(regularHeight);
+    }
+  } finally {
+    await reference.unmount();
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
   const retry = createDeferred<Awaited<ReturnType<GuiHostCommands["startThread"]>>>();
   vi.mocked(commands.startThread).mockReturnValueOnce(retry.promise);
   await page.getByRole("button", { name: "Send", exact: true }).click();

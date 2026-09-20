@@ -132,12 +132,12 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
 #. Choose local files to attach to the current message
-#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:166
+#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:154
 msgid "Attach files"
 msgstr "Attach files"
 
 #. Pending message cannot be saved while an attachment is uploading or failed
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:437
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:443
 msgid "Attachments are not ready"
 msgstr "Attachments are not ready"
 
@@ -146,11 +146,16 @@ msgstr "Attachments are not ready"
 msgid "Browse task history"
 msgstr "Browse task history"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:298
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:299
 msgid "Cancel"
 msgstr "Cancel"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:274
+#. Compact status for a browser image decoding failure
+#: src/features/fileUpload/UploadedImagePreview.tsx:106
+msgid "Cannot display preview"
+msgstr "Cannot display preview"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:275
 msgid "Changes copied"
 msgstr "Changes copied"
 
@@ -158,7 +163,7 @@ msgstr "Changes copied"
 msgid "Changes could not be saved"
 msgstr "Changes could not be saved"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:83
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:84
 msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 msgstr "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
 
@@ -166,8 +171,8 @@ msgstr "Check the queue, other open pages, and conversation history before conti
 msgid "Choose a file"
 msgstr "Choose a file"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:215
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:243
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:217
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:245
 msgid "Cleanup diagnostic:"
 msgstr "Cleanup diagnostic:"
 
@@ -176,11 +181,16 @@ msgstr "Cleanup diagnostic:"
 msgid "Close diagnostics"
 msgstr "Close diagnostics"
 
+#. Closes the attachment failure dialog
+#: src/features/fileUpload/AttachmentFailureDetails.tsx:37
+msgid "Close failure details"
+msgstr "Close failure details"
+
 #: src/features/fileUpload/FileUploadDialog.tsx:59
 msgid "Close file upload"
 msgstr "Close file upload"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:139
+#: src/features/fileUpload/UploadedImagePreview.tsx:228
 msgid "Close image preview"
 msgstr "Close image preview"
 
@@ -291,7 +301,7 @@ msgstr "Context usage details, {usedTokensLabel} tokens used, context window cap
 
 #. Resumes sending this page's restored queue; does not open the queue
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:125
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:72
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:73
 msgid "Continue sending"
 msgstr "Continue sending"
 
@@ -304,7 +314,7 @@ msgid "Continuing this task…"
 msgstr "Continuing this task…"
 
 #. Copy the unsaved pending-message edit to the clipboard
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:313
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:314
 msgid "Copy changes"
 msgstr "Copy changes"
 
@@ -313,7 +323,7 @@ msgstr "Copy changes"
 msgid "Copy code"
 msgstr "Copy code"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:276
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:277
 msgid "Copy failed. Select the text and copy it manually."
 msgstr "Copy failed. Select the text and copy it manually."
 
@@ -334,9 +344,13 @@ msgid "Could not copy table. Try again."
 msgstr "Could not copy table. Try again."
 
 #. Uploaded image could not be retrieved; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:96
+#: src/features/fileUpload/UploadedImagePreview.tsx:186
 msgid "Could not load the preview of {name}. The file may no longer be available."
 msgstr "Could not load the preview of {name}. The file may no longer be available."
+
+#: src/features/fileUpload/UploadedImagePreview.tsx:154
+msgid "Could not read the image preview. Check the connection and access permissions."
+msgstr "Could not read the image preview. Check the connection and access permissions."
 
 #: src/features/appShell/AppShellTopBar.tsx:57
 #: src/features/appShell/AppShellTopBar.tsx:196
@@ -385,12 +399,12 @@ msgstr "Currently unable to guide; added to queue"
 msgid "Dark theme"
 msgstr "Dark theme"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:321
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:399
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:322
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:400
 msgid "Delete"
 msgstr "Delete"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:302
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:303
 msgid "Delete this pending message?"
 msgstr "Delete this pending message?"
 
@@ -405,12 +419,12 @@ msgstr "Diagnostic:"
 
 #. Discard only the unsaved edit, not the original queued message
 #. Discard only the unsaved edit, not the original queued message
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:323
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:363
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:324
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:364
 msgid "Discard changes"
 msgstr "Discard changes"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:337
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:338
 msgid "Discard unsaved changes?"
 msgstr "Discard unsaved changes?"
 
@@ -424,7 +438,7 @@ msgstr "Dismiss"
 msgid "Duration {duration}"
 msgstr "Duration {duration}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:387
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:388
 msgid "Edit"
 msgstr "Edit"
 
@@ -439,7 +453,7 @@ msgstr "Edit pending message"
 msgid "Elapsed {duration}"
 msgstr "Elapsed {duration}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:474
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:480
 msgid "Enter a message before saving."
 msgstr "Enter a message before saving."
 
@@ -476,20 +490,35 @@ msgid "Failed"
 msgstr "Failed"
 
 #. Status entry indicating that transcript processing failed
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:114
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:105
 msgid "Failed."
 msgstr "Failed."
+
+#. Opens upload or preview failure details for the named draft attachment
+#: src/features/fileUpload/AttachmentFailureDetails.tsx:14
+msgid "Failure details for {name}"
+msgstr "Failure details for {name}"
 
 #: src/features/fileUpload/FileUploadDialog.tsx:110
 msgid "File saved on the Codex machine"
 msgstr "File saved on the Codex machine"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:69
+#. Compact attachment upload status; size limit is available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:90
+msgid "File too large"
+msgstr "File too large"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:102
 #: src/features/fileUpload/FileUploadDialog.tsx:95
 msgid "File upload failed."
 msgstr "File upload failed."
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:63
+#. Recovery guidance in the attachment upload failure details dialog
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:167
+msgid "File upload failed. Retry the upload, or remove and add the file again."
+msgstr "File upload failed. Retry the upload, or remove and add the file again."
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:163
 #: src/features/fileUpload/FileUploadDialog.tsx:93
 msgid "File upload is not authorized. Open the current GUI launch link."
 msgstr "File upload is not authorized. Open the current GUI launch link."
@@ -498,7 +527,7 @@ msgstr "File upload is not authorized. Open the current GUI launch link."
 msgid "Finished waiting"
 msgstr "Finished waiting"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:72
+#: src/features/threadFork/ThreadForkNotice.tsx:73
 msgid "Fork created"
 msgstr "Fork created"
 
@@ -511,7 +540,7 @@ msgstr "Fork from here"
 msgid "Go back home"
 msgstr "Go back home"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:401
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:407
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:257
 msgid "Guide"
 msgstr "Guide"
@@ -520,7 +549,7 @@ msgstr "Guide"
 msgid "Guide status unknown"
 msgstr "Guide status unknown"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:164
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:165
 msgid "Guiding"
 msgstr "Guiding"
 
@@ -550,7 +579,8 @@ msgstr "History detail"
 msgid "Idle"
 msgstr "Idle"
 
-#: src/features/fileUpload/UploadedImagePreview.tsx:76
+#: src/features/fileUpload/UploadedImagePreview.tsx:147
+#: src/features/fileUpload/UploadedImagePreview.tsx:168
 msgid "Image preview is not authorized. Open the current GUI launch link."
 msgstr "Image preview is not authorized. Open the current GUI launch link."
 
@@ -562,7 +592,7 @@ msgid "In progress"
 msgstr "In progress"
 
 #. Input may already belong to the existing task queue; do not offer another send
-#: src/features/newSession/NewSessionPage.tsx:109
+#: src/features/newSession/NewSessionPage.tsx:110
 msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 msgstr "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 
@@ -584,7 +614,7 @@ msgid "Interrupted <0/> <1/>"
 msgstr "Interrupted <0/> <1/>"
 
 #. Status entry indicating that transcript processing was interrupted
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:108
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:99
 msgid "Interrupted."
 msgstr "Interrupted."
 
@@ -594,7 +624,7 @@ msgstr "Interrupted."
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:311
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:312
 msgid "Keep"
 msgstr "Keep"
 
@@ -604,13 +634,13 @@ msgid "Light theme"
 msgstr "Light theme"
 
 #. Button to load the historical task list
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:316
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:317
 msgid "Load history"
 msgstr "Load history"
 
 #. Button to request another page of historical tasks
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:178
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:312
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:313
 msgid "Load more"
 msgstr "Load more"
 
@@ -621,33 +651,38 @@ msgid "Load task"
 msgstr "Load task"
 
 #. Button to read the selected task's historical messages
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:108
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:109
 msgid "Load task history"
 msgstr "Load task history"
 
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:189
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:307
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:308
 msgid "Loading history…"
 msgstr "Loading history…"
 
 #. Progress while requesting another history page
 #. Progress while requesting another history page
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:173
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:303
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:304
 msgid "Loading more…"
 msgstr "Loading more…"
 
 #. Loading an uploaded image preview; name is the original file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:85
+#: src/features/fileUpload/UploadedImagePreview.tsx:176
 msgid "Loading preview of {name}…"
 msgstr "Loading preview of {name}…"
+
+#. Image preview is loading independently of the completed upload
+#: src/features/fileUpload/UploadedImagePreview.tsx:102
+msgid "Loading preview…"
+msgstr "Loading preview…"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:442
 msgid "Loading skills…"
 msgstr "Loading skills…"
 
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:106
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:107
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
@@ -666,7 +701,7 @@ msgstr "Main navigation"
 msgid "Menu"
 msgstr "Menu"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:435
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:441
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
@@ -692,7 +727,7 @@ msgstr "Message updates arrived out of order, so the conversation may be incompl
 msgid "Message updates have piled up, so synchronization has paused."
 msgstr "Message updates have piled up, so synchronization has paused."
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:354
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:355
 msgid "More move options for pending message: {previewText}"
 msgstr "More move options for pending message: {previewText}"
 
@@ -701,27 +736,27 @@ msgstr "More move options for pending message: {previewText}"
 msgid "More options for {title}"
 msgstr "More options for {title}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:341
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:342
 msgid "Move down pending message: {previewText}"
 msgstr "Move down pending message: {previewText}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:371
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:372
 msgid "Move pending message to first"
 msgstr "Move pending message to first"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:376
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:377
 msgid "Move pending message to last"
 msgstr "Move pending message to last"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:373
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:374
 msgid "Move to first"
 msgstr "Move to first"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:378
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:379
 msgid "Move to last"
 msgstr "Move to last"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:329
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:330
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
@@ -786,11 +821,11 @@ msgid "Open current task"
 msgstr "Open current task"
 
 #. Resume opening an already created fork without creating it again
-#: src/features/threadFork/ThreadForkNotice.tsx:64
+#: src/features/threadFork/ThreadForkNotice.tsx:65
 msgid "Open fork"
 msgstr "Open fork"
 
-#: src/features/newSession/NewSessionPage.tsx:98
+#: src/features/newSession/NewSessionPage.tsx:99
 msgid "Open session"
 msgstr "Open session"
 
@@ -802,7 +837,7 @@ msgstr "Open task"
 msgid "Opening task…"
 msgstr "Opening task…"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:239
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:241
 msgid "Operation diagnostic:"
 msgstr "Operation diagnostic:"
 
@@ -812,7 +847,7 @@ msgid "Page not found"
 msgstr "Page not found"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:206
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:271
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:272
 msgid "Pending details"
 msgstr "Pending details"
 
@@ -821,7 +856,7 @@ msgstr "Pending details"
 msgid "Pending init"
 msgstr "Pending init"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:445
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:451
 msgid "Pending message changed"
 msgstr "Pending message changed"
 
@@ -829,7 +864,7 @@ msgstr "Pending message changed"
 msgid "Pending message editor"
 msgstr "Pending message editor"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:441
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:447
 msgid "Pending message was not reordered"
 msgstr "Pending message was not reordered"
 
@@ -837,22 +872,27 @@ msgstr "Pending message was not reordered"
 msgid "Pending messages"
 msgstr "Pending messages"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:390
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:391
 msgid "Pending: Guide {guidingCount}"
 msgstr "Pending: Guide {guidingCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:388
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:389
 msgid "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
 msgstr "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:391
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:392
 msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "Pending: Queued {ordinaryQueuedCount}"
 
 #. Open the uploaded image at a larger size; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:117
+#: src/features/fileUpload/UploadedImagePreview.tsx:206
 msgid "Preview {name}"
 msgstr "Preview {name}"
+
+#. Compact status for a failed image preview request
+#: src/features/fileUpload/UploadedImagePreview.tsx:110
+msgid "Preview read failed"
+msgstr "Preview read failed"
 
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:68
 msgid "Previous"
@@ -871,19 +911,14 @@ msgstr "QR access is unavailable until the GUI launch token is ready."
 msgid "QR code for current GUI URL"
 msgstr "QR code for current GUI URL"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:415
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:164
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:421
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:165
 msgid "Queued"
 msgstr "Queued"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:220
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "Queued message moved to position {movedPosition} of {movedCount}."
-
-#. Attachment upload completed and it can be sent
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:59
-msgid "Ready"
-msgstr "Ready"
 
 #. Manually re-establish the shared GUI host connection
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:31
@@ -904,7 +939,7 @@ msgstr "Reconnecting…"
 msgid "Recover this task's connection before removing it."
 msgstr "Recover this task's connection before removing it."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:478
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:484
 msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
 
@@ -932,7 +967,7 @@ msgid "Reloading skills…"
 msgstr "Reloading skills…"
 
 #. Remove the named attachment from the draft
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:74
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:107
 msgid "Remove {name}"
 msgstr "Remove {name}"
 
@@ -943,7 +978,7 @@ msgid "Remove from list"
 msgstr "Remove from list"
 
 #. Drops only this local unknown-send record, without retracting server work
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:118
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:119
 msgid "Remove local record"
 msgstr "Remove local record"
 
@@ -994,7 +1029,7 @@ msgstr "Restore sync"
 msgid "Restore task"
 msgstr "Restore task"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:80
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:81
 msgid "Restored messages are paused"
 msgstr "Restored messages are paused"
 
@@ -1023,6 +1058,11 @@ msgstr "Resuming {receiver}"
 msgid "Resuming sending"
 msgstr "Resuming sending"
 
+#. Retry reading the named uploaded image preview without uploading again
+#: src/features/fileUpload/UploadedImagePreview.tsx:30
+msgid "Retry preview {name}"
+msgstr "Retry preview {name}"
+
 #. Retries saving the composer draft and queue in this browser tab
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:38
 msgid "Retry saving"
@@ -1033,23 +1073,22 @@ msgid "Retry saving this task's state before removing it."
 msgstr "Retry saving this task's state before removing it."
 
 #. Manually resend the entire selected file after an upload failure
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:110
 #: src/features/fileUpload/FileUploadDialog.tsx:133
 msgid "Retry upload"
 msgstr "Retry upload"
 
 #. Retry uploading the named attachment
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:104
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:111
 msgid "Retry upload {name}"
 msgstr "Retry upload {name}"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:131
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:163
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:132
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:165
 msgid "Return to current task"
 msgstr "Return to current task"
 
 #. Return to the pending-message edit without discarding it
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:353
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:354
 msgid "Return to edit"
 msgstr "Return to edit"
 
@@ -1066,7 +1105,7 @@ msgstr "Review unresolved messages in this task before removing it."
 msgid "Running"
 msgstr "Running"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:301
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:302
 msgid "Save"
 msgstr "Save"
 
@@ -1080,16 +1119,16 @@ msgid "Scan with phone"
 msgstr "Scan with phone"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:269
-#: src/features/newSession/NewSessionPage.tsx:168
+#: src/features/newSession/NewSessionPage.tsx:169
 msgid "Send"
 msgstr "Send"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:160
+#: src/features/newSession/NewSessionPage.tsx:161
 msgid "Sending"
 msgstr "Sending"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:97
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:98
 #: src/features/composerTurnControl/ComposerUnknownMessagePreview.tsx:47
 msgid "Sending result unknown"
 msgstr "Sending result unknown"
@@ -1099,15 +1138,15 @@ msgstr "Sending result unknown"
 msgid "Sent input to {receiver}"
 msgstr "Sent input to {receiver}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:202
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:203
 msgid "Show more"
 msgstr "Show more"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:194
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:195
 msgid "Show more guiding messages"
 msgstr "Show more guiding messages"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:194
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:195
 msgid "Show more queued messages"
 msgstr "Show more queued messages"
 
@@ -1167,7 +1206,7 @@ msgid "Stop failed"
 msgstr "Stop failed"
 
 #: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:33
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:241
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:242
 msgid "Structured input"
 msgstr "Structured input"
 
@@ -1215,7 +1254,7 @@ msgstr "Task history is unavailable until the connection is restored."
 msgid "Task opened"
 msgstr "Task opened"
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:194
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:196
 msgid "Task switched, but cannot be opened"
 msgstr "Task switched, but cannot be opened"
 
@@ -1229,8 +1268,12 @@ msgstr "Task updates are paused"
 msgid "Tasks or the connection need attention."
 msgstr "Tasks or the connection need attention."
 
+#: src/features/fileUpload/UploadedImagePreview.tsx:149
+msgid "The browser could not decode this image. Remove the attachment and choose another file."
+msgstr "The browser could not decode this image. Remove the attachment and choose another file."
+
 #. Browser could not decode the uploaded image; name is its file name
-#: src/features/fileUpload/UploadedImagePreview.tsx:100
+#: src/features/fileUpload/UploadedImagePreview.tsx:190
 msgid "The browser could not display {name} as an image."
 msgstr "The browser could not display {name} as an image."
 
@@ -1244,7 +1287,7 @@ msgstr "The compression request result is unknown. Sending and compression remai
 msgid "The connection could not be restored. You can try again."
 msgstr "The connection could not be restored. You can try again."
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:200
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:202
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "The connection was interrupted before the task switch completed. Reconnect and try again."
 
@@ -1258,7 +1301,7 @@ msgid "The conversation shown here may be out of date. Restore sync to get the l
 msgstr "The conversation shown here may be out of date. Restore sync to get the latest content."
 
 #. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
-#: src/features/newSession/NewSessionPage.tsx:115
+#: src/features/newSession/NewSessionPage.tsx:116
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "The creation result is unknown. Retrying may leave an extra empty session."
 
@@ -1267,11 +1310,11 @@ msgstr "The creation result is unknown. Retrying may leave an extra empty sessio
 msgid "The current task could not be loaded."
 msgstr "The current task could not be loaded."
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:173
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:175
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:61
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:161
 #: src/features/fileUpload/FileUploadDialog.tsx:91
 msgid "The file exceeds the 50 MiB limit."
 msgstr "The file exceeds the 50 MiB limit."
@@ -1280,19 +1323,19 @@ msgstr "The file exceeds the 50 MiB limit."
 msgid "The file may already have been saved. Retrying uploads the entire file again and may create another copy."
 msgstr "The file may already have been saved. Retrying uploads the entire file again and may create another copy."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:463
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:469
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "The message was moved, but repeated queue changes prevented the updated order from loading."
 
-#: src/features/threadFork/ThreadForkNotice.tsx:75
+#: src/features/threadFork/ThreadForkNotice.tsx:76
 msgid "The new conversation is saved. Continue opening it without creating another fork."
 msgstr "The new conversation is saved. Continue opening it without creating another fork."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:458
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:464
 msgid "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
 msgstr "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:456
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:462
 msgid "The pending-message order did not change. Refresh complete; try again."
 msgstr "The pending-message order did not change. Refresh complete; try again."
 
@@ -1309,7 +1352,7 @@ msgstr "The result is unknown. Check history before forking again; another click
 msgid "The specified turn was not found."
 msgstr "The specified turn was not found."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:468
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:474
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
@@ -1321,15 +1364,15 @@ msgstr "The task action could not be completed."
 msgid "The task changed. Review its current state and try again."
 msgstr "The task changed. Review its current state and try again."
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:266
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:268
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:270
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:272
 msgid "The task connection could not be prepared."
 msgstr "The task connection could not be prepared."
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:68
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:142
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:272
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:143
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:274
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
@@ -1341,7 +1384,7 @@ msgstr "The task could not be opened."
 msgid "The task could not be removed."
 msgstr "The task could not be removed."
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:264
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:266
 msgid "The task could not be resumed."
 msgstr "The task could not be resumed."
 
@@ -1357,7 +1400,7 @@ msgstr "The task opened, but some state synchronization did not finish."
 msgid "The task recovery could not be completed."
 msgstr "The task recovery could not be completed."
 
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:205
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:207
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 
@@ -1366,27 +1409,27 @@ msgstr "The task switch was committed, but the connection was interrupted. Recon
 msgid "Theme preference"
 msgstr "Theme preference"
 
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:100
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:101
 msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 msgstr "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:476
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:482
 msgid "This editing session is no longer available."
 msgstr "This editing session is no longer available."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:470
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:476
 msgid "This message has entered the sending process and can no longer be managed."
 msgstr "This message has entered the sending process and can no longer be managed."
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:417
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:418
 msgid "This message has entered the sending process."
 msgstr "This message has entered the sending process."
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:415
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:416
 msgid "This message is being edited."
 msgstr "This message is being edited."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:450
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:456
 msgid "This pending message cannot be edited."
 msgstr "This pending message cannot be edited."
 
@@ -1438,9 +1481,9 @@ msgstr "Turn {resolvedTurnId}"
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:43
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:65
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:95
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:138
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:192
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:230
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:139
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:194
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:232
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
 
@@ -1448,11 +1491,11 @@ msgstr "Unable to continue this task"
 msgid "Unable to create fork"
 msgstr "Unable to create fork"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:324
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:325
 msgid "Unable to load history"
 msgstr "Unable to load history"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:117
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:118
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
@@ -1474,12 +1517,12 @@ msgstr "Unable to retry this task. Review its current state and try again."
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
-#: src/features/newSession/NewSessionPage.tsx:105
+#: src/features/newSession/NewSessionPage.tsx:106
 msgid "Unable to start the conversation"
 msgstr "Unable to start the conversation"
 
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:109
-#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:169
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:171
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
@@ -1496,16 +1539,12 @@ msgstr "Unknown"
 msgid "Unsaved pending message"
 msgstr "Unsaved pending message"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:65
-msgid "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
-msgstr "Unsupported image format. Use PNG, JPEG, GIF, or WebP."
-
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:41
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:215
 msgid "Untitled task"
 msgstr "Untitled task"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:443
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:449
 msgid "Updated pending order could not be loaded"
 msgstr "Updated pending order could not be loaded"
 
@@ -1519,12 +1558,27 @@ msgstr "Upload"
 msgid "Upload file"
 msgstr "Upload file"
 
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:67
+#. Compact attachment upload status; recovery instructions are available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:98
+msgid "Upload interrupted"
+msgstr "Upload interrupted"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:165
 msgid "Upload interrupted. Remove and add the file again."
 msgstr "Upload interrupted. Remove and add the file again."
 
+#. Compact attachment upload status; recovery instructions are available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:94
+msgid "Upload not authorized"
+msgstr "Upload not authorized"
+
+#. Attachment transfer completed; image preview may still be loading or failed
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:86
+msgid "Uploaded"
+msgstr "Uploaded"
+
 #. Attachment is being transferred to the Codex machine
-#: src/features/composerEditor/SelectedAttachmentToken.tsx:57
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:84
 msgid "Uploading"
 msgstr "Uploading"
 
@@ -1546,7 +1600,7 @@ msgstr "View diagnostic information"
 
 #. Open a dialog containing the complete pending message
 #. Open a dialog containing the complete unknown-send message
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:261
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:262
 #: src/features/composerTurnControl/ComposerUnknownMessagePreview.tsx:37
 msgid "View full message"
 msgstr "View full message"
@@ -1584,7 +1638,7 @@ msgstr "Wait for this task to finish loading before removing it."
 msgid "Wait for this task's recovery to finish."
 msgstr "Wait for this task's recovery to finish."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:452
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:458
 msgid "Wait for uploads to finish, or retry or remove failed attachments before saving."
 msgstr "Wait for uploads to finish, or retry or remove failed attachments before saving."
 
@@ -1649,7 +1703,7 @@ msgstr "Yesterday"
 msgid "Yesterday {time}"
 msgstr "Yesterday {time}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:341
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:342
 msgid "Your changes have not been saved. Return to copy them, or discard them to continue."
 msgstr "Your changes have not been saved. Return to copy them, or discard them to continue."
 
@@ -1657,7 +1711,7 @@ msgstr "Your changes have not been saved. Return to copy them, or discard them t
 msgid "Your edits are retained below. Copy anything you want to keep before discarding."
 msgstr "Your edits are retained below. Copy anything you want to keep before discarding."
 
-#: src/features/newSession/NewSessionPage.tsx:119
+#: src/features/newSession/NewSessionPage.tsx:120
 msgid "Your input is retained. Retry to continue."
 msgstr "Your input is retained. Retry to continue."
 

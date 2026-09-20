@@ -123,6 +123,7 @@ function ContinueTaskUnavailableAlert({
             actions={
               activeThreadId == null ? null : (
                 <Button
+                  size="sm"
                   onPress={() => {
                     navigateToCurrentTask(activeThreadId);
                   }}
@@ -155,6 +156,7 @@ function ContinueTaskUnavailableAlert({
           <FailureLayout
             actions={
               <Button
+                size="sm"
                 onPress={() => {
                   navigateToCurrentTask(activeThreadId);
                 }}

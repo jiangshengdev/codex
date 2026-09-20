@@ -391,7 +391,12 @@ export function ComposerPendingInputTrigger({
         ? t`Pending: Guide ${guidingCount}`
         : t`Pending: Queued ${ordinaryQueuedCount}`;
   return (
-    <ButtonGroup aria-label={triggerLabel} className="justify-self-start" variant="tertiary">
+    <ButtonGroup
+      aria-label={triggerLabel}
+      className="justify-self-start"
+      size="sm"
+      variant="tertiary"
+    >
       {guidingCount > 0 ? (
         <Button
           ref={triggerRef}

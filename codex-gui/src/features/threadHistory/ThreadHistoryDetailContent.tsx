@@ -100,6 +100,7 @@ function HistoryDetailError({
         actions={
           retry == null ? null : (
             <RetryActionButton
+              size="sm"
               onPress={retry}
               variant="primary"
               isPending={isPending}

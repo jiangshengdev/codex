@@ -1,12 +1,21 @@
-import { Button, ButtonGroup, Chip, Tooltip } from "@heroui/react";
+import { Button, ButtonGroup, Chip, Spinner, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
-import { $getNodeByKey, CLICK_COMMAND, COMMAND_PRIORITY_LOW, type NodeKey } from "lexical";
-import { use, useEffect, type ReactNode } from "react";
-import { X } from "lucide-react";
+import {
+  $getNodeByKey,
+  CLICK_COMMAND,
+  COMMAND_PRIORITY_HIGH,
+  COMMAND_PRIORITY_LOW,
+  KEY_DOWN_COMMAND,
+  type NodeKey,
+} from "lexical";
+import { use, useEffect } from "react";
+import { RotateCw, X } from "lucide-react";
 import { UploadedImagePreview } from "@/features/fileUpload/UploadedImagePreview";
+import { AttachmentSummary } from "@/features/fileUpload/AttachmentSummary";
+import { AttachmentFailureDetails } from "@/features/fileUpload/AttachmentFailureDetails";
 import { AttachmentAuthorizationContext } from "./attachmentEnvironment";
 import { RETRY_ATTACHMENT_COMMAND, type AttachmentState } from "./AttachmentNode";
 
@@ -23,6 +32,24 @@ export function SelectedAttachmentToken({
   const { t } = useLingui();
   const authorizationToken = use(AttachmentAuthorizationContext);
   const name = attachment.name;
+  useEffect(
+    () =>
+      editor.registerCommand(
+        KEY_DOWN_COMMAND,
+        (event) => {
+          const element = editor.getElementByKey(nodeKey);
+          // Attachment controls own their keys, including Enter while pending.
+          // Leave browser/React Aria handling intact without dispatching editor shortcuts.
+          return (
+            event.target instanceof Element &&
+            event.target.closest("button") != null &&
+            element?.contains(event.target) === true
+          );
+        },
+        COMMAND_PRIORITY_HIGH,
+      ),
+    [editor, nodeKey],
+  );
   useEffect(
     () =>
       editor.registerCommand(
@@ -48,7 +75,7 @@ export function SelectedAttachmentToken({
     <Chip
       role="status"
       size="sm"
-      color={attachment.status === "failed" ? "danger" : "accent"}
+      color={attachment.status !== "uploading" && attachment.failure != null ? "danger" : "accent"}
       variant="soft"
       className="h-auto max-w-full whitespace-normal"
     >
@@ -56,15 +83,21 @@ export function SelectedAttachmentToken({
         {attachment.status === "uploading" ? (
           <Trans comment="Attachment is being transferred to the Codex machine">Uploading</Trans>
         ) : attachment.status === "ready" ? (
-          <Trans comment="Attachment upload completed and it can be sent">Ready</Trans>
+          <Trans comment="Attachment transfer completed; image preview may still be loading or failed">
+            Uploaded
+          </Trans>
         ) : attachment.failure === "size" ? (
-          <Trans>The file exceeds the 50 MiB limit.</Trans>
+          <Trans comment="Compact attachment upload status; size limit is available in details">
+            File too large
+          </Trans>
         ) : attachment.failure === "authorization" ? (
-          <Trans>File upload is not authorized. Open the current GUI launch link.</Trans>
-        ) : attachment.failure === "unsupportedImage" ? (
-          <Trans>Unsupported image format. Use PNG, JPEG, GIF, or WebP.</Trans>
+          <Trans comment="Compact attachment upload status; recovery instructions are available in details">
+            Upload not authorized
+          </Trans>
         ) : attachment.failure === "interrupted" ? (
-          <Trans>Upload interrupted. Remove and add the file again.</Trans>
+          <Trans comment="Compact attachment upload status; recovery instructions are available in details">
+            Upload interrupted
+          </Trans>
         ) : (
           <Trans>File upload failed.</Trans>
         )}
@@ -75,9 +108,13 @@ export function SelectedAttachmentToken({
     comment: "Remove the named attachment from the draft",
     message: `Remove ${name}`,
   });
+  const retryLabel = t({
+    comment: "Retry uploading the named attachment",
+    message: `Retry upload ${name}`,
+  });
   return (
     <ButtonGroup
-      className={`relative m-1 max-w-[calc(100%-0.5rem)] items-stretch rounded-xl align-bottom focus-within:z-10 [&_.button]:rounded-none [&_.button:first-child]:rounded-s-xl [&_.button:last-child]:rounded-e-xl ${selected ? "outline-2 outline-accent" : ""}`}
+      className={`relative m-1 max-w-[calc(100%-0.5rem)] items-stretch rounded-xl bg-default align-bottom focus-within:z-10 [&_.button]:rounded-none [&_.button:first-child]:rounded-s-xl [&_.button:last-child]:rounded-e-xl ${selected ? "outline-2 outline-accent" : ""}`}
       aria-label={name}
       onPointerDown={(event) => {
         if (!(event.target instanceof Element && event.target.closest("button"))) {
@@ -91,24 +128,47 @@ export function SelectedAttachmentToken({
           path={attachment.path}
           name={name}
           authorizationToken={authorizationToken}
-          status={status}
+          draft={{ status, isDisabled: !editable }}
         />
       ) : (
-        <AttachmentSummary name={name} status={status} />
+        <AttachmentSummary name={name}>{status}</AttachmentSummary>
       )}
-      {attachment.status === "failed" && attachment.failure === "upload" ? (
-        <Button
-          isDisabled={!editable}
-          size="sm"
-          variant="ghost"
-          aria-label={t({
-            comment: "Retry uploading the named attachment",
-            message: `Retry upload ${name}`,
-          })}
-          onPress={() => editor.dispatchCommand(RETRY_ATTACHMENT_COMMAND, nodeKey)}
-        >
-          <Trans>Retry upload</Trans>
-        </Button>
+      {attachment.failure === "upload" ? (
+        <Tooltip>
+          <Button
+            isDisabled={!editable}
+            isPending={attachment.status === "uploading"}
+            isIconOnly
+            size="sm"
+            variant="tertiary"
+            className="h-auto shrink-0 md:h-auto"
+            aria-label={retryLabel}
+            onPress={() => editor.dispatchCommand(RETRY_ATTACHMENT_COMMAND, nodeKey)}
+          >
+            <ButtonGroup.Separator />
+            {attachment.status === "uploading" ? (
+              <Spinner size="sm" aria-hidden="true" />
+            ) : (
+              <RotateCw size={16} aria-hidden="true" />
+            )}
+          </Button>
+          <Tooltip.Content>{retryLabel}</Tooltip.Content>
+        </Tooltip>
+      ) : null}
+      {attachment.status === "failed" ? (
+        <AttachmentFailureDetails name={name}>
+          {attachment.failure === "size" ? (
+            <Trans>The file exceeds the 50 MiB limit.</Trans>
+          ) : attachment.failure === "authorization" ? (
+            <Trans>File upload is not authorized. Open the current GUI launch link.</Trans>
+          ) : attachment.failure === "interrupted" ? (
+            <Trans>Upload interrupted. Remove and add the file again.</Trans>
+          ) : (
+            <Trans comment="Recovery guidance in the attachment upload failure details dialog">
+              File upload failed. Retry the upload, or remove and add the file again.
+            </Trans>
+          )}
+        </AttachmentFailureDetails>
       ) : null}
       <Tooltip>
         <Button
@@ -131,14 +191,5 @@ export function SelectedAttachmentToken({
         <Tooltip.Content>{removeLabel}</Tooltip.Content>
       </Tooltip>
     </ButtonGroup>
-  );
-}
-
-function AttachmentSummary({ name, status }: { name: string; status: ReactNode }) {
-  return (
-    <span className="inline-flex min-w-0 flex-wrap items-center gap-2 rounded-s-xl bg-default px-2 py-1 text-sm">
-      <span className="min-w-0 max-w-48 truncate">{name}</span>
-      {status}
-    </span>
   );
 }

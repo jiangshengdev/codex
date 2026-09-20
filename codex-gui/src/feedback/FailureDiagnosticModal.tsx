@@ -5,7 +5,7 @@ import type { ComponentProps, ReactNode } from "react";
 export function FailureDiagnosticModal({
   children,
   triggerClassName = "mt-2",
-  triggerSize = "md",
+  triggerSize = "sm",
 }: Readonly<{
   children: ReactNode;
   triggerClassName?: string;

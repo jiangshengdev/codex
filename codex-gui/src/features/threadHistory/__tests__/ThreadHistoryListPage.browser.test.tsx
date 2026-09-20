@@ -1,3 +1,4 @@
+import { Button } from "@heroui/react";
 import { expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
 import { attachResponse } from "@/__tests__/appBrowserTestSupport";
@@ -5,6 +6,7 @@ import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import type { ThreadListResponse } from "@codex-protocol/v2";
+import { renderWithProviders } from "@/utils/test-utils";
 import { renderHistory, response, thread } from "./threadHistoryListPageBrowserTestSupport";
 
 const historyCards = (container: Element): HTMLElement[] =>
@@ -593,9 +595,18 @@ test("shows the complete initial error and retries into the empty state", async 
   const originalViewport = { width: window.innerWidth, height: window.innerHeight };
   const retry = alert.getByRole("button", { name: "Load history" });
   const description = alert.getByRole("button", { name: "View diagnostic information" });
+  const reference = await renderWithProviders(<Button size="sm">Compact reference</Button>);
   try {
     for (const width of [1280, 375]) {
       await page.viewport(width, 900);
+      const compactHeight = reference
+        .getByRole("button", { name: "Compact reference", exact: true })
+        .element()
+        .getBoundingClientRect().height;
+      await expect.poll(() => retry.element().getBoundingClientRect().height).toBe(compactHeight);
+      await expect
+        .poll(() => description.element().getBoundingClientRect().height)
+        .toBe(compactHeight);
       await expect
         .poll(() => {
           const contentBounds = description.element().getBoundingClientRect();
@@ -617,6 +628,7 @@ test("shows the complete initial error and retries into the empty state", async 
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).not.toBe(0);
   } finally {
+    await reference.unmount();
     await page.viewport(originalViewport.width, originalViewport.height);
   }
   await alert.getByRole("button", { name: "Load history" }).click();
@@ -650,6 +662,24 @@ test("keeps loaded cards while load-more is pending and retries an append failur
   const { screen } = await renderHistory(listThreads);
   const loadMore = screen.getByRole("button", { name: "Load more" });
 
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  const reference = await renderWithProviders(<Button size="md">Page action reference</Button>);
+  try {
+    await expect.element(loadMore).toBeVisible();
+    for (const width of [375, 1280]) {
+      await page.viewport(width, 900);
+      const regularHeight = reference
+        .getByRole("button", { name: "Page action reference", exact: true })
+        .element()
+        .getBoundingClientRect().height;
+      await expect
+        .poll(() => loadMore.element().getBoundingClientRect().height)
+        .toBe(regularHeight);
+    }
+  } finally {
+    await reference.unmount();
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
   await loadMore.click();
   await expect
     .element(screen.getByRole("button", { name: "Loading more…" }))

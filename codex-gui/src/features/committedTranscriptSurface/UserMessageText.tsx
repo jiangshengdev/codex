@@ -11,6 +11,8 @@ function TextInputContent({
   images,
 }: Readonly<{ input: TextInput; images: Extract<UserInput, { type: "localImage" }>[] }>) {
   const authorizationToken = use(AppCapabilitiesContext)?.authorizationToken ?? null;
+  if (input.text_elements.length === 0) return input.text;
+
   const bytes = new TextEncoder().encode(input.text);
   const decoder = new TextDecoder();
   const elements = [...input.text_elements].sort(

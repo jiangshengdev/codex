@@ -49,12 +49,12 @@ test("attachment button supports keyboard selection, cancellation and selecting 
   expect(upload).not.toHaveBeenCalled();
   const file = new File(["repeated"], "repeated.txt");
   await attachmentFileInput(screen.container).upload(file);
-  await expect.element(composer.getByText("Ready", { exact: true })).toBeVisible();
+  await expect.element(composer.getByText("Uploaded", { exact: true })).toBeVisible();
   await composer.getByRole("button", { name: "Remove repeated.txt", exact: true }).click();
   await attach.click();
   expect(choose).toHaveBeenCalledTimes(2);
   await attachmentFileInput(screen.container).upload(file);
-  await expect.element(composer.getByText("Ready", { exact: true })).toBeVisible();
+  await expect.element(composer.getByText("Uploaded", { exact: true })).toBeVisible();
   expect(upload).toHaveBeenCalledTimes(2);
 });
 
@@ -98,11 +98,7 @@ test("dropping mixed files adds one ordered batch without navigating away", asyn
   const event = new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true });
   composer.element().dispatchEvent(event);
   expect(event.defaultPrevented).toBe(true);
-  await expect
-    .element(composer.getByRole("alert"))
-    .toHaveTextContent(
-      "Could not load the preview of picture.png. The file may no longer be available.",
-    );
+  await expect.element(composer.getByRole("alert")).toHaveTextContent("Preview read failed");
   await expect.element(composer.getByText("notes.txt", { exact: true })).toBeVisible();
   await screen.getByRole("button", { name: "Guide", exact: true }).click();
   await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
@@ -146,11 +142,7 @@ test("pasted image bytes enter the attachment flow without pasting their HTML re
   expect(data.files.length).toBe(1);
   expect(event.clipboardData?.files.length).toBe(1);
   composer.element().dispatchEvent(event);
-  await expect
-    .element(composer.getByRole("alert"))
-    .toHaveTextContent(
-      "Could not load the preview of pasted.png. The file may no longer be available.",
-    );
+  await expect.element(composer.getByRole("alert")).toHaveTextContent("Preview read failed");
   await expect.element(composer).not.toHaveTextContent("image representation");
   await screen.getByRole("button", { name: "Guide", exact: true }).click();
   await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
@@ -163,4 +155,33 @@ test("pasted image bytes enter the attachment flow without pasting their HTML re
     { type: "localImage", path: "/tmp/pasted.png" },
   ]);
   expect(fetch.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
+});
+
+test.each([
+  { name: "pasted.heic", type: "image/heic" },
+  { name: "pasted.svg", type: "" },
+])("pasted $name uploads and sends only its local file path", async ({ name, type }) => {
+  const upload = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValue(new Response("/tmp/pasted", { status: 201 }));
+  const { screen, composer, steerTurn } = await renderActiveComposerQueueApp(startHost);
+  const data = new DataTransfer();
+  data.items.add(new File(["original pasted bytes"], name, { type }));
+  const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "clipboardData", { value: data });
+  composer.element().dispatchEvent(event);
+  await expect.element(composer.getByRole("status")).toHaveTextContent("Uploaded");
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  expect(steerTurnParamsAt(steerTurn, 0).input).toEqual([
+    {
+      type: "text",
+      text: "/tmp/pasted",
+      text_elements: [{ byteRange: { start: 0, end: 11 }, placeholder: name }],
+    },
+  ]);
+  expect(upload).toHaveBeenCalledOnce();
+  const uploaded = upload.mock.calls[0]?.[1]?.body;
+  if (!(uploaded instanceof File)) throw new Error("Expected original pasted file");
+  expect(await uploaded.text()).toBe("original pasted bytes");
 });

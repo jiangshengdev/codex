@@ -1,3 +1,4 @@
+import { Button } from "@heroui/react";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { beforeEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
@@ -183,6 +184,29 @@ test("navigation recovery uses the created ID without reattaching or creating ag
   await page.getByRole("button", { name: "Fork from here", exact: true }).click();
   await expect.element(page.getByRole("button", { name: "Open fork", exact: true })).toBeEnabled();
   const attaches = vi.mocked(commands.attachThreadProjection).mock.calls.length;
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  const reference = await renderWithProviders(<Button size="sm">Compact reference</Button>);
+  try {
+    for (const width of [375, 1280]) {
+      await page.viewport(width, 900);
+      const compactHeight = reference
+        .getByRole("button", { name: "Compact reference", exact: true })
+        .element()
+        .getBoundingClientRect().height;
+      for (const name of ["Open fork", "View diagnostic information"]) {
+        await expect
+          .poll(
+            () =>
+              page.getByRole("button", { name, exact: true }).element().getBoundingClientRect()
+                .height,
+          )
+          .toBe(compactHeight);
+      }
+    }
+  } finally {
+    await reference.unmount();
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
   await page.getByRole("button", { name: "Open fork", exact: true }).click();
   await expect.poll(() => router.state.location.pathname).toBe(`/task/${forkId}`);
   expect(commands.forkThread).toHaveBeenCalledTimes(1);
@@ -211,6 +235,32 @@ test("unknown creation suggests history and a new click is a new request", async
   await expect
     .element(page.getByRole("button", { name: "Open fork", exact: true }))
     .not.toBeInTheDocument();
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  const reference = await renderWithProviders(<Button size="sm">Compact reference</Button>);
+  try {
+    for (const width of [375, 1280]) {
+      await page.viewport(width, 900);
+      const compactHeight = reference
+        .getByRole("button", { name: "Compact reference", exact: true })
+        .element()
+        .getBoundingClientRect().height;
+      for (const name of ["Dismiss", "View diagnostic information"]) {
+        await expect
+          .poll(
+            () =>
+              page
+                .getByRole("alert")
+                .getByRole("button", { name, exact: true })
+                .element()
+                .getBoundingClientRect().height,
+          )
+          .toBe(compactHeight);
+      }
+    }
+  } finally {
+    await reference.unmount();
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
   await page.getByRole("button", { name: "Fork from here", exact: true }).click();
   await expect.poll(() => commands.forkThread).toHaveBeenCalledTimes(2);
 });

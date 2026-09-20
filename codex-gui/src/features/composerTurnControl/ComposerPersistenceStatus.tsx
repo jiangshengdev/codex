@@ -64,6 +64,7 @@ export function ComposerPersistenceStatus({
             actions={
               <Button
                 variant="primary"
+                size="sm"
                 isDisabled={!enabled || persistence.error != null}
                 onPress={() => {
                   composerRole.resumeRestored(revision, persistence.revision);

@@ -1,13 +1,16 @@
 import { FILE_PREVIEW_PATH, type GuiFilePreviewParams } from "@codex-gui-host-contract";
-import { Button, Modal } from "@heroui/react";
+import { Button, ButtonGroup, Chip, Modal, Spinner, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { RotateCw } from "lucide-react";
+import { AttachmentSummary } from "./AttachmentSummary";
+import { AttachmentFailureDetails } from "./AttachmentFailureDetails";
 
 type UploadedImagePreviewProps = {
   path: string;
   name: string;
   authorizationToken: string | null;
-  status?: ReactNode;
+  draft?: { status: ReactNode; isDisabled: boolean };
 };
 
 type ImagePreviewOutcome =
@@ -18,9 +21,16 @@ export function UploadedImagePreview(props: UploadedImagePreviewProps) {
   return <ImagePreview key={JSON.stringify([props.path, props.authorizationToken])} {...props} />;
 }
 
-function ImagePreview({ path, name, authorizationToken, status }: UploadedImagePreviewProps) {
+function ImagePreview({ path, name, authorizationToken, draft }: UploadedImagePreviewProps) {
   const { t } = useLingui();
   const [outcome, setOutcome] = useState<ImagePreviewOutcome | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [retrying, setRetrying] = useState(false);
+  const retryPending = useRef(false);
+  const retryLabel = t({
+    comment: "Retry reading the named uploaded image preview without uploading again",
+    message: `Retry preview ${name}`,
+  });
 
   useEffect(() => {
     if (authorizationToken == null) return;
@@ -57,6 +67,11 @@ function ImagePreview({ path, name, authorizationToken, status }: UploadedImageP
         if (!controller.signal.aborted) {
           setOutcome({ type: "failed", reason });
         }
+      } finally {
+        if (!controller.signal.aborted) {
+          retryPending.current = false;
+          setRetrying(false);
+        }
       }
     };
     void load();
@@ -67,14 +82,90 @@ function ImagePreview({ path, name, authorizationToken, status }: UploadedImageP
         objectUrl = null;
       }
     };
-  }, [path, authorizationToken]);
+  }, [path, authorizationToken, attempt]);
+
+  if (draft != null && (authorizationToken == null || outcome?.type !== "ready")) {
+    const failed = authorizationToken == null || outcome?.type === "failed";
+    return (
+      <>
+        <AttachmentSummary name={name}>
+          {draft.status}
+          <Chip
+            role={failed ? "alert" : "status"}
+            size="sm"
+            color={failed ? "danger" : "default"}
+            variant="soft"
+            className="h-auto max-w-full whitespace-normal"
+          >
+            <Chip.Label className="whitespace-normal wrap-anywhere">
+              {!failed ? (
+                <Trans comment="Image preview is loading independently of the completed upload">
+                  Loading preview…
+                </Trans>
+              ) : outcome?.type === "failed" && outcome.reason === "decode" ? (
+                <Trans comment="Compact status for a browser image decoding failure">
+                  Cannot display preview
+                </Trans>
+              ) : (
+                <Trans comment="Compact status for a failed image preview request">
+                  Preview read failed
+                </Trans>
+              )}
+            </Chip.Label>
+          </Chip>
+        </AttachmentSummary>
+        {authorizationToken != null && outcome?.type === "failed" && outcome.reason === "read" ? (
+          <Tooltip>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="tertiary"
+              className="h-auto shrink-0 md:h-auto"
+              isDisabled={draft.isDisabled}
+              isPending={retrying}
+              aria-label={retryLabel}
+              onPress={() => {
+                if (retryPending.current) return;
+                retryPending.current = true;
+                setRetrying(true);
+                setAttempt((value) => value + 1);
+              }}
+            >
+              <ButtonGroup.Separator />
+              {retrying ? (
+                <Spinner size="sm" aria-hidden="true" />
+              ) : (
+                <RotateCw size={16} aria-hidden="true" />
+              )}
+            </Button>
+            <Tooltip.Content>{retryLabel}</Tooltip.Content>
+          </Tooltip>
+        ) : null}
+        {failed ? (
+          <AttachmentFailureDetails name={name}>
+            {authorizationToken == null ? (
+              <Trans>Image preview is not authorized. Open the current GUI launch link.</Trans>
+            ) : outcome?.type === "failed" && outcome.reason === "decode" ? (
+              <Trans>
+                The browser could not decode this image. Remove the attachment and choose another
+                file.
+              </Trans>
+            ) : (
+              <Trans>
+                Could not read the image preview. Check the connection and access permissions.
+              </Trans>
+            )}
+          </AttachmentFailureDetails>
+        ) : null}
+      </>
+    );
+  }
 
   if (authorizationToken == null) {
     return (
       <span role="alert" className="min-w-0 wrap-anywhere text-sm text-danger">
         <span>{name}</span>{" "}
         <Trans>Image preview is not authorized. Open the current GUI launch link.</Trans>
-        {status}
       </span>
     );
   }
@@ -85,7 +176,6 @@ function ImagePreview({ path, name, authorizationToken, status }: UploadedImageP
         <Trans comment="Loading an uploaded image preview; name is the original file name">
           Loading preview of {name}…
         </Trans>
-        {status}
       </span>
     );
   }
@@ -101,7 +191,6 @@ function ImagePreview({ path, name, authorizationToken, status }: UploadedImageP
             The browser could not display {name} as an image.
           </Trans>
         )}
-        {status}
       </span>
     );
   }
@@ -126,7 +215,7 @@ function ImagePreview({ path, name, authorizationToken, status }: UploadedImageP
           onError={reportDecodeFailure}
         />
         <span className="truncate">{name}</span>
-        {status}
+        {draft?.status}
       </Button>
       <Modal.Backdrop>
         <Modal.Container scroll="inside" placement="center" className="p-4 sm:p-4">

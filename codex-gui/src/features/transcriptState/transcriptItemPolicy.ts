@@ -308,12 +308,8 @@ export const projectCompletedTranscriptItem = (
           turnId,
           role: "user",
           source,
-          sourceKind: "plainText",
-          ...(imageInputs.length > 0 ||
-          item.content.some((input) => input.type === "text" && input.text_elements.length > 0)
-            ? { textInputs: item.content.filter((input) => input.type === "text") }
-            : {}),
-          ...(imageInputs.length > 0 ? { imageInputs } : {}),
+          textInputs: item.content.filter((input) => input.type === "text"),
+          imageInputs,
           phase: null,
           revision: 0,
         },
@@ -332,7 +328,6 @@ export const projectCompletedTranscriptItem = (
           turnId,
           role: "assistant",
           source: item.text,
-          sourceKind: "markdown",
           phase: item.phase,
           revision: 0,
         },
