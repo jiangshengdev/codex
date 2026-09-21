@@ -62,9 +62,6 @@ async function recoverUnsentMessage(page: Page) {
   await page.getByRole("button", { name: "Release recovery display", exact: true }).click();
   await page.getByRole("button", { name: "Simulate send response", exact: true }).click();
   await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeDisabled();
   await expect(page.getByText("1 message has not been sent", { exact: true })).toHaveCount(0);
 }
 
@@ -111,48 +108,18 @@ for (const width of [375, 1280]) {
       await assertInitial();
       await inspectMixedRecoveryQueue(page, count, detailIndex);
       await inspectAfterQueue(page);
-      await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-      await assertInitial();
-      await page.reload();
-      await assertInitial();
-      await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guiding`);
-      await expect(
-        page.getByRole("group", { name: "Pending: Guide 1, Queued 3", exact: true }),
-      ).toBeVisible();
-      await expect(page.getByText("Guide status unknown", { exact: true })).toHaveCount(0);
-      await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toHaveCount(
-        0,
-      );
-      await expect(page.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(
-        0,
-      );
-      await page.goto(url);
-      await assertInitial();
     });
   }
 }
 
-test("keeps guide delivery unknown until reset without promoting it to priority", async ({
-  page,
-}) => {
+test("keeps guide delivery unknown without promoting it to priority", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guiding`);
-  await expect(
-    page.getByRole("button", { name: "Simulate guide unknown", exact: true }),
-  ).toBeEnabled();
   await page.getByRole("button", { name: "Simulate guide unknown", exact: true }).click();
   await expect(page.getByText("Guide status unknown", { exact: true })).toBeVisible();
   await expect(page.getByText("Will send first", { exact: true })).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Simulate guide success", exact: true }),
-  ).toBeDisabled();
   await page.clock.install();
   await page.clock.fastForward(60_000);
   await expect(page.getByText("Guide status unknown", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(page.getByText("Guide status unknown", { exact: true })).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Simulate guide success", exact: true }),
-  ).toBeEnabled();
 });
 
 test("recovers a definite send failure manually and can retry another failure", async ({
@@ -163,17 +130,11 @@ test("recovers a definite send failure manually and can retry another failure", 
   await page.getByRole("button", { name: "Continue sending", exact: true }).click();
   await expect(page.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Resuming sending", exact: true })).toBeDisabled();
-  await expect(
-    page.getByRole("button", { name: "Simulate send failure", exact: true }),
-  ).toBeDisabled();
   await page.clock.install();
   await page.clock.fastForward(60_000);
   await expect(page.getByRole("button", { name: "Resuming sending", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Release recovery display", exact: true }).click();
   await expect(page.getByRole("button", { name: "Resuming sending", exact: true })).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeEnabled();
   await page.getByRole("button", { name: "Simulate send failure", exact: true }).click();
   await expect(page.getByText("1 message has not been sent", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continue sending", exact: true }).click();
@@ -182,16 +143,9 @@ test("recovers a definite send failure manually and can retry another failure", 
   await page.getByRole("button", { name: "Simulate send response", exact: true }).click();
   await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();
   await expect(page.getByText("1 message has not been sent", { exact: true })).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Simulate send failure", exact: true }),
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(page.getByText("1 message has not been sent", { exact: true })).toBeVisible();
 });
 
-test("distinguishes accepted guidance from priority fallback and exposes recovery presets", async ({
-  page,
-}) => {
+test("keeps accepted guidance pending until runtime confirmation", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guiding`);
   await page.getByRole("button", { name: "Simulate guide success", exact: true }).click();
   await expect(
@@ -207,25 +161,25 @@ test("distinguishes accepted guidance from priority fallback and exposes recover
       .getByRole("group", { name: "Pending: Queued 3", exact: true })
       .getByRole("button", { name: "Queued 3", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
+});
+
+test("queues refused guidance with priority", async ({ page }) => {
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guiding`);
   await page.getByRole("button", { name: "Simulate guide refusal", exact: true }).click();
   await expect(
     page.getByText("Currently unable to guide; added to queue", { exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
   await expect(page.getByText("Guide message 1", { exact: true })).toBeVisible();
+});
+
+test("renders priority, unknown delivery, and recovery availability", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--priority`);
   await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
   await page.goto(
     `${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guide-unknown`,
   );
   await expect(page.getByText("Guide status unknown", { exact: true })).toBeVisible();
-  await page.goto(
-    `${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guide-accepted`,
-  );
-  await expect(
-    page.getByRole("button", { name: "Simulate guide runtime confirmation", exact: true }),
-  ).toBeEnabled();
   await page.goto(
     `${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--recovery-disabled`,
   );
@@ -234,9 +188,9 @@ test("distinguishes accepted guidance from priority fallback and exposes recover
   await expect(page.getByRole("button", { name: "Resuming sending", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Release recovery display", exact: true }).click();
   await expect(page.getByRole("button", { name: "Resuming sending", exact: true })).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeEnabled();
+});
+
+test("keeps failed priority guidance ahead of the ordinary queue", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--combined`);
   await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
   await page
@@ -256,7 +210,10 @@ test("distinguishes accepted guidance from priority fallback and exposes recover
       .getByRole("button", { name: "Queued 3", exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
+});
+
+test("offers ordinary recovery after priority guidance is delivered", async ({ page }) => {
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--combined`);
   await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Simulate current turn completed", exact: true }).click();
   await page.getByRole("button", { name: "Simulate send response", exact: true }).click();

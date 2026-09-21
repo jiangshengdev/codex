@@ -91,18 +91,17 @@ test("definite stop failure retains the active turn and permits retry", async ({
   await expect(editor).toHaveText("Draft retained after stop failure");
 });
 
-test("unknown stop waits without retry and hidden DEV recovery and lifecycle isolation remain usable", async ({
+test("unknown stop waits without retry and preserves draft edits during queue recovery", async ({
   page,
 }) => {
-  await page.goto(`${storybookOrigin}/?path=/story/composer-input-and-send-stop--running-stop`);
-  const preview = page.frameLocator("#storybook-preview-iframe");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-stop--running-stop`);
+  const preview = page;
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = preview.getByRole("button", { name: "Send", exact: true });
   const stop = preview.getByRole("button", { name: "Stop", exact: true });
   const response = preview.getByRole("button", { name: "Simulate stop response", exact: true });
   const unknown = preview.getByRole("button", { name: "Simulate stop unknown", exact: true });
   const sendResponse = preview.getByRole("button", { name: "Simulate send response", exact: true });
-  const toggleDev = page.getByRole("switch", { name: "Show DEV controls", exact: true });
   await expect(unknown).toBeDisabled();
   await editor.fill("Retain this queued message");
   await send.click();
@@ -117,13 +116,10 @@ test("unknown stop waits without retry and hidden DEV recovery and lifecycle iso
   await expect(preview.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(
     0,
   );
-  await toggleDev.click();
-  await expect(response).toHaveCount(0);
   await expect(stop).toHaveAttribute("data-pending", "true");
   await editor.fill("Draft edited while stopping");
   await expect(send).toBeEnabled();
   await expect(preview.getByRole("button", { name: "Queued 1", exact: true })).toBeVisible();
-  await toggleDev.click();
   await expect(response).toBeDisabled();
   await expect(sendResponse).toBeDisabled();
   await preview
@@ -132,36 +128,10 @@ test("unknown stop waits without retry and hidden DEV recovery and lifecycle iso
   await expect(stop).not.toHaveAttribute("data-pending");
   await expect(preview.getByText("1 message has not been sent", { exact: true })).toBeVisible();
   await expect(send).toBeDisabled();
-  await toggleDev.click();
   await preview.getByRole("button", { name: "Continue sending", exact: true }).click();
   await expect(preview.getByText("1 message has not been sent", { exact: true })).toHaveCount(0);
   await expect(editor).toHaveText("Draft edited while stopping");
-  await toggleDev.click();
   await expect(sendResponse).toBeEnabled();
-  await preview.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(editor).toBeEmpty();
-  await expect(sendResponse).toBeDisabled();
-  await expect(response).toBeDisabled();
-  await expect(stop).toBeEnabled();
-  await editor.fill("Clear this draft on reset");
-  await stop.click();
-  await expect(response).toBeEnabled();
-  await preview.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(editor).toBeEmpty();
-  await expect(response).toBeDisabled();
-  await expect(stop).toBeEnabled();
-  await stop.click();
-  await expect(response).toBeEnabled();
-  await page.getByRole("button", { name: "Input", exact: true }).click();
-  await page.locator('a[href="/?path=/story/composer-input-and-send-input--empty"]').click();
-  await expect(editor).toBeEmpty();
-  await expect(stop).toBeDisabled();
-  await page.locator('a[href="/?path=/story/composer-input-and-send-stop--running-stop"]').click();
-  await expect(editor).toBeEmpty();
-  await expect(stop).toBeEnabled();
-  await expect(stop).not.toHaveAttribute("data-pending");
-  await expect(response).toBeDisabled();
-  await expect(preview.getByRole("button", { name: "Queued 1", exact: true })).toHaveCount(0);
 });
 
 test("terminal before stop response defers recovery until the request settles", async ({

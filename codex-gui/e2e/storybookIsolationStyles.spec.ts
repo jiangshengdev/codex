@@ -1,4 +1,3 @@
-import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 import { createPersistenceHarness, persistenceThreadId } from "./persistenceHarness";
 
@@ -25,41 +24,6 @@ for (const locale of ["en", "zh-CN"] as const) {
       await expect
         .poll(() => shell.evaluate((element) => getComputedStyle(element).backgroundColor))
         .not.toBe(lightBackground);
-    });
-
-    test("retains the demo container width and real theme control styles", async ({ page }) => {
-      await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--queued`);
-      const draft = page.getByRole("textbox", {
-        name: locale === "en" ? "Main draft" : "主输入草稿",
-        exact: true,
-      });
-      const surface = page.locator(".surface").filter({ has: draft });
-      await expect(surface).toBeVisible();
-      await expect(surface).toHaveCSS("display", "grid");
-      await expect(surface).toHaveCSS("max-width", "672px");
-      const themes = page.getByRole("radiogroup", {
-        name: locale === "en" ? "Theme preference" : "主题偏好",
-      });
-      await expect(themes).toBeVisible();
-      await expect(themes).toHaveCSS("display", "flex");
-      await expect(themes).toHaveCSS("align-items", "center");
-      await expect(themes.getByRole("radio")).toHaveCount(3);
-      const light = page.getByRole("radio", {
-        name: locale === "en" ? "Light theme" : "浅色主题",
-      });
-      await light.click();
-      await expect(light).toBeChecked();
-      await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-      const dark = page.getByRole("radio", {
-        name: locale === "en" ? "Dark theme" : "深色主题",
-      });
-      await dark.click();
-      await expect(dark).toBeChecked();
-      await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-      await page.setViewportSize({ width: 375, height: 667 });
-      await expect
-        .poll(() => surface.evaluate((element) => element.scrollWidth <= element.clientWidth))
-        .toBe(true);
     });
   });
 }

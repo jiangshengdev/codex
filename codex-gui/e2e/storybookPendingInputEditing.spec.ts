@@ -17,8 +17,6 @@ for (const width of [375, 1280]) {
     expect(await editor.innerText()).toMatch(
       /Ordinary message 1\n[\s\S]+\n\nEND OF Ordinary message 1$/,
     );
-    await page.reload();
-    await expect(editor).toContainText("END OF Ordinary message 1");
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(page.getByRole("dialog")).toContainText("Ordinary message 2");
     await expect(page.getByRole("dialog")).toContainText("Ordinary message 3");
@@ -27,11 +25,9 @@ for (const width of [375, 1280]) {
     await expect(page.getByRole("textbox", { name: "Main draft", exact: true })).toHaveValue(
       "Separate main draft",
     );
-    await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-    await expect(editor).toContainText("END OF Ordinary message 1");
   });
 
-  test(`retains complete mixed long text through refresh and reset at ${String(width)}px`, async ({
+  test(`discards retained mixed long text without changing other messages at ${String(width)}px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 720 });
@@ -40,9 +36,6 @@ for (const width of [375, 1280]) {
     );
     const retained = page.getByRole("textbox", { name: "Unsaved pending message", exact: true });
     await expect(retained).toHaveValue(/Ordinary message 1\n[\s\S]+\n\nEND OF Ordinary message 1$/);
-    const original = await retained.inputValue();
-    await page.reload();
-    await expect(retained).toHaveValue(original);
     await page
       .getByRole("dialog")
       .getByRole("button", { name: "Discard changes", exact: true })
@@ -56,20 +49,14 @@ for (const width of [375, 1280]) {
     await expect(page.getByRole("textbox", { name: "Main draft", exact: true })).toHaveValue(
       "Separate main draft",
     );
-    await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-    await expect(retained).toHaveValue(original);
   });
 
-  test(`deletes only the confirmed long message and resets mixed records at ${String(width)}px`, async ({
-    page,
-  }) => {
+  test(`deletes only the confirmed long message at ${String(width)}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 720 });
     await page.goto(
       `${storybookOrigin}/iframe.html?id=composer-pending-input-editing--mixed-text-delete-confirmation`,
     );
     const target = page.getByRole("group", { name: /^Ordinary message 1(?:\s|$)/ });
-    await expect(target).toContainText("Delete this pending message?");
-    await page.reload();
     await expect(target).toContainText("Delete this pending message?");
     await target.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(target).toHaveCount(0);
@@ -82,12 +69,6 @@ for (const width of [375, 1280]) {
     await expect(page.getByRole("textbox", { name: "Main draft", exact: true })).toHaveValue(
       "Separate main draft",
     );
-    await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-    await expect(target).toContainText("Delete this pending message?");
-    await expect(
-      page.getByRole("group", { name: "Ordinary message 2", exact: true }),
-    ).toBeVisible();
-    await expect(page.getByRole("group", { name: /^Ordinary message 3(?:\s|$)/ })).toBeVisible();
   });
 
   test(`returns from mixed-text discard confirmation with the complete retained message at ${String(width)}px`, async ({
@@ -98,8 +79,6 @@ for (const width of [375, 1280]) {
       `${storybookOrigin}/iframe.html?id=composer-pending-input-editing--mixed-text-discard-confirmation`,
     );
     const confirmation = page.getByRole("alertdialog");
-    await expect(confirmation).toContainText("Discard unsaved changes?");
-    await page.reload();
     await expect(confirmation).toContainText("Discard unsaved changes?");
     await confirmation.getByRole("button", { name: "Return to edit", exact: true }).click();
     await expect(confirmation).toHaveCount(0);
@@ -116,10 +95,6 @@ for (const width of [375, 1280]) {
     await expect(page.getByRole("textbox", { name: "Main draft", exact: true })).toHaveValue(
       "Separate main draft",
     );
-    await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-    await expect(confirmation).toContainText("Discard unsaved changes?");
-    await confirmation.getByRole("button", { name: "Return to edit", exact: true }).click();
-    await expect(retained).toHaveValue(/Ordinary message 1\n[\s\S]+\n\nEND OF Ordinary message 1$/);
   });
 }
 
@@ -281,12 +256,6 @@ test("preserves a guiding edit when its target turn closes", async ({ page }) =>
     .getByRole("alertdialog")
     .getByRole("button", { name: "Discard changes", exact: true })
     .click();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await page
-    .getByRole("group", { name: "Pending: Guide 2", exact: true })
-    .getByRole("button", { name: "Guide 2", exact: true })
-    .click();
-  await expect(page.getByRole("dialog")).toContainText("Guide message 2");
   await expect(
     page.getByRole("textbox", { name: "Unsaved pending message", exact: true }),
   ).toHaveCount(0);
@@ -308,43 +277,4 @@ test("shows the injected sending conflict without entering an editor", async ({ 
     page.getByRole("combobox", { name: "Edit pending message", exact: true }),
   ).toHaveCount(0);
   await expect(page.getByRole("dialog")).toContainText("Ordinary message 1");
-});
-
-test("opens editing, deletion confirmation, and retained content as independent states", async ({
-  page,
-}) => {
-  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-editing--editing`);
-  await expect(
-    page.getByRole("combobox", { name: "Edit pending message", exact: true }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(
-    page.getByRole("combobox", { name: "Edit pending message", exact: true }),
-  ).toBeVisible();
-  await page.goto(
-    `${storybookOrigin}/iframe.html?id=composer-pending-input-editing--delete-confirmation`,
-  );
-  await expect(page.getByText("Delete this pending message?", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Keep", exact: true }).click();
-  await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(page.getByText("Delete this pending message?", { exact: true })).toBeVisible();
-  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-editing--retained`);
-  await expect(
-    page.getByRole("textbox", { name: "Unsaved pending message", exact: true }),
-  ).toHaveValue("Ordinary message 1");
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "Discard changes", exact: true })
-    .click();
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "Discard changes", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(
-    page.getByRole("textbox", { name: "Unsaved pending message", exact: true }),
-  ).toHaveValue("Ordinary message 1");
 });

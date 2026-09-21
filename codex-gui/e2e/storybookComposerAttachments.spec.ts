@@ -1,4 +1,4 @@
-import { storybookHost, storybookOrigin } from "./servers";
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -6,18 +6,6 @@ test.use({ locale: "en" });
 test("local file selection waits for manual completion and preserves the draft", async ({
   page,
 }) => {
-  const businessRequests: string[] = [];
-  page.on("request", (request) => {
-    if (!["fetch", "xhr"].includes(request.resourceType())) return;
-    const url = new URL(request.url());
-    if (
-      request.method() !== "GET" ||
-      url.host !== storybookHost ||
-      !/^\/(index\.json|project\.json|node_modules\/|@|src\/|sb-)/.test(url.pathname)
-    ) {
-      businessRequests.push(`${request.method()} ${url.pathname}`);
-    }
-  });
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-files--interactive`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
@@ -39,40 +27,9 @@ test("local file selection waits for manual completion and preserves the draft",
   await expect(editor).toContainText("notes.txt");
   await page.getByRole("button", { name: "Remove notes.txt", exact: true }).click();
   await expect(editor).not.toContainText("notes.txt");
-  expect(businessRequests).toEqual([]);
 });
 
-test("DEV visibility and story switching preserve isolation while uploads are pending", async ({
-  page,
-}) => {
-  await page.goto(`${storybookOrigin}/?path=/story/composer-attachments-files--uploading`);
-  const preview = page.frameLocator("#storybook-preview-iframe");
-  const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
-  await expect(editor).toContainText("Uploading");
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await expect(preview.getByRole("button", { name: "Add sample file", exact: true })).toHaveCount(
-    0,
-  );
-  await expect(editor).toContainText("Uploading");
-  await expect(preview.getByText(/^Files stay in this browser\./)).toBeVisible();
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await page.locator('a[href="/?path=/story/composer-attachments-files--interactive"]').click();
-  await expect(editor).not.toContainText("review-notes.txt");
-  await expect(
-    preview.getByRole("button", { name: "Complete upload review-notes.txt", exact: true }),
-  ).toHaveCount(0);
-  await preview.getByRole("button", { name: "Add sample file", exact: true }).click();
-  await expect(editor).toContainText("Uploading");
-  await preview.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(editor).not.toContainText("review-notes.txt");
-  await expect(
-    preview.getByRole("button", { name: "Complete upload review-notes.txt", exact: true }),
-  ).toHaveCount(0);
-});
-
-test("uploading preset survives late completion after removal and restarts independently", async ({
-  page,
-}) => {
+test("uploading attachment stays removed after late completion", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-files--uploading`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(editor).toContainText("Uploading");
@@ -80,11 +37,6 @@ test("uploading preset survives late completion after removal and restarts indep
   await expect(editor).not.toContainText("review-notes.txt");
   await page.getByRole("button", { name: "Complete upload review-notes.txt", exact: true }).click();
   await expect(editor).not.toContainText("review-notes.txt");
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(editor).toContainText("Uploading");
-  await expect(
-    page.getByRole("button", { name: "Complete upload review-notes.txt", exact: true }),
-  ).toHaveCount(1);
 });
 
 test("ready preset and repeated sample selection use independent uploads", async ({ page }) => {

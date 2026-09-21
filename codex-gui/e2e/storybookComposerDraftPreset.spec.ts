@@ -3,7 +3,7 @@ import { expect, test, type Locator } from "@playwright/test";
 
 test.use({ locale: "en" });
 
-test("saving failure opens with retained text and skill, recovers, and resets to failure", async ({
+test("saving failure retains text and skill and recovers after storage restoration", async ({
   page,
 }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-draft--saving-failed`);
@@ -34,10 +34,6 @@ test("saving failure opens with retained text and skill, recovers, and resets to
   await expect(failure).toHaveCount(0);
   await send.click();
   await expect(editor).toBeEmpty();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(failure).toBeVisible();
-  await expect(editor).not.toContainText("Keep this edit.");
-  await expect(send).toBeDisabled();
 });
 
 async function appearance(locator: Locator) {

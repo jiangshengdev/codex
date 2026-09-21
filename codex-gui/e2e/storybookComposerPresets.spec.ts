@@ -3,42 +3,6 @@ import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
 
-test("presets retain product interaction with DEV hidden and reset when switching stories", async ({
-  page,
-}) => {
-  await page.goto(`${storybookOrigin}/?path=/story/composer-input-and-send-draft--invalid-skill`);
-  const preview = page.frameLocator("#storybook-preview-iframe");
-  const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
-  const invalid = preview.getByRole("group", {
-    name: "preview-review skill details, Invalid skill",
-    exact: true,
-  });
-  const send = preview.getByRole("button", { name: "Send", exact: true });
-  await expect(invalid).toBeVisible();
-  await preview.getByRole("radio", { name: "Dark theme", exact: true }).click();
-  await expect(preview.locator("html")).toHaveAttribute("data-theme", "dark");
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await expect(
-    preview.getByRole("button", { name: "Restart simulation", exact: true }),
-  ).toHaveCount(0);
-  await invalid.click();
-  await editor.press("Backspace");
-  await expect(send).toBeEnabled();
-  await send.click();
-  await expect(editor).toBeEmpty();
-  await page.getByRole("button", { name: "Input", exact: true }).click();
-  await page.getByRole("link", { name: "Valid Text", exact: true }).click();
-  await expect(editor).toHaveText("Review this fictional change.");
-  await expect(send).toBeEnabled();
-  await page.getByRole("link", { name: "Invalid Skill", exact: true }).click();
-  await expect(invalid).toBeVisible();
-  await expect(send).toBeDisabled();
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await expect(
-    preview.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeDisabled();
-});
-
 test.describe("localized presets", () => {
   test.use({ locale: "zh-CN" });
 
@@ -73,9 +37,9 @@ test("invalid skill opens blocked and can be restored or removed without losing 
   await page.getByRole("button", { name: "Restore simulated skill", exact: true }).click();
   await expect(invalid).toHaveCount(0);
   await expect(send).toBeEnabled();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
+  await page.getByRole("button", { name: "Simulate skill unavailable", exact: true }).click();
   await expect(invalid).toBeVisible();
-  await expect(editor).not.toContainText("More context.");
+  await expect(editor).toContainText("More context.");
   await expect(send).toBeDisabled();
   await invalid.click();
   await editor.press("Backspace");
@@ -140,9 +104,7 @@ test("valid text opens ready to send without inserting content first", async ({ 
   ).toBeEnabled();
 });
 
-test("whitespace opens directly with sending disabled and remains editable after reset", async ({
-  page,
-}) => {
+test("whitespace disables sending until nonempty input is entered", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-input--whitespace`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
@@ -154,10 +116,4 @@ test("whitespace opens directly with sending disabled and remains editable after
   await expect(
     page.getByRole("button", { name: "Simulate send response", exact: true }),
   ).toBeEnabled();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(editor).toHaveText(/^ {3}$/);
-  await expect(send).toBeDisabled();
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeDisabled();
 });

@@ -22,13 +22,6 @@ for (const width of [375, 1280]) {
     await expect(rows).toHaveCount(23);
     await rows.last().getByRole("button", { name: "View full message", exact: true }).click();
     await expect(page.getByRole("dialog").last()).toContainText("END OF Ordinary message 23");
-    await page.reload();
-    await expect(rows.first()).toHaveAccessibleName(/^Ordinary message 1 /);
-    await expect(rows).toHaveCount(20);
-    await dialog.getByRole("button", { name: "Close", exact: true }).click();
-    await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-    await expect(rows.first()).toHaveAccessibleName(/^Ordinary message 1 /);
-    await expect(dialog.getByRole("group", { name: /^Guide message / })).toHaveCount(20);
   });
 }
 
@@ -119,7 +112,7 @@ test("moves queued messages immediately with all four actions and preserves boun
   await expect(trigger).toBeFocused();
 });
 
-test("preserves lane membership and loaded pages when moving across a page boundary, then resets", async ({
+test("preserves lane membership and loaded pages when moving across a page boundary", async ({
   page,
 }) => {
   await page.goto(
@@ -158,23 +151,14 @@ test("preserves lane membership and loaded pages when moving across a page bound
   await expect(queued.first()).toHaveAccessibleName("Ordinary message 23");
   await page.keyboard.press("Escape");
   await expect(trigger).toBeFocused();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await trigger.click();
-  await expect(queued.first()).toHaveAccessibleName("Ordinary message 1");
-  await expect(queued).toHaveCount(20);
+});
+
+test("does not offer reordering for read-only pending messages", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-reordering--read-only`);
+  const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("group", { name: /^Ordinary message / })).toHaveCount(3);
   await expect(dialog.getByRole("button", { name: /^Move |^More move options/ })).toHaveCount(0);
-  await page.goto(
-    `${storybookOrigin}/iframe.html?id=composer-pending-input-reordering--interactive`,
-  );
-  await page
-    .getByRole("group", { name: "Pending: Queued 3", exact: true })
-    .getByRole("button", { name: "Queued 3", exact: true })
-    .click();
-  await expect(queued.first()).toHaveAccessibleName("Ordinary message 1");
-  await expect(dialog.getByRole("alert")).toHaveCount(0);
 });
 
 test("distinguishes a rejected move from a completed move whose refreshed list could not load", async ({
@@ -185,7 +169,6 @@ test("distinguishes a rejected move from a completed move whose refreshed list c
   );
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("alert")).toContainText("Pending message was not reordered");
-  await expect(dialog.getByText(/^Injected feedback:/)).toBeVisible();
   await expect(dialog.getByRole("alert")).toContainText(
     "The pending-message order did not change. Refresh complete; try again.",
   );
@@ -203,7 +186,6 @@ test("distinguishes a rejected move from a completed move whose refreshed list c
   await expect(dialog.getByRole("alert")).toContainText(
     "Updated pending order could not be loaded",
   );
-  await expect(dialog.getByText(/^Injected feedback:/)).toBeVisible();
   await expect(dialog.getByRole("alert")).toContainText(
     "The message was moved, but repeated queue changes prevented the updated order from loading.",
   );
@@ -216,9 +198,4 @@ test("distinguishes a rejected move from a completed move whose refreshed list c
   await expect(dialog.getByRole("listitem").first()).toContainText("Ordinary message 2");
   await expect(dialog.getByRole("listitem")).toHaveCount(3);
   await expect(dialog.getByRole("alert")).toHaveCount(0);
-  await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(dialog.getByRole("alert")).toContainText(
-    "Updated pending order could not be loaded",
-  );
 });

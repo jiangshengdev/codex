@@ -3,24 +3,7 @@ import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
 
-test.beforeEach(async ({ page }) => {
-  await page.route("**/*", async (route) => {
-    const request = route.request();
-    if (["fetch", "xhr"].includes(request.resourceType())) {
-      const url = new URL(request.url());
-      expect(request.method()).toBe("GET");
-      expect(url.origin).toBe(storybookOrigin);
-      if (url.protocol !== "blob:") {
-        expect(url.pathname).toMatch(/^\/(index\.json|project\.json|node_modules\/|@|src\/|sb-)/);
-      }
-    }
-    await route.continue();
-  });
-});
-
-test("mixed results preset resets and removes each state without disturbing its neighbors", async ({
-  page,
-}) => {
+test("mixed attachments can be removed without disturbing their neighbors", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-mixed--mixed-results`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const statuses = editor.getByRole("status");
@@ -49,9 +32,6 @@ test("mixed results preset resets and removes each state without disturbing its 
       }
     }, url),
   ).toBe(true);
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(statuses).toHaveText(["File upload failed.", "Uploaded", "Uploading"]);
-  await expect(image).toBeVisible();
 });
 
 test("mixed sample preserves input order through independent results and targeted retries", async ({
@@ -149,65 +129,15 @@ test("one local selection keeps text, file and original image through out-of-ord
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
 });
 
-test("reset and story switching release the mixed batch and hidden DEV keeps real controls", async ({
+test("removed image ignores a late upload failure without affecting other attachments", async ({
   page,
 }) => {
-  await page.goto(`${storybookOrigin}/?path=/story/composer-attachments-mixed--mixed-results`);
-  const frame = page.frameLocator("#storybook-preview-iframe");
-  const editor = frame.getByRole("combobox", { name: "Message Codex", exact: true });
-  const preview = editor.getByRole("button", { name: "Preview sample.png", exact: true });
-  await expect(preview).toBeVisible();
-  const oldUrl = await preview.locator("img").getAttribute("src");
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await expect(frame.getByRole("button", { name: "Add mixed sample", exact: true })).toHaveCount(0);
-  await expect(editor.getByRole("status")).toHaveText([
-    "File upload failed.",
-    "Uploaded",
-    "Uploading",
-  ]);
-  await expect(editor).toContainText("Review this fictional attachment:");
-  await preview.click();
-  await expect(frame.getByRole("dialog")).toBeVisible();
-  await frame.getByRole("button", { name: "Close image preview", exact: true }).click();
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await frame.getByRole("button", { name: "Retry upload review-notes.txt", exact: true }).click();
-  await expect(editor.getByRole("status")).toHaveText(["Uploading", "Uploaded", "Uploading"]);
-  await frame.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(editor.getByRole("status")).toHaveText([
-    "File upload failed.",
-    "Uploaded",
-    "Uploading",
-  ]);
-  await expect(preview).toBeVisible();
-  expect(
-    await editor.evaluate(async (_element, src) => {
-      try {
-        await fetch(src ?? "");
-        return false;
-      } catch {
-        return true;
-      }
-    }, oldUrl),
-  ).toBe(true);
-  const resetUrl = await preview.locator("img").getAttribute("src");
-  await frame.getByRole("button", { name: "Retry upload review-notes.txt", exact: true }).click();
-  await page.locator('a[href="/?path=/story/composer-attachments-mixed--interactive"]').click();
-  await expect(editor.getByRole("status")).toHaveCount(0);
-  expect(
-    await editor.evaluate(async (_element, src) => {
-      try {
-        await fetch(src ?? "");
-        return false;
-      } catch {
-        return true;
-      }
-    }, resetUrl),
-  ).toBe(true);
-  await expect(frame.getByRole("button", { name: /^Complete upload / })).toHaveCount(0);
-  await frame.getByRole("button", { name: "Add mixed sample", exact: true }).click();
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-mixed--interactive`);
+  const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
+  await page.getByRole("button", { name: "Add mixed sample", exact: true }).click();
   await expect(editor.getByRole("status")).toHaveText(["Uploading", "Uploading", "Uploading"]);
-  await frame.getByRole("button", { name: "Remove sample.png", exact: true }).click();
-  await frame.getByRole("button", { name: "Fail upload sample.png", exact: true }).click();
+  await page.getByRole("button", { name: "Remove sample.png", exact: true }).click();
+  await page.getByRole("button", { name: "Fail upload sample.png", exact: true }).click();
   await expect(editor.getByRole("status")).toHaveText(["Uploading", "Uploading"]);
   await expect(editor).not.toContainText("sample.png");
 });

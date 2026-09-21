@@ -89,54 +89,31 @@ test("queued edits and order survive restoration while unknown delivery blocks l
   await expect(editor).toHaveText("Separate current draft");
 });
 
-test("hidden DEV keeps queue recovery usable and restart and navigation discard restored work", async ({
+test("restored queue recovery and unknown-record removal preserve a separate draft", async ({
   page,
 }) => {
-  await page.goto(`${storybookOrigin}/?path=/story/composer-input-and-send-queue--running-queue`);
-  const preview = page.frameLocator("#storybook-preview-iframe");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-queue--running-queue`);
+  const preview = page;
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = preview.getByRole("button", { name: "Send", exact: true });
   const restore = preview.getByRole("button", {
     name: "Simulate saved queue restore",
     exact: true,
   });
-  const response = preview.getByRole("button", { name: "Simulate send response", exact: true });
   await editor.fill("Local record to discard");
   await send.click();
   await restore.click();
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await expect(restore).toHaveCount(0);
   await preview.getByRole("button", { name: "Continue sending", exact: true }).click();
   await preview.getByRole("button", { name: "Queued 1", exact: true }).click();
   await expect(preview.getByRole("dialog")).toContainText("Local record to discard");
   await page.keyboard.press("Escape");
-  await editor.fill("Draft without DEV");
+  await editor.fill("Separate draft");
   await expect(send).toBeEnabled();
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
   await preview
     .getByRole("button", { name: "Simulate current turn completed", exact: true })
     .click();
   await preview.getByRole("button", { name: "Simulate send unknown", exact: true }).click();
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
   await preview.getByRole("button", { name: "Remove local record", exact: true }).click();
   await expect(preview.getByText("Sending result unknown", { exact: true })).toHaveCount(0);
-  await expect(editor).toHaveText("Draft without DEV");
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await preview.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(editor).toBeEmpty();
-  await expect(response).toBeDisabled();
-  await editor.fill("Discard on story change");
-  await send.click();
-  await restore.click();
-  await expect(preview.getByText("Restored messages are paused", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Input", exact: true }).click();
-  await page.locator('a[href="/?path=/story/composer-input-and-send-input--empty"]').click();
-  await expect(editor).toBeEmpty();
-  await page
-    .locator('a[href="/?path=/story/composer-input-and-send-queue--running-queue"]')
-    .click();
-  await expect(editor).toBeEmpty();
-  await expect(preview.getByText("Restored messages are paused", { exact: true })).toHaveCount(0);
-  await expect(preview.getByRole("button", { name: "Queued 1", exact: true })).toHaveCount(0);
-  await expect(response).toBeDisabled();
+  await expect(editor).toHaveText("Separate draft");
 });

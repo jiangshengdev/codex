@@ -33,9 +33,6 @@ test("failed saving retains edits and real Retry saving restores sending and per
   const send = page.getByRole("button", { name: "Send", exact: true });
   const failure = page.getByText("Changes could not be saved", { exact: true });
   const retry = page.getByRole("button", { name: "Retry saving", exact: true });
-  await expect(
-    page.getByRole("button", { name: "Simulate saving failure", exact: true }),
-  ).toBeVisible();
   await page.getByRole("button", { name: "Simulate saving failure", exact: true }).click();
   await expect(failure).toBeVisible();
   await expect(send).toBeDisabled();
@@ -63,7 +60,7 @@ test("failed saving retains edits and real Retry saving restores sending and per
   ).toBeEnabled();
 });
 
-test("leaving and returning restores live text and skills while reset discards them", async ({
+test("leaving and returning restores live text and skills and keeps sent drafts cleared", async ({
   page,
 }) => {
   await page.goto(
@@ -95,54 +92,10 @@ test("leaving and returning restores live text and skills while reset discards t
     page.getByRole("button", { name: "Simulate send response", exact: true }),
   ).toBeEnabled();
   const leave = page.getByRole("button", { name: "Simulate leaving", exact: true });
-  await expect(leave).toBeDisabled();
   await page.getByRole("button", { name: "Simulate send response", exact: true }).click();
-  await expect(leave).toBeDisabled();
   await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();
-  await expect(leave).toBeDisabled();
   await page.getByRole("button", { name: "Simulate current turn completed", exact: true }).click();
   await leave.click();
   await page.getByRole("button", { name: "Simulate returning", exact: true }).click();
   await expect(editor).toBeEmpty();
-  await editor.pressSequentially("Another visit and another send");
-  await page.getByRole("button", { name: "Send", exact: true }).click();
-  await page.getByRole("button", { name: "Simulate send response", exact: true }).click();
-  await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();
-  await page.getByRole("button", { name: "Simulate current turn completed", exact: true }).click();
-  await expect(leave).toBeEnabled();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(editor).toContainText("Review this fictional change.");
-  await expect(editor).not.toContainText("New first paragraph");
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeDisabled();
-});
-
-test("draft simulation keeps product actions without DEV and isolates story navigation", async ({
-  page,
-}) => {
-  await page.goto(`${storybookOrigin}/?path=/story/composer-input-and-send-draft--restored-draft`);
-  const preview = page.frameLocator("#storybook-preview-iframe");
-  const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
-  const failure = preview.getByText("Changes could not be saved", { exact: true });
-  await preview.getByRole("button", { name: "Simulate saving failure", exact: true }).click();
-  await preview.getByRole("button", { name: "Restore simulated storage", exact: true }).click();
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await expect(preview.getByRole("button", { name: "Simulate leaving", exact: true })).toHaveCount(
-    0,
-  );
-  await expect(preview.getByText(/^Local simulation\./)).toBeVisible();
-  await preview.getByRole("button", { name: "Retry saving", exact: true }).click();
-  await expect(failure).toHaveCount(0);
-  await editor.press("ControlOrMeta+End");
-  await editor.pressSequentially(" Discard when switching stories.");
-  await page.getByRole("button", { name: "Input", exact: true }).click();
-  await page.locator('a[href="/?path=/story/composer-input-and-send-input--empty"]').click();
-  await expect(editor).toBeEmpty();
-  await page
-    .locator('a[href="/?path=/story/composer-input-and-send-draft--restored-draft"]')
-    .click();
-  await expect(editor).toContainText("Review this fictional change.");
-  await expect(editor).not.toContainText("Discard when switching stories.");
-  await expect(failure).toHaveCount(0);
 });

@@ -19,9 +19,6 @@ test("unknown send preset never resends and removes only its local record", asyn
   await expect(editor).toHaveText("Keep this separate draft");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(response).toBeEnabled();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(unknown).toBeVisible();
-  await expect(response).toBeDisabled();
 });
 
 test("multiple unknown sends can be removed independently without resending or losing the draft", async ({
@@ -56,10 +53,6 @@ test("multiple unknown sends can be removed independently without resending or l
   await expect(page.getByText("Sending result unknown", { exact: true })).toHaveCount(0);
   await expect(editor).toHaveText("Keep this separate draft");
   await expect(response).toBeDisabled();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(remove).toHaveCount(3);
-  await expect(editor).toBeEmpty();
-  await expect(response).toBeDisabled();
 });
 
 for (const width of [375, 1280]) {
@@ -88,8 +81,6 @@ for (const width of [375, 1280]) {
       await remove.first().click();
       await expect(list.getByText(/End of the fictional long message/)).toHaveCount(0);
       await expect(remove).toHaveCount(preset.includes("multiple") ? 2 : 0);
-      await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-      await expect(list).toContainText("End of the fictional long message.");
     });
   }
 
@@ -151,14 +142,9 @@ test("send failure preset preserves unsent content and permits explicit recovery
   await page.getByRole("button", { name: "Simulate send unknown", exact: true }).click();
   await expect(page.getByText("Review this fictional send.", { exact: true })).toBeVisible();
   await expect(editor).toHaveText("Separate draft");
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(unsent).toBeVisible();
-  await expect(editor).toBeEmpty();
 });
 
-test("send response preset opens before runtime acceptance and restarts at that boundary", async ({
-  page,
-}) => {
+test("send response preset waits for runtime acceptance before enabling Stop", async ({ page }) => {
   await page.goto(
     `${storybookOrigin}/iframe.html?id=composer-input-and-send-send--send-runtime-pending`,
   );
@@ -172,9 +158,6 @@ test("send response preset opens before runtime acceptance and restarts at that 
   await expect(stop).toBeDisabled();
   await runtime.click();
   await expect(stop).toBeEnabled();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(runtime).toBeEnabled();
-  await expect(stop).toBeDisabled();
 });
 
 test("send request preset waits for response and then for runtime confirmation", async ({
@@ -199,8 +182,4 @@ test("send request preset waits for response and then for runtime confirmation",
   await runtime.click();
   await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeEnabled();
   await expect(editor).toHaveText("Draft while waiting");
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(response).toBeEnabled();
-  await expect(runtime).toBeDisabled();
-  await expect(editor).toBeEmpty();
 });

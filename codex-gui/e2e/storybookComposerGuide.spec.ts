@@ -66,11 +66,11 @@ test("guide rejection recovers separately from unsteerable priority delivery", a
   await expect(page.getByRole("button", { name: "Queued 1", exact: true })).toBeVisible();
 });
 
-test("unknown guidance keeps queue editing and hidden DEV recovery available without resending", async ({
+test("unknown guidance keeps queue editing and recovery available without resending", async ({
   page,
 }) => {
-  await page.goto(`${storybookOrigin}/?path=/story/composer-input-and-send-guide--running-guide`);
-  const preview = page.frameLocator("#storybook-preview-iframe");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-guide--running-guide`);
+  const preview = page;
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = preview.getByRole("button", { name: "Send", exact: true });
   const guide = preview.getByRole("button", { name: "Guide", exact: true });
@@ -97,8 +97,6 @@ test("unknown guidance keeps queue editing and hidden DEV recovery available wit
   await expect(
     preview.getByText(/Removing a local record does not cancel or retract/),
   ).toBeVisible();
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await expect(response).toHaveCount(0);
   await expect(preview.getByText("Guide status unknown", { exact: true })).toBeVisible();
   await editor.fill("Separate draft");
   await preview.getByRole("button", { name: "Queued 2", exact: true }).click();
@@ -122,7 +120,6 @@ test("unknown guidance keeps queue editing and hidden DEV recovery available wit
     dialog.getByRole("group", { name: "Edited ordinary message", exact: true }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
   await expect(response).toBeDisabled();
   await confirmation.click();
   await expect(preview.getByText("Guide status unknown", { exact: true })).toHaveCount(0);
@@ -130,25 +127,8 @@ test("unknown guidance keeps queue editing and hidden DEV recovery available wit
   await expect(preview.getByRole("button", { name: "Queued 2", exact: true })).toBeVisible();
   await guide.click();
   await preview.getByRole("button", { name: "Simulate guide failure", exact: true }).click();
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
   await preview.getByRole("button", { name: "Continue sending", exact: true }).click();
   await expect(preview.getByText("1 message has not been sent", { exact: true })).toHaveCount(0);
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
   await expect(response).toBeEnabled();
   await response.click();
-  await preview.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(editor).toBeEmpty();
-  await expect(confirmation).toBeDisabled();
-  await expect(preview.getByRole("button", { name: "Queued 2", exact: true })).toHaveCount(0);
-  await editor.fill("Dispose unresolved guidance");
-  await guide.click();
-  await page.getByRole("button", { name: "Input", exact: true }).click();
-  await page.locator('a[href="/?path=/story/composer-input-and-send-input--empty"]').click();
-  await expect(editor).toBeEmpty();
-  await page
-    .locator('a[href="/?path=/story/composer-input-and-send-guide--running-guide"]')
-    .click();
-  await expect(editor).toBeEmpty();
-  await expect(response).toBeDisabled();
-  await expect(confirmation).toBeDisabled();
 });

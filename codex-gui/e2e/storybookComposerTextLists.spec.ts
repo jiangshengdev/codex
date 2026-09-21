@@ -9,7 +9,6 @@ const pendingLists = [
     lane: "queue",
     story: "running-queue-long-list",
     rows: /^Ordinary message /,
-    first: /^Ordinary message 1 /,
     short: "Ordinary message 2",
     last: "END OF Ordinary message 23",
     showMore: "Show more queued messages",
@@ -24,7 +23,6 @@ const pendingLists = [
     lane: "guide",
     story: "guide-queued-long-list",
     rows: /^Guide message /,
-    first: /^Guide message 1 /,
     short: "Guide message 2",
     last: "END OF Guide message 23",
     showMore: "Show more guiding messages",
@@ -46,7 +44,7 @@ const pendingLists = [
 
 for (const width of [375, 1280]) {
   for (const { lane, ...scenario } of pendingLists) {
-    test(`opens and resets the mixed ${lane} list at ${String(width)}px`, async ({ page }) => {
+    test(`opens and advances the mixed ${lane} list at ${String(width)}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 720 });
       await page.goto(
         `${storybookOrigin}/iframe.html?id=composer-input-and-send-${lane}--${scenario.story}`,
@@ -67,16 +65,13 @@ for (const width of [375, 1280]) {
       const detail = page.getByRole("dialog").last();
       await expect(detail).toContainText(scenario.last);
       await expect(detail).toContainText("end-of-reference");
-      await page.reload();
-      await expect(rows).toHaveCount(20);
+      await detail.getByRole("button", { name: "Close", exact: true }).click();
+      await expect(dialog).toHaveCount(1);
       await dialog.getByRole("button", { name: "Close", exact: true }).click();
       await expect(
         page.getByRole("button", { name: "Simulate send response", exact: true }),
       ).toBeDisabled();
       await scenario.advance(page);
-      await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-      await expect(rows).toHaveCount(20);
-      await expect(rows.first()).toHaveAccessibleName(scenario.first);
     });
   }
 
@@ -107,16 +102,5 @@ for (const width of [375, 1280]) {
       "Separate long-list draft",
     );
     await expect(response).toBeDisabled();
-    await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-    await expect(rows).toHaveCount(23);
-    await expect(response).toBeDisabled();
-    await page.reload();
-    await expect(rows).toHaveCount(23);
-    await expect(response).toBeDisabled();
-    await page.goto(
-      `${storybookOrigin}/iframe.html?id=composer-input-and-send-send--send-unknown-multiple-long-text`,
-    );
-    await expect(remove).toHaveCount(3);
-    await expect(page.getByText(/END OF Historical guide/)).toHaveCount(0);
   });
 }

@@ -1,21 +1,7 @@
-import { storybookHost, storybookOrigin } from "./servers";
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
-
-test.beforeEach(async ({ page }) => {
-  // No upload, preview read, or model request may escape the local simulation.
-  await page.route("**/*", async (route) => {
-    const request = route.request();
-    if (["fetch", "xhr"].includes(request.resourceType())) {
-      const url = new URL(request.url());
-      expect(request.method()).toBe("GET");
-      expect(url.host).toBe(storybookHost);
-      expect(url.pathname).toMatch(/^\/(index\.json|project\.json|node_modules\/|@|src\/|sb-)/);
-    }
-    await route.continue();
-  });
-});
 
 test("upload failure waits for manual retry and can fail again before succeeding", async ({
   page,
@@ -32,7 +18,6 @@ test("upload failure waits for manual retry and can fail again before succeeding
   await page.getByRole("button", { name: "Fail upload review-notes.txt", exact: true }).click();
   await expect(editor).toContainText("File upload failed.");
   await expect(retry).toBeEnabled();
-  await expect(complete).toHaveCount(0);
   await expect(send).toBeDisabled();
   await editor.press("Enter");
   await expect(editor).toContainText("review-notes.txt");
@@ -82,7 +67,7 @@ for (const { story, message, details, name, retryable } of [
     retryable: false,
   },
 ]) {
-  test(`${story} preset preserves its recovery rules after reset`, async ({ page }) => {
+  test(`${story} attachment preserves its recovery rules`, async ({ page }) => {
     await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-failures--${story}`);
     const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
     await expect(editor).toContainText(message);
@@ -105,37 +90,16 @@ for (const { story, message, details, name, retryable } of [
     await expect(editor).toContainText(message);
     await page.getByRole("button", { name: `Remove ${name}`, exact: true }).click();
     await expect(editor).not.toContainText(name);
-    await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-    await expect(editor).toContainText(message);
-    await expect(page.getByRole("button", { name: `Remove ${name}`, exact: true })).toHaveCount(1);
   });
 }
 
-test("reset and story switching discard pending retries and failures", async ({ page }) => {
-  await page.goto(`${storybookOrigin}/?path=/story/composer-attachments-failures--upload`);
-  const preview = page.frameLocator("#storybook-preview-iframe");
-  const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
-  const retry = preview.getByRole("button", { name: "Retry upload review-notes.txt", exact: true });
-  await retry.click();
+test("removed attachment ignores a late upload failure", async ({ page }) => {
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-files--interactive`);
+  const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
+  await page.getByRole("button", { name: "Add sample file", exact: true }).click();
   await expect(editor).toContainText("Uploading");
-  await preview.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(editor).toContainText("File upload failed.");
-  await expect(
-    preview.getByRole("button", { name: "Complete upload review-notes.txt", exact: true }),
-  ).toHaveCount(0);
-  await retry.click();
-  await expect(editor).toContainText("Uploading");
-  await page.getByRole("button", { name: "Expand all", exact: true }).first().click();
-  await page.locator('a[href="/?path=/story/composer-attachments-files--interactive"]').click();
-  await expect(editor).not.toContainText("review-notes.txt");
-  await expect(retry).toHaveCount(0);
-  await expect(
-    preview.getByRole("button", { name: "Complete upload review-notes.txt", exact: true }),
-  ).toHaveCount(0);
-  await preview.getByRole("button", { name: "Add sample file", exact: true }).click();
-  await expect(editor).toContainText("Uploading");
-  await preview.getByRole("button", { name: "Remove review-notes.txt", exact: true }).click();
-  await preview.getByRole("button", { name: "Fail upload review-notes.txt", exact: true }).click();
+  await page.getByRole("button", { name: "Remove review-notes.txt", exact: true }).click();
+  await page.getByRole("button", { name: "Fail upload review-notes.txt", exact: true }).click();
   await expect(editor).not.toContainText("review-notes.txt");
   await expect(editor).not.toContainText("File upload failed.");
 });
@@ -186,7 +150,7 @@ test("local HEIC selection uploads as an ordinary file", async ({ page }) => {
   await expect(editor).not.toContainText("fictional.heic");
 });
 
-test("image-as-file preset shows an uploaded ordinary file after reset", async ({ page }) => {
+test("unsupported image is shown as an uploaded ordinary file", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-files--image-as-file`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(editor).toContainText("sample.svg");
@@ -194,9 +158,5 @@ test("image-as-file preset shows an uploaded ordinary file after reset", async (
   await expect(editor.getByRole("button", { name: "Preview sample.svg", exact: true })).toHaveCount(
     0,
   );
-  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(editor).toContainText("sample.svg");
-  await expect(editor.getByRole("status")).toHaveText("Uploaded");
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
 });

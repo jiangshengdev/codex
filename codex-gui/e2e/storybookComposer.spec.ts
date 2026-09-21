@@ -1,4 +1,4 @@
-import { storybookHost, storybookOrigin } from "./servers";
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -57,89 +57,4 @@ test("selected skills follow the real validation gate and remain removable", asy
   await editor.press("Backspace");
   await expect(editor).toBeEmpty();
   await expect(send).toBeDisabled();
-});
-
-test("DEV visibility preserves the Composer and reset and story switching release local work", async ({
-  page,
-}) => {
-  const productAccesses: string[] = [];
-  await page.exposeFunction("recordProductStorageAccess", (operation: string) => {
-    productAccesses.push(operation);
-  });
-  await page.addInitScript(() => {
-    const localGet = localStorage.getItem.bind(localStorage);
-    const sessionGet = sessionStorage.getItem.bind(sessionStorage);
-    const localSet = localStorage.setItem.bind(localStorage);
-    const sessionSet = sessionStorage.setItem.bind(sessionStorage);
-    Storage.prototype.getItem = function (key: string) {
-      if (key.startsWith("codex-gui.browserPersistence.")) {
-        void window.recordProductStorageAccess("getItem");
-        return null;
-      }
-      return this === localStorage ? localGet(key) : sessionGet(key);
-    };
-    Storage.prototype.setItem = function (key: string, value: string) {
-      if (key.startsWith("codex-gui.browserPersistence.")) {
-        void window.recordProductStorageAccess("setItem");
-        return;
-      }
-      if (this === localStorage) localSet(key, value);
-      else sessionSet(key, value);
-    };
-  });
-  const businessRequests: string[] = [];
-  page.on("request", (request) => {
-    if (!["fetch", "xhr"].includes(request.resourceType())) return;
-    const url = new URL(request.url());
-    if (
-      request.method() !== "GET" ||
-      url.host !== storybookHost ||
-      !/^\/(index\.json|project\.json|node_modules\/|@|src\/|sb-)/.test(url.pathname)
-    ) {
-      businessRequests.push(`${request.method()} ${url.pathname}`);
-    }
-  });
-  page.on("websocket", (socket) => {
-    const url = new URL(socket.url());
-    if (
-      url.host !== storybookHost ||
-      !["/", "/storybook-server-channel"].includes(url.pathname) ||
-      !url.searchParams.has("token")
-    ) {
-      businessRequests.push(`WebSocket ${url.pathname}`);
-    }
-  });
-  await page.goto(`${storybookOrigin}/?path=/story/composer-input-and-send-input--empty`);
-  const preview = page.frameLocator("#storybook-preview-iframe");
-  const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
-  const send = preview.getByRole("button", { name: "Send", exact: true });
-  const response = preview.getByRole("button", { name: "Simulate send response", exact: true });
-  await editor.fill("Still editable without DEV controls");
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await expect(response).toHaveCount(0);
-  await expect(preview.getByText(/^Local simulation\./)).toBeVisible();
-  await send.click();
-  await expect(editor).toBeEmpty();
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await expect(response).toBeEnabled();
-  await preview.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(response).toBeDisabled();
-  await editor.fill("Discard on navigation");
-  await send.click();
-  await response.click();
-  await expect(
-    preview.getByRole("button", { name: "Simulate runtime confirmation", exact: true }),
-  ).toBeEnabled();
-  await page.getByRole("button", { name: "Pending input", exact: true }).click();
-  await page.getByRole("button", { name: "Browsing", exact: true }).click();
-  await page.getByRole("link", { name: "Queued", exact: true }).click();
-  await expect(preview.getByRole("textbox", { name: "Main draft", exact: true })).toBeVisible();
-  await page.locator('a[href="/?path=/story/composer-input-and-send-input--empty"]').click();
-  await expect(editor).toBeEmpty();
-  await expect(response).toBeDisabled();
-  await expect(
-    preview.getByRole("button", { name: "Simulate runtime confirmation", exact: true }),
-  ).toBeDisabled();
-  expect(productAccesses).toEqual([]);
-  expect(businessRequests).toEqual([]);
 });

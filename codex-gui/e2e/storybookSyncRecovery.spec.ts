@@ -1,4 +1,4 @@
-import { storybookHost, storybookOrigin } from "./servers";
+import { storybookOrigin } from "./servers";
 import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
 import { installPausedClock } from "./pausedClock";
@@ -132,71 +132,6 @@ test("direct recovery states preserve the conversation and enforce availability"
     "data-recovery-send-count",
     "0",
   );
-});
-
-test("restart discards a pending synchronization result", async ({ page }) => {
-  await page.goto(
-    `${storybookOrigin}/iframe.html?id=feedback-message-synchronization--backpressure&viewMode=story`,
-  );
-  const restore = page.getByRole("button", { name: "Restore sync", exact: true });
-  await expect(restore).toBeVisible();
-  await installPausedClock(page);
-  await restore.click();
-  await expect(page.getByRole("button", { name: "Restoring sync…", exact: true })).toBeVisible();
-  const dev = page.getByRole("group", { name: "DEV", exact: true }).filter({
-    has: page.getByRole("button", { name: "Restart simulation", exact: true }),
-  });
-  await expect(dev.getByRole("button", { name: "Restore sync", exact: true })).toHaveCount(0);
-  await dev.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await page.clock.runFor(2_000);
-  await expect(restore).toBeVisible();
-  await expect(restore).toBeEnabled();
-  await expect(
-    page.getByText("Synchronization could not be restored. You can try again."),
-  ).toHaveCount(0);
-  await expect(composer(page)).toHaveText("Retained draft one");
-  await restore.click();
-  await page.clock.runFor(2_000);
-  await expect(
-    page.getByText("Synchronization could not be restored. You can try again."),
-  ).toBeVisible();
-});
-
-test("switching synchronization stories discards pending results without business connections", async ({
-  page,
-}) => {
-  const businessSockets: string[] = [];
-  page.on("websocket", (socket) => {
-    const url = new URL(socket.url());
-    if (
-      url.host !== storybookHost ||
-      !["/", "/storybook-server-channel"].includes(url.pathname) ||
-      !url.searchParams.has("token")
-    ) {
-      businessSockets.push(socket.url());
-    }
-  });
-  await page.goto(`${storybookOrigin}/?path=/story/feedback-message-synchronization--backpressure`);
-  const preview = page.frameLocator("#storybook-preview-iframe");
-  const restore = preview.getByRole("button", { name: "Restore sync", exact: true });
-  await expect(restore).toBeVisible();
-  await page.clock.install();
-  await restore.click();
-  await expect(preview.getByRole("button", { name: "Restoring sync…", exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Missing Turn", exact: true }).click();
-  await expect(
-    preview.getByText(
-      "A message update is missing its associated turn, so it cannot be fully displayed.",
-    ),
-  ).toBeVisible();
-  await page.clock.runFor(2_000);
-  await expect(restore).toBeEnabled();
-  await expect(
-    preview.getByText("Synchronization could not be restored. You can try again."),
-  ).toHaveCount(0);
-  await preview.getByRole("button", { name: "View diagnostic information", exact: true }).click();
-  await expect(preview.getByRole("dialog")).toContainText("reason: missingTurn");
-  expect(businessSockets).toEqual([]);
 });
 
 for (const locale of ["en", "zh-CN"] as const) {

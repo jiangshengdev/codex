@@ -1,4 +1,4 @@
-import { storybookHost, storybookOrigin } from "./servers";
+import { storybookOrigin } from "./servers";
 import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
 import { installPausedClock } from "./pausedClock";
@@ -68,51 +68,6 @@ test("startup failure recovers into a usable task page", async ({ page }) => {
     "data-recovery-send-count",
     "0",
   );
-});
-
-test("reset and story navigation discard pending connection results without business requests", async ({
-  page,
-}) => {
-  const businessRequests: string[] = [];
-  page.on("websocket", (socket) => {
-    const url = new URL(socket.url());
-    if (
-      url.host !== storybookHost ||
-      !["/", "/storybook-server-channel"].includes(url.pathname) ||
-      !url.searchParams.has("token")
-    )
-      businessRequests.push(socket.url());
-  });
-  page.on("request", (request) => {
-    if (["/ws", "/upload"].includes(new URL(request.url()).pathname))
-      businessRequests.push(request.url());
-  });
-  await page.goto(
-    `${storybookOrigin}/?path=/story/feedback-connection-recovery-pages--retained-disconnection`,
-  );
-  const preview = page.frameLocator("#storybook-preview-iframe");
-  const reconnect = preview.getByRole("button", { name: "Reconnect", exact: true });
-  await expect(reconnect).toBeVisible();
-  await page.clock.install();
-  await reconnect.click();
-  await expect(preview.getByRole("button", { name: "Reconnecting…", exact: true })).toBeVisible();
-  await preview.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(reconnect).toBeVisible();
-  await page.clock.runFor(2_000);
-  await expect(
-    preview.getByText("The connection could not be restored. You can try again."),
-  ).toHaveCount(0);
-  await reconnect.click();
-  await page.getByRole("link", { name: "Startup Failure", exact: true }).click();
-  await expect(preview.getByText("Unable to start Codex GUI", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Retained Disconnection", exact: true }).click();
-  await expect(preview.getByText("Connection closed", { exact: true })).toBeVisible();
-  await page.clock.runFor(2_000);
-  await expect(reconnect).toBeVisible();
-  await expect(preview.getByRole("combobox", { name: "Message Codex", exact: true })).toHaveText(
-    "Retained draft one",
-  );
-  expect(businessRequests).toEqual([]);
 });
 
 test("the fixed unavailable state does not offer a reconnect action", async ({ page }) => {

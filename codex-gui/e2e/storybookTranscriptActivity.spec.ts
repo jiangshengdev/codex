@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 test.use({ locale: "en" });
 
 for (const width of [375, 1280]) {
-  test(`reasoning and tool replay completes and collapses at ${String(width)}px`, async ({
+  test(`reasoning and tool updates collapse on completion at ${String(width)}px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 900 });
@@ -27,9 +27,6 @@ for (const width of [375, 1280]) {
     await expect(transcript).toContainText("Review complete");
     await disclosure.click();
     await expect(transcript).not.toContainText("Checking the visible states");
-    await page.getByRole("button", { name: "Reset replay", exact: true }).click();
-    await expect(transcript).not.toContainText("The review is complete.");
-    await expect(transcript).not.toContainText("Review complete");
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       .toBe(true);

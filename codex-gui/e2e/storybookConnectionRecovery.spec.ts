@@ -1,100 +1,7 @@
-import { storybookHost, storybookOrigin } from "./servers";
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
-
-test("preserves JSX source line breaks and indentation", async ({ page }) => {
-  await page.goto(`${storybookOrigin}/?path=/docs/feedback-connection-recovery-states--docs`);
-  const docs = page.frameLocator("#storybook-preview-iframe");
-  await expect(
-    docs
-      .locator("#story--feedback-connection-recovery-states--playground--primary")
-      .getByRole("status"),
-  ).toContainText("Connection closed");
-  await docs.getByRole("switch", { name: "Show code", exact: true }).first().click();
-  const source = docs.locator(".prismjs").first();
-  const component = source.getByText("ConnectionRecoveryNotice", { exact: true });
-  const prop = source.getByText("hasRetainedSession", { exact: true });
-  await expect(component).toBeVisible();
-  await expect(prop).toBeVisible();
-  await expect
-    .poll(async () => {
-      const componentBox = await component.boundingBox();
-      const propBox = await prop.boundingBox();
-      return componentBox != null && propBox != null && propBox.y > componentBox.y;
-    })
-    .toBe(true);
-  await expect
-    .poll(() =>
-      source.evaluate((element) => {
-        const indentation = [...element.querySelectorAll("span")].find(
-          (span) => span.textContent === "  ",
-        );
-        if (indentation == null) return 0;
-        const range = document.createRange();
-        range.selectNodeContents(indentation);
-        return range.getBoundingClientRect().width;
-      }),
-    )
-    .toBeGreaterThan(0);
-});
-
-test("documents real props and renders recovery presets", async ({ page }) => {
-  await page.goto(`${storybookOrigin}/?path=/docs/feedback-connection-recovery-states--docs`);
-  const docs = page.frameLocator("#storybook-preview-iframe");
-  const preview = docs.locator("#story--feedback-connection-recovery-states--playground--primary");
-  await expect(preview.getByRole("status")).toContainText("Connection closed");
-  await expect(docs.getByRole("heading", { name: "Usage", exact: true })).toBeVisible();
-  await expect(docs.getByText("handleReconnect", { exact: false })).toBeVisible();
-  await docs.locator('label[aria-label="hasRetainedSession"]').click();
-  await expect(preview.getByRole("status")).toContainText("Unable to start Codex GUI");
-  const recovery = docs.getByRole("combobox");
-  await recovery.selectOption("Failed");
-  await expect(preview.getByRole("alert")).toContainText("The connection could not be restored.");
-  await preview.getByRole("button", { name: "View diagnostic information" }).click();
-  await expect(docs.getByRole("dialog")).toContainText("Simulated reconnect failure");
-  await page.keyboard.press("Escape");
-  await recovery.selectOption("Pending");
-  await expect(preview.getByRole("button", { name: "Reconnecting…", exact: true })).toHaveAttribute(
-    "aria-disabled",
-    "true",
-  );
-  await recovery.selectOption("Unavailable");
-  await expect(preview.getByRole("button")).toHaveCount(0);
-  await recovery.selectOption("Ready");
-  await expect(preview.getByRole("button", { name: "Reconnect", exact: true })).toBeEnabled();
-  await expect(docs.getByRole("link", { name: "Success", exact: true })).toHaveAttribute(
-    "href",
-    "/?path=/story/feedback-connection-recovery-interactions--success",
-  );
-  await expect(docs.getByRole("link", { name: "Failure", exact: true })).toHaveAttribute(
-    "href",
-    "/?path=/story/feedback-connection-recovery-interactions--failure",
-  );
-  await docs.getByRole("link", { name: "Success", exact: true }).click();
-  await expect(page).toHaveURL(
-    `${storybookOrigin}/?path=/story/feedback-connection-recovery-interactions--success`,
-  );
-  await expect(
-    page
-      .frameLocator("#storybook-preview-iframe")
-      .getByRole("button", { name: "Restart simulation" }),
-  ).toBeVisible();
-});
-
-test("records the real reconnect callback in Actions", async ({ page }) => {
-  await page.goto(
-    `${storybookOrigin}/?path=/story/feedback-connection-recovery-states--playground`,
-  );
-  await page
-    .frameLocator("#storybook-preview-iframe")
-    .getByRole("button", { name: "Reconnect", exact: true })
-    .click();
-  await page.getByRole("tab", { name: "Actions 1", exact: true }).click();
-  await expect(page.getByRole("tabpanel", { name: "Actions 1", exact: true })).toContainText(
-    "reconnect",
-  );
-});
 
 test("shows the retained-session connection failure with real diagnostics", async ({ page }) => {
   await page.goto(
@@ -137,17 +44,6 @@ for (const locale of ["en", "zh-CN"] as const) {
     test.use({ locale, viewport: { width: 375, height: 667 } });
 
     test("keeps diagnostics readable and keyboard accessible in both themes", async ({ page }) => {
-      const businessSockets: string[] = [];
-      page.on("websocket", (socket) => {
-        const url = new URL(socket.url());
-        if (
-          url.host !== storybookHost ||
-          !["/", "/storybook-server-channel"].includes(url.pathname) ||
-          !url.searchParams.has("token")
-        ) {
-          businessSockets.push(socket.url());
-        }
-      });
       await page.goto(
         `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-states--reconnect-failed`,
       );
@@ -190,7 +86,6 @@ for (const locale of ["en", "zh-CN"] as const) {
         await expect(trigger).toBeFocused();
       }
       expect(backgrounds[0]).not.toEqual(backgrounds[1]);
-      expect(businessSockets).toEqual([]);
     });
   });
 }

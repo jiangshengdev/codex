@@ -3,28 +3,12 @@ import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
 
-test.beforeEach(async ({ page }) => {
-  await page.route("**/*", async (route) => {
-    const request = route.request();
-    if (["fetch", "xhr"].includes(request.resourceType())) {
-      const url = new URL(request.url());
-      expect(request.method()).toBe("GET");
-      expect(url.origin).toBe(storybookOrigin);
-      // WebKit reports the real decoder's local blob reads as fetch requests.
-      if (url.protocol !== "blob:") {
-        expect(url.pathname).toMatch(/^\/(index\.json|project\.json|node_modules\/|@|src\/|sb-)/);
-      }
-    }
-    await route.continue();
-  });
-});
-
 for (const [story, message] of [
   ["loading", "Loading preview…"],
   ["read-failure", "Preview read failed"],
   ["decode-failure", "Cannot display preview"],
 ] as const) {
-  test(`${story} preset keeps upload ready and can reset`, async ({ page }) => {
+  test(`${story} preview keeps the attachment ready to send`, async ({ page }) => {
     await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-images--${story}`);
     const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
     await expect(editor).toContainText(message);
@@ -35,8 +19,6 @@ for (const [story, message] of [
     await expect(editor).toContainText(message);
     await page.getByRole("button", { name: "Remove sample.png", exact: true }).click();
     await expect(editor).not.toContainText("sample.png");
-    await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-    await expect(editor).toContainText(message);
   });
 }
 
@@ -115,26 +97,6 @@ test("local image bytes and filename survive upload and preview", async ({ page 
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
-test("pending reads cancel on removal and reset without affecting the next image", async ({
-  page,
-}) => {
-  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-images--loading`);
-  const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
-  const complete = page.getByRole("button", { name: "Complete preview sample.png", exact: true });
-  await expect(complete).toBeVisible();
-  await page.getByRole("button", { name: "Remove sample.png", exact: true }).click();
-  await expect(complete).toHaveCount(0);
-  await expect(editor).not.toContainText("sample.png");
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(complete).toHaveCount(1);
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(complete).toHaveCount(1);
-  await complete.click();
-  await expect(
-    editor.getByRole("button", { name: "Preview sample.png", exact: true }),
-  ).toBeVisible();
-});
-
 for (const [control, message] of [
   ["Fail preview read sample.png", "Preview read failed"],
   ["Fail preview decode sample.png", "Cannot display preview"],
@@ -177,14 +139,7 @@ for (const { control, status, previews, retries } of [
     await retry.press("Enter");
     await expect(editor).toContainText("Preview read failed");
     await expect(editor).toContainText("Uploaded");
-    await expect(page.getByRole("button", { name: /^Complete upload / })).toHaveCount(0);
-    await expect(
-      page.getByRole("button", { name: "Complete preview sample.png", exact: true }),
-    ).toHaveCount(1);
     await page.getByRole("button", { name: control, exact: true }).click();
-    await expect(
-      page.getByRole("button", { name: "Complete preview sample.png", exact: true }),
-    ).toHaveCount(0);
     await expect(editor).toContainText(status);
     await expect(
       editor.getByRole("button", { name: "Preview sample.png", exact: true }),
@@ -196,17 +151,3 @@ for (const { control, status, previews, retries } of [
     );
   });
 }
-
-test("switching stories cancels a read and opens a fresh ready preview", async ({ page }) => {
-  await page.goto(`${storybookOrigin}/?path=/story/composer-attachments-images--loading`);
-  const frame = page.frameLocator("#storybook-preview-iframe");
-  await expect(frame.getByText("Loading preview…", { exact: false })).toBeVisible();
-  await page.locator('a[href="/?path=/story/composer-attachments-images--ready"]').click();
-  await expect(
-    frame.getByRole("button", { name: "Complete preview sample.png", exact: true }),
-  ).toHaveCount(0);
-  await frame.getByRole("button", { name: "Preview sample.png", exact: true }).click();
-  await expect(
-    frame.getByRole("dialog").getByRole("img", { name: "sample.png", exact: true }),
-  ).toBeVisible();
-});

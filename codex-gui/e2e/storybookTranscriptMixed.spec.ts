@@ -4,7 +4,9 @@ import { expect, test } from "@playwright/test";
 test.use({ locale: "en" });
 
 for (const width of [375, 1280]) {
-  test(`long answer grows and replay resets at ${String(width)}px`, async ({ page }) => {
+  test(`streaming long answer grows and remains readable at ${String(width)}px`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${storybookOrigin}/iframe.html?id=transcript-mixed--replay`);
     const transcript = page.getByRole("region", { name: "Committed transcript" });
@@ -17,25 +19,13 @@ for (const width of [375, 1280]) {
       transcript.getByRole("heading", { name: "Section 16", exact: true }),
     ).toBeAttached();
     expect(await transcript.evaluate((element) => element.scrollHeight)).toBeGreaterThan(height);
-    await page.getByRole("button", { name: "Play replay", exact: true }).click();
-    await page.getByRole("button", { name: "Pause replay", exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: /^Step / })).toHaveText("Step 1 / 3");
-    await page.getByRole("button", { name: "Play replay", exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: /^Step / })).toHaveText("Step 3 / 3");
+    await page.getByRole("button", { name: "Next step", exact: true }).click();
+    await page.getByRole("button", { name: "Next step", exact: true }).click();
     await lastHeading.scrollIntoViewIfNeeded();
     await expect(lastHeading).toBeInViewport();
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       .toBe(true);
-    await page.getByRole("button", { name: "Context page 1", exact: true }).click();
-    await page.getByRole("button", { name: "Reset replay", exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: /^Step / })).toHaveText("Step 0 / 3");
-    await expect(page.getByRole("button", { name: "Context page 3", exact: true })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    await expect(lastHeading).toHaveCount(0);
-    await expect(transcript.getByRole("heading", { name: "Section 4", exact: true })).toBeVisible();
   });
 
   test(`mixed code and table scroll inside the reading surface at ${String(width)}px`, async ({
@@ -96,13 +86,6 @@ for (const width of [375, 1280]) {
       )
       .toBeLessThan(2);
     expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
-    await page.getByRole("button", { name: "Reset replay", exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: /^Step / })).toHaveText("Step 0 / 3");
-    await expect(page.getByRole("button", { name: "Context page 3", exact: true })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    await expect(target).toHaveCount(0);
     await page.getByRole("button", { name: "Context page 3", exact: true }).click();
     await page.getByRole("button", { name: "Locate code turn", exact: true }).click();
     await expect
@@ -170,27 +153,3 @@ for (const width of [375, 1280]) {
       .toBe(true);
   });
 }
-
-test("hiding DEV controls preserves mixed transcript interactions", async ({ page }) => {
-  await page.goto(`${storybookOrigin}/?path=/story/transcript-mixed--completed`);
-  const preview = page.frameLocator("#storybook-preview-iframe");
-  await expect(preview.getByRole("button", { name: "Reset replay", exact: true })).toBeVisible();
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await expect(
-    preview.getByRole("group", { name: "DEV", exact: true, includeHidden: true }),
-  ).toHaveCount(0);
-  await expect(
-    preview.getByRole("button", { name: "Reset replay", exact: true, includeHidden: true }),
-  ).toHaveCount(0);
-  await preview.getByRole("button", { name: "Preview sample.png", exact: true }).click();
-  await expect(preview.getByRole("dialog", { name: "sample.png", exact: true })).toBeVisible();
-  await preview.getByRole("button", { name: "Close image preview", exact: true }).click();
-  await preview.getByRole("button", { name: /Intermediate updates/ }).click();
-  await expect(preview.getByRole("region", { name: "Committed transcript" })).toContainText(
-    "Review complete",
-  );
-  await preview.getByRole("button", { name: "Context page 2", exact: true }).click();
-  await expect(
-    preview.getByRole("heading", { name: "Delivery matrix", exact: true }),
-  ).toBeVisible();
-});

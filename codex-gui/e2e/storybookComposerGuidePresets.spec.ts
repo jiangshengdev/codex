@@ -3,17 +3,11 @@ import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
 
-test("unknown guide preset supports hidden DEV local removal, reset, late facts and story isolation", async ({
-  page,
-}) => {
-  await page.goto(`${storybookOrigin}/?path=/story/composer-input-and-send-guide--guide-unknown`);
-  const preview = page.frameLocator("#storybook-preview-iframe");
+test("unknown guide preset supports local removal without losing the draft", async ({ page }) => {
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-guide--guide-unknown`);
+  const preview = page;
   const unknown = preview.getByText("Guide status unknown", { exact: true });
   const response = preview.getByRole("button", { name: "Simulate guide response", exact: true });
-  const runtime = preview.getByRole("button", {
-    name: "Simulate guide runtime confirmation",
-    exact: true,
-  });
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(unknown).toBeVisible();
   await expect(preview.getByText("Guide this fictional change.", { exact: true })).toBeVisible();
@@ -21,28 +15,21 @@ test("unknown guide preset supports hidden DEV local removal, reset, late facts 
   await expect(preview.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(
     0,
   );
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
-  await expect(response).toHaveCount(0);
   await editor.fill("Keep the current draft");
   await preview.getByRole("button", { name: "Remove local record", exact: true }).click();
   await expect(unknown).toHaveCount(0);
   await expect(editor).toHaveText("Keep the current draft");
-  await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();
   await expect(response).toBeDisabled();
-  await preview.getByRole("button", { name: "Restart simulation", exact: true }).click();
+});
+
+test("late runtime confirmation clears unknown guidance", async ({ page }) => {
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-guide--guide-unknown`);
+  const unknown = page.getByText("Guide status unknown", { exact: true });
   await expect(unknown).toBeVisible();
-  await runtime.click();
+  await page
+    .getByRole("button", { name: "Simulate guide runtime confirmation", exact: true })
+    .click();
   await expect(unknown).toHaveCount(0);
-  await preview.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(unknown).toBeVisible();
-  await page.getByRole("button", { name: "Input", exact: true }).click();
-  await page.getByRole("link", { name: "Empty", exact: true }).click();
-  await expect(unknown).toHaveCount(0);
-  await expect(editor).toBeEmpty();
-  await page.getByRole("link", { name: "Guide Unknown", exact: true }).click();
-  await expect(unknown).toBeVisible();
-  await expect(response).toBeDisabled();
-  await expect(runtime).toBeEnabled();
 });
 
 test("guide failure preset gates a separate draft until explicit recovery", async ({ page }) => {
@@ -64,9 +51,6 @@ test("guide failure preset gates a separate draft until explicit recovery", asyn
   await expect(unsent).toHaveCount(0);
   await expect(editor).toHaveText("Separate draft");
   await expect(page.getByRole("button", { name: "Guide", exact: true })).toBeEnabled();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(unsent).toBeVisible();
-  await expect(editor).toBeEmpty();
 });
 
 test("guide refusal preset is priority delivery rather than failure recovery", async ({ page }) => {
@@ -89,13 +73,9 @@ test("guide refusal preset is priority delivery rather than failure recovery", a
   await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();
   await expect(priority).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Queued 1", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(priority).toBeVisible();
 });
 
-test("accepted guide preset opens pending runtime and retains manual confirmation after reset", async ({
-  page,
-}) => {
+test("accepted guide preset stays pending until runtime confirmation", async ({ page }) => {
   await page.goto(
     `${storybookOrigin}/iframe.html?id=composer-input-and-send-guide--guide-runtime-pending`,
   );
@@ -109,10 +89,6 @@ test("accepted guide preset opens pending runtime and retains manual confirmatio
   await expect(response).toBeDisabled();
   await runtime.click();
   await expect(pending).toHaveCount(0);
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(pending).toBeVisible();
-  await expect(response).toBeDisabled();
-  await expect(runtime).toBeEnabled();
 });
 
 test("guide request preset waits for response and runtime without losing a new draft", async ({
@@ -139,10 +115,6 @@ test("guide request preset waits for response and runtime without losing a new d
   await runtime.click();
   await expect(pending).toHaveCount(0);
   await expect(editor).toHaveText("Keep the next draft");
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(pending).toBeVisible();
-  await expect(response).toBeEnabled();
-  await expect(runtime).toBeDisabled();
 });
 
 test("running text preset enables real Send and Guide while existing RunningGuide owns empty input", async ({
@@ -164,8 +136,7 @@ test("running text preset enables real Send and Guide while existing RunningGuid
   await expect(
     page.getByRole("button", { name: "Simulate guide response", exact: true }),
   ).toBeEnabled();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(editor).toHaveText("Review this fictional running turn.");
+  await editor.fill("Review this fictional running turn.");
   await send.click();
   await expect(page.getByRole("button", { name: "Queued 1", exact: true })).toBeVisible();
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-guide--running-guide`);

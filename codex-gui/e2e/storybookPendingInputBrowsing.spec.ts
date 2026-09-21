@@ -19,13 +19,9 @@ for (const width of [375, 1280]) {
       await expect(detail).toContainText("end-of-reference");
       await expect(detail).toContainText(/message 1\nReview/);
       await expect(detail).toContainText(/\n\nCheck the narrow-screen/);
-      await page.reload();
-      await expect(detail).toContainText(`END OF ${label} message 1`);
       await detail.getByRole("button", { name: "Close", exact: true }).click();
       await expect(page.getByRole("dialog")).toHaveCount(1);
       await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
-      await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-      await expect(detail).toContainText(`END OF ${label} message 1`);
     }
     await page.goto(
       `${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--mixed-text`,
@@ -154,11 +150,6 @@ test("opens the real queue and restores keyboard focus", async ({ page }) => {
       .getByRole("group", { name: "Pending: Queued 2", exact: true })
       .getByRole("button", { name: "Queued 2", exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeEnabled();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(trigger).toBeVisible();
 });
 
 test("pages both lanes independently and reads long queued messages", async ({ page }) => {
@@ -186,13 +177,8 @@ test("pages both lanes independently and reads long queued messages", async ({ p
   await expect(viewFull).toBeFocused();
 });
 
-test("advances response and runtime confirmation separately and resets waiting work", async ({
-  page,
-}) => {
+test("advances response and runtime confirmation separately", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--sending`);
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeEnabled();
   await page
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
     .getByRole("button", { name: "Queued 1", exact: true })
@@ -205,13 +191,7 @@ test("advances response and runtime confirmation separately and resets waiting w
   await page.clock.fastForward(60_000);
   await expect(page.getByRole("dialog")).toContainText("Ordinary message 2");
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }),
-  ).toBeDisabled();
   await page.getByRole("button", { name: "Simulate send response", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText(
-    "Response received; waiting for runtime confirmation",
-  );
   await page
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
     .getByRole("button", { name: "Queued 1", exact: true })
@@ -219,7 +199,6 @@ test("advances response and runtime confirmation separately and resets waiting w
   await expect(page.getByRole("dialog")).toContainText("Ordinary message 2");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Runtime confirmation received");
   await page
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
     .getByRole("button", { name: "Queued 1", exact: true })
@@ -232,30 +211,10 @@ test("advances response and runtime confirmation separately and resets waiting w
   await page.getByRole("button", { name: "Simulate send response", exact: true }).click();
   await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();
   await expect(page.getByRole("group", { name: /^Pending:/ })).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(
-    page
-      .getByRole("group", { name: "Pending: Queued 1", exact: true })
-      .getByRole("button", { name: "Queued 1", exact: true }),
-  ).toBeVisible();
-  await expect(page.getByRole("status")).toHaveText("Waiting for send response");
-  await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
-  await expect(
-    page
-      .getByRole("group", { name: "Pending: Queued 1", exact: true })
-      .getByRole("button", { name: "Queued 1", exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeEnabled();
 });
 
 test("hides the empty entry and keeps deletion completion readable", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--empty`);
-  await expect(page.getByRole("status")).toHaveText("Current turn is running");
   await expect(page.getByRole("group", { name: /^Pending:/ })).toHaveCount(0);
   await page.goto(
     `${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--single-message`,
