@@ -8,6 +8,7 @@ import {
   activeThreadReadModelTransitionApplied,
 } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
+import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import { DevOnly } from "../DevOnly";
 import type { TranscriptReplay } from "./messageReplay";
@@ -20,9 +21,13 @@ const identity = {
 export function TranscriptReplayPreview({
   frames,
   initialStep = 0,
+  turnPosition,
+  onReset,
 }: {
   frames: TranscriptReplay;
   initialStep?: number;
+  turnPosition?: TurnPositionRequest | null;
+  onReset?: () => void;
 }) {
   const dispatch = useAppDispatch();
   const revision = useRef(0);
@@ -111,6 +116,7 @@ export function TranscriptReplayPreview({
             variant="tertiary"
             onPress={() => {
               setPlaying(false);
+              onReset?.();
               dispatch(activeThreadReadModelSlotRemoved(identity));
               dispatch(activeThreadReadModelSlotCreated(identity));
               dispatch(
@@ -135,7 +141,7 @@ export function TranscriptReplayPreview({
           </Trans>
         </p>
       </DevOnly>
-      <CommittedTranscriptSurface key={resetKey} identity={identity} />
+      <CommittedTranscriptSurface key={resetKey} identity={identity} turnPosition={turnPosition} />
     </main>
   );
 }
