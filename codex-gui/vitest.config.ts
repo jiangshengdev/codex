@@ -24,6 +24,7 @@ export default mergeConfig(
             exclude: [
               ...configDefaults.exclude,
               "e2e/**",
+              "storybook-tests/**",
               "src/**/*.browser.test.ts",
               "src/**/*.browser.test.tsx",
             ],

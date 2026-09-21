@@ -8,7 +8,7 @@ import {
   DEV_VISIBILITY_CHANGED,
   DEV_VISIBILITY_REQUEST,
   type DevVisibility,
-} from "../src/storybook/devVisibility";
+} from "../src/storybook/environment/devVisibility";
 
 export function DevVisibilityTool() {
   const [visibility, setVisibility] = useAddonState<DevVisibility>(

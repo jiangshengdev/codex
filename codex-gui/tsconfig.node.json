@@ -28,6 +28,7 @@
     "vitest.*.config.*",
     "vitest.shims.d.ts",
     "playwright.config.*",
+    "playwright.*.config.*",
     "lingui.config.*",
     "eslint.config.*",
     "scripts/**/*.ts"

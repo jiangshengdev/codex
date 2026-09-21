@@ -1,5 +1,5 @@
 import type { Meta } from "@storybook/tanstack-react";
-import { StorybookStatefulEnvironment } from "../StorybookStatefulEnvironment";
+import { StorybookStatefulEnvironment } from "../environment/StorybookStatefulEnvironment";
 import { ComposerPreview } from "./ComposerPreview";
 
 export const composerMeta = {

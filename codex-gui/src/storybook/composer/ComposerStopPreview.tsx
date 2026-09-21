@@ -1,9 +1,9 @@
 import { Button, Toast } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { StrictMode, useSyncExternalStore } from "react";
-import { DevOnly } from "../DevOnly";
-import { PendingInputPreview } from "../pendingInput/PendingInputScenarioView";
-import { definiteFailure } from "../pendingInput/recovery/recoveryScenario";
+import { DevOnly } from "../environment/DevOnly";
+import { PendingInputPreview } from "./pendingInput/PendingInputScenarioView";
+import { definiteFailure } from "./pendingInput/recovery/recoveryScenario";
 import { ComposerSimulation } from "./ComposerPreview";
 import type { ComposerScenario } from "./composerScenario";
 import { createComposerStopScenario, type ComposerStopPreset } from "./composerStopScenario";

@@ -1,5 +1,5 @@
 import type { Preview } from "@storybook/tanstack-react";
-import { StorybookEnvironment } from "../src/storybook/StorybookEnvironment";
+import { StorybookEnvironment } from "../src/storybook/environment/StorybookEnvironment";
 import "./storybook.css";
 import "./preview.css";
 
@@ -12,6 +12,43 @@ const preview: Preview = {
     ),
   ],
   parameters: {
+    options: {
+      storySort: {
+        order: [
+          "Composer",
+          [
+            "Input and drafts",
+            ["Input", "Draft"],
+            "Send controls",
+            ["Send", "Stop", "Guide", "Queue"],
+            "Attachments",
+            ["Files", "Images", "Mixed", "Failures"],
+            "Pending input",
+            ["Browsing", "Editing", "Reordering", "Recovery"],
+          ],
+          "Transcript",
+          [
+            "Basic messages",
+            ["Messages", "Long user message"],
+            "Rich content",
+            ["Formatting", "Images", "Mixed"],
+            "Execution",
+            ["Activity"],
+          ],
+          "Recovery",
+          [
+            "Connection recovery",
+            ["States", "Interactions", "Pages"],
+            "Message synchronization",
+            ["States"],
+            "Task recovery",
+            ["States"],
+          ],
+          "Environment",
+          ["Rendering", ["Preview"], "Stateful", ["Store and router"]],
+        ],
+      },
+    },
     controls: {
       matchers: {
         color: /(background|color)$/i,

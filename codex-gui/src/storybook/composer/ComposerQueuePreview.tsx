@@ -1,9 +1,9 @@
 import { Toast } from "@heroui/react";
 import { StrictMode, useState } from "react";
-import { PendingInputPreview } from "../pendingInput/PendingInputScenarioView";
+import { PendingInputPreview } from "./pendingInput/PendingInputScenarioView";
 import { ComposerSimulation } from "./ComposerPreview";
 import { createComposerQueueScenario } from "./composerQueueScenario";
-import { PendingInputBrowsingInitialState } from "../pendingInput/PendingInputBrowsingInitialState";
+import { PendingInputBrowsingInitialState } from "./pendingInput/PendingInputBrowsingInitialState";
 
 function QueueSimulation({
   environment,
