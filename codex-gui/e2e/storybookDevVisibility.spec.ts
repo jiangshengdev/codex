@@ -87,8 +87,8 @@ test("controls every Docs preview without removing business notices", async ({ p
   const docs = page.frameLocator("#storybook-preview-iframe");
   const toggle = page.getByRole("switch", { name: "Show DEV controls", exact: true });
   const boundaries = docs.getByRole("group", { name: "DEV", exact: true, includeHidden: true });
-  // The primary example and five listed stories each render a theme DEV region.
-  await expect(boundaries).toHaveCount(6);
+  // The primary example and six listed stories each render a theme DEV region.
+  await expect(boundaries).toHaveCount(7);
   const notice = docs
     .locator("#story--feedback-connection-recovery-states--playground--primary")
     .getByRole("status");
@@ -97,7 +97,7 @@ test("controls every Docs preview without removing business notices", async ({ p
   await expect(boundaries).toHaveCount(0);
   await expect(notice).toContainText("Connection closed");
   await toggle.click();
-  await expect(boundaries).toHaveCount(6);
+  await expect(boundaries).toHaveCount(7);
 });
 
 test("standalone previews retain their default controls without an internal switch", async ({

@@ -128,6 +128,8 @@ export const StartupFailed: Story = {
 
 export const ConnectionClosed: Story = {};
 
+export const RecoveryUnavailable: Story = { args: { recovery: null } };
+
 export const Reconnecting: Story = {
   args: {
     recovery: { pending: true, error: null, reconnect: fn() },
