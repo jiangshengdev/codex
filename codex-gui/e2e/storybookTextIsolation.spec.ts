@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test, type FrameLocator } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -133,7 +134,7 @@ for (const scenario of cases) {
   }) => {
     const mixedId = `${scenario.group}--${scenario.mixed}`;
     const baselineId = `${scenario.group}--${scenario.baseline}`;
-    await page.goto(`http://localhost:6006/?path=/story/${mixedId}`);
+    await page.goto(`${storybookOrigin}/?path=/story/${mixedId}`);
     const preview = page.frameLocator("#storybook-preview-iframe");
     const expected = expectedStates[scenario.kind];
     await expected.mixed(preview);

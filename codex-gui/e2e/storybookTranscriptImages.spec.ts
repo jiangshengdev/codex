@@ -1,3 +1,4 @@
+import { storybookHost, storybookOrigin } from "./servers";
 import { expect, test, type Page } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -8,7 +9,7 @@ function observeRuntimeRequests(page: Page) {
     const url = new URL(request.url());
     if (url.protocol === "blob:") return;
     if (
-      url.origin !== "http://localhost:6006" ||
+      url.origin !== storybookOrigin ||
       request.method() !== "GET" ||
       (["fetch", "xhr"].includes(request.resourceType()) &&
         !/^\/(index\.json|project\.json|node_modules\/|@|src\/|sb-)/.test(url.pathname))
@@ -19,7 +20,7 @@ function observeRuntimeRequests(page: Page) {
   page.on("websocket", (socket) => {
     const url = new URL(socket.url());
     // Both Vite HMR and Storybook's own server channel belong to the preview.
-    if (url.host !== "localhost:6006" || !["/", "/storybook-server-channel"].includes(url.pathname))
+    if (url.host !== storybookHost || !["/", "/storybook-server-channel"].includes(url.pathname))
       unexpected.push(socket.url());
   });
   return () => {
@@ -32,7 +33,7 @@ for (const width of [375, 1280]) {
     test(`${story} previews the real attachment at ${String(width)}px`, async ({ page }) => {
       const assertLocal = observeRuntimeRequests(page);
       await page.setViewportSize({ width, height: 900 });
-      await page.goto(`http://localhost:6006/iframe.html?id=transcript-images--${story}`);
+      await page.goto(`${storybookOrigin}/iframe.html?id=transcript-images--${story}`);
       const transcript = page.getByRole("region", { name: "Committed transcript", exact: true });
       const preview = transcript.getByRole("button", { name: "Preview sample.png", exact: true });
       await expect(preview).toHaveCount(1);
@@ -78,7 +79,7 @@ for (const width of [375, 1280]) {
   }) => {
     const assertLocal = observeRuntimeRequests(page);
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("http://localhost:6006/iframe.html?id=transcript-images--mixed-content");
+    await page.goto(`${storybookOrigin}/iframe.html?id=transcript-images--mixed-content`);
     const transcript = page.getByRole("region", { name: "Committed transcript", exact: true });
     const userText = transcript
       .locator(".committed-transcript-entry-source")
@@ -89,9 +90,7 @@ for (const width of [375, 1280]) {
     );
     await expect(transcript.getByRole("table")).toContainText("Rectangle");
     await expect(transcript.locator("pre")).toContainText("rectangle + circle");
-    await page.goto(
-      "http://localhost:6006/iframe.html?id=transcript-images--markdown-image-boundary",
-    );
+    await page.goto(`${storybookOrigin}/iframe.html?id=transcript-images--markdown-image-boundary`);
     await expect(transcript).toContainText("Text after the disabled image remains readable.");
     await expect(transcript.locator(".committed-transcript-entry-markdown img")).toHaveCount(0);
     assertLocal();
@@ -100,7 +99,7 @@ for (const width of [375, 1280]) {
 
 test("switching image stories releases the old preview and isolates content", async ({ page }) => {
   const assertLocal = observeRuntimeRequests(page);
-  await page.goto("http://localhost:6006/?path=/story/transcript-images--mixed-content");
+  await page.goto(`${storybookOrigin}/?path=/story/transcript-images--mixed-content`);
   const frame = page.frameLocator("#storybook-preview-iframe");
   const preview = frame.getByRole("button", { name: "Preview sample.png", exact: true });
   await expect(preview).toBeVisible();

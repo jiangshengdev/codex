@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
 
@@ -11,9 +12,7 @@ for (const scenario of [
   test(`${scenario.story} groups its simulation controls separately from product UI`, async ({
     page,
   }) => {
-    await page.goto(
-      `http://localhost:6006/iframe.html?id=composer-pending-input-${scenario.story}`,
-    );
+    await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-${scenario.story}`);
     const boundary = page.getByRole("group", { name: "DEV", exact: true }).filter({
       has: page.getByRole("button", { name: scenario.control, exact: true }),
     });
@@ -30,23 +29,21 @@ test("reordering labels injected feedback and does not create an empty drawer bo
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-reordering--not-applied",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-reordering--not-applied`,
   );
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("group", { name: "DEV", exact: true })).toContainText(
     "Injected feedback:",
   );
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-reordering--paged-lanes",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-reordering--paged-lanes`,
   );
   await page.getByRole("button", { name: "Queued 23", exact: true }).click();
   await expect(dialog.getByRole("group", { name: "DEV", exact: true })).toHaveCount(0);
 });
 
 test("editing simulation has its own DEV boundary inside the product drawer", async ({ page }) => {
-  await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-editing--interactive",
-  );
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-editing--interactive`);
   const draft = page.getByRole("group", { name: "DEV", exact: true }).filter({
     has: page.getByRole("textbox", { name: "Main draft", exact: true }),
   });

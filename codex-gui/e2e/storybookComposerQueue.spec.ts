@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -5,7 +6,7 @@ test.use({ locale: "en" });
 test("ordinary rejection preserves unsent content and gates new input until recovery", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send-input--empty");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-input--empty`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   const response = page.getByRole("button", { name: "Simulate send response", exact: true });
@@ -28,9 +29,7 @@ test("ordinary rejection preserves unsent content and gates new input until reco
 test("queued edits and order survive restoration while unknown delivery blocks later sends", async ({
   page,
 }) => {
-  await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-input-and-send-queue--running-queue",
-  );
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-queue--running-queue`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   const response = page.getByRole("button", { name: "Simulate send response", exact: true });
@@ -93,9 +92,7 @@ test("queued edits and order survive restoration while unknown delivery blocks l
 test("hidden DEV keeps queue recovery usable and restart and navigation discard restored work", async ({
   page,
 }) => {
-  await page.goto(
-    "http://localhost:6006/?path=/story/composer-input-and-send-queue--running-queue",
-  );
+  await page.goto(`${storybookOrigin}/?path=/story/composer-input-and-send-queue--running-queue`);
   const preview = page.frameLocator("#storybook-preview-iframe");
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = preview.getByRole("button", { name: "Send", exact: true });

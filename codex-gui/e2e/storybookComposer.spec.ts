@@ -1,3 +1,4 @@
+import { storybookHost, storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -5,7 +6,7 @@ test.use({ locale: "en" });
 test("real Composer gates empty input and keeps send response separate from runtime events", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send-input--empty");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-input--empty`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   const response = page.getByRole("button", { name: "Simulate send response", exact: true });
@@ -38,7 +39,7 @@ test("real Composer gates empty input and keeps send response separate from runt
 });
 
 test("selected skills follow the real validation gate and remain removable", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send-input--empty");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-input--empty`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   await editor.fill("$preview");
@@ -92,7 +93,7 @@ test("DEV visibility preserves the Composer and reset and story switching releas
     const url = new URL(request.url());
     if (
       request.method() !== "GET" ||
-      url.host !== "localhost:6006" ||
+      url.host !== storybookHost ||
       !/^\/(index\.json|project\.json|node_modules\/|@|src\/|sb-)/.test(url.pathname)
     ) {
       businessRequests.push(`${request.method()} ${url.pathname}`);
@@ -101,14 +102,14 @@ test("DEV visibility preserves the Composer and reset and story switching releas
   page.on("websocket", (socket) => {
     const url = new URL(socket.url());
     if (
-      url.host !== "localhost:6006" ||
+      url.host !== storybookHost ||
       !["/", "/storybook-server-channel"].includes(url.pathname) ||
       !url.searchParams.has("token")
     ) {
       businessRequests.push(`WebSocket ${url.pathname}`);
     }
   });
-  await page.goto("http://localhost:6006/?path=/story/composer-input-and-send-input--empty");
+  await page.goto(`${storybookOrigin}/?path=/story/composer-input-and-send-input--empty`);
   const preview = page.frameLocator("#storybook-preview-iframe");
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = preview.getByRole("button", { name: "Send", exact: true });

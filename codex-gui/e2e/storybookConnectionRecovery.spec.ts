@@ -1,9 +1,10 @@
+import { storybookHost, storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
 
 test("preserves JSX source line breaks and indentation", async ({ page }) => {
-  await page.goto("http://localhost:6006/?path=/docs/feedback-connection-recovery-states--docs");
+  await page.goto(`${storybookOrigin}/?path=/docs/feedback-connection-recovery-states--docs`);
   const docs = page.frameLocator("#storybook-preview-iframe");
   await expect(
     docs
@@ -39,7 +40,7 @@ test("preserves JSX source line breaks and indentation", async ({ page }) => {
 });
 
 test("documents real props and renders recovery presets", async ({ page }) => {
-  await page.goto("http://localhost:6006/?path=/docs/feedback-connection-recovery-states--docs");
+  await page.goto(`${storybookOrigin}/?path=/docs/feedback-connection-recovery-states--docs`);
   const docs = page.frameLocator("#storybook-preview-iframe");
   const preview = docs.locator("#story--feedback-connection-recovery-states--playground--primary");
   await expect(preview.getByRole("status")).toContainText("Connection closed");
@@ -72,7 +73,7 @@ test("documents real props and renders recovery presets", async ({ page }) => {
   );
   await docs.getByRole("link", { name: "Success", exact: true }).click();
   await expect(page).toHaveURL(
-    "http://localhost:6006/?path=/story/feedback-connection-recovery-interactions--success",
+    `${storybookOrigin}/?path=/story/feedback-connection-recovery-interactions--success`,
   );
   await expect(
     page
@@ -83,7 +84,7 @@ test("documents real props and renders recovery presets", async ({ page }) => {
 
 test("records the real reconnect callback in Actions", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/?path=/story/feedback-connection-recovery-states--playground",
+    `${storybookOrigin}/?path=/story/feedback-connection-recovery-states--playground`,
   );
   await page
     .frameLocator("#storybook-preview-iframe")
@@ -97,7 +98,7 @@ test("records the real reconnect callback in Actions", async ({ page }) => {
 
 test("shows the retained-session connection failure with real diagnostics", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-connection-recovery-states--reconnect-failed",
+    `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-states--reconnect-failed`,
   );
   const alert = page.getByRole("alert");
   await expect(alert).toContainText("Connection closed");
@@ -109,13 +110,13 @@ test("shows the retained-session connection failure with real diagnostics", asyn
 
 test("opens each fixed recovery state directly", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-connection-recovery-states--startup-failed",
+    `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-states--startup-failed`,
   );
   await expect(page.getByRole("status")).toContainText("Unable to start Codex GUI");
   await expect(page.getByRole("button", { name: "Reconnect", exact: true })).toBeEnabled();
 
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-connection-recovery-states--connection-closed",
+    `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-states--connection-closed`,
   );
   await expect(page.getByRole("status")).toContainText(
     "Your conversations and input are still here.",
@@ -123,7 +124,7 @@ test("opens each fixed recovery state directly", async ({ page }) => {
   await expect(page.getByRole("button", { name: "View diagnostic information" })).toHaveCount(0);
 
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-connection-recovery-states--reconnecting",
+    `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-states--reconnecting`,
   );
   await expect(page.getByRole("button", { name: "Reconnecting…", exact: true })).toHaveAttribute(
     "aria-disabled",
@@ -140,7 +141,7 @@ for (const locale of ["en", "zh-CN"] as const) {
       page.on("websocket", (socket) => {
         const url = new URL(socket.url());
         if (
-          url.host !== "localhost:6006" ||
+          url.host !== storybookHost ||
           !["/", "/storybook-server-channel"].includes(url.pathname) ||
           !url.searchParams.has("token")
         ) {
@@ -148,7 +149,7 @@ for (const locale of ["en", "zh-CN"] as const) {
         }
       });
       await page.goto(
-        "http://localhost:6006/iframe.html?id=feedback-connection-recovery-states--reconnect-failed",
+        `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-states--reconnect-failed`,
       );
       const alert = page.getByRole("alert");
       await expect(alert).toContainText(locale === "en" ? "Connection closed" : "连接已关闭");

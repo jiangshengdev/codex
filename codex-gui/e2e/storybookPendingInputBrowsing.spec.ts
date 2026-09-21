@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 import { expectScrollableContent } from "./storybookTextAssertions";
 
@@ -11,7 +12,7 @@ for (const width of [375, 1280]) {
       ["ordinary-detail", "Ordinary"],
     ] as const) {
       await page.goto(
-        `http://localhost:6006/iframe.html?id=composer-pending-input-browsing--${story}`,
+        `${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--${story}`,
       );
       const detail = page.getByRole("dialog", { name: "Pending details", exact: true }).last();
       await expect(detail).toContainText(`END OF ${label} message 1`);
@@ -27,7 +28,7 @@ for (const width of [375, 1280]) {
       await expect(detail).toContainText(`END OF ${label} message 1`);
     }
     await page.goto(
-      "http://localhost:6006/iframe.html?id=composer-pending-input-browsing--mixed-text",
+      `${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--mixed-text`,
     );
     const dialog = page.getByRole("dialog");
     const ordinary = dialog.getByRole("group", { name: /^Ordinary message / });
@@ -43,7 +44,7 @@ for (const width of [375, 1280]) {
     await expect(ordinary).toHaveCount(23);
     await ordinary.last().scrollIntoViewIfNeeded();
     await expect(ordinary.last()).toBeInViewport();
-    await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-browsing--queued");
+    await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--queued`);
     await expect(page.getByRole("group", { name: "Pending: Queued 3", exact: true })).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
@@ -53,7 +54,7 @@ test("returns to the main draft when the last queued message starts sending duri
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-browsing--single-message",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--single-message`,
   );
   await page
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
@@ -89,7 +90,7 @@ test("returns to the main draft when the last queued message starts sending duri
 });
 
 test("opens the real queue and restores keyboard focus", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-browsing--queued");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--queued`);
   const trigger = page
     .getByRole("group", { name: "Pending: Queued 3", exact: true })
     .getByRole("button", { name: "Queued 3", exact: true });
@@ -161,9 +162,7 @@ test("opens the real queue and restores keyboard focus", async ({ page }) => {
 });
 
 test("pages both lanes independently and reads long queued messages", async ({ page }) => {
-  await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-browsing--both-lanes",
-  );
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--both-lanes`);
   await page
     .getByRole("group", { name: "Pending: Guide 23, Queued 23", exact: true })
     .getByRole("button", { name: "Guide 23", exact: true })
@@ -190,7 +189,7 @@ test("pages both lanes independently and reads long queued messages", async ({ p
 test("advances response and runtime confirmation separately and resets waiting work", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-browsing--sending");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--sending`);
   await expect(
     page.getByRole("button", { name: "Simulate send response", exact: true }),
   ).toBeEnabled();
@@ -255,11 +254,11 @@ test("advances response and runtime confirmation separately and resets waiting w
 });
 
 test("hides the empty entry and keeps deletion completion readable", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-browsing--empty");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--empty`);
   await expect(page.getByRole("status")).toHaveText("Current turn is running");
   await expect(page.getByRole("group", { name: /^Pending:/ })).toHaveCount(0);
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-browsing--single-message",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--single-message`,
   );
   await page
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
@@ -277,9 +276,7 @@ test("hides the empty entry and keeps deletion completion readable", async ({ pa
 test("keeps read-only pending messages readable in a detail dialog while management is disabled", async ({
   page,
 }) => {
-  await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-browsing--read-only",
-  );
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--read-only`);
   await page
     .getByRole("group", { name: "Pending: Queued 3", exact: true })
     .getByRole("button", { name: "Queued 3", exact: true })

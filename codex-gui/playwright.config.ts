@@ -1,5 +1,6 @@
 import process from "node:process";
 import { defineConfig, devices } from "@playwright/test";
+import { guiOrigin, guiPort, storybookOrigin, storybookPort } from "./e2e/servers";
 
 /**
  * Read environment variables from file.
@@ -34,7 +35,7 @@ export default defineConfig({
     /* Maximum time each action such as `click()` can take. Defaults to 0 (no limit). */
     actionTimeout: 0,
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.CI ? "http://localhost:4173" : "http://localhost:5173",
+    baseURL: guiOrigin,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: "on-first-retry",
@@ -102,17 +103,22 @@ export default defineConfig({
       /**
        * Use the dev server by default for faster feedback loop.
        * Use the preview server on CI for more realistic testing.
-       * Playwright will re-use the local server if there is already a dev-server running.
+       * Both modes use the dedicated E2E port and own their server lifecycle.
        */
-      command: process.env.CI ? "pnpm run preview" : "pnpm run dev",
-      port: process.env.CI ? 4173 : 5173,
-      reuseExistingServer: !process.env.CI,
+      command: process.env.CI
+        ? `pnpm run preview --port ${String(guiPort)} --strictPort`
+        : `pnpm run dev --port ${String(guiPort)} --strictPort`,
+      env: {
+        CODEX_GUI_VITE_PORT: String(guiPort),
+        CODEX_GUI_VITE_HMR_PORT: String(guiPort),
+      },
+      url: guiOrigin,
+      reuseExistingServer: false,
     },
     {
-      command:
-        "pnpm run storybook --ci --no-open --exact-port --disable-telemetry --no-version-updates",
-      port: 6006,
-      reuseExistingServer: !process.env.CI,
+      command: `pnpm run storybook --port ${String(storybookPort)} --ci --no-open --disable-telemetry --no-version-updates`,
+      url: storybookOrigin,
+      reuseExistingServer: false,
     },
   ],
 });

@@ -1,3 +1,4 @@
+import { storybookHost, storybookOrigin } from "./servers";
 import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
 import { installPausedClock } from "./pausedClock";
@@ -8,7 +9,7 @@ test("restart simulation has a DEV boundary separate from the product recovery n
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-connection-recovery-interactions--success&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-interactions--success&viewMode=story`,
   );
   const simulation = page.getByRole("group", { name: "DEV", exact: true }).filter({
     has: page.getByRole("button", { name: "Restart simulation", exact: true }),
@@ -43,7 +44,7 @@ test("restart simulation has a DEV boundary separate from the product recovery n
 
 test("successful reconnection waits before removing the recovery notice", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-connection-recovery-interactions--success&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-interactions--success&viewMode=story`,
   );
   await expect(page.getByText("Connection closed", { exact: true })).toBeVisible();
   await installPausedClock(page);
@@ -55,7 +56,7 @@ test("successful reconnection waits before removing the recovery notice", async 
 
 test("failed reconnection exposes diagnostics and can be retried", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-connection-recovery-interactions--failure&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-interactions--failure&viewMode=story`,
   );
   await expect(page.getByText("Connection closed", { exact: true })).toBeVisible();
   await installPausedClock(page);
@@ -80,7 +81,7 @@ test("failed reconnection exposes diagnostics and can be retried", async ({ page
 
 test("restart cancels pending recovery and restores the successful demo", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-connection-recovery-interactions--success&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-interactions--success&viewMode=story`,
   );
   const reconnect = page.getByRole("button", { name: "Reconnect", exact: true });
   await expect(reconnect).toBeVisible();
@@ -105,13 +106,13 @@ test("switching stories discards pending work and prior results without business
   page.on("websocket", (socket) => {
     const url = new URL(socket.url());
     const isStorybookSocket =
-      url.host === "localhost:6006" &&
+      url.host === storybookHost &&
       (url.pathname === "/" || url.pathname === "/storybook-server-channel") &&
       url.searchParams.has("token");
     if (!isStorybookSocket) businessSockets.push(socket.url());
   });
   await page.goto(
-    "http://localhost:6006/?path=/story/feedback-connection-recovery-interactions--success",
+    `${storybookOrigin}/?path=/story/feedback-connection-recovery-interactions--success`,
   );
   const preview = page.frameLocator("#storybook-preview-iframe");
   const reconnect = preview.getByRole("button", { name: "Reconnect", exact: true });

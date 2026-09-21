@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 for (const locale of ["en", "zh-CN"] as const) {
@@ -7,7 +8,7 @@ for (const locale of ["en", "zh-CN"] as const) {
     test("renders the real diagnostic component with application styles and language", async ({
       page,
     }) => {
-      await page.goto("http://localhost:6006/iframe.html?id=environment-rendering--diagnostics");
+      await page.goto(`${storybookOrigin}/iframe.html?id=environment-rendering--diagnostics`);
       const trigger = page.getByRole("button", {
         name: locale === "en" ? "View diagnostic information" : "查看诊断信息",
       });

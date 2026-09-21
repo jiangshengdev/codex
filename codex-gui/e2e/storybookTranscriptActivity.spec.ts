@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -7,9 +8,7 @@ for (const width of [375, 1280]) {
     page,
   }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto(
-      "http://localhost:6006/iframe.html?id=transcript-activity--reasoning-streaming",
-    );
+    await page.goto(`${storybookOrigin}/iframe.html?id=transcript-activity--reasoning-streaming`);
     const transcript = page.getByRole("region", { name: "Committed transcript" });
     await expect(transcript).toContainText("Inspecting the request");
     const next = page.getByRole("button", { name: "Next step", exact: true });

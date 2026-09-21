@@ -1,3 +1,4 @@
+import { storybookHost, storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -11,13 +12,13 @@ test("local file selection waits for manual completion and preserves the draft",
     const url = new URL(request.url());
     if (
       request.method() !== "GET" ||
-      url.host !== "localhost:6006" ||
+      url.host !== storybookHost ||
       !/^\/(index\.json|project\.json|node_modules\/|@|src\/|sb-)/.test(url.pathname)
     ) {
       businessRequests.push(`${request.method()} ${url.pathname}`);
     }
   });
-  await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-files--interactive");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-files--interactive`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   await editor.fill("Review this file: ");
@@ -44,7 +45,7 @@ test("local file selection waits for manual completion and preserves the draft",
 test("DEV visibility and story switching preserve isolation while uploads are pending", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/?path=/story/composer-attachments-files--uploading");
+  await page.goto(`${storybookOrigin}/?path=/story/composer-attachments-files--uploading`);
   const preview = page.frameLocator("#storybook-preview-iframe");
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(editor).toContainText("Uploading");
@@ -72,7 +73,7 @@ test("DEV visibility and story switching preserve isolation while uploads are pe
 test("uploading preset survives late completion after removal and restarts independently", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-files--uploading");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-files--uploading`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(editor).toContainText("Uploading");
   await page.getByRole("button", { name: "Remove review-notes.txt", exact: true }).click();
@@ -87,7 +88,7 @@ test("uploading preset survives late completion after removal and restarts indep
 });
 
 test("ready preset and repeated sample selection use independent uploads", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-files--ready");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-files--ready`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(editor).toContainText("Uploaded");
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();

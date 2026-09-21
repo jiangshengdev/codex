@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -8,7 +9,7 @@ test.beforeEach(async ({ page }) => {
     if (["fetch", "xhr"].includes(request.resourceType())) {
       const url = new URL(request.url());
       expect(request.method()).toBe("GET");
-      expect(url.origin).toBe("http://localhost:6006");
+      expect(url.origin).toBe(storybookOrigin);
       // WebKit reports the real decoder's local blob reads as fetch requests.
       if (url.protocol !== "blob:") {
         expect(url.pathname).toMatch(/^\/(index\.json|project\.json|node_modules\/|@|src\/|sb-)/);
@@ -24,7 +25,7 @@ for (const [story, message] of [
   ["decode-failure", "Cannot display preview"],
 ] as const) {
   test(`${story} preset keeps upload ready and can reset`, async ({ page }) => {
-    await page.goto(`http://localhost:6006/iframe.html?id=composer-attachments-images--${story}`);
+    await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-images--${story}`);
     const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
     await expect(editor).toContainText(message);
     await expect(editor).toContainText("Uploaded");
@@ -40,7 +41,7 @@ for (const [story, message] of [
 }
 
 test("sample image uploads before its independently controlled preview opens", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-images--interactive");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-images--interactive`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   await page.getByRole("button", { name: "Add sample image", exact: true }).click();
@@ -76,7 +77,7 @@ test("sample image uploads before its independently controlled preview opens", a
 test("local image bytes and filename survive upload and preview", async ({ page }) => {
   const png =
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
-  await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-images--interactive");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-images--interactive`);
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Attach files", exact: true }).click();
   await (
@@ -117,7 +118,7 @@ test("local image bytes and filename survive upload and preview", async ({ page 
 test("pending reads cancel on removal and reset without affecting the next image", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-images--loading");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-images--loading`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const complete = page.getByRole("button", { name: "Complete preview sample.png", exact: true });
   await expect(complete).toBeVisible();
@@ -139,7 +140,7 @@ for (const [control, message] of [
   ["Fail preview decode sample.png", "Cannot display preview"],
 ] as const) {
   test(`${control} is independent of successful upload`, async ({ page }) => {
-    await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-images--loading");
+    await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-images--loading`);
     await page.getByRole("button", { name: control, exact: true }).click();
     const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
     await expect(editor).toContainText(message);
@@ -165,9 +166,7 @@ for (const { control, status, previews, retries } of [
 ]) {
   test(`read failure retry supports ${control}`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await page.goto(
-      "http://localhost:6006/iframe.html?id=composer-attachments-images--read-failure",
-    );
+    await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-images--read-failure`);
     const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
     const retry = editor.getByRole("button", { name: "Retry preview sample.png", exact: true });
     await expect(retry).toBeVisible();
@@ -199,7 +198,7 @@ for (const { control, status, previews, retries } of [
 }
 
 test("switching stories cancels a read and opens a fresh ready preview", async ({ page }) => {
-  await page.goto("http://localhost:6006/?path=/story/composer-attachments-images--loading");
+  await page.goto(`${storybookOrigin}/?path=/story/composer-attachments-images--loading`);
   const frame = page.frameLocator("#storybook-preview-iframe");
   await expect(frame.getByText("Loading preview…", { exact: false })).toBeVisible();
   await page.locator('a[href="/?path=/story/composer-attachments-images--ready"]').click();

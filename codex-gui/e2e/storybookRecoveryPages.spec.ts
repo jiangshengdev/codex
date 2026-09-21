@@ -1,3 +1,4 @@
+import { storybookHost, storybookOrigin } from "./servers";
 import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
 import { installPausedClock } from "./pausedClock";
@@ -8,7 +9,7 @@ test("retained page reconnects after failure without losing its conversation or 
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-connection-recovery-pages--retained-disconnection&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-pages--retained-disconnection&viewMode=story`,
   );
   await expect(page.getByText("Connection closed", { exact: true })).toBeVisible();
   await expect(page.getByText("Retained answer one", { exact: true })).toBeVisible();
@@ -47,7 +48,7 @@ test("retained page reconnects after failure without losing its conversation or 
 
 test("startup failure recovers into a usable task page", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-connection-recovery-pages--startup-failure&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-pages--startup-failure&viewMode=story`,
   );
   await expect(page.getByText("Unable to start Codex GUI", { exact: true })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Message Codex", exact: true })).toHaveCount(0);
@@ -76,7 +77,7 @@ test("reset and story navigation discard pending connection results without busi
   page.on("websocket", (socket) => {
     const url = new URL(socket.url());
     if (
-      url.host !== "localhost:6006" ||
+      url.host !== storybookHost ||
       !["/", "/storybook-server-channel"].includes(url.pathname) ||
       !url.searchParams.has("token")
     )
@@ -87,7 +88,7 @@ test("reset and story navigation discard pending connection results without busi
       businessRequests.push(request.url());
   });
   await page.goto(
-    "http://localhost:6006/?path=/story/feedback-connection-recovery-pages--retained-disconnection",
+    `${storybookOrigin}/?path=/story/feedback-connection-recovery-pages--retained-disconnection`,
   );
   const preview = page.frameLocator("#storybook-preview-iframe");
   const reconnect = preview.getByRole("button", { name: "Reconnect", exact: true });
@@ -116,7 +117,7 @@ test("reset and story navigation discard pending connection results without busi
 
 test("the fixed unavailable state does not offer a reconnect action", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-connection-recovery-states--recovery-unavailable&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-states--recovery-unavailable&viewMode=story`,
   );
   await expect(page.getByText("Connection closed", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Reconnect", exact: true })).toHaveCount(0);
@@ -130,7 +131,7 @@ for (const locale of ["en", "zh-CN"] as const) {
       page,
     }) => {
       await page.goto(
-        "http://localhost:6006/iframe.html?id=feedback-connection-recovery-pages--retained-disconnection&viewMode=story",
+        `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-pages--retained-disconnection&viewMode=story`,
       );
       const reconnect = page.getByRole("button", {
         name: locale === "en" ? "Reconnect" : "重新连接",

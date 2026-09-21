@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -5,7 +6,7 @@ test.use({ locale: "en" });
 test("stop failure preset keeps the turn active and allows retry without clearing the draft", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-input-and-send-stop--stop-failed");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-stop--stop-failed`);
   const failed = page.getByText("Stop failed", { exact: true });
   const stop = page.getByRole("button", { name: "Stop", exact: true });
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
@@ -33,7 +34,7 @@ test("stop failure preset keeps the turn active and allows retry without clearin
 test("unknown stop preset does not retry and retains input with DEV hidden and across reset", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/?path=/story/composer-input-and-send-stop--stop-unknown");
+  await page.goto(`${storybookOrigin}/?path=/story/composer-input-and-send-stop--stop-unknown`);
   const preview = page.frameLocator("#storybook-preview-iframe");
   const stop = preview.getByRole("button", { name: "Stop", exact: true });
   const response = preview.getByRole("button", { name: "Simulate stop response", exact: true });
@@ -69,9 +70,7 @@ test("unknown stop preset does not retry and retains input with DEV hidden and a
 test("accepted stop preset remains active and allows queueing until runtime termination", async ({
   page,
 }) => {
-  await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-input-and-send-stop--stop-accepted",
-  );
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-stop--stop-accepted`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const stop = page.getByRole("button", { name: "Stop", exact: true });
   const response = page.getByRole("button", { name: "Simulate stop response", exact: true });
@@ -99,7 +98,7 @@ test("stop request preset retains editable input and waits separately for respon
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-input-and-send-stop--stop-request-pending",
+    `${storybookOrigin}/iframe.html?id=composer-input-and-send-stop--stop-request-pending`,
   );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });

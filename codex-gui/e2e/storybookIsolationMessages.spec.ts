@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 import { installPausedClock } from "./pausedClock";
 
@@ -7,7 +8,7 @@ for (const locale of ["en", "zh-CN"] as const) {
 
     test("loads product theme messages and demo controls together", async ({ page }) => {
       await page.goto(
-        "http://localhost:6006/iframe.html?id=feedback-connection-recovery-interactions--success&viewMode=story",
+        `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-interactions--success&viewMode=story`,
       );
       await expect(page.locator("html")).toHaveAttribute("lang", locale);
       await expect(

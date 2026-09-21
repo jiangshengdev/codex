@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 import { createPersistenceHarness, persistenceThreadId } from "./persistenceHarness";
 
@@ -27,9 +28,7 @@ for (const locale of ["en", "zh-CN"] as const) {
     });
 
     test("retains the demo container width and real theme control styles", async ({ page }) => {
-      await page.goto(
-        "http://localhost:6006/iframe.html?id=composer-pending-input-browsing--queued",
-      );
+      await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--queued`);
       const draft = page.getByRole("textbox", {
         name: locale === "en" ? "Main draft" : "主输入草稿",
         exact: true,

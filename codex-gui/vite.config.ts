@@ -68,10 +68,15 @@ export default defineConfig({
   server: {
     host: viteHost,
     port: vitePort,
+    strictPort: true,
     hmr: {
       ...(viteHmrHost ? { host: viteHmrHost } : {}),
       port: viteHmrPort,
       clientPort: viteHmrPort,
     },
+  },
+  preview: {
+    port: 4173,
+    strictPort: true,
   },
 });

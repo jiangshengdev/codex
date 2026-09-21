@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -8,7 +9,7 @@ test.beforeEach(async ({ page }) => {
     if (["fetch", "xhr"].includes(request.resourceType())) {
       const url = new URL(request.url());
       expect(request.method()).toBe("GET");
-      expect(url.origin).toBe("http://localhost:6006");
+      expect(url.origin).toBe(storybookOrigin);
       if (url.protocol !== "blob:") {
         expect(url.pathname).toMatch(/^\/(index\.json|project\.json|node_modules\/|@|src\/|sb-)/);
       }
@@ -20,7 +21,7 @@ test.beforeEach(async ({ page }) => {
 test("mixed results preset resets and removes each state without disturbing its neighbors", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-mixed--mixed-results");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-mixed--mixed-results`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const statuses = editor.getByRole("status");
   await expect(statuses).toHaveText(["File upload failed.", "Uploaded", "Uploading"]);
@@ -56,7 +57,7 @@ test("mixed results preset resets and removes each state without disturbing its 
 test("mixed sample preserves input order through independent results and targeted retries", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-mixed--interactive");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-mixed--interactive`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   await page.getByRole("button", { name: "Add mixed sample", exact: true }).click();
@@ -106,7 +107,7 @@ test("one local selection keeps text, file and original image through out-of-ord
 }) => {
   const png =
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
-  await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-mixed--interactive");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-mixed--interactive`);
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Attach files", exact: true }).click();
   await (
@@ -151,7 +152,7 @@ test("one local selection keeps text, file and original image through out-of-ord
 test("reset and story switching release the mixed batch and hidden DEV keeps real controls", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/?path=/story/composer-attachments-mixed--mixed-results");
+  await page.goto(`${storybookOrigin}/?path=/story/composer-attachments-mixed--mixed-results`);
   const frame = page.frameLocator("#storybook-preview-iframe");
   const editor = frame.getByRole("combobox", { name: "Message Codex", exact: true });
   const preview = editor.getByRole("button", { name: "Preview sample.png", exact: true });

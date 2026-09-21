@@ -1,8 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { storybookOrigin as storybookUrl } from "./servers";
 
 test.use({ locale: "en" });
-
-const storybookUrl = process.env.STORYBOOK_URL ?? "http://localhost:6006";
 
 test("the toolbar removes DEV DOM while preserving the current editing scenario", async ({
   page,

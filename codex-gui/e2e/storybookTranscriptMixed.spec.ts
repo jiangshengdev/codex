@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -5,7 +6,7 @@ test.use({ locale: "en" });
 for (const width of [375, 1280]) {
   test(`long answer grows and replay resets at ${String(width)}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("http://localhost:6006/iframe.html?id=transcript-mixed--replay");
+    await page.goto(`${storybookOrigin}/iframe.html?id=transcript-mixed--replay`);
     const transcript = page.getByRole("region", { name: "Committed transcript" });
     const lastHeading = transcript.getByRole("heading", { name: "Section 32", exact: true });
     await expect(transcript.getByRole("heading", { name: "Section 4", exact: true })).toBeVisible();
@@ -41,7 +42,7 @@ for (const width of [375, 1280]) {
     page,
   }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("http://localhost:6006/iframe.html?id=transcript-mixed--completed");
+    await page.goto(`${storybookOrigin}/iframe.html?id=transcript-mixed--completed`);
     for (const [pageNumber, selector] of [
       [1, "pre"],
       [2, "table"],
@@ -79,7 +80,7 @@ for (const width of [375, 1280]) {
 
   test(`locates an earlier code turn at ${String(width)}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("http://localhost:6006/iframe.html?id=transcript-mixed--locate-earlier-turn");
+    await page.goto(`${storybookOrigin}/iframe.html?id=transcript-mixed--locate-earlier-turn`);
     await page.getByRole("button", { name: "Locate code turn", exact: true }).click();
     await expect(page.getByRole("button", { name: "Context page 1", exact: true })).toHaveAttribute(
       "aria-current",
@@ -115,7 +116,7 @@ for (const width of [375, 1280]) {
 
   test(`mixed conversation preserves context pages at ${String(width)}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("http://localhost:6006/iframe.html?id=transcript-mixed--completed");
+    await page.goto(`${storybookOrigin}/iframe.html?id=transcript-mixed--completed`);
     const transcript = page.getByRole("region", { name: "Committed transcript" });
     const pagination = page.getByRole("navigation", { name: "Transcript context pages" });
     await expect(pagination.getByRole("button", { name: "Context page 3" })).toHaveAttribute(
@@ -171,7 +172,7 @@ for (const width of [375, 1280]) {
 }
 
 test("hiding DEV controls preserves mixed transcript interactions", async ({ page }) => {
-  await page.goto("http://localhost:6006/?path=/story/transcript-mixed--completed");
+  await page.goto(`${storybookOrigin}/?path=/story/transcript-mixed--completed`);
   const preview = page.frameLocator("#storybook-preview-iframe");
   await expect(preview.getByRole("button", { name: "Reset replay", exact: true })).toBeVisible();
   await page.getByRole("switch", { name: "Show DEV controls", exact: true }).click();

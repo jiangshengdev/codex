@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -6,7 +7,7 @@ for (const width of [375, 1280]) {
   test(`message replay steps, pauses and resets at ${String(width)}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.clock.install();
-    await page.goto("http://localhost:6006/iframe.html?id=transcript-messages--streaming");
+    await page.goto(`${storybookOrigin}/iframe.html?id=transcript-messages--streaming`);
     const transcript = page.getByRole("region", { name: "Committed transcript" });
     await expect(transcript).toContainText("Explain this fictional change.");
     await page.getByRole("button", { name: "Next step", exact: true }).click();
@@ -31,7 +32,7 @@ for (const width of [375, 1280]) {
 }
 
 test("direct states and story switching discard a running replay", async ({ page }) => {
-  await page.goto("http://localhost:6006/?path=/story/transcript-messages--first-delta");
+  await page.goto(`${storybookOrigin}/?path=/story/transcript-messages--first-delta`);
   const preview = page.frameLocator("#storybook-preview-iframe");
   const transcript = preview.getByRole("region", { name: "Committed transcript" });
   await expect(transcript).toContainText("The first part");

@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
 import { installPausedClock } from "./pausedClock";
@@ -7,7 +8,7 @@ test.use({ locale: "en" });
 
 test("partial recovery keeps task ownership while retrying the failed task", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-task-recovery--partial-recovery&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-task-recovery--partial-recovery&viewMode=story`,
   );
   await expect(page.getByText("This task could not be restored. You can try again.")).toBeVisible();
   await expect(page.getByText("Connection closed", { exact: true })).toHaveCount(0);
@@ -62,7 +63,7 @@ for (const [state, label, enabled, diagnostics] of [
 ] as const) {
   test(`opens fixed ${state} task recovery directly`, async ({ page }) => {
     await page.goto(
-      `http://localhost:6006/iframe.html?id=feedback-task-recovery--${state}&viewMode=story`,
+      `${storybookOrigin}/iframe.html?id=feedback-task-recovery--${state}&viewMode=story`,
     );
     await expect(page.getByText("Task updates are paused", { exact: true })).toBeVisible();
     const restore = page.getByRole("button", {
@@ -80,7 +81,7 @@ test("fixed failure provides diagnostics and recovered state keeps content edita
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-task-recovery--failed&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-task-recovery--failed&viewMode=story`,
   );
   await expect(page.getByRole("alert")).toContainText(
     "This task could not be restored. You can try again.",
@@ -88,7 +89,7 @@ test("fixed failure provides diagnostics and recovered state keeps content edita
   await page.getByRole("button", { name: "View diagnostic information", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("STORYBOOK_TASK_RESTORE_FAILED");
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-task-recovery--recovered&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-task-recovery--recovered&viewMode=story`,
   );
   await expect(composer(page)).toHaveText("Retained draft one");
   await expect(composer(page)).toHaveAttribute("contenteditable", "true");
@@ -108,7 +109,7 @@ for (const { locale, width, colorScheme } of [
 
     test("reads long task diagnostics with keyboard focus restored on close", async ({ page }) => {
       await page.goto(
-        "http://localhost:6006/iframe.html?id=feedback-task-recovery--partial-recovery&viewMode=story",
+        `${storybookOrigin}/iframe.html?id=feedback-task-recovery--partial-recovery&viewMode=story`,
       );
       await expect(page.locator("html")).toHaveAttribute("data-theme", colorScheme);
       const trigger = page.getByRole("button", { name: diagnosticLabel, exact: true });
@@ -155,7 +156,7 @@ for (const { locale, width, colorScheme } of [
 
 test("restart during a successful retry discards its late result", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-task-recovery--partial-recovery&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-task-recovery--partial-recovery&viewMode=story`,
   );
   const restore = page.getByRole("button", { name: "Restore task", exact: true });
   const pending = page.getByRole("button", { name: "Restoring task…", exact: true });
@@ -185,7 +186,7 @@ test("restart during a successful retry discards its late result", async ({ page
 test("manager story switching isolates task recovery and discards pending results", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/?path=/story/feedback-task-recovery--partial-recovery");
+  await page.goto(`${storybookOrigin}/?path=/story/feedback-task-recovery--partial-recovery`);
   const preview = page.frameLocator("#storybook-preview-iframe");
   const restore = preview.getByRole("button", { name: "Restore task", exact: true });
   await expect(restore).toBeVisible();

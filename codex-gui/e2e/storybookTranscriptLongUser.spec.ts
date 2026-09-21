@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -8,7 +9,7 @@ for (const width of [375, 1280]) {
   }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(
-      "http://localhost:6006/iframe.html?id=transcript-long-user-message--long-user-message",
+      `${storybookOrigin}/iframe.html?id=transcript-long-user-message--long-user-message`,
     );
     const transcript = page.getByRole("region", { name: "Committed transcript" });
     await expect(transcript).toContainText("# A long user request");

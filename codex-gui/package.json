@@ -34,7 +34,7 @@
     "verify:storybook-isolation": "tsx scripts/storybookIsolation/artifacts.ts",
     "analyze:large-files": "tsx scripts/large-files/cli.ts",
     "clean:test-artifacts": "tsx scripts/clean-test-artifacts/cli.ts",
-    "storybook": "storybook dev -p 6006",
+    "storybook": "storybook dev -p 6006 --exact-port",
     "build-storybook": "storybook build"
   },
   "dependencies": {

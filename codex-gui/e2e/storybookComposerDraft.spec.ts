@@ -1,10 +1,11 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
 
 test("restored multi-paragraph skill draft remains editable and sendable", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-input-and-send-draft--restored-draft",
+    `${storybookOrigin}/iframe.html?id=composer-input-and-send-draft--restored-draft`,
   );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(editor).toContainText("Review this fictional change.");
@@ -26,7 +27,7 @@ test("failed saving retains edits and real Retry saving restores sending and per
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-input-and-send-draft--restored-draft",
+    `${storybookOrigin}/iframe.html?id=composer-input-and-send-draft--restored-draft`,
   );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
@@ -66,7 +67,7 @@ test("leaving and returning restores live text and skills while reset discards t
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-input-and-send-draft--restored-draft",
+    `${storybookOrigin}/iframe.html?id=composer-input-and-send-draft--restored-draft`,
   );
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await editor.focus();
@@ -120,9 +121,7 @@ test("leaving and returning restores live text and skills while reset discards t
 test("draft simulation keeps product actions without DEV and isolates story navigation", async ({
   page,
 }) => {
-  await page.goto(
-    "http://localhost:6006/?path=/story/composer-input-and-send-draft--restored-draft",
-  );
+  await page.goto(`${storybookOrigin}/?path=/story/composer-input-and-send-draft--restored-draft`);
   const preview = page.frameLocator("#storybook-preview-iframe");
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const failure = preview.getByText("Changes could not be saved", { exact: true });

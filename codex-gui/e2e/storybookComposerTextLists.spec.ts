@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test, type Page } from "@playwright/test";
 import { expectScrollableContent } from "./storybookTextAssertions";
 
@@ -48,7 +49,7 @@ for (const width of [375, 1280]) {
     test(`opens and resets the mixed ${lane} list at ${String(width)}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 720 });
       await page.goto(
-        `http://localhost:6006/iframe.html?id=composer-input-and-send-${lane}--${scenario.story}`,
+        `${storybookOrigin}/iframe.html?id=composer-input-and-send-${lane}--${scenario.story}`,
       );
       const dialog = page.getByRole("dialog");
       const rows = dialog.getByRole("group", { name: scenario.rows });
@@ -82,7 +83,7 @@ for (const width of [375, 1280]) {
   test(`historical unknown long list never resends at ${String(width)}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 720 });
     await page.goto(
-      "http://localhost:6006/iframe.html?id=composer-input-and-send-send--send-unknown-long-list",
+      `${storybookOrigin}/iframe.html?id=composer-input-and-send-send--send-unknown-long-list`,
     );
     const remove = page.getByRole("button", { name: "Remove local record", exact: true });
     const panel = page.getByRole("status").filter({ has: remove });
@@ -113,7 +114,7 @@ for (const width of [375, 1280]) {
     await expect(rows).toHaveCount(23);
     await expect(response).toBeDisabled();
     await page.goto(
-      "http://localhost:6006/iframe.html?id=composer-input-and-send-send--send-unknown-multiple-long-text",
+      `${storybookOrigin}/iframe.html?id=composer-input-and-send-send--send-unknown-multiple-long-text`,
     );
     await expect(remove).toHaveCount(3);
     await expect(page.getByText(/END OF Historical guide/)).toHaveCount(0);

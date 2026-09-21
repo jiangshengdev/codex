@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
 
@@ -6,7 +7,7 @@ test.use({ locale: "en" });
 test("environment simulation shares a DEV boundary without changing its controls", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=environment-stateful--empty");
+  await page.goto(`${storybookOrigin}/iframe.html?id=environment-stateful--empty`);
   const simulation = page.getByRole("group", { name: "DEV", exact: true }).filter({
     has: page.getByRole("button", { name: "Create read-model slot", exact: true }),
   });
@@ -19,7 +20,7 @@ test("environment simulation shares a DEV boundary without changing its controls
 });
 
 test("DEV badges stay on their borders in both themes and on narrow screens", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=environment-stateful--empty");
+  await page.goto(`${storybookOrigin}/iframe.html?id=environment-stateful--empty`);
   for (const theme of ["Light theme", "Dark theme"]) {
     await page.getByRole("radio", { name: theme, exact: true }).click();
     for (const width of [1280, 375]) {

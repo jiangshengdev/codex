@@ -1,3 +1,4 @@
+import { storybookHost, storybookOrigin } from "./servers";
 import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
 import { installPausedClock } from "./pausedClock";
@@ -7,7 +8,7 @@ test.use({ locale: "en" });
 
 test("sync retry preserves the paused conversation and other tasks", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-message-synchronization--backpressure&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-message-synchronization--backpressure&viewMode=story`,
   );
   await expect(page.getByText("Message synchronization paused", { exact: true })).toBeVisible();
   await expect(composer(page)).toHaveText("Retained draft one");
@@ -78,7 +79,7 @@ for (const [story, reason, explanation] of [
 ] as const) {
   test(`${story} explains the pause and exposes its diagnostic reason`, async ({ page }) => {
     await page.goto(
-      `http://localhost:6006/iframe.html?id=feedback-message-synchronization--${story}&viewMode=story`,
+      `${storybookOrigin}/iframe.html?id=feedback-message-synchronization--${story}&viewMode=story`,
     );
     const notice = page.getByRole("alert").filter({ hasText: "Message synchronization paused" });
     await expect(notice).toContainText(explanation);
@@ -95,7 +96,7 @@ test("direct recovery states preserve the conversation and enforce availability"
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-message-synchronization--restoring&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-message-synchronization--restoring&viewMode=story`,
   );
   await expect(page.getByRole("button", { name: "Restoring sync…", exact: true })).toHaveAttribute(
     "aria-disabled",
@@ -105,7 +106,7 @@ test("direct recovery states preserve the conversation and enforce availability"
   await expect(composer(page)).toHaveText("Retained draft one");
 
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-message-synchronization--connection-unavailable&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-message-synchronization--connection-unavailable&viewMode=story`,
   );
   const restore = page.getByRole("button", { name: "Restore sync", exact: true });
   await expect(restore).toBeDisabled();
@@ -113,7 +114,7 @@ test("direct recovery states preserve the conversation and enforce availability"
   await expect(composer(page)).toHaveAttribute("contenteditable", "false");
 
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-message-synchronization--failed&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-message-synchronization--failed&viewMode=story`,
   );
   await expect(
     page.getByText("Synchronization could not be restored. You can try again."),
@@ -135,7 +136,7 @@ test("direct recovery states preserve the conversation and enforce availability"
 
 test("restart discards a pending synchronization result", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=feedback-message-synchronization--backpressure&viewMode=story",
+    `${storybookOrigin}/iframe.html?id=feedback-message-synchronization--backpressure&viewMode=story`,
   );
   const restore = page.getByRole("button", { name: "Restore sync", exact: true });
   await expect(restore).toBeVisible();
@@ -168,16 +169,14 @@ test("switching synchronization stories discards pending results without busines
   page.on("websocket", (socket) => {
     const url = new URL(socket.url());
     if (
-      url.host !== "localhost:6006" ||
+      url.host !== storybookHost ||
       !["/", "/storybook-server-channel"].includes(url.pathname) ||
       !url.searchParams.has("token")
     ) {
       businessSockets.push(socket.url());
     }
   });
-  await page.goto(
-    "http://localhost:6006/?path=/story/feedback-message-synchronization--backpressure",
-  );
+  await page.goto(`${storybookOrigin}/?path=/story/feedback-message-synchronization--backpressure`);
   const preview = page.frameLocator("#storybook-preview-iframe");
   const restore = preview.getByRole("button", { name: "Restore sync", exact: true });
   await expect(restore).toBeVisible();
@@ -208,7 +207,7 @@ for (const locale of ["en", "zh-CN"] as const) {
       page,
     }) => {
       await page.goto(
-        "http://localhost:6006/iframe.html?id=feedback-message-synchronization--failed&viewMode=story",
+        `${storybookOrigin}/iframe.html?id=feedback-message-synchronization--failed&viewMode=story`,
       );
       const notice = page
         .getByRole("alert")

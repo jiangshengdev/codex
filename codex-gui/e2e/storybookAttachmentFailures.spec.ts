@@ -1,3 +1,4 @@
+import { storybookHost, storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -9,7 +10,7 @@ test.beforeEach(async ({ page }) => {
     if (["fetch", "xhr"].includes(request.resourceType())) {
       const url = new URL(request.url());
       expect(request.method()).toBe("GET");
-      expect(url.host).toBe("localhost:6006");
+      expect(url.host).toBe(storybookHost);
       expect(url.pathname).toMatch(/^\/(index\.json|project\.json|node_modules\/|@|src\/|sb-)/);
     }
     await route.continue();
@@ -19,7 +20,7 @@ test.beforeEach(async ({ page }) => {
 test("upload failure waits for manual retry and can fail again before succeeding", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-files--interactive");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-files--interactive`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
   const retry = page.getByRole("button", { name: "Retry upload review-notes.txt", exact: true });
@@ -82,7 +83,7 @@ for (const { story, message, details, name, retryable } of [
   },
 ]) {
   test(`${story} preset preserves its recovery rules after reset`, async ({ page }) => {
-    await page.goto(`http://localhost:6006/iframe.html?id=composer-attachments-failures--${story}`);
+    await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-failures--${story}`);
     const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
     await expect(editor).toContainText(message);
     await expect(editor.getByRole("status")).toHaveText(message);
@@ -111,7 +112,7 @@ for (const { story, message, details, name, retryable } of [
 }
 
 test("reset and story switching discard pending retries and failures", async ({ page }) => {
-  await page.goto("http://localhost:6006/?path=/story/composer-attachments-failures--upload");
+  await page.goto(`${storybookOrigin}/?path=/story/composer-attachments-failures--upload`);
   const preview = page.frameLocator("#storybook-preview-iframe");
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const retry = preview.getByRole("button", { name: "Retry upload review-notes.txt", exact: true });
@@ -142,9 +143,7 @@ test("reset and story switching discard pending retries and failures", async ({ 
 test("interrupted attachment ignores its old response and recovers by adding the file again", async ({
   page,
 }) => {
-  await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-attachments-failures--interrupted",
-  );
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-failures--interrupted`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(editor).toContainText("Upload interrupted");
   await page.getByRole("button", { name: "Complete upload review-notes.txt", exact: true }).click();
@@ -158,7 +157,7 @@ test("interrupted attachment ignores its old response and recovers by adding the
 });
 
 test("local HEIC selection uploads as an ordinary file", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-files--interactive");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-files--interactive`);
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Attach files", exact: true }).click();
   await (
@@ -188,7 +187,7 @@ test("local HEIC selection uploads as an ordinary file", async ({ page }) => {
 });
 
 test("image-as-file preset shows an uploaded ordinary file after reset", async ({ page }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-attachments-files--image-as-file");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-attachments-files--image-as-file`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(editor).toContainText("sample.svg");
   await expect(editor.getByRole("status")).toHaveText("Uploaded");

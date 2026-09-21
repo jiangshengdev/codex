@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -33,7 +34,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function openStory(page: Page, story: string) {
-  await page.goto(`http://localhost:6006/iframe.html?id=transcript-rich-content--${story}`);
+  await page.goto(`${storybookOrigin}/iframe.html?id=transcript-rich-content--${story}`);
   await expect(page.getByRole("main")).toBeVisible();
 }
 

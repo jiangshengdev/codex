@@ -1,3 +1,4 @@
+import { storybookHost, storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 declare global {
@@ -9,7 +10,7 @@ test.use({ locale: "en" });
 test("preserves edits and order across priority delivery and ordinary recovery", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-recovery--combined");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--combined`);
   const openQueue = page
     .getByRole("group", { name: "Pending: Queued 3", exact: true })
     .getByRole("button", { name: "Queued 3", exact: true });
@@ -115,7 +116,7 @@ test("same-page navigation and reset discard pending work without product connec
     const url = new URL(request.url());
     const storybookAsset =
       request.method() === "GET" &&
-      url.host === "localhost:6006" &&
+      url.host === storybookHost &&
       (url.pathname === "/index.json" ||
         url.pathname === "/project.json" ||
         url.pathname.startsWith("/node_modules/") ||
@@ -127,12 +128,12 @@ test("same-page navigation and reset discard pending work without product connec
   page.on("websocket", (socket) => {
     const url = new URL(socket.url());
     const storybookSocket =
-      url.host === "localhost:6006" &&
+      url.host === storybookHost &&
       (url.pathname === "/" || url.pathname === "/storybook-server-channel") &&
       url.searchParams.has("token");
     if (!storybookSocket) businessSockets.push(socket.url());
   });
-  await page.goto("http://localhost:6006/?path=/story/composer-pending-input-recovery--unsent");
+  await page.goto(`${storybookOrigin}/?path=/story/composer-pending-input-recovery--unsent`);
   const preview = page.frameLocator("#storybook-preview-iframe");
   const resume = preview.getByRole("button", { name: "Continue sending", exact: true });
   const restarting = preview.getByRole("button", { name: "Restart simulation", exact: true });
@@ -184,7 +185,7 @@ test.describe("Chinese narrow preview", () => {
     page,
   }) => {
     await page.goto(
-      "http://localhost:6006/iframe.html?id=composer-pending-input-browsing--both-lanes",
+      `${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--both-lanes`,
     );
     await page.getByRole("radio", { name: "深色主题", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");

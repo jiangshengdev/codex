@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 import { expectScrollableContent } from "./storybookTextAssertions";
 
@@ -7,7 +8,7 @@ for (const width of [375, 1280]) {
   test(`directly displays sortable mixed text at ${String(width)}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 720 });
     await page.goto(
-      "http://localhost:6006/iframe.html?id=composer-pending-input-reordering--mixed-text",
+      `${storybookOrigin}/iframe.html?id=composer-pending-input-reordering--mixed-text`,
     );
     const dialog = page.getByRole("dialog");
     const rows = dialog.getByRole("group", { name: /^Ordinary message / });
@@ -35,7 +36,7 @@ test("moves queued messages immediately with all four actions and preserves boun
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-reordering--interactive",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-reordering--interactive`,
   );
   const trigger = page
     .getByRole("group", { name: "Pending: Queued 3", exact: true })
@@ -122,7 +123,7 @@ test("preserves lane membership and loaded pages when moving across a page bound
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-reordering--paged-lanes",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-reordering--paged-lanes`,
   );
   const trigger = page
     .getByRole("group", { name: "Pending: Guide 3, Queued 23", exact: true })
@@ -161,14 +162,12 @@ test("preserves lane membership and loaded pages when moving across a page bound
   await trigger.click();
   await expect(queued.first()).toHaveAccessibleName("Ordinary message 1");
   await expect(queued).toHaveCount(20);
-  await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-reordering--read-only",
-  );
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-reordering--read-only`);
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("group", { name: /^Ordinary message / })).toHaveCount(3);
   await expect(dialog.getByRole("button", { name: /^Move |^More move options/ })).toHaveCount(0);
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-reordering--interactive",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-reordering--interactive`,
   );
   await page
     .getByRole("group", { name: "Pending: Queued 3", exact: true })
@@ -182,7 +181,7 @@ test("distinguishes a rejected move from a completed move whose refreshed list c
   page,
 }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-reordering--not-applied",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-reordering--not-applied`,
   );
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("alert")).toContainText("Pending message was not reordered");
@@ -199,7 +198,7 @@ test("distinguishes a rejected move from a completed move whose refreshed list c
   await expect(dialog.getByRole("alert")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-reordering--refresh-failed",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-reordering--refresh-failed`,
   );
   await expect(dialog.getByRole("alert")).toContainText(
     "Updated pending order could not be loaded",

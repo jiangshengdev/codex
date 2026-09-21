@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
@@ -8,7 +9,7 @@ for (const width of [375, 1280]) {
   }) => {
     await page.setViewportSize({ width, height: 720 });
     await page.goto(
-      "http://localhost:6006/iframe.html?id=composer-pending-input-editing--mixed-text-editing",
+      `${storybookOrigin}/iframe.html?id=composer-pending-input-editing--mixed-text-editing`,
     );
     const editor = page.getByRole("combobox", { name: "Edit pending message", exact: true });
     await expect(editor).toBeVisible();
@@ -35,7 +36,7 @@ for (const width of [375, 1280]) {
   }) => {
     await page.setViewportSize({ width, height: 720 });
     await page.goto(
-      "http://localhost:6006/iframe.html?id=composer-pending-input-editing--mixed-text-retained",
+      `${storybookOrigin}/iframe.html?id=composer-pending-input-editing--mixed-text-retained`,
     );
     const retained = page.getByRole("textbox", { name: "Unsaved pending message", exact: true });
     await expect(retained).toHaveValue(/Ordinary message 1\n[\s\S]+\n\nEND OF Ordinary message 1$/);
@@ -64,7 +65,7 @@ for (const width of [375, 1280]) {
   }) => {
     await page.setViewportSize({ width, height: 720 });
     await page.goto(
-      "http://localhost:6006/iframe.html?id=composer-pending-input-editing--mixed-text-delete-confirmation",
+      `${storybookOrigin}/iframe.html?id=composer-pending-input-editing--mixed-text-delete-confirmation`,
     );
     const target = page.getByRole("group", { name: /^Ordinary message 1(?:\s|$)/ });
     await expect(target).toContainText("Delete this pending message?");
@@ -94,7 +95,7 @@ for (const width of [375, 1280]) {
   }) => {
     await page.setViewportSize({ width, height: 720 });
     await page.goto(
-      "http://localhost:6006/iframe.html?id=composer-pending-input-editing--mixed-text-discard-confirmation",
+      `${storybookOrigin}/iframe.html?id=composer-pending-input-editing--mixed-text-discard-confirmation`,
     );
     const confirmation = page.getByRole("alertdialog");
     await expect(confirmation).toContainText("Discard unsaved changes?");
@@ -123,9 +124,7 @@ for (const width of [375, 1280]) {
 }
 
 test("edits queued text without replacing the main draft", async ({ page }) => {
-  await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-editing--interactive",
-  );
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-editing--interactive`);
   await page
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
     .getByRole("button", { name: "Queued 1", exact: true })
@@ -146,9 +145,7 @@ test("edits queued text without replacing the main draft", async ({ page }) => {
 });
 
 test("retains failed edits, reports clipboard results, and confirms discard", async ({ page }) => {
-  await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-editing--interactive",
-  );
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-editing--interactive`);
   await page
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
     .getByRole("button", { name: "Queued 1", exact: true })
@@ -220,9 +217,7 @@ test("retains failed edits, reports clipboard results, and confirms discard", as
 });
 
 test("cancels edits and keeps or deletes the final queued message", async ({ page }) => {
-  await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-editing--interactive",
-  );
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-editing--interactive`);
   await page
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
     .getByRole("button", { name: "Queued 1", exact: true })
@@ -261,7 +256,7 @@ test("cancels edits and keeps or deletes the final queued message", async ({ pag
 
 test("preserves a guiding edit when its target turn closes", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-editing--guiding-target",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-editing--guiding-target`,
   );
   await page
     .getByRole("group", { name: "Pending: Guide 2", exact: true })
@@ -299,7 +294,7 @@ test("preserves a guiding edit when its target turn closes", async ({ page }) =>
 
 test("shows the injected sending conflict without entering an editor", async ({ page }) => {
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-editing--sending-conflict",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-editing--sending-conflict`,
   );
   await page
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
@@ -318,7 +313,7 @@ test("shows the injected sending conflict without entering an editor", async ({ 
 test("opens editing, deletion confirmation, and retained content as independent states", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-editing--editing");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-editing--editing`);
   await expect(
     page.getByRole("combobox", { name: "Edit pending message", exact: true }),
   ).toBeVisible();
@@ -329,14 +324,14 @@ test("opens editing, deletion confirmation, and retained content as independent 
     page.getByRole("combobox", { name: "Edit pending message", exact: true }),
   ).toBeVisible();
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-editing--delete-confirmation",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-editing--delete-confirmation`,
   );
   await expect(page.getByText("Delete this pending message?", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Keep", exact: true }).click();
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Restart simulation", exact: true }).click();
   await expect(page.getByText("Delete this pending message?", { exact: true })).toBeVisible();
-  await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-editing--retained");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-editing--retained`);
   await expect(
     page.getByRole("textbox", { name: "Unsaved pending message", exact: true }),
   ).toHaveValue("Ordinary message 1");

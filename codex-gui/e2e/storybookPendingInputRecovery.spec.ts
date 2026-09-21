@@ -1,3 +1,4 @@
+import { storybookOrigin } from "./servers";
 import { expect, test, type Page } from "@playwright/test";
 import { expectScrollableContent } from "./storybookTextAssertions";
 
@@ -96,7 +97,7 @@ for (const width of [375, 1280]) {
   for (const { preset, count, detailIndex, assertState, inspectAfterQueue } of mixedRecoveryCases) {
     test(`previews mixed-text ${preset} recovery at ${String(width)}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 720 });
-      const url = `http://localhost:6006/iframe.html?id=composer-pending-input-recovery--mixed-text-${preset}`;
+      const url = `${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--mixed-text-${preset}`;
       const assertInitial = async () => {
         await expect(page.getByRole("dialog")).toHaveCount(0);
         await expect(
@@ -114,9 +115,7 @@ for (const width of [375, 1280]) {
       await assertInitial();
       await page.reload();
       await assertInitial();
-      await page.goto(
-        "http://localhost:6006/iframe.html?id=composer-pending-input-recovery--guiding",
-      );
+      await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guiding`);
       await expect(
         page.getByRole("group", { name: "Pending: Guide 1, Queued 3", exact: true }),
       ).toBeVisible();
@@ -136,7 +135,7 @@ for (const width of [375, 1280]) {
 test("keeps guide delivery unknown until reset without promoting it to priority", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-recovery--guiding");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guiding`);
   await expect(
     page.getByRole("button", { name: "Simulate guide unknown", exact: true }),
   ).toBeEnabled();
@@ -159,7 +158,7 @@ test("keeps guide delivery unknown until reset without promoting it to priority"
 test("recovers a definite send failure manually and can retry another failure", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-recovery--unsent");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--unsent`);
   await expect(page.getByText("1 message has not been sent", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continue sending", exact: true }).click();
   await expect(page.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(0);
@@ -193,7 +192,7 @@ test("recovers a definite send failure manually and can retry another failure", 
 test("distinguishes accepted guidance from priority fallback and exposes recovery presets", async ({
   page,
 }) => {
-  await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-recovery--guiding");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guiding`);
   await page.getByRole("button", { name: "Simulate guide success", exact: true }).click();
   await expect(
     page
@@ -215,32 +214,30 @@ test("distinguishes accepted guidance from priority fallback and exposes recover
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
   await expect(page.getByText("Guide message 1", { exact: true })).toBeVisible();
-  await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-recovery--priority");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--priority`);
   await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-recovery--guide-unknown",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guide-unknown`,
   );
   await expect(page.getByText("Guide status unknown", { exact: true })).toBeVisible();
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-recovery--guide-accepted",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guide-accepted`,
   );
   await expect(
     page.getByRole("button", { name: "Simulate guide runtime confirmation", exact: true }),
   ).toBeEnabled();
   await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-recovery--recovery-disabled",
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--recovery-disabled`,
   );
   await expect(page.getByRole("button", { name: "Continue sending", exact: true })).toBeDisabled();
-  await page.goto(
-    "http://localhost:6006/iframe.html?id=composer-pending-input-recovery--recovering",
-  );
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--recovering`);
   await expect(page.getByRole("button", { name: "Resuming sending", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Release recovery display", exact: true }).click();
   await expect(page.getByRole("button", { name: "Resuming sending", exact: true })).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Simulate send response", exact: true }),
   ).toBeEnabled();
-  await page.goto("http://localhost:6006/iframe.html?id=composer-pending-input-recovery--combined");
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--combined`);
   await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
   await page
     .getByRole("group", { name: "Pending: Queued 3", exact: true })
