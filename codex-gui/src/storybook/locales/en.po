@@ -91,6 +91,10 @@ msgstr "Local simulation. Requests and runtime events advance only when you use 
 msgid "Local simulation. The composer is unmounted; its saved draft is kept until you return or restart the simulation."
 msgstr "Local simulation. The composer is unmounted; its saved draft is kept until you return or restart the simulation."
 
+#: src/storybook/transcript/TranscriptReplayPreview.tsx:74
+msgid "Local transcript replay. No model, tool or upload requests are made."
+msgstr "Local transcript replay. No model, tool or upload requests are made."
+
 #. Accessible name for the separate main composer draft in the pending-input Storybook simulation
 #: src/storybook/pendingInput/PendingInputScenarioView.tsx:88
 msgid "Main draft"
@@ -100,6 +104,21 @@ msgstr "Main draft"
 #: src/storybook/Stateful.stories.tsx:50
 msgid "Navigate to details"
 msgstr "Navigate to details"
+
+#. Advances one fixed frame in the Storybook transcript timeline
+#: src/storybook/transcript/TranscriptReplayPreview.tsx:106
+msgid "Next step"
+msgstr "Next step"
+
+#. Pauses the Storybook transcript timeline
+#: src/storybook/transcript/TranscriptReplayPreview.tsx:85
+msgid "Pause replay"
+msgstr "Pause replay"
+
+#. Plays the Storybook transcript timeline
+#: src/storybook/transcript/TranscriptReplayPreview.tsx:87
+msgid "Play replay"
+msgstr "Play replay"
 
 #. Storybook environment check: count is the number of Redux read-model slots; pathname is an isolated preview route.
 #: src/storybook/Stateful.stories.tsx:23
@@ -114,6 +133,11 @@ msgstr "Release recovery display"
 #: src/storybook/composer/ComposerAttachmentsPreview.tsx:249
 msgid "Removed; a late result must not restore this attachment."
 msgstr "Removed; a late result must not restore this attachment."
+
+#. Returns the Storybook transcript timeline to its first frame
+#: src/storybook/transcript/TranscriptReplayPreview.tsx:127
+msgid "Reset replay"
+msgstr "Reset replay"
 
 #. The request succeeded but the simulated runtime acceptance event has not been injected
 #: src/storybook/composer/ComposerPreview.tsx:182
@@ -275,6 +299,11 @@ msgstr "Simulate target turn closed"
 #: src/storybook/pendingInput/PendingInputScenarioView.tsx:254
 msgid "Simulation is idle"
 msgstr "Simulation is idle"
+
+#. Current frame number and last frame number in the Storybook timeline
+#: src/storybook/transcript/TranscriptReplayPreview.tsx:133
+msgid "Step {step} / {lastStep}"
+msgstr "Step {step} / {lastStep}"
 
 #: src/storybook/pendingInput/editing/PendingInputEditingPreview.tsx:118
 msgid "This control injects a lost editing-session result for previewing content protection."
