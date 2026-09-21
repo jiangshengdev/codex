@@ -2,7 +2,7 @@ import { storybookOrigin } from "./servers";
 import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
 import { installPausedClock } from "./pausedClock";
-import { composer } from "./persistenceHarness";
+import { composer } from "../e2e/persistenceHarness";
 
 test.use({ locale: "en" });
 

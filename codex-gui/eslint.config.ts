@@ -84,7 +84,7 @@ export default [
     },
     {
       ...playwrightPlugin.configs["flat/recommended"],
-      files: ["e2e/**/*.{test,spec}.{js,ts,jsx,tsx}"],
+      files: ["{e2e,storybook-tests}/**/*.{test,spec}.{js,ts,jsx,tsx}"],
     },
     {
       ...vitestPlugin.configs.recommended,
