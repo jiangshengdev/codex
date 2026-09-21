@@ -1,8 +1,8 @@
 import { Button, Toast } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { StrictMode, useState, useSyncExternalStore } from "react";
-import { DevOnly } from "../DevOnly";
-import { PendingInputPreview } from "../pendingInput/PendingInputScenarioView";
+import { DevOnly } from "../environment/DevOnly";
+import { PendingInputPreview } from "./pendingInput/PendingInputScenarioView";
 import { ComposerSimulation } from "./ComposerPreview";
 import { createComposerDraftScenario } from "./composerDraftScenario";
 import type { ComposerScenario } from "./composerScenario";

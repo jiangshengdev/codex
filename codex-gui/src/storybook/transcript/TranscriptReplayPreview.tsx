@@ -10,7 +10,7 @@ import {
 import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
 import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
-import { DevOnly } from "../DevOnly";
+import { DevOnly } from "../environment/DevOnly";
 import type { TranscriptReplay } from "./messageReplay";
 
 const identity = {

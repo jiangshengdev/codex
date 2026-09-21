@@ -2,7 +2,7 @@ import { Button } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { useState } from "react";
 import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
-import { DevOnly } from "../DevOnly";
+import { DevOnly } from "../environment/DevOnly";
 import { TranscriptImageEnvironment } from "./TranscriptImageEnvironment";
 import { TranscriptReplayPreview } from "./TranscriptReplayPreview";
 import { mixedReplay } from "./mixedReplay";

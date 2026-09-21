@@ -8,7 +8,7 @@ import { createComposerInputQueue } from "@/features/composerInputQueue/composer
 import { createComposerInterruptState } from "@/features/composerInputQueue/composerInterruptState";
 import { createComposerScenario } from "./composerScenario";
 import { composerLongSendText } from "./composerLongSendText";
-import { mixedMessageText } from "../mixedMessageText";
+import { mixedMessageText } from "../shared/mixedMessageText";
 
 export function createComposerUnknownMultipleScenario(longText = false, longList = false) {
   const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "preview-history" });

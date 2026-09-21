@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { addons, types } from "storybook/manager-api";
-import { DEV_VISIBILITY_ADDON } from "../src/storybook/devVisibility";
+import { DEV_VISIBILITY_ADDON } from "../src/storybook/environment/devVisibility";
 import { DevVisibilityTool } from "./DevVisibilityTool";
 
 addons.register(DEV_VISIBILITY_ADDON, () => {

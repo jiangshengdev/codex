@@ -1,6 +1,6 @@
 import { Toast } from "@heroui/react";
 import { StrictMode } from "react";
-import { PendingInputPreview } from "../pendingInput/PendingInputScenarioView";
+import { PendingInputPreview } from "./pendingInput/PendingInputScenarioView";
 import { ComposerSimulation } from "./ComposerPreview";
 import { createComposerSendScenario, type ComposerSendPreset } from "./composerSendScenario";
 

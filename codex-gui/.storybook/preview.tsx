@@ -1,5 +1,5 @@
 import type { Preview } from "@storybook/tanstack-react";
-import { StorybookEnvironment } from "../src/storybook/StorybookEnvironment";
+import { StorybookEnvironment } from "../src/storybook/environment/StorybookEnvironment";
 import "./storybook.css";
 import "./preview.css";
 

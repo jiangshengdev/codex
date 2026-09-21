@@ -4,7 +4,7 @@ import { useAppDispatch } from "@/app/hooks";
 import { AppCapabilitiesContext } from "@/features/appShell/AppCapabilities";
 import { AppShell } from "@/features/appShell/AppShell";
 import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
-import { PendingInputPreview } from "../pendingInput/PendingInputScenarioView";
+import { PendingInputPreview } from "../composer/pendingInput/PendingInputScenarioView";
 import { createRecoveryPageScenario, type RecoveryPageSetup } from "./recoveryPageScenario";
 
 function RecoveryPage({

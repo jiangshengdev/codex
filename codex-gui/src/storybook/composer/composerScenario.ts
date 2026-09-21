@@ -3,7 +3,7 @@ import type { SkillCatalogCandidate } from "@/features/skillCatalog/skillCatalog
 import {
   createPendingInputScenario,
   type PendingInputScenarioOptions,
-} from "../pendingInput/pendingInputScenario";
+} from "./pendingInput/pendingInputScenario";
 
 export const previewSkill: SkillCatalogCandidate = {
   name: "preview-review",

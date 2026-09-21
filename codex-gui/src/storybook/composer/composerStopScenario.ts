@@ -1,5 +1,5 @@
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
-import { definiteFailure } from "../pendingInput/recovery/recoveryScenario";
+import { definiteFailure } from "./pendingInput/recovery/recoveryScenario";
 import { createComposerScenario } from "./composerScenario";
 
 export type ComposerStopPreset = "running" | "requestPending" | "accepted" | "unknown" | "failed";
