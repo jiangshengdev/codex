@@ -1,6 +1,6 @@
 import { createComposerScenario, type ComposerScenario } from "./composerScenario";
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
-import { mixedMessageText } from "../mixedMessageText";
+import { mixedMessageText } from "../shared/mixedMessageText";
 
 export function createComposerQueueScenario(longList = false) {
   const records = new Map<string, string>();

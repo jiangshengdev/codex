@@ -7,12 +7,12 @@ import {
   itemStarted,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import { DevOnly } from "../DevOnly";
-import { PendingInputPreview } from "../pendingInput/PendingInputScenarioView";
-import { definiteFailure, guideRefusal } from "../pendingInput/recovery/recoveryScenario";
+import { DevOnly } from "../environment/DevOnly";
+import { PendingInputPreview } from "./pendingInput/PendingInputScenarioView";
+import { definiteFailure, guideRefusal } from "./pendingInput/recovery/recoveryScenario";
 import { ComposerSimulation } from "./ComposerPreview";
 import { createComposerGuideScenario, type ComposerGuidePreset } from "./composerGuideScenario";
-import { PendingInputBrowsingInitialState } from "../pendingInput/PendingInputBrowsingInitialState";
+import { PendingInputBrowsingInitialState } from "./pendingInput/PendingInputBrowsingInitialState";
 
 function GuideControls({
   scenario,

@@ -1,6 +1,6 @@
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import { baseTurn } from "@/features/projection/__tests__/projectionTestBuilders";
-import { definiteFailure } from "../pendingInput/recovery/recoveryScenario";
+import { definiteFailure } from "./pendingInput/recovery/recoveryScenario";
 import { createComposerScenario } from "./composerScenario";
 import { createComposerUnknownMultipleScenario } from "./composerUnknownMultipleScenario";
 import { composerLongSendText } from "./composerLongSendText";

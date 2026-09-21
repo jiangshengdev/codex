@@ -1,7 +1,7 @@
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
-import { definiteFailure, guideRefusal } from "../pendingInput/recovery/recoveryScenario";
+import { definiteFailure, guideRefusal } from "./pendingInput/recovery/recoveryScenario";
 import { createComposerScenario } from "./composerScenario";
-import { mixedMessageText } from "../mixedMessageText";
+import { mixedMessageText } from "../shared/mixedMessageText";
 
 export type ComposerGuidePreset =
   | "empty"

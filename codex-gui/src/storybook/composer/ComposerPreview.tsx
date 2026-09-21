@@ -4,9 +4,9 @@ import { StrictMode, useState, useSyncExternalStore, type ReactNode } from "reac
 import type { ActiveThreadSessionSnapshot } from "@/features/activeThreadSession/activeThreadSession";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
 import { baseTurn } from "@/features/projection/__tests__/projectionTestBuilders";
-import { DevOnly } from "../DevOnly";
-import { PendingInputPreview } from "../pendingInput/PendingInputScenarioView";
-import { definiteFailure } from "../pendingInput/recovery/recoveryScenario";
+import { DevOnly } from "../environment/DevOnly";
+import { PendingInputPreview } from "./pendingInput/PendingInputScenarioView";
+import { definiteFailure } from "./pendingInput/recovery/recoveryScenario";
 import { createComposerScenario, previewSkill, type ComposerScenario } from "./composerScenario";
 import { createComposerTextScenario } from "./composerTextScenario";
 
