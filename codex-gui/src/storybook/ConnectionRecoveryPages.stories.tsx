@@ -5,7 +5,8 @@ import { StorybookStatefulEnvironment } from "./StorybookStatefulEnvironment";
 import { statefulPreviewRouteTree } from "./statefulPreviewRouter";
 
 const meta = {
-  title: "Feedback/Connection recovery/Pages",
+  id: "feedback-connection-recovery-pages",
+  title: "Recovery/Connection recovery/Pages",
   component: RecoveryPagePreview,
   parameters: {
     docs: {

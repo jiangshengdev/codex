@@ -4,7 +4,8 @@ import { ComposerDraftPreview } from "./composer/ComposerDraftPreview";
 
 const meta = {
   ...composerMeta,
-  title: "Composer/Input and send/Draft",
+  id: "composer-input-and-send-draft",
+  title: "Composer/Input and drafts/Draft",
 } satisfies Meta<typeof composerMeta.component>;
 export default meta;
 type Story = StoryObj<typeof meta>;

@@ -15,7 +15,8 @@ const paused =
     return Promise.resolve();
   };
 const meta = {
-  title: "Feedback/Message synchronization",
+  id: "feedback-message-synchronization",
+  title: "Recovery/Message synchronization/States",
   component: RecoveryPagePreview,
   parameters: {
     docs: {

@@ -44,7 +44,7 @@ export const MixedTextGuideUnknown: Story = {
     docs: {
       description: {
         story:
-          "23 guides and 23 ordinary messages. The first guide has an unknown result, blocking further guide dispatch. Open the real paged queue for mixed-text details; the shared full unknown-record panel is covered under Input and send / Send.",
+          "23 guides and 23 ordinary messages. The first guide has an unknown result, blocking further guide dispatch. Open the real paged queue for mixed-text details; the shared full unknown-record panel is covered under Send controls / Send.",
       },
     },
   },

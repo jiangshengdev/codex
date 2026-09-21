@@ -3,7 +3,8 @@ import { StorybookStatefulEnvironment } from "./StorybookStatefulEnvironment";
 import { ImageContentPreview } from "./transcript/ImageContentPreview";
 
 const meta = {
-  title: "Transcript/Images",
+  id: "transcript-images",
+  title: "Transcript/Rich content/Images",
   component: ImageContentPreview,
   parameters: { layout: "fullscreen" },
   decorators: [

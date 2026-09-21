@@ -4,7 +4,8 @@ import { ComposerStopPreview } from "./composer/ComposerStopPreview";
 
 const meta = {
   ...composerMeta,
-  title: "Composer/Input and send/Stop",
+  id: "composer-input-and-send-stop",
+  title: "Composer/Send controls/Stop",
 } satisfies Meta<typeof composerMeta.component>;
 export default meta;
 type Story = StoryObj<typeof meta>;

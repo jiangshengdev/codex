@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from "@storybook/tanstack-react";
 import { ConnectionRecoverySimulation } from "./ConnectionRecoverySimulation";
 
 const meta = {
-  title: "Feedback/Connection recovery/Interactions",
+  id: "feedback-connection-recovery-interactions",
+  title: "Recovery/Connection recovery/Interactions",
   component: ConnectionRecoverySimulation,
   parameters: {
     docs: {

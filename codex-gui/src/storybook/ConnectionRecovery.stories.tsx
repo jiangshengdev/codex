@@ -23,7 +23,8 @@ const recoveryPresets = {
 } satisfies Record<string, ComponentProps<typeof ConnectionRecoveryNotice>["recovery"]>;
 
 const meta = {
-  title: "Feedback/Connection recovery/States",
+  id: "feedback-connection-recovery-states",
+  title: "Recovery/Connection recovery/States",
   component: ConnectionRecoveryNotice,
   tags: ["autodocs"],
   parameters: {

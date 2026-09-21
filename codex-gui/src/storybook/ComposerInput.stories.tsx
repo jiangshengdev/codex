@@ -3,7 +3,8 @@ import { composerMeta } from "./composer/composerMeta";
 
 const meta = {
   ...composerMeta,
-  title: "Composer/Input and send/Input",
+  id: "composer-input-and-send-input",
+  title: "Composer/Input and drafts/Input",
 } satisfies Meta<typeof composerMeta.component>;
 export default meta;
 type Story = StoryObj<typeof meta>;

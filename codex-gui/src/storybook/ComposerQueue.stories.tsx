@@ -4,7 +4,8 @@ import { ComposerQueuePreview } from "./composer/ComposerQueuePreview";
 
 const meta = {
   ...composerMeta,
-  title: "Composer/Input and send/Queue",
+  id: "composer-input-and-send-queue",
+  title: "Composer/Send controls/Queue",
 } satisfies Meta<typeof composerMeta.component>;
 export default meta;
 type Story = StoryObj<typeof meta>;

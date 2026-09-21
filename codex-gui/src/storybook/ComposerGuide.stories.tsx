@@ -4,7 +4,8 @@ import { ComposerGuidePreview } from "./composer/ComposerGuidePreview";
 
 const meta = {
   ...composerMeta,
-  title: "Composer/Input and send/Guide",
+  id: "composer-input-and-send-guide",
+  title: "Composer/Send controls/Guide",
 } satisfies Meta<typeof composerMeta.component>;
 export default meta;
 type Story = StoryObj<typeof meta>;

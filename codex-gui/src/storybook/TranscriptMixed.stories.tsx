@@ -3,7 +3,8 @@ import { StorybookStatefulEnvironment } from "./StorybookStatefulEnvironment";
 import { MixedTranscriptPreview } from "./transcript/MixedTranscriptPreview";
 
 const meta = {
-  title: "Transcript/Mixed",
+  id: "transcript-mixed",
+  title: "Transcript/Rich content/Mixed",
   component: MixedTranscriptPreview,
   parameters: { layout: "fullscreen" },
   decorators: [

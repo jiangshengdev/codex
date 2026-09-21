@@ -3,7 +3,8 @@ import { StorybookStatefulEnvironment } from "./StorybookStatefulEnvironment";
 import { ActivityPreview } from "./transcript/ActivityPreview";
 
 const meta = {
-  title: "Transcript/Activity",
+  id: "transcript-activity",
+  title: "Transcript/Execution/Activity",
   component: ActivityPreview,
   parameters: { layout: "fullscreen" },
   decorators: [

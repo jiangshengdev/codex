@@ -56,7 +56,8 @@ function StatefulPreview() {
 }
 
 const meta = {
-  title: "Environment/Stateful",
+  id: "environment-stateful",
+  title: "Environment/Stateful/Store and router",
   component: StatefulPreview,
   parameters: {
     tanstack: { router: { route: statefulPreviewRouteTree, path: "/" } },

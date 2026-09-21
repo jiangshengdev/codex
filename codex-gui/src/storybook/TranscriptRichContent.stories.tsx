@@ -3,7 +3,8 @@ import { StorybookStatefulEnvironment } from "./StorybookStatefulEnvironment";
 import { RichContentPreview } from "./transcript/RichContentPreview";
 
 const meta = {
-  title: "Transcript/Rich content",
+  id: "transcript-rich-content",
+  title: "Transcript/Rich content/Formatting",
   component: RichContentPreview,
   parameters: { layout: "fullscreen" },
   decorators: [

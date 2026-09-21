@@ -3,7 +3,8 @@ import { StorybookStatefulEnvironment } from "./StorybookStatefulEnvironment";
 import { LongUserMessagePreview } from "./transcript/LongUserMessagePreview";
 
 const meta = {
-  title: "Transcript/Long user message",
+  id: "transcript-long-user-message",
+  title: "Transcript/Basic messages/Long user message",
   component: LongUserMessagePreview,
   parameters: { layout: "fullscreen" },
   decorators: [

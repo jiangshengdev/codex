@@ -4,7 +4,8 @@ import { ComposerSendPreview } from "./composer/ComposerSendPreview";
 
 const meta = {
   ...composerMeta,
-  title: "Composer/Input and send/Send",
+  id: "composer-input-and-send-send",
+  title: "Composer/Send controls/Send",
 } satisfies Meta<typeof composerMeta.component>;
 export default meta;
 type Story = StoryObj<typeof meta>;

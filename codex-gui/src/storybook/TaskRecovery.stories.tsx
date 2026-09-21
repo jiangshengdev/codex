@@ -15,7 +15,8 @@ const partialRecovery: RecoveryPageSetup = async (controller, host) => {
 };
 
 const meta = {
-  title: "Feedback/Task recovery",
+  id: "feedback-task-recovery",
+  title: "Recovery/Task recovery/States",
   component: RecoveryPagePreview,
   parameters: {
     docs: {

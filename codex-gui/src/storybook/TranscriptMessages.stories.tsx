@@ -3,7 +3,8 @@ import { StorybookStatefulEnvironment } from "./StorybookStatefulEnvironment";
 import { BasicMessagePreview } from "./transcript/BasicMessagePreview";
 
 const meta = {
-  title: "Transcript/Messages",
+  id: "transcript-messages",
+  title: "Transcript/Basic messages/Messages",
   component: BasicMessagePreview,
   parameters: { layout: "fullscreen" },
   decorators: [
