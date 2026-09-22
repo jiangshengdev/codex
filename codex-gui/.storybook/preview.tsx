@@ -5,8 +5,8 @@ import "./preview.css";
 
 const preview: Preview = {
   decorators: [
-    (Story) => (
-      <StorybookEnvironment>
+    (Story, context) => (
+      <StorybookEnvironment hasFixedHeader={context.parameters.hasFixedHeader === true}>
         <Story />
       </StorybookEnvironment>
     ),

@@ -45,7 +45,7 @@ msgstr "Create read-model slot"
 
 #. A simulated assistant turn blocks automatic dispatch of ordinary queued messages
 #: src/storybook/composer/ComposerPreview.tsx:184
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:250
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:252
 msgid "Current turn is running"
 msgstr "Current turn is running"
 
@@ -146,13 +146,13 @@ msgstr "Reset replay"
 
 #. The request succeeded but the simulated runtime acceptance event has not been injected
 #: src/storybook/composer/ComposerPreview.tsx:182
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:242
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:244
 msgid "Response received; waiting for runtime confirmation"
 msgstr "Response received; waiting for runtime confirmation"
 
 #. Reset the local pending-input Storybook scenario to its initial state
 #. Storybook control that resets the local connection recovery demo
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:135
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:137
 #: src/storybook/recovery/ConnectionRecoverySimulation.tsx:41
 msgid "Restart simulation"
 msgstr "Restart simulation"
@@ -168,23 +168,23 @@ msgid "Restore simulated storage"
 msgstr "Restore simulated storage"
 
 #. The preview injected the runtime acceptance event for the queued message
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:246
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:248
 msgid "Runtime confirmation received"
 msgstr "Runtime confirmation received"
 
 #: src/storybook/recovery/RecoveryPagePreview.tsx:43
-msgid "Scroll down to observe the fixed menu and recovery notices. Open the menu at different scroll positions to inspect its placement over the page content."
-msgstr "Scroll down to observe the fixed menu and recovery notices. Open the menu at different scroll positions to inspect its placement over the page content."
+#~ msgid "Scroll down to observe the fixed menu and recovery notices. Open the menu at different scroll positions to inspect its placement over the page content."
+#~ msgstr "Scroll down to observe the fixed menu and recovery notices. Open the menu at different scroll positions to inspect its placement over the page content."
 
 #. Storybook scroll demonstration heading; section is its ordinal number.
 #: src/storybook/recovery/RecoveryPagePreview.tsx:38
-msgid "Scroll preview — section {section}"
-msgstr "Scroll preview — section {section}"
+#~ msgid "Scroll preview — section {section}"
+#~ msgstr "Scroll preview — section {section}"
 
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #: src/storybook/composer/ComposerPreview.tsx:159
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:202
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:204
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:104
 msgid "Simulate current turn completed"
 msgstr "Simulate current turn completed"
@@ -248,7 +248,7 @@ msgstr "Simulate returning"
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
 #: src/storybook/composer/ComposerPreview.tsx:140
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:232
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:234
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:140
 msgid "Simulate runtime confirmation"
 msgstr "Simulate runtime confirmation"
@@ -273,7 +273,7 @@ msgstr "Simulate send failure"
 #. Resolve the local start-turn request without injecting a runtime event
 #. Resolve the pending local start-turn request without injecting a runtime event
 #: src/storybook/composer/ComposerPreview.tsx:110
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:217
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:219
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:117
 msgid "Simulate send response"
 msgstr "Simulate send response"
@@ -310,7 +310,7 @@ msgstr "Simulate target turn closed"
 
 #. No simulated assistant turn or start-turn request remains active
 #: src/storybook/composer/ComposerPreview.tsx:186
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:254
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:256
 msgid "Simulation is idle"
 msgstr "Simulation is idle"
 
@@ -320,8 +320,8 @@ msgid "Step {step} / {lastStep}"
 msgstr "Step {step} / {lastStep}"
 
 #: src/storybook/recovery/RecoveryPagePreview.tsx:49
-msgid "These numbered sections are demonstration content for scrolling, separate from the task conversation."
-msgstr "These numbered sections are demonstration content for scrolling, separate from the task conversation."
+#~ msgid "These numbered sections are demonstration content for scrolling, separate from the task conversation."
+#~ msgstr "These numbered sections are demonstration content for scrolling, separate from the task conversation."
 
 #: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:118
 msgid "This control injects a lost editing-session result for previewing content protection."
@@ -337,6 +337,6 @@ msgstr "This preview freezes the brief recovery notification. Release it to insp
 
 #. The local start-turn request remains unresolved until the preview response control is used
 #: src/storybook/composer/ComposerPreview.tsx:180
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:238
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:240
 msgid "Waiting for send response"
 msgstr "Waiting for send response"

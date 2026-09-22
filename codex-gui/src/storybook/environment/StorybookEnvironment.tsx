@@ -19,11 +19,16 @@ const language = (async () => {
 // The preview document owns this preference; Story remounts retain it, reloads do not.
 const themePreference = createThemePreferenceStore();
 
-function LocalizedPreview({ children }: PropsWithChildren) {
+function LocalizedPreview({
+  children,
+  hasFixedHeader,
+}: PropsWithChildren<{ hasFixedHeader: boolean }>) {
   const i18n = use(language);
   return (
     <I18nProvider i18n={i18n}>
-      <DevOnly className="mb-4 w-fit justify-self-end ml-auto">
+      <DevOnly
+        className={`mb-4 w-fit justify-self-end ml-auto ${hasFixedHeader ? "mt-16 mr-4" : ""}`}
+      >
         <ThemePreferenceControl />
       </DevOnly>
       {children}
@@ -31,12 +36,15 @@ function LocalizedPreview({ children }: PropsWithChildren) {
   );
 }
 
-export function StorybookEnvironment({ children }: PropsWithChildren) {
+export function StorybookEnvironment({
+  children,
+  hasFixedHeader = false,
+}: PropsWithChildren<{ hasFixedHeader?: boolean }>) {
   return (
     <ThemeProvider preferenceStore={themePreference}>
       <Suspense>
         <DevVisibilityProvider>
-          <LocalizedPreview>{children}</LocalizedPreview>
+          <LocalizedPreview hasFixedHeader={hasFixedHeader}>{children}</LocalizedPreview>
         </DevVisibilityProvider>
       </Suspense>
     </ThemeProvider>

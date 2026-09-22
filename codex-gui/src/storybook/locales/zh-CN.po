@@ -45,7 +45,7 @@ msgstr "创建读取模型槽位"
 
 #. A simulated assistant turn blocks automatic dispatch of ordinary queued messages
 #: src/storybook/composer/ComposerPreview.tsx:184
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:250
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:252
 msgid "Current turn is running"
 msgstr "当前轮次正在运行"
 
@@ -146,13 +146,13 @@ msgstr "重置回放"
 
 #. The request succeeded but the simulated runtime acceptance event has not been injected
 #: src/storybook/composer/ComposerPreview.tsx:182
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:242
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:244
 msgid "Response received; waiting for runtime confirmation"
 msgstr "已收到响应，等待运行时确认"
 
 #. Reset the local pending-input Storybook scenario to its initial state
 #. Storybook control that resets the local connection recovery demo
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:135
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:137
 #: src/storybook/recovery/ConnectionRecoverySimulation.tsx:41
 msgid "Restart simulation"
 msgstr "重新开始演示"
@@ -168,23 +168,23 @@ msgid "Restore simulated storage"
 msgstr "恢复模拟存储"
 
 #. The preview injected the runtime acceptance event for the queued message
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:246
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:248
 msgid "Runtime confirmation received"
 msgstr "已收到运行时确认"
 
 #: src/storybook/recovery/RecoveryPagePreview.tsx:43
-msgid "Scroll down to observe the fixed menu and recovery notices. Open the menu at different scroll positions to inspect its placement over the page content."
-msgstr "向下滚动，观察固定菜单和恢复提示的位置。在不同滚动位置打开菜单，查看它如何浮在页面内容上方。"
+#~ msgid "Scroll down to observe the fixed menu and recovery notices. Open the menu at different scroll positions to inspect its placement over the page content."
+#~ msgstr "向下滚动，观察固定菜单和恢复提示的位置。在不同滚动位置打开菜单，查看它如何浮在页面内容上方。"
 
 #. Storybook scroll demonstration heading; section is its ordinal number.
 #: src/storybook/recovery/RecoveryPagePreview.tsx:38
-msgid "Scroll preview — section {section}"
-msgstr "滚动预览 — 第 {section} 段"
+#~ msgid "Scroll preview — section {section}"
+#~ msgstr "滚动预览 — 第 {section} 段"
 
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #: src/storybook/composer/ComposerPreview.tsx:159
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:202
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:204
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:104
 msgid "Simulate current turn completed"
 msgstr "模拟当前轮次完成"
@@ -248,7 +248,7 @@ msgstr "模拟返回"
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
 #: src/storybook/composer/ComposerPreview.tsx:140
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:232
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:234
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:140
 msgid "Simulate runtime confirmation"
 msgstr "模拟运行时确认"
@@ -273,7 +273,7 @@ msgstr "模拟发送失败"
 #. Resolve the local start-turn request without injecting a runtime event
 #. Resolve the pending local start-turn request without injecting a runtime event
 #: src/storybook/composer/ComposerPreview.tsx:110
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:217
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:219
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:117
 msgid "Simulate send response"
 msgstr "模拟发送响应"
@@ -310,7 +310,7 @@ msgstr "模拟目标轮次关闭"
 
 #. No simulated assistant turn or start-turn request remains active
 #: src/storybook/composer/ComposerPreview.tsx:186
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:254
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:256
 msgid "Simulation is idle"
 msgstr "演示处于空闲状态"
 
@@ -320,8 +320,8 @@ msgid "Step {step} / {lastStep}"
 msgstr "步骤 {step} / {lastStep}"
 
 #: src/storybook/recovery/RecoveryPagePreview.tsx:49
-msgid "These numbered sections are demonstration content for scrolling, separate from the task conversation."
-msgstr "这些带编号的段落仅用于展示滚动效果，不属于任务对话。"
+#~ msgid "These numbered sections are demonstration content for scrolling, separate from the task conversation."
+#~ msgstr "这些带编号的段落仅用于展示滚动效果，不属于任务对话。"
 
 #: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:118
 msgid "This control injects a lost editing-session result for previewing content protection."
@@ -337,6 +337,6 @@ msgstr "此预览暂停展示短暂的恢复状态。结束展示后，可检查
 
 #. The local start-turn request remains unresolved until the preview response control is used
 #: src/storybook/composer/ComposerPreview.tsx:180
-#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:238
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:240
 msgid "Waiting for send response"
 msgstr "等待发送响应"

@@ -19,6 +19,8 @@ const meta = {
   title: "Recovery/Message synchronization/States",
   component: RecoveryPagePreview,
   parameters: {
+    layout: "fullscreen",
+    hasFixedHeader: true,
     docs: {
       description: {
         component:
