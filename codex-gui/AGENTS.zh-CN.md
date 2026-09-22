@@ -64,6 +64,7 @@
 
 ## 过滤测试执行
 
+- 不为调试辅助代码编写或运行测试，包括 DEV 控件、调试面板及场景切换、模拟重启等控制逻辑。允许通过 Storybook 测试产品行为；调试操作可作为测试准备步骤，但不对调试功能本身设置断言。此限制优先于通用测试执行要求。
 - 本地开发和验证默认运行经过过滤的前端测试。根据变更行为、其消费方及相关回归覆盖选择测试文件；不得在每次编辑后运行完整的单元测试、Browser、E2E 或 `ci` 套件。
 - 通过 `$codex-gui-toolchain` 规定的 fnm 环境，向仓库自有脚本传入明确的测试文件路径。定向定位问题时，可额外使用 Vitest `-t`，以正则表达式匹配完整测试名称（包括 `describe` 名称）。完成行为变更前，应移除名称过滤，运行受影响的测试文件，以保留相邻行为的回归覆盖。
 - 在 `codex-gui` 目录中，单元测试使用 `/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit <test-file>`。Browser 测试使用 `/opt/homebrew/bin/fnm exec --using-file pnpm run test:browser:parallel --run <test-file>`；`src/__tests__/sequential/**` 下的文件则使用 `test:browser:sequential`。不得在脚本名与参数之间额外插入 `--`。不得向聚合脚本 `test:browser` 传递过滤条件，应直接选择适用的子脚本。
