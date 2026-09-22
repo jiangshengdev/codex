@@ -33,7 +33,7 @@ msgid "{0, plural, one {# mention} other {# mentions}}"
 msgstr "{0, plural, one {# mention} other {# mentions}}"
 
 #. placeholder {0}: snapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:106
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:132
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 
@@ -300,7 +300,7 @@ msgid "Context usage details, {usedTokensLabel} tokens used, context window capa
 msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 
 #. Resumes sending this page's restored queue; does not open the queue
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:125
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:151
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:73
 msgid "Continue sending"
 msgstr "Continue sending"
@@ -848,6 +848,7 @@ msgstr "Page not found"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:206
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:272
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:105
 msgid "Pending details"
 msgstr "Pending details"
 
@@ -868,7 +869,7 @@ msgstr "Pending message editor"
 msgid "Pending message was not reordered"
 msgstr "Pending message was not reordered"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:137
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:163
 msgid "Pending messages"
 msgstr "Pending messages"
 
@@ -1054,7 +1055,7 @@ msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
 #. Pending state of Continue sending while recovering previously unsent messages
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:117
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:143
 msgid "Resuming sending"
 msgstr "Resuming sending"
 
@@ -1599,8 +1600,10 @@ msgid "View diagnostic information"
 msgstr "View diagnostic information"
 
 #. Open a dialog containing the complete pending message
+#. Open a dialog containing the complete priority queued message
 #. Open a dialog containing the complete unknown-send message
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:262
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:95
 #: src/features/composerTurnControl/ComposerUnknownMessagePreview.tsx:37
 msgid "View full message"
 msgstr "View full message"

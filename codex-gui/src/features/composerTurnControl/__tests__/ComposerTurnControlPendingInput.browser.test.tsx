@@ -554,6 +554,7 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
       rejectedSteers: [
         {
           key: "rejected-private-id",
+          text: "Rejected first",
           preview: { type: "text", text: "Rejected first", truncated: false },
           reason: "activeTurnNotSteerable",
         },
@@ -1535,6 +1536,7 @@ test("renders Simplified Chinese guide and pending-input copy", async () => {
       rejectedSteers: [
         {
           key: "rejected-zh",
+          text: "然后优先发送这条",
           preview: { type: "text", text: "然后优先发送这条", truncated: false },
           reason: "activeTurnNotSteerable",
         },

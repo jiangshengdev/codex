@@ -109,6 +109,7 @@ test.each([
         rejectedSteers: [
           {
             key: "rejected",
+            text: "message",
             reason: "activeTurnNotSteerable",
             preview: { type: "text", text: "message", truncated: false },
           },
