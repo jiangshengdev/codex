@@ -172,6 +172,15 @@ msgstr "恢复模拟存储"
 msgid "Runtime confirmation received"
 msgstr "已收到运行时确认"
 
+#: src/storybook/recovery/RecoveryPagePreview.tsx:43
+msgid "Scroll down to observe the fixed menu and recovery notices. Open the menu at different scroll positions to inspect its placement over the page content."
+msgstr "向下滚动，观察固定菜单和恢复提示的位置。在不同滚动位置打开菜单，查看它如何浮在页面内容上方。"
+
+#. Storybook scroll demonstration heading; section is its ordinal number.
+#: src/storybook/recovery/RecoveryPagePreview.tsx:38
+msgid "Scroll preview — section {section}"
+msgstr "滚动预览 — 第 {section} 段"
+
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #: src/storybook/composer/ComposerPreview.tsx:159
@@ -309,6 +318,10 @@ msgstr "演示处于空闲状态"
 #: src/storybook/transcript/TranscriptReplayPreview.tsx:139
 msgid "Step {step} / {lastStep}"
 msgstr "步骤 {step} / {lastStep}"
+
+#: src/storybook/recovery/RecoveryPagePreview.tsx:49
+msgid "These numbered sections are demonstration content for scrolling, separate from the task conversation."
+msgstr "这些带编号的段落仅用于展示滚动效果，不属于任务对话。"
 
 #: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:118
 msgid "This control injects a lost editing-session result for previewing content protection."

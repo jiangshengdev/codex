@@ -1,4 +1,5 @@
 import { StrictMode, useEffect, useSyncExternalStore } from "react";
+import { Trans } from "@lingui/react/macro";
 import { useLocation } from "@tanstack/react-router";
 import { useAppDispatch } from "@/app/hooks";
 import { AppCapabilitiesContext } from "@/features/appShell/AppCapabilities";
@@ -23,10 +24,36 @@ function RecoveryPage({
   }, [pathname, ready, scenario]);
   if (!ready) return null;
   return (
-    <div className="relative [transform:translateZ(0)]" data-recovery-send-count={sendCount}>
+    <div className="relative" data-recovery-send-count={sendCount}>
       <AppCapabilitiesContext value={capabilities}>
         <AppShell>
           <CurrentTaskPage />
+          <div className="grid gap-6 pb-8" data-recovery-scroll-preview="">
+            {[1, 2, 3, 4, 5, 6].map((section) => (
+              <section
+                key={section}
+                className="min-h-[50svh] space-y-4 border-t border-separator py-6"
+              >
+                <h2 className="text-lg font-semibold">
+                  <Trans comment="Storybook scroll demonstration heading; section is its ordinal number.">
+                    Scroll preview — section {section}
+                  </Trans>
+                </h2>
+                <p>
+                  <Trans>
+                    Scroll down to observe the fixed menu and recovery notices. Open the menu at
+                    different scroll positions to inspect its placement over the page content.
+                  </Trans>
+                </p>
+                <p className="text-muted">
+                  <Trans>
+                    These numbered sections are demonstration content for scrolling, separate from
+                    the task conversation.
+                  </Trans>
+                </p>
+              </section>
+            ))}
+          </div>
         </AppShell>
       </AppCapabilitiesContext>
     </div>

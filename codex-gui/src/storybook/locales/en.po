@@ -172,6 +172,15 @@ msgstr "Restore simulated storage"
 msgid "Runtime confirmation received"
 msgstr "Runtime confirmation received"
 
+#: src/storybook/recovery/RecoveryPagePreview.tsx:43
+msgid "Scroll down to observe the fixed menu and recovery notices. Open the menu at different scroll positions to inspect its placement over the page content."
+msgstr "Scroll down to observe the fixed menu and recovery notices. Open the menu at different scroll positions to inspect its placement over the page content."
+
+#. Storybook scroll demonstration heading; section is its ordinal number.
+#: src/storybook/recovery/RecoveryPagePreview.tsx:38
+msgid "Scroll preview — section {section}"
+msgstr "Scroll preview — section {section}"
+
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #: src/storybook/composer/ComposerPreview.tsx:159
@@ -309,6 +318,10 @@ msgstr "Simulation is idle"
 #: src/storybook/transcript/TranscriptReplayPreview.tsx:139
 msgid "Step {step} / {lastStep}"
 msgstr "Step {step} / {lastStep}"
+
+#: src/storybook/recovery/RecoveryPagePreview.tsx:49
+msgid "These numbered sections are demonstration content for scrolling, separate from the task conversation."
+msgstr "These numbered sections are demonstration content for scrolling, separate from the task conversation."
 
 #: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:118
 msgid "This control injects a lost editing-session result for previewing content protection."

@@ -3,3 +3,18 @@
 .sbdocs-content .prismjs .token.tag {
   display: inline;
 }
+
+/* Full-page recovery stories use the real viewport-fixed header. Keep the
+   preview toolbar below it without creating a fixed-position containing block. */
+.sb-show-main:has([data-recovery-scroll-preview]) {
+  padding-top: calc(3.5rem + 1rem);
+}
+
+/* The preview padding above already reserves the header's height before the
+   DEV controls. Do not reserve it again inside the product shell. */
+.sb-show-main:has([data-recovery-scroll-preview])
+  [data-app-shell-content-layout]
+  > header
+  + [aria-hidden="true"] {
+  display: none;
+}
