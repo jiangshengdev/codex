@@ -1,10 +1,11 @@
-import { Button, Chip, Modal, Separator, Surface } from "@heroui/react";
+import { Chip, Separator, Surface } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { Fragment, type ReactNode, type Ref } from "react";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
+import { ComposerFullMessagePreview } from "./ComposerFullMessagePreview";
 import { ComposerInputPreviewContent } from "./ComposerInputPreviewContent";
 import { ComposerPendingInputTrigger } from "./ComposerPendingInputDrawer";
 import type {
@@ -87,34 +88,14 @@ export function ComposerPendingInputRegion({
           </p>
           <ul className="grid max-h-[min(30vh,240px)] min-w-0 gap-2 overflow-y-auto">
             {snapshot.rejectedSteers.map((item) => (
-              <li className="flex min-w-0 flex-col gap-2" key={item.key}>
-                <ComposerInputPreviewContent preview={item.preview} />
-                {item.preview.type === "text" && item.preview.truncated ? (
-                  <Modal>
-                    <Button className="self-end" size="sm" variant="tertiary">
-                      <Trans comment="Open a dialog containing the complete priority queued message">
-                        View full message
-                      </Trans>
-                    </Button>
-                    <Modal.Backdrop>
-                      <Modal.Container scroll="inside" size="lg">
-                        <Modal.Dialog>
-                          <Modal.CloseTrigger />
-                          <Modal.Header>
-                            <Modal.Heading>
-                              <Trans>Pending details</Trans>
-                            </Modal.Heading>
-                          </Modal.Header>
-                          <Modal.Body>
-                            <p className="min-w-0 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">
-                              {item.text}
-                            </p>
-                          </Modal.Body>
-                        </Modal.Dialog>
-                      </Modal.Container>
-                    </Modal.Backdrop>
-                  </Modal>
-                ) : null}
+              <li className="min-w-0" key={item.key}>
+                <ComposerFullMessagePreview
+                  fullText={item.text}
+                  heading={<Trans>Pending details</Trans>}
+                  showFullMessage={item.preview.type === "text" && item.preview.truncated}
+                >
+                  <ComposerInputPreviewContent preview={item.preview} />
+                </ComposerFullMessagePreview>
               </li>
             ))}
           </ul>
