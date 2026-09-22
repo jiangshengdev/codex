@@ -11,6 +11,7 @@ import {
   attachWithTurns,
   baseTurn,
 } from "@/features/projection/__tests__/projectionTestBuilders";
+import { recoveryConversationTurns } from "./recoveryConversation";
 
 export const recoveryFirstId = "00000000-0000-0000-0000-000000000001";
 export const recoverySecondId = "00000000-0000-0000-0000-000000000002";
@@ -20,6 +21,7 @@ type AttachOutcome = "success" | "failure" | "pending";
 
 function retainedTask(threadId: string, label: string): AttachResponse {
   const attach = attachWithTurns(attachWithThreadId(attachBaseline, threadId), [
+    ...recoveryConversationTurns(label),
     baseTurn(`recovery-turn-${label}`, [
       agentMessage(`recovery-answer-${label}`, `Retained answer ${label}`),
     ]),
