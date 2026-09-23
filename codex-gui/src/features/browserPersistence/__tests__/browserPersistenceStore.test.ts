@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MemoryStorage } from "@/__tests__/memoryStorageMock";
+import { withSessionStorageGetter } from "@/__tests__/sessionStorageTestSupport";
 import {
   BrowserPersistenceError,
   BrowserPersistenceStore,
@@ -214,29 +215,21 @@ describe("BrowserPersistenceStore", () => {
   });
 
   it.each(["blocked", "missing"])("reports %s browser sessionStorage", (availability) => {
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
-    Object.defineProperty(globalThis, "sessionStorage", {
-      configurable: true,
-      get: () => {
+    withSessionStorageGetter(
+      () => {
         if (availability === "missing") return undefined;
         throw new Error("blocked");
       },
-    });
-    try {
-      expect(
-        () =>
-          new BrowserPersistenceStore({
-            authorizationContext: "context-one",
-            threadId: "one",
-            codec,
-          }),
-      ).toThrow(new BrowserPersistenceError("unavailable"));
-    } finally {
-      if (descriptor === undefined) {
-        Reflect.deleteProperty(globalThis, "sessionStorage");
-      } else {
-        Object.defineProperty(globalThis, "sessionStorage", descriptor);
-      }
-    }
+      () => {
+        expect(
+          () =>
+            new BrowserPersistenceStore({
+              authorizationContext: "context-one",
+              threadId: "one",
+              codec,
+            }),
+        ).toThrow(new BrowserPersistenceError("unavailable"));
+      },
+    );
   });
 });

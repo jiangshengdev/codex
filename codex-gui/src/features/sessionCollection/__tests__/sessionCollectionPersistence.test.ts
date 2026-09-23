@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MemoryStorage } from "@/__tests__/memoryStorageMock";
+import { withSessionStorageGetter } from "@/__tests__/sessionStorageTestSupport";
 import {
   SessionCollectionPersistenceError,
   SessionCollectionPersistenceStore,
@@ -151,24 +152,16 @@ describe("SessionCollectionPersistenceStore", () => {
   });
 
   it.each(["blocked", "missing"])("reports %s sessionStorage access", (availability) => {
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
-    Object.defineProperty(globalThis, "sessionStorage", {
-      configurable: true,
-      get: () => {
+    withSessionStorageGetter(
+      () => {
         if (availability === "missing") return undefined;
         throw new Error("blocked");
       },
-    });
-    try {
-      expect(
-        () => new SessionCollectionPersistenceStore({ authorizationContext: "context-one" }),
-      ).toThrow(new SessionCollectionPersistenceError("unavailable"));
-    } finally {
-      if (descriptor === undefined) {
-        Reflect.deleteProperty(globalThis, "sessionStorage");
-      } else {
-        Object.defineProperty(globalThis, "sessionStorage", descriptor);
-      }
-    }
+      () => {
+        expect(
+          () => new SessionCollectionPersistenceStore({ authorizationContext: "context-one" }),
+        ).toThrow(new SessionCollectionPersistenceError("unavailable"));
+      },
+    );
   });
 });
