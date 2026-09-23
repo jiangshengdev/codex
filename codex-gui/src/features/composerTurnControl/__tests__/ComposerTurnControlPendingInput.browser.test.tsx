@@ -7,12 +7,8 @@ import { page, userEvent } from "vitest/browser";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
-import type {
-  ActiveThreadComposerRole,
-  ActiveThreadSkillsRole,
-} from "@/features/activeThreadSession/activeThreadSession";
+import type { ActiveThreadSkillsRole } from "@/features/activeThreadSession/activeThreadSession";
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
-import { type ComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import {
   attachBaseline,
@@ -23,6 +19,7 @@ import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
 
 import { ComposerTurnControl } from "../ComposerTurnControl";
 import { ComposerPendingInputProvider } from "../ComposerPendingInputProvider";
+import { createPendingInputComposerRole } from "./composerTurnControlTestRoles";
 import {
   createComposerSkillCatalogHarness,
   renderComposerTurnControl,
@@ -43,50 +40,6 @@ let restoreMotion: (() => void) | undefined;
 beforeEach(async () => {
   await userEvent.unhover(document.body);
 });
-const composerRoleFor = (
-  controller: ComposerInputQueueCoordinator,
-  getRevision: () => number,
-): Partial<ActiveThreadComposerRole> => ({
-  beginPendingInputEdit: (revision, request, restore) =>
-    revision === getRevision()
-      ? controller.beginPendingInputEdit(request, restore)
-      : staleSessionOperation(getRevision()),
-  deletePendingInput: (revision, request) =>
-    revision === getRevision()
-      ? controller.deletePendingInput(request)
-      : staleSessionOperation(getRevision()),
-  interruptActiveTurn: (revision) =>
-    revision === getRevision()
-      ? controller.interruptActiveTurn()
-      : staleSessionOperation(getRevision()),
-  movePendingInput: (revision, request) =>
-    revision === getRevision()
-      ? controller.movePendingInput(request)
-      : staleSessionOperation(getRevision()),
-  promoteOrdinaryFrontToSteer: (revision) =>
-    revision === getRevision()
-      ? controller.promoteOrdinaryFrontToSteer()
-      : staleSessionOperation(getRevision()),
-  readPendingInputDetail: (request) => controller.readPendingInputDetail(request),
-  readPendingInputPage: (request) => controller.readPendingInputPage(request),
-  recover: (revision) =>
-    revision === getRevision() ? controller.recover() : staleSessionOperation(getRevision()),
-  submit: (revision, capture) =>
-    revision === getRevision() ? controller.submit(capture) : staleSessionOperation(getRevision()),
-  submitSteer: (revision, capture) =>
-    revision === getRevision()
-      ? controller.submitSteer(capture)
-      : staleSessionOperation(getRevision()),
-});
-
-const staleSessionOperation = (revision: number) =>
-  ({
-    type: "unavailable",
-    scope: "activeThreadSession",
-    reason: "staleRevision",
-    revision,
-  }) as const;
-
 const skillsRoleFor = (
   controller: ReturnType<typeof createComposerSkillCatalogHarness>["controller"],
 ): Partial<ActiveThreadSkillsRole> => ({
@@ -1365,12 +1318,15 @@ test("replaces an open pending-input owner without leaking its cached view into 
   const skillHarness = createComposerSkillCatalogHarness();
   const firstRevision = 1;
   const firstOwner = createActiveThreadSessionHarness({
-    composerRole: composerRoleFor(queueHarness.controller, () => firstRevision),
+    composerRole: createPendingInputComposerRole(queueHarness.controller, () => firstRevision),
     skillsRole: skillsRoleFor(skillHarness.controller),
   });
   const replacementRevision = 2;
   const replacementOwner = createActiveThreadSessionHarness({
-    composerRole: composerRoleFor(queueHarness.controller, () => replacementRevision),
+    composerRole: createPendingInputComposerRole(
+      queueHarness.controller,
+      () => replacementRevision,
+    ),
     skillsRole: skillsRoleFor(skillHarness.controller),
   });
   const firstSnapshot = firstOwner.activeSnapshot({
