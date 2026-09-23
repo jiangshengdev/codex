@@ -6,21 +6,16 @@ import {
   type ComposerInputQueueTransition,
   type ComposerQueueMessage,
   type ComposerPendingInputCursor,
-  type ComposerPendingInputLane,
   type StartClaim,
 } from "../composerInputQueue";
 import { composerDraftCapture, composerQueueMessage } from "./composerInputQueueTestFixtures";
 
-const message = (id: string): ComposerQueueMessage => composerQueueMessage(id);
+import {
+  expectPendingPage as pendingPage,
+  firstStartClaim as startClaim,
+} from "./composerPendingInputTestSupport";
 
-function startClaim(transition: ComposerInputQueueTransition): StartClaim {
-  const effect = transition.effects[0];
-  expect(effect?.type).toBe("performStart");
-  if (effect?.type !== "performStart") {
-    throw new Error("expected performStart effect");
-  }
-  return effect.claim;
-}
+const message = (id: string): ComposerQueueMessage => composerQueueMessage(id);
 
 function submit(queue: ComposerInputQueue, id: string): ComposerInputQueueTransition {
   return queue.submit(message(id));
@@ -34,18 +29,6 @@ function acceptAndCompleteStart(queue: ComposerInputQueue, claim: StartClaim, tu
     status: "completed",
     commitId: `terminal-${turnId}`,
   });
-}
-
-function pendingPage(queue: ComposerInputQueue, lane: ComposerPendingInputLane, limit = 100) {
-  const result = queue.readPendingInputPage({
-    lane,
-    revision: queue.detailRevision(),
-    cursor: null,
-    limit,
-  });
-  expect(result.type).toBe("page");
-  if (result.type !== "page") throw new Error(`expected ${lane} detail page`);
-  return result;
 }
 
 describe("composer input queue", () => {

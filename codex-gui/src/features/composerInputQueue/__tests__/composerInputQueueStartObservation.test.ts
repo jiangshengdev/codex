@@ -10,16 +10,9 @@ import {
 } from "../composerInputQueue";
 import { composerQueueMessage } from "./composerInputQueueTestFixtures";
 
-const message = (id: string): ComposerQueueMessage => composerQueueMessage(id);
+import { firstStartClaim as startClaim } from "./composerPendingInputTestSupport";
 
-function startClaim(transition: ComposerInputQueueTransition): StartClaim {
-  const effect = transition.effects[0];
-  expect(effect?.type).toBe("performStart");
-  if (effect?.type !== "performStart") {
-    throw new Error("expected performStart effect");
-  }
-  return effect.claim;
-}
+const message = (id: string): ComposerQueueMessage => composerQueueMessage(id);
 
 function submit(queue: ComposerInputQueue, id: string): ComposerInputQueueTransition {
   return queue.submit(message(id));
