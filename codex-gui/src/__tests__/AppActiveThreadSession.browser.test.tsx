@@ -23,6 +23,7 @@ import {
   startTurnParamsAt,
 } from "./appComposerQueueBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
+import { createActiveThreadSessionProbe } from "./activeThreadSessionProbe";
 import { createQueueCoordinatorMock } from "./queueCoordinatorMock";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import {
@@ -73,7 +74,7 @@ const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
 const candidateThreadId = "00000000-0000-0000-0000-000000000002";
-let threadSwitchProbeSession: ActiveThreadSession | null = null;
+let threadSwitchProbe = createActiveThreadSessionProbe();
 let threadSwitchProbePromise: ReturnType<ActiveThreadSession["activate"]> | null = null;
 
 function ThreadSwitchCapabilityProbe() {
@@ -82,7 +83,7 @@ function ThreadSwitchCapabilityProbe() {
   const snapshot = useActiveThreadSessionSnapshot();
   const available = snapshot.phase === "active" || snapshot.phase === "projectionUnavailable";
   useEffect(() => {
-    threadSwitchProbeSession = session;
+    threadSwitchProbe.capture(session);
   }, [session]);
 
   return (
@@ -144,28 +145,6 @@ function ThreadSwitchComposerProbe() {
   );
 }
 
-const requireThreadSwitchProbeSession = (): ActiveThreadSession => {
-  if (threadSwitchProbeSession == null) {
-    throw new Error("thread switch probe must expose an active session");
-  }
-  return threadSwitchProbeSession;
-};
-
-const waitForThreadSwitchProbeSession = async () => {
-  await expect
-    .poll(() => {
-      const snapshot = threadSwitchProbeSession?.getSnapshot();
-      return snapshot?.phase === "active" || snapshot?.phase === "projectionUnavailable";
-    })
-    .toBe(true);
-  const session = requireThreadSwitchProbeSession();
-  const snapshot = session.getSnapshot();
-  if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") {
-    throw new Error("thread switch probe session must be available");
-  }
-  return { session, snapshot };
-};
-
 const requireThreadSwitchProbePromise = () => {
   if (threadSwitchProbePromise == null) {
     throw new Error("thread switch probe must start a switch");
@@ -182,7 +161,7 @@ const renderThreadSwitchProbe = async (commands: GuiHostCommands) => {
   initializeHost(options, commands);
   const continueButton = screen.getByRole("button", { name: "Continue candidate thread" });
   await expect.element(continueButton).toBeEnabled();
-  const { snapshot } = await waitForThreadSwitchProbeSession();
+  const { snapshot } = await threadSwitchProbe.waitAvailable();
   expect(snapshot.threadId).toBe(launchThreadId);
   return { continueButton, options, screen };
 };
@@ -210,7 +189,7 @@ beforeEach(() => {
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
   vi.mocked(createComposerInputQueueCoordinator).mockClear();
-  threadSwitchProbeSession = null;
+  threadSwitchProbe = createActiveThreadSessionProbe();
   threadSwitchProbePromise = null;
 });
 
@@ -232,7 +211,7 @@ test("App opens an unpersisted loaded task with empty history and sends its firs
 
   const composer = getAppComposer(screen);
   await expect.element(composer).toBeVisible();
-  const { snapshot } = await waitForThreadSwitchProbeSession();
+  const { snapshot } = await threadSwitchProbe.waitAvailable();
   expect(snapshot.threadId).toBe(launchThreadId);
   expect(commands.resumeThread).not.toHaveBeenCalled();
   expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
@@ -381,7 +360,7 @@ test("App releases an edited owner only after its marker settles and drains", as
     blockers: [{ type: "ordinaryQueued", count: 1 }],
   });
 
-  const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
+  const { session: activeThreadSession } = await threadSwitchProbe.waitAvailable();
   await expect(activeThreadSession.remove(launchThreadId)).resolves.toMatchObject({
     type: "blocked",
   });
@@ -759,7 +738,7 @@ test("App keeps a queued initial session in the background and blocks its remova
   );
   const commands = createGuiHostCommands();
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
-  const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
+  const { session: activeThreadSession } = await threadSwitchProbe.waitAvailable();
   queueAttachProjectionResponse(commands, attachWithThreadId(attachReplacement, candidateThreadId));
 
   await continueButton.click();
@@ -833,7 +812,7 @@ test("App cleans up every owner when unmounted during explicit background remova
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
   queueAttachProjectionResponse(commands, candidateAttach);
   vi.mocked(commands.detachThreadProjection).mockReturnValueOnce(pendingDetach.promise);
-  const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
+  const { session: activeThreadSession } = await threadSwitchProbe.waitAvailable();
 
   await continueButton.click();
   const switching = requireThreadSwitchProbePromise();

@@ -20,7 +20,7 @@ import {
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
-import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
+import { createActiveThreadSessionProbe } from "./activeThreadSessionProbe";
 import {
   useActiveThreadSession,
   useActiveThreadSessionSnapshot,
@@ -50,14 +50,14 @@ const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
 const candidateThreadId = "00000000-0000-0000-0000-000000000002";
-let threadSwitchProbeSession: ActiveThreadSession | null = null;
+let threadSwitchProbe = createActiveThreadSessionProbe();
 
 function ThreadSwitchCapabilityProbe() {
   const session = useActiveThreadSession();
   const snapshot = useActiveThreadSessionSnapshot();
   const available = snapshot.phase === "active" || snapshot.phase === "projectionUnavailable";
   useEffect(() => {
-    threadSwitchProbeSession = session;
+    threadSwitchProbe.capture(session);
   }, [session]);
 
   return (
@@ -102,28 +102,6 @@ const catalogSkill = (name: string, cwd: string, enabled = true): SkillMetadata 
   pluginId: null,
 });
 
-const requireThreadSwitchProbeSession = (): ActiveThreadSession => {
-  if (threadSwitchProbeSession == null) {
-    throw new Error("thread switch probe must expose an active session");
-  }
-  return threadSwitchProbeSession;
-};
-
-const waitForThreadSwitchProbeSession = async () => {
-  await expect
-    .poll(() => {
-      const snapshot = threadSwitchProbeSession?.getSnapshot();
-      return snapshot?.phase === "active" || snapshot?.phase === "projectionUnavailable";
-    })
-    .toBe(true);
-  const session = requireThreadSwitchProbeSession();
-  const snapshot = session.getSnapshot();
-  if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") {
-    throw new Error("thread switch probe session must be available");
-  }
-  return { session, snapshot };
-};
-
 const renderThreadSwitchProbe = async (commands: GuiHostCommands) => {
   const screen = await renderWithProviders(
     <App currentTaskComponent={ThreadSwitchCapabilityProbe} />,
@@ -133,7 +111,7 @@ const renderThreadSwitchProbe = async (commands: GuiHostCommands) => {
   initializeHost(options, commands);
   const continueButton = screen.getByRole("button", { name: "Continue candidate thread" });
   await expect.element(continueButton).toBeEnabled();
-  const { snapshot } = await waitForThreadSwitchProbeSession();
+  const { snapshot } = await threadSwitchProbe.waitAvailable();
   expect(snapshot.threadId).toBe(launchThreadId);
   return { continueButton, options, screen };
 };
@@ -143,7 +121,7 @@ beforeEach(() => {
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
   vi.mocked(createComposerInputQueueCoordinator).mockClear();
-  threadSwitchProbeSession = null;
+  threadSwitchProbe = createActiveThreadSessionProbe();
 });
 
 const documentScroller = (): HTMLElement => {
@@ -432,7 +410,7 @@ test("App keeps host lifecycle status stable while projection events update runt
   await expect
     .poll(() => selectThreadRuntimeRecord(store.getState(), launchThreadId)?.threadId)
     .toBe(launchThreadId);
-  const { session } = await waitForThreadSwitchProbeSession();
+  const { session } = await threadSwitchProbe.waitAvailable();
   emitProjectionEvent(options, eventTurnStarted);
 
   await expect

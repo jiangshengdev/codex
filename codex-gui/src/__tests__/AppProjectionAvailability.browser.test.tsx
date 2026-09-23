@@ -17,12 +17,12 @@ import {
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
+import { createActiveThreadSessionProbe } from "./activeThreadSessionProbe";
 import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
 import {
   useActiveThreadSession,
   useActiveThreadSessionSnapshot,
 } from "@/features/appShell/AppCapabilities";
-import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import type {
   GuiHostCommands,
   StartGuiHostConnectionOptions,
@@ -51,14 +51,14 @@ const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
 const candidateThreadId = "00000000-0000-0000-0000-000000000002";
-let threadSwitchProbeSession: ActiveThreadSession | null = null;
+let threadSwitchProbe = createActiveThreadSessionProbe();
 
 function ThreadSwitchCapabilityProbe() {
   const session = useActiveThreadSession();
   const snapshot = useActiveThreadSessionSnapshot();
   const available = snapshot.phase === "active" || snapshot.phase === "projectionUnavailable";
   useEffect(() => {
-    threadSwitchProbeSession = session;
+    threadSwitchProbe.capture(session);
   }, [session]);
 
   return (
@@ -88,37 +88,15 @@ function ThreadSwitchCapabilityProbe() {
 function CurrentTaskWithSessionProbe() {
   const session = useActiveThreadSession();
   useEffect(() => {
-    threadSwitchProbeSession = session;
+    threadSwitchProbe.capture(session);
   }, [session]);
   return <CurrentTaskPage />;
 }
 
-const requireThreadSwitchProbeSession = (): ActiveThreadSession => {
-  if (threadSwitchProbeSession == null) {
-    throw new Error("thread switch probe must expose an active session");
-  }
-  return threadSwitchProbeSession;
-};
-
-const waitForThreadSwitchProbeSession = async () => {
-  await expect
-    .poll(() => {
-      const snapshot = threadSwitchProbeSession?.getSnapshot();
-      return snapshot?.phase === "active" || snapshot?.phase === "projectionUnavailable";
-    })
-    .toBe(true);
-  const session = requireThreadSwitchProbeSession();
-  const snapshot = session.getSnapshot();
-  if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") {
-    throw new Error("thread switch probe session must be available");
-  }
-  return { session, snapshot };
-};
-
 beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
-  threadSwitchProbeSession = null;
+  threadSwitchProbe = createActiveThreadSessionProbe();
 });
 
 const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
@@ -164,7 +142,7 @@ async function recoverStaleOrdinaryDraft(failStorage: boolean) {
   const options = getHostOptions(startGuiHostConnectionMock);
   const baseline = attachWithCommittedMessages();
   const commands = initializeAppWithProjection(options, baseline);
-  const { snapshot } = await waitForThreadSwitchProbeSession();
+  const { snapshot } = await threadSwitchProbe.waitAvailable();
   const role = snapshot.composerRole;
   const save = vi.spyOn(role, "saveDraft").mockImplementation(() => ({
     type: "unavailable",
@@ -254,7 +232,7 @@ test("App stops forwarding runtime events after backpressure pauses synchronizat
 
   const options = getHostOptions(startGuiHostConnectionMock);
   initializeAppWithProjection(options);
-  const { session } = await waitForThreadSwitchProbeSession();
+  const { session } = await threadSwitchProbe.waitAvailable();
   emitProjectionClosed(options, projectionClosed);
   await expect.poll(() => session.getSnapshot().phase).toBe("projectionUnavailable");
   const unavailableSnapshot = session.getSnapshot();
@@ -402,7 +380,7 @@ test("App records a synchronization pause when a projection event breaks the bas
 
   const options = getHostOptions(startGuiHostConnectionMock);
   initializeAppWithProjection(options);
-  const { session } = await waitForThreadSwitchProbeSession();
+  const { session } = await threadSwitchProbe.waitAvailable();
   emitProjectionEvent(options, projectionEvent);
 
   await expect

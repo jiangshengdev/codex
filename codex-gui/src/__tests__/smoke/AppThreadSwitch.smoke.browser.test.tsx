@@ -14,6 +14,7 @@ import {
   type StartGuiHostConnectionMock,
 } from "../appBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "../appBrowserRenderHarness";
+import { createActiveThreadSessionProbe } from "../activeThreadSessionProbe";
 import { createQueueCoordinatorMock } from "../queueCoordinatorMock";
 import {
   useActiveThreadSession,
@@ -61,7 +62,7 @@ const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
 const candidateThreadId = "00000000-0000-0000-0000-000000000002";
-let threadSwitchProbeSession: ActiveThreadSession | null = null;
+let threadSwitchProbe = createActiveThreadSessionProbe();
 let threadSwitchProbePromise: ReturnType<ActiveThreadSession["activate"]> | null = null;
 
 function ThreadSwitchCapabilityProbe() {
@@ -69,7 +70,7 @@ function ThreadSwitchCapabilityProbe() {
   const snapshot = useActiveThreadSessionSnapshot();
   const available = snapshot.phase === "active" || snapshot.phase === "projectionUnavailable";
   useEffect(() => {
-    threadSwitchProbeSession = session;
+    threadSwitchProbe.capture(session);
   }, [session]);
 
   return (
@@ -98,28 +99,6 @@ function ThreadSwitchCapabilityProbe() {
   );
 }
 
-const requireThreadSwitchProbeSession = (): ActiveThreadSession => {
-  if (threadSwitchProbeSession == null) {
-    throw new Error("thread switch probe must expose an active session");
-  }
-  return threadSwitchProbeSession;
-};
-
-const waitForThreadSwitchProbeSession = async () => {
-  await expect
-    .poll(() => {
-      const snapshot = threadSwitchProbeSession?.getSnapshot();
-      return snapshot?.phase === "active" || snapshot?.phase === "projectionUnavailable";
-    })
-    .toBe(true);
-  const session = requireThreadSwitchProbeSession();
-  const snapshot = session.getSnapshot();
-  if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") {
-    throw new Error("thread switch probe session must be available");
-  }
-  return { session, snapshot };
-};
-
 const requireThreadSwitchProbePromise = () => {
   if (threadSwitchProbePromise == null) {
     throw new Error("thread switch probe must start a switch");
@@ -136,7 +115,7 @@ const renderThreadSwitchProbe = async (commands: GuiHostCommands) => {
   initializeHost(options, commands);
   const continueButton = screen.getByRole("button", { name: "Continue candidate thread" });
   await expect.element(continueButton).toBeEnabled();
-  const { snapshot } = await waitForThreadSwitchProbeSession();
+  const { snapshot } = await threadSwitchProbe.waitAvailable();
   expect(snapshot.threadId).toBe(launchThreadId);
   return { continueButton, options, screen };
 };
@@ -146,7 +125,7 @@ beforeEach(() => {
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
   vi.mocked(createComposerInputQueueCoordinator).mockClear();
-  threadSwitchProbeSession = null;
+  threadSwitchProbe = createActiveThreadSessionProbe();
   threadSwitchProbePromise = null;
 });
 
@@ -171,7 +150,7 @@ test("App publishes a completed thread switch atomically through one session", a
   const { continueButton, options, screen } = await renderThreadSwitchProbe(commands);
   vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
   const activeThread = screen.getByLabelText("Active thread session");
-  const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
+  const { session: activeThreadSession } = await threadSwitchProbe.waitAvailable();
 
   await expect.element(activeThread).toHaveTextContent(launchThreadId);
   await continueButton.click();
@@ -209,7 +188,7 @@ test("App publishes a completed thread switch atomically through one session", a
   emitProjectionDelta(options, candidateDelta);
 
   await expect.element(activeThread).toHaveTextContent("loading");
-  expect(threadSwitchProbeSession).toBe(activeThreadSession);
+  expect(threadSwitchProbe.read()).toBe(activeThreadSession);
   expect(
     selectTranscriptEntry(
       screen.store.getState(),
@@ -283,7 +262,7 @@ test("App shows the failed target while retaining the initial session in the bac
   const commands = createGuiHostCommands();
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
   vi.mocked(commands.attachThreadProjection).mockRejectedValueOnce(error);
-  const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
+  const { session: activeThreadSession } = await threadSwitchProbe.waitAvailable();
 
   await continueButton.click();
   await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({
