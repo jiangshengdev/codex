@@ -30,6 +30,43 @@ afterEach(() => {
   restoreMotion = undefined;
 });
 
+test.for([
+  ["en", "user", "User"],
+  ["en", "repo", "Repository"],
+  ["en", "system", "System"],
+  ["en", "admin", "Admin"],
+  ["zh-CN", "user", "用户"],
+  ["zh-CN", "repo", "仓库"],
+  ["zh-CN", "system", "系统"],
+  ["zh-CN", "admin", "管理员"],
+] as const)(
+  "keeps %s %s source and description consistent before and after selection",
+  async ([locale, scope, source]) => {
+    restoreMotion = disableMotionForTest();
+    const selectedSkill = {
+      ...skill("review", "/skills/review/SKILL.md", "Review", "Long description", scope),
+      shortDescription: "  Preferred summary  ",
+    };
+    const { screen } = await renderEditor([selectedSkill], { locale });
+    await screen.getByRole("combobox", { name: "Message" }).fill("$review");
+    const option = screen.getByRole("option");
+    await expect.element(option).toHaveTextContent(source);
+    await expect.element(option).toHaveTextContent("Preferred summary");
+    expect(option.element().textContent).not.toContain("Long description");
+    await screen.user.keyboard("{Enter}");
+    const host = screen.getByRole("group", { name: /Review/ });
+    const trigger = host.element().querySelector('[data-slot="chip"]')?.parentElement;
+    if (!(trigger instanceof HTMLElement)) throw new Error("Expected skill tooltip trigger");
+    await userEvent.unhover(document.body);
+    await userEvent.hover(trigger);
+    const tooltip = screen.getByRole("tooltip");
+    await expect.element(tooltip).toHaveTextContent(source);
+    await expect.element(tooltip).toHaveTextContent("Preferred summary");
+    expect(tooltip.element().textContent).not.toContain("Long description");
+    await userEvent.unhover(document.body);
+  },
+);
+
 test("renders an inline HeroUI skill chip whose tooltip discloses only catalog-backed details", async () => {
   restoreMotion = disableMotionForTest();
   const selectedSkill: SkillCatalogCandidate = {

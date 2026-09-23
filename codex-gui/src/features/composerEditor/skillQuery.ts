@@ -21,6 +21,14 @@ export function skillDisplayName(candidate: SkillQueryCandidate): string {
   return displayName == null || displayName.length === 0 ? candidate.name : displayName;
 }
 
+export function skillPreferredDescription(candidate: SkillQueryCandidate): string {
+  return (
+    candidate.interface?.shortDescription ??
+    candidate.shortDescription ??
+    candidate.description
+  ).trim();
+}
+
 export function skillSourceLabel(candidate: SkillQueryCandidate): string {
   switch (candidate.scope) {
     case "user":
