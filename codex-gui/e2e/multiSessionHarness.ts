@@ -1,4 +1,5 @@
 import { expect, type Page, type WebSocketRoute } from "@playwright/test";
+import { createThreadResumeResponse } from "@/features/guiHost/__tests__/threadResumeTestBuilders";
 import {
   attachBaseline,
   closedBackpressure,
@@ -29,7 +30,6 @@ import type {
   ThreadListResponse,
   ThreadLoadedListResponse,
   ThreadReadResponse,
-  ThreadResumeResponse,
   ThreadStartResponse,
   ThreadProjectionEventNotification,
   ThreadStatusChangedNotification,
@@ -218,20 +218,13 @@ export async function createMultiSessionHarness(
             return;
           }
           loadedThreadIds.add(value.id);
-          reply({
-            thread: value,
-            model: "test-model",
-            modelProvider: value.modelProvider,
-            serviceTier: null,
-            cwd: value.cwd,
-            instructionSources: [],
-            approvalPolicy: "never",
-            approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
-            reasoningEffort: null,
-            turnsBackwardsCursor: null,
-            itemsBackwardsCursor: null,
-          } satisfies ThreadResumeResponse);
+          reply(
+            createThreadResumeResponse(value, {
+              model: "test-model",
+              modelProvider: value.modelProvider,
+              approvalPolicy: "never",
+            }),
+          );
           return;
         }
         case "thread/projection/attach": {
