@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { MemoryStorage } from "@/__tests__/memoryStorageMock";
 import {
   BrowserPersistenceError,
   BrowserPersistenceStore,
@@ -24,14 +25,6 @@ const codec: BrowserPersistenceCodec<TestValue> = {
     return { draft: record.draft, queue: record.queue };
   },
 };
-
-class MemoryStorage {
-  readonly values = new Map<string, string>();
-  getItem = vi.fn<(key: string) => string | null>((key) => this.values.get(key) ?? null);
-  setItem = vi.fn<(key: string, value: string) => void>((key, value) => {
-    this.values.set(key, value);
-  });
-}
 
 function createStore(
   storage: MemoryStorage,
