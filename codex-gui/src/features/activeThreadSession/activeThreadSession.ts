@@ -301,16 +301,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
         },
       };
     if (result.type !== "ready") return result;
-    const warnings: ActiveThreadActivationWarning[] = [];
-    try {
-      this.commitSelection(member);
-      this.setCollectionError("viewSelection", threadId, null);
-    } catch (error: unknown) {
-      this.setCollectionError("viewSelection", threadId, error);
-      warnings.push({ type: "authorizationPersistenceFailed", error });
-    }
-    this.publish();
-    return { type: "ready", threadId, warnings };
+    return this.completeSelection(member, []);
   };
 
   private retry = (threadId: string): Promise<ActiveThreadRetryOutcome> => {
@@ -371,7 +362,14 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     if (result.type !== "ready") return result;
     if (!wasViewed || intent !== this.selectionIntent || this.viewedThreadId !== threadId)
       return result;
-    const warnings = [...result.warnings];
+    return this.completeSelection(member, [...result.warnings]);
+  };
+
+  private completeSelection(
+    member: Member,
+    warnings: ActiveThreadActivationWarning[],
+  ): Extract<ActiveThreadActivationOutcome, { type: "ready" }> {
+    const { threadId } = member;
     try {
       this.commitSelection(member);
       this.setCollectionError("viewSelection", threadId, null);
@@ -381,7 +379,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     }
     this.publish();
     return { type: "ready", threadId, warnings };
-  };
+  }
 
   private commitSelection(member: Member): void {
     const { cwd } = member.lifecycle.getState();
