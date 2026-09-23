@@ -1,3 +1,4 @@
+import { catalog, skill } from "./composerEditorBrowserTestSupport";
 import {
   dispatchEnterShortcut,
   dispatchHistoryShortcut,
@@ -577,45 +578,6 @@ function IndependentEditorsFixture({
 const fixtureSkillMenuParentStyle = {
   "--composer-skill-menu-max-height": "18rem",
 } as CSSProperties;
-
-function catalog(
-  type: SkillCatalogState["type"],
-  candidates: readonly SkillCatalogCandidate[],
-  partialErrorCount = 0,
-): SkillCatalogState {
-  const contents = { candidates, partialErrorCount };
-  switch (type) {
-    case "initialLoading":
-      return { type: "initialLoading", previousFailure: null, ...contents };
-    case "ready":
-      return { type: "ready", ...contents };
-    case "refreshing":
-      return { type: "refreshing", previousFailure: null, ...contents };
-    case "stale":
-      return { type: "stale", ...contents };
-    case "failed":
-      return { type: "failed", ...contents };
-  }
-}
-
-type SkillCatalogCandidateWithInterface = SkillCatalogCandidate &
-  Readonly<{ interface: NonNullable<SkillCatalogCandidate["interface"]> }>;
-
-function skill(
-  name: string,
-  path: string,
-  displayName = name,
-  description = `${name} description`,
-  scope: SkillCatalogCandidate["scope"] = "repo",
-): SkillCatalogCandidateWithInterface {
-  return {
-    name,
-    path,
-    description,
-    scope,
-    interface: { displayName, iconSmallUrl: null, iconLargeUrl: null },
-  };
-}
 
 function getController(ref: RefObject<ComposerEditorController | null>): ComposerEditorController {
   if (ref.current == null) {
