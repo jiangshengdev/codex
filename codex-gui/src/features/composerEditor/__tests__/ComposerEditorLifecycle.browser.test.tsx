@@ -1,3 +1,7 @@
+import {
+  dispatchEnterShortcut,
+  dispatchHistoryShortcut,
+} from "./composerKeyboardBrowserTestSupport";
 import { createRef, useState, type CSSProperties, type RefObject } from "react";
 import {
   $getRoot,
@@ -657,21 +661,6 @@ function readDomSelectionState(root: Element) {
   };
 }
 
-type EnterShortcutModifiers = Readonly<
-  Partial<Pick<KeyboardEvent, "altKey" | "ctrlKey" | "metaKey" | "shiftKey">>
->;
-
-function dispatchEnterShortcut(element: Element, modifiers: EnterShortcutModifiers): void {
-  element.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      key: "Enter",
-      ...modifiers,
-    }),
-  );
-}
-
 async function withNavigatorPlatform(platform: string, run: () => Promise<void>): Promise<void> {
   const originalDescriptor = Object.getOwnPropertyDescriptor(navigator, "platform");
   Object.defineProperty(navigator, "platform", {
@@ -687,18 +676,4 @@ async function withNavigatorPlatform(platform: string, run: () => Promise<void>)
       Object.defineProperty(navigator, "platform", originalDescriptor);
     }
   }
-}
-function dispatchHistoryShortcut(element: Element, command: "undo" | "redo"): void {
-  const isApple = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-  const isRedo = command === "redo";
-  element.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      ctrlKey: !isApple,
-      key: isRedo && !isApple ? "y" : "z",
-      metaKey: isApple,
-      shiftKey: isRedo && isApple,
-    }),
-  );
 }

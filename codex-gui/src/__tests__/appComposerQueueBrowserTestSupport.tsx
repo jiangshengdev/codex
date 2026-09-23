@@ -1,3 +1,4 @@
+export { dispatchGuideShortcut } from "@/features/composerEditor/__tests__/composerKeyboardBrowserTestSupport";
 import { expect, vi, type Mock } from "vitest";
 import { page } from "vitest/browser";
 import {
@@ -174,16 +175,3 @@ export const readGuiHostCommandCallCounts = (
   steerTurn: vi.mocked(commands.steerTurn).mock.calls.length,
   interruptTurn: vi.mocked(commands.interruptTurn).mock.calls.length,
 });
-
-export const dispatchGuideShortcut = (element: Element): void => {
-  const isMac = navigator.platform.startsWith("Mac");
-  element.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      ctrlKey: !isMac,
-      key: "Enter",
-      metaKey: isMac,
-    }),
-  );
-};

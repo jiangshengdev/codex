@@ -1,3 +1,4 @@
+import { dispatchGuideShortcut } from "@/features/composerEditor/__tests__/composerKeyboardBrowserTestSupport";
 import { Button, Toast } from "@heroui/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
@@ -95,19 +96,6 @@ const skillsRoleFor = (
 const composerTextWithoutTrailingBrowserPlaceholders = (
   element: Readonly<Pick<Node, "textContent">>,
 ): string => (element.textContent ?? "").replace(/[ \n\r\u00a0\u200b]+$/u, "");
-
-const dispatchGuideShortcut = (element: Element): void => {
-  const isMac = navigator.platform.startsWith("Mac");
-  element.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      ctrlKey: !isMac,
-      key: "Enter",
-      metaKey: isMac,
-    }),
-  );
-};
 
 afterEach(() => {
   restoreMotion?.();

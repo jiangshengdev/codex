@@ -1,3 +1,4 @@
+import { dispatchHistoryShortcut } from "./composerKeyboardBrowserTestSupport";
 import {
   $createNodeSelection,
   $getSelection,
@@ -318,19 +319,4 @@ function readNodeSelectionSize(root: Element): number | null {
     const selection = $getSelection();
     return $isNodeSelection(selection) ? selection.getNodes().length : null;
   });
-}
-
-function dispatchHistoryShortcut(element: Element, command: "undo" | "redo"): void {
-  const isApple = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-  const isRedo = command === "redo";
-  element.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      ctrlKey: !isApple,
-      key: isRedo && !isApple ? "y" : "z",
-      metaKey: isApple,
-      shiftKey: isRedo && isApple,
-    }),
-  );
 }

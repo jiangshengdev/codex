@@ -1,3 +1,4 @@
+import { dispatchEnterShortcut } from "./composerKeyboardBrowserTestSupport";
 import { createRef, useState, type CSSProperties, type RefObject } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -361,21 +362,6 @@ function IndependentEditorsFixture({
 const fixtureSkillMenuParentStyle = {
   "--composer-skill-menu-max-height": "18rem",
 } as CSSProperties;
-
-type EnterShortcutModifiers = Readonly<
-  Partial<Pick<KeyboardEvent, "altKey" | "ctrlKey" | "metaKey" | "shiftKey">>
->;
-
-function dispatchEnterShortcut(element: Element, modifiers: EnterShortcutModifiers): void {
-  element.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      key: "Enter",
-      ...modifiers,
-    }),
-  );
-}
 
 async function withNavigatorPlatform(platform: string, run: () => Promise<void>): Promise<void> {
   const originalDescriptor = Object.getOwnPropertyDescriptor(navigator, "platform");
