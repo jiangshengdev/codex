@@ -1,3 +1,7 @@
+import {
+  createSessionRecordOperations,
+  type SessionRecordStorage,
+} from "@/storage/sessionRecordOperations";
 /** The feature owner validates and reconstructs its own recoverable domain data. */
 export type BrowserPersistenceCodec<T> = Readonly<{
   encode: (value: T) => unknown;
@@ -31,7 +35,7 @@ export class BrowserPersistenceError extends Error {
   }
 }
 
-type SessionRecordStorage = Pick<Storage, "getItem" | "setItem">;
+const recordOperations = createSessionRecordOperations(BrowserPersistenceError);
 
 type RecordEnvelope = Readonly<{
   version: 1;
@@ -67,17 +71,12 @@ export class BrowserPersistenceStore<T> {
     this.authorizationContext = authorizationContext;
     this.threadId = threadId;
     this.codec = codec;
-    this.storage = storage ?? readSessionStorage();
+    this.storage = storage ?? recordOperations.readSessionStorage();
     this.key = `codex-gui.browserPersistence.${encodeURIComponent(threadId)}`;
   }
 
   read = (): BrowserPersistenceSnapshot<T> | null => {
-    let stored: string | null;
-    try {
-      stored = this.storage.getItem(this.key);
-    } catch (error: unknown) {
-      throw new BrowserPersistenceError("read", error);
-    }
+    const stored = recordOperations.read(this.storage, this.key);
     if (stored === null) {
       return null;
     }
@@ -126,11 +125,7 @@ export class BrowserPersistenceStore<T> {
     // Verify the JSON representation, not only the pre-serialization value.
     // Failed encoding/import cannot overwrite the last recoverable record.
     const snapshot = this.decode(parseEnvelope(serialized));
-    try {
-      this.storage.setItem(this.key, serialized);
-    } catch (error: unknown) {
-      throw new BrowserPersistenceError("write", error);
-    }
+    recordOperations.write(this.storage, this.key, serialized);
     return snapshot;
   };
 
@@ -143,29 +138,8 @@ export class BrowserPersistenceStore<T> {
   }
 }
 
-function readSessionStorage(): SessionRecordStorage {
-  try {
-    const storage = (globalThis as { sessionStorage?: Storage }).sessionStorage;
-    if (storage === undefined) {
-      throw new Error("Session storage is unavailable");
-    }
-    return storage;
-  } catch (error: unknown) {
-    throw new BrowserPersistenceError("unavailable", error);
-  }
-}
-
 function parseEnvelope(stored: string): RecordEnvelope {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stored);
-  } catch (error: unknown) {
-    throw new BrowserPersistenceError("malformed", error);
-  }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new BrowserPersistenceError("malformed");
-  }
-  const record = parsed as Record<string, unknown>;
+  const record = recordOperations.parseObject(stored);
   if (record.version !== 1) {
     throw new BrowserPersistenceError("unsupportedVersion");
   }

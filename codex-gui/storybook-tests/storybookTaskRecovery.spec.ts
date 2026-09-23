@@ -1,7 +1,7 @@
 import { storybookOrigin } from "./servers";
-import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
 import { installPausedClock } from "./pausedClock";
+import { clickCenterWithPointer } from "./pointerClick";
 import { composer } from "../e2e/persistenceHarness";
 
 test.use({ locale: "en" });
@@ -18,12 +18,7 @@ test("partial recovery keeps task ownership while retrying the failed task", asy
   await page.getByRole("button", { name: "Restore task", exact: true }).click();
   const pending = page.getByRole("button", { name: "Restoring task…", exact: true });
   await expect(pending).toHaveAttribute("aria-disabled", "true");
-  const pendingBounds = await pending.boundingBox();
-  assert(pendingBounds);
-  await page.mouse.click(
-    pendingBounds.x + pendingBounds.width / 2,
-    pendingBounds.y + pendingBounds.height / 2,
-  );
+  await clickCenterWithPointer(page, pending);
   await pending.press("Enter");
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.getByRole("button", { name: "Recovery task two", exact: true }).click();

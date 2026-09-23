@@ -221,15 +221,9 @@ class ActiveThreadMemberLifecycleImpl {
       live.flushProjection();
       if (!current()) return { type: "unavailable" };
       if (mode === "connection") {
-        let cursor: string | null = null;
-        let loaded = false;
-        do {
-          const page = await round.commands.listLoadedThreads(cursor == null ? {} : { cursor });
-          if (!current()) return { type: "unavailable" };
-          loaded = page.data.includes(this.member.threadId);
-          cursor = page.nextCursor;
-        } while (!loaded && cursor != null);
-        if (!loaded) {
+        const loaded = await this.queryLoadedThread(round.commands, current);
+        if (loaded === "stale" || !current()) return { type: "unavailable" };
+        if (loaded === "unloaded") {
           const response = await round.commands.resumeThread({ threadId: this.member.threadId });
           if (!current()) return { type: "unavailable" };
           if (response.thread.id !== this.member.threadId)
@@ -347,20 +341,29 @@ class ActiveThreadMemberLifecycleImpl {
     return pending;
   }
 
+  private async queryLoadedThread(
+    commands: Pick<ActiveThreadSessionCommands, "listLoadedThreads">,
+    current: () => boolean,
+  ): Promise<"loaded" | "unloaded" | "stale"> {
+    let cursor: string | null = null;
+    do {
+      const page = await commands.listLoadedThreads(cursor == null ? {} : { cursor });
+      if (!current()) return "stale";
+      if (page.data.includes(this.member.threadId)) return "loaded";
+      cursor = page.nextCursor;
+    } while (cursor != null);
+    return "unloaded";
+  }
+
   private async initializeMember(member: Member): Promise<ActiveThreadActivationOutcome> {
     const round = this.connection.capture();
     if (round == null) return this.connectionFailure(member.threadId);
     let phase: "loaded" | "resume" | "attach" | "prepare" = "loaded";
     try {
-      let cursor: string | null = null;
-      let loaded = false;
-      do {
-        const page = await round.commands.listLoadedThreads(cursor == null ? {} : { cursor });
-        if (this.isDisposed() || !round.isCurrent()) return this.connectionFailure(member.threadId);
-        loaded = page.data.includes(member.threadId);
-        cursor = page.nextCursor;
-      } while (!loaded && cursor != null);
-      if (!loaded) {
+      const current = () => !this.isDisposed() && round.isCurrent();
+      const loaded = await this.queryLoadedThread(round.commands, current);
+      if (loaded === "stale" || !current()) return this.connectionFailure(member.threadId);
+      if (loaded === "unloaded") {
         phase = "resume";
         const resumed = await round.commands.resumeThread({ threadId: member.threadId });
         if (resumed.thread.id !== member.threadId)

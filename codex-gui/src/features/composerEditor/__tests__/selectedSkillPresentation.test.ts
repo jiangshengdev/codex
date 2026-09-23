@@ -72,6 +72,16 @@ describe("projectSelectedSkillPresentation", () => {
     ],
     [{ interface: undefined, shortDescription: undefined, description: "Long" }, "Long"],
     [{ interface: undefined, shortDescription: undefined, description: "" }, null],
+    [{ interface: undefined, shortDescription: "  ", description: "Long" }, null],
+    [{ interface: undefined, shortDescription: undefined, description: "  Long  " }, "Long"],
+    [
+      {
+        interface: { iconSmallUrl: null, iconLargeUrl: null, shortDescription: "" },
+        shortDescription: "Short description",
+        description: "Long",
+      },
+      null,
+    ],
   ] as const)(
     "falls through catalog descriptions without creating empty detail",
     (fields, expected) => {

@@ -1,14 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import { requiredTranscriptState } from "./requiredTranscriptState";
-import {
-  activeThreadReadModelSlotCreated,
-  activeThreadReadModelTransitionApplied,
-} from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import {
   attachBaseline,
   eventItemCompleted,
@@ -37,23 +31,19 @@ import {
 } from "../transcriptStateSlice";
 
 const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
 
 describe("transcript state committed messages reducer", () => {
   it("preserves assistant message phase in stored live completions while projecting views", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-live-commentary",
@@ -88,9 +78,9 @@ describe("transcript state committed messages reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: turnStarted(
           eventTurnStarted,
           "commit-live-turn",
@@ -100,7 +90,7 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-live-agent",
@@ -111,7 +101,7 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-live-user",
@@ -159,9 +149,9 @@ describe("transcript state committed messages reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "start-assistant-first",
@@ -172,7 +162,7 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "complete-user-after-started",
@@ -218,9 +208,9 @@ describe("transcript state committed messages reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "start-leading-user",
@@ -261,7 +251,7 @@ describe("transcript state committed messages reducer", () => {
     ).toBeNull();
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "complete-leading-user",
@@ -321,9 +311,9 @@ describe("transcript state committed messages reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-live-normalized",
@@ -370,9 +360,9 @@ describe("transcript state committed messages reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-empty-user",
@@ -383,7 +373,7 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-empty-agent",
@@ -394,7 +384,7 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-plan",
@@ -405,7 +395,7 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-sleep",
@@ -439,9 +429,9 @@ describe("transcript state committed messages reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-first",
@@ -458,7 +448,7 @@ describe("transcript state committed messages reducer", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-second",
@@ -518,9 +508,9 @@ describe("transcript state committed messages reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-phase-first",
@@ -531,7 +521,7 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-phase-second",
@@ -584,9 +574,9 @@ describe("transcript state committed messages reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-final-first",
@@ -597,7 +587,7 @@ describe("transcript state committed messages reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-final-second",
@@ -642,9 +632,9 @@ describe("transcript state committed messages reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-leading",
@@ -658,7 +648,7 @@ describe("transcript state committed messages reducer", () => {
 
     for (let index = 0; index <= TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT; index += 1) {
       store.dispatch(
-        threadRuntimeEventBuffered({
+        actions.threadRuntimeEventBuffered({
           notification: itemCompleted(
             eventItemCompleted,
             `commit-middle-${String(index)}`,
@@ -678,7 +668,7 @@ describe("transcript state committed messages reducer", () => {
       }
     }
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-final",

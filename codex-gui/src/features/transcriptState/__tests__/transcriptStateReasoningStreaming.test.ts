@@ -1,14 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import { requiredTranscriptState } from "./requiredTranscriptState";
-import {
-  activeThreadReadModelSlotCreated,
-  activeThreadReadModelTransitionApplied,
-} from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import {
   attachBaseline,
   eventItemCompleted,
@@ -37,27 +31,17 @@ import {
 } from "../transcriptStateSlice";
 
 const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
-const threadRuntimeDeltasAccepted = ({
-  notifications,
-}: Pick<
-  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
-  "notifications"
->) => readModelAction({ type: "deltasAccepted", notifications });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
 
 const startReasoning = (turnId: string, itemId: string) => {
   const store = makeStore();
   store.dispatch(activeThreadReadModelSlotCreated(identity));
-  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: itemStarted(
         eventItemStarted,
         "commit-" + itemId + "-started",
@@ -77,7 +61,7 @@ const summaryPart = (turnId: string, itemId: string, summaryIndex: number) =>
 const acceptDeltas = (
   store: ReturnType<typeof makeStore>,
   ...notifications: ReturnType<typeof summaryText>[]
-) => store.dispatch(threadRuntimeDeltasAccepted({ notifications }));
+) => store.dispatch(actions.threadRuntimeDeltasAccepted({ notifications }));
 
 type StreamingExpectation = [
   Record<number, string>,
@@ -224,7 +208,7 @@ describe("transcript state live streaming reducer", () => {
     const store = startReasoning(turnId, itemId);
     const wrongTarget = agentMessage("reasoning-wrong-target", "", "commentary");
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(eventItemStarted, "commit-wrong-target", turnId, wrongTarget),
         replay: "live",
       }),
@@ -255,7 +239,7 @@ describe("transcript state live streaming reducer", () => {
     const store = startReasoning(turnId, itemId);
     acceptDeltas(store, summaryText(turnId, itemId, "**Streaming**", 0));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-reasoning-completed",

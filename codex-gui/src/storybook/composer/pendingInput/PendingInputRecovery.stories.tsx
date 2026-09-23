@@ -22,7 +22,7 @@ export const MixedTextCombined: Story = {
     docs: {
       description: {
         story:
-          "23 rejected guides in the real priority summary, plus 23 ordinary queued messages. Priority summaries and the paged drawer scroll at 375×720 and 1280×720; summaries intentionally retain product truncation.",
+          "23 rejected guides in the real priority summary, plus 23 ordinary queued messages. Priority summaries and the paged drawer scroll at 375×720 and 1280×720; truncated priority messages open their complete text with the right-aligned View full message button.",
       },
     },
   },

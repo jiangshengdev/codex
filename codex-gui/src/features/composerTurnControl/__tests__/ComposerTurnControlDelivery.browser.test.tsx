@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
+import { composerTextWithoutTrailingBrowserPlaceholders } from "./composerTextBrowserTestSupport";
 import { userEvent } from "vitest/browser";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
@@ -38,10 +39,6 @@ const expectStartTurnCalledOnceWithText = (
     input: [{ type: "text", text, text_elements: [] }],
   });
 };
-
-const composerTextWithoutTrailingBrowserPlaceholders = (
-  element: Readonly<Pick<Node, "textContent">>,
-): string => (element.textContent ?? "").replace(/[ \n\r\u00a0\u200b]+$/u, "");
 
 afterEach(() => {
   vi.restoreAllMocks();

@@ -21,6 +21,7 @@ import { TranscriptTurnDuration } from "./TranscriptTurnDuration";
 import { TranscriptTimeLabel } from "./TranscriptTimeLabel";
 import { selectTranscriptTimeLabelsFromTranscriptState } from "@/features/transcriptState/transcriptTimeSelectors";
 import { TranscriptCompletionTime } from "./TranscriptCompletionTime";
+import { hasTranscriptFragmentContent } from "@/features/transcriptState/transcriptFragmentVisibility";
 
 const areTranscriptEntryArraysEqual = (
   previous: TranscriptEntryView[],
@@ -175,13 +176,7 @@ export const CommittedTranscriptTurnFragment = memo(
     }
     const isLastFragment = lastFragmentIdsByTurnId[fragment.turnId] === fragment.id;
 
-    const hasEntries =
-      fragment.leadingPromptEntryId != null ||
-      fragment.middleEntryCount > 0 ||
-      fragment.finalAssistantEntryIds.length > 0 ||
-      (isLastFragment && turn.error != null);
-
-    if (!hasEntries) {
+    if (!hasTranscriptFragmentContent(fragment, turn, isLastFragment)) {
       return null;
     }
 

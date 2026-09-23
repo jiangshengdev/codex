@@ -29,6 +29,7 @@ import {
   type SelectedSkillPresentation,
 } from "./selectedSkillPresentation";
 import type { SkillPathIdentity } from "./skillQuery";
+import { localizeSkillSourceLabel } from "./skillSourceMessages";
 
 type SelectedSkillPresentationEnvironmentValue = Readonly<{
   candidates: SkillCatalogState["candidates"];
@@ -116,7 +117,7 @@ export function SelectedSkillToken({
   const [editor] = useLexicalComposerContext();
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey);
   const environment = useSelectedSkillPresentationEnvironment();
-  const { i18n, t } = useLingui();
+  const { i18n } = useLingui();
   const onClick = useCallback(
     (event: MouseEvent): boolean => {
       const nodeElement = editor.getElementByKey(nodeKey);
@@ -159,32 +160,7 @@ export function SelectedSkillToken({
         ...selectedSkillDetailsMessage,
         values: { 0: skillDisplayName },
       });
-  const localizedSourceLabel = (() => {
-    switch (presentation.sourceLabel) {
-      case "User":
-        return t({
-          comment: "Source label for a skill installed by the current user",
-          message: "User",
-        });
-      case "Repository":
-        return t({
-          comment: "Source label for a skill provided by the current repository",
-          message: "Repository",
-        });
-      case "System":
-        return t({
-          comment: "Source label for a skill provided by the Codex system",
-          message: "System",
-        });
-      case "Admin":
-        return t({
-          comment: "Source label for a skill installed by an administrator",
-          message: "Admin",
-        });
-      default:
-        return presentation.sourceLabel;
-    }
-  })();
+  const localizedSourceLabel = localizeSkillSourceLabel(i18n, presentation.sourceLabel);
 
   useEffect(() => {
     const nodeElement = editor.getElementByKey(nodeKey);

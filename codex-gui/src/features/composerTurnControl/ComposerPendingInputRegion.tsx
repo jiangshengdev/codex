@@ -5,6 +5,7 @@ import { RetryActionButton } from "@/feedback/RetryActionButton";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
+import { ComposerFullMessagePreview } from "./ComposerFullMessagePreview";
 import { ComposerInputPreviewContent } from "./ComposerInputPreviewContent";
 import { ComposerPendingInputTrigger } from "./ComposerPendingInputDrawer";
 import type {
@@ -88,7 +89,13 @@ export function ComposerPendingInputRegion({
           <ul className="grid max-h-[min(30vh,240px)] min-w-0 gap-2 overflow-y-auto">
             {snapshot.rejectedSteers.map((item) => (
               <li className="min-w-0" key={item.key}>
-                <ComposerInputPreviewContent preview={item.preview} />
+                <ComposerFullMessagePreview
+                  fullText={item.text}
+                  heading={<Trans>Pending details</Trans>}
+                  showFullMessage={item.preview.type === "text" && item.preview.truncated}
+                >
+                  <ComposerInputPreviewContent preview={item.preview} />
+                </ComposerFullMessagePreview>
               </li>
             ))}
           </ul>

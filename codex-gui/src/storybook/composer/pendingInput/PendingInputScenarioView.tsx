@@ -116,14 +116,16 @@ export function PendingInputPreview<Scenario extends Pick<PendingInputScenario, 
   createScenario,
   children,
   renderDrawerControls,
+  className = "grid gap-3",
 }: Readonly<{
   createScenario: () => Scenario;
   children: (scenario: Scenario) => ReactNode;
   renderDrawerControls?: (scenario: Scenario) => ReactNode;
+  className?: string;
 }>) {
   const [generation, setGeneration] = useState(0);
   return (
-    <div className="grid gap-3">
+    <div className={className}>
       <DevOnly>
         <Button
           className="justify-self-start"

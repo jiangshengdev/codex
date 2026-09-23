@@ -1,6 +1,7 @@
 import type { SkillNodeState } from "./SkillNode";
 import {
   skillParentPathLabel,
+  skillPreferredDescription,
   skillSourceLabel,
   type SkillQueryCandidate,
   type SkillPathIdentity,
@@ -36,7 +37,7 @@ export function projectSelectedSkillPresentation({
     displayName: skill.displayName,
     canonicalName: skill.name === skill.displayName ? null : `$${skill.name}`,
     sourceLabel: candidate == null ? skill.sourceLabel : skillSourceLabel(candidate),
-    description: candidate == null ? null : preferredDescription(candidate),
+    description: candidate == null ? null : skillPreferredDescription(candidate) || null,
     pathLabel: skillParentPathLabel(
       collidableSkills,
       skill,
@@ -44,13 +45,4 @@ export function projectSelectedSkillPresentation({
     ),
     isInvalid,
   };
-}
-
-function preferredDescription(candidate: SkillQueryCandidate): string | null {
-  const description = (
-    candidate.interface?.shortDescription ??
-    candidate.shortDescription ??
-    candidate.description
-  ).trim();
-  return description.length === 0 ? null : description;
 }

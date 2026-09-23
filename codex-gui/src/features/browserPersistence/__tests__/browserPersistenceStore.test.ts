@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { MemoryStorage } from "@/__tests__/memoryStorageMock";
+import { withSessionStorageGetter } from "@/__tests__/sessionStorageTestSupport";
 import {
   BrowserPersistenceError,
   BrowserPersistenceStore,
@@ -24,14 +26,6 @@ const codec: BrowserPersistenceCodec<TestValue> = {
     return { draft: record.draft, queue: record.queue };
   },
 };
-
-class MemoryStorage {
-  readonly values = new Map<string, string>();
-  getItem = vi.fn<(key: string) => string | null>((key) => this.values.get(key) ?? null);
-  setItem = vi.fn<(key: string, value: string) => void>((key, value) => {
-    this.values.set(key, value);
-  });
-}
 
 function createStore(
   storage: MemoryStorage,
@@ -117,6 +111,10 @@ describe("BrowserPersistenceStore", () => {
 
   it.each([
     ["invalid JSON", "malformed"],
+    ["null", "malformed"],
+    ["[]", "malformed"],
+    ["false", "malformed"],
+    ["{}", "unsupportedVersion"],
     [JSON.stringify({ version: 2 }), "unsupportedVersion"],
     [JSON.stringify({ version: 1 }), "malformed"],
     [
@@ -216,29 +214,22 @@ describe("BrowserPersistenceStore", () => {
     expect(storage.setItem).not.toHaveBeenCalled();
   });
 
-  it("reports an unavailable browser sessionStorage getter", () => {
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
-    Object.defineProperty(globalThis, "sessionStorage", {
-      configurable: true,
-      get: () => {
+  it.each(["blocked", "missing"])("reports %s browser sessionStorage", (availability) => {
+    withSessionStorageGetter(
+      () => {
+        if (availability === "missing") return undefined;
         throw new Error("blocked");
       },
-    });
-    try {
-      expect(
-        () =>
-          new BrowserPersistenceStore({
-            authorizationContext: "context-one",
-            threadId: "one",
-            codec,
-          }),
-      ).toThrow(new BrowserPersistenceError("unavailable"));
-    } finally {
-      if (descriptor === undefined) {
-        Reflect.deleteProperty(globalThis, "sessionStorage");
-      } else {
-        Object.defineProperty(globalThis, "sessionStorage", descriptor);
-      }
-    }
+      () => {
+        expect(
+          () =>
+            new BrowserPersistenceStore({
+              authorizationContext: "context-one",
+              threadId: "one",
+              codec,
+            }),
+        ).toThrow(new BrowserPersistenceError("unavailable"));
+      },
+    );
   });
 });

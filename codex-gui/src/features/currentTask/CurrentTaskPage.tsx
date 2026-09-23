@@ -19,6 +19,7 @@ import { useCommittedTranscriptStickyBottom } from "@/features/appShell/useCommi
 import type { ActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
 import type { ActiveThreadMemberOperationError } from "@/features/activeThreadSession/activeThreadSessionCollectionContracts";
 import { errorText } from "@/text/errorText";
+import { aggregateErrorText } from "@/text/aggregateErrorText";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
@@ -29,13 +30,7 @@ import {
   type TurnPositionRequest,
 } from "@/features/browserLaunch/useTurnPositionRequest";
 
-function isMacAppleWebKitRuntime(): boolean {
-  return (
-    navigator.vendor === "Apple Computer, Inc." &&
-    navigator.platform === "MacIntel" &&
-    navigator.maxTouchPoints <= 1
-  );
-}
+import { isMacAppleWebKitRuntime } from "@/features/composerEditor/composerRuntime";
 
 export function CurrentTaskPage() {
   const { t } = useLingui();
@@ -240,9 +235,9 @@ export function CurrentTaskPage() {
               <Trans>The task could not be removed.</Trans>
             )}
           </Alert.Description>
-          {taskErrorText(error) !== "" ? (
+          {aggregateErrorText(error) !== "" ? (
             <FailureDiagnosticModal triggerClassName="mt-2 self-start" triggerSize="sm">
-              {taskErrorText(error)}
+              {aggregateErrorText(error)}
             </FailureDiagnosticModal>
           ) : null}
         </Alert.Content>
@@ -357,9 +352,9 @@ export function CurrentTaskPage() {
                 <Alert.Description>
                   <Trans>The current task could not be loaded.</Trans>
                 </Alert.Description>
-                {(retryError ?? taskErrorText(snapshot.error)) !== "" ? (
+                {(retryError ?? aggregateErrorText(snapshot.error)) !== "" ? (
                   <FailureDiagnosticModal triggerClassName="mt-2 self-start" triggerSize="sm">
-                    {retryError ?? taskErrorText(snapshot.error)}
+                    {retryError ?? aggregateErrorText(snapshot.error)}
                   </FailureDiagnosticModal>
                 ) : null}
               </Alert.Content>
@@ -455,9 +450,9 @@ export function CurrentTaskPage() {
                   <Alert.Description>
                     <Trans>The task action could not be completed.</Trans>
                   </Alert.Description>
-                  {taskErrorText(member.error) !== "" ? (
+                  {aggregateErrorText(member.error) !== "" ? (
                     <FailureDiagnosticModal triggerClassName="mt-2 self-start" triggerSize="sm">
-                      {taskErrorText(member.error)}
+                      {aggregateErrorText(member.error)}
                     </FailureDiagnosticModal>
                   ) : null}
                 </Alert.Content>
@@ -560,12 +555,6 @@ function CurrentTaskLoading() {
       </span>
     </div>
   );
-}
-
-function taskErrorText(error: unknown): string {
-  return error instanceof AggregateError
-    ? error.errors.map(taskErrorText).join("; ")
-    : errorText(error);
 }
 
 function CurrentTaskComposer({

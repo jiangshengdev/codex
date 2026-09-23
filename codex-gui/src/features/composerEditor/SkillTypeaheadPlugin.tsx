@@ -32,7 +32,8 @@ import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
 
 import { $createSkillNode } from "./SkillNode";
-import { querySkills, type SkillQueryResult } from "./skillQuery";
+import { querySkills, skillPreferredDescription, type SkillQueryResult } from "./skillQuery";
+import { localizeSkillSourceLabel } from "./skillSourceMessages";
 
 export type SkillTypeaheadPlacement = "above" | "below";
 
@@ -209,7 +210,7 @@ function SkillMenu({
   setHighlightedIndex: (index: number) => void;
   skillCatalog: SkillCatalogState;
 }>) {
-  const { t } = useLingui();
+  const { i18n } = useLingui();
   const showNoResults =
     options.length === 0 &&
     skillCatalog.type !== "initialLoading" &&
@@ -279,37 +280,9 @@ function SkillMenu({
         <ul className={SKILL_MENU_LISTBOX_CLASS_NAME} data-slot="list-box" role="presentation">
           {options.map((option, index) => {
             const isSelected = selectedIndex === index;
-            const { candidate, disambiguatingParentPath, displayName } = option.result;
-            const localizedSourceLabel = ((): string => {
-              switch (candidate.scope) {
-                case "user":
-                  return t({
-                    comment: "Source label for a skill installed by the current user",
-                    message: "User",
-                  });
-                case "repo":
-                  return t({
-                    comment: "Source label for a skill provided by the current repository",
-                    message: "Repository",
-                  });
-                case "system":
-                  return t({
-                    comment: "Source label for a skill provided by the Codex system",
-                    message: "System",
-                  });
-                case "admin":
-                  return t({
-                    comment: "Source label for a skill installed by an administrator",
-                    message: "Admin",
-                  });
-              }
-              candidate.scope satisfies never;
-            })();
-            const description = (
-              candidate.interface?.shortDescription ??
-              candidate.shortDescription ??
-              candidate.description
-            ).trim();
+            const { candidate, disambiguatingParentPath, displayName, sourceLabel } = option.result;
+            const localizedSourceLabel = localizeSkillSourceLabel(i18n, sourceLabel);
+            const description = skillPreferredDescription(candidate);
             return (
               <li
                 aria-selected={isSelected}

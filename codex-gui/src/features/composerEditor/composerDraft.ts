@@ -17,7 +17,7 @@ import type { ReadonlyComposerInputPayload } from "@/features/composerInput/comp
 import { $isSkillNode, SkillNode, type SkillNodeState } from "./SkillNode";
 import { $isAttachmentNode, AttachmentNode } from "./AttachmentNode";
 import type { UserInput } from "@codex-protocol/v2";
-import { $getComposerText } from "./composerText";
+import { $getComposerText, $getComposerTextFragments } from "./composerText";
 import { $normalizeComposerLineBreak } from "./composerParagraphs";
 
 const composerDraftBrand: unique symbol = Symbol("ComposerDraft");
@@ -246,30 +246,15 @@ function compileTextElements(
   let text = "";
   const text_elements: Extract<UserInput, { type: "text" }>["text_elements"] = [];
   const encoder = new TextEncoder();
-  let previous: LexicalNode | undefined;
-  for (const node of nodes) {
-    if (previous != null && (!previous.isInline() || !node.isInline())) text += "\n";
-    else if ($isAttachmentNode(previous) && $isAttachmentNode(node)) text += " ";
-    const start = encoder.encode(text).length;
-    if ($isAttachmentNode(node)) {
-      const attachment = node.getAttachment();
-      text += attachment.path;
-      if (attachment.status === "ready")
-        text_elements.push({
-          byteRange: { start, end: encoder.encode(text).length },
-          placeholder: attachment.name,
-        });
-    } else if ($isElementNode(node)) {
-      const child = compileTextElements(node.getChildren());
-      text += child.text;
-      text_elements.push(
-        ...child.text_elements.map((element) => ({
-          ...element,
-          byteRange: { start: start + element.byteRange.start, end: start + element.byteRange.end },
-        })),
-      );
-    } else text += $getComposerText([node], "canonical");
-    previous = node;
+  for (const { text: fragment, attachment } of $getComposerTextFragments(nodes, "canonical")) {
+    const start = attachment?.status === "ready" ? encoder.encode(text).length : 0;
+    text += fragment;
+    if (attachment?.status === "ready") {
+      text_elements.push({
+        byteRange: { start, end: encoder.encode(text).length },
+        placeholder: attachment.name,
+      });
+    }
   }
   return { text, text_elements };
 }

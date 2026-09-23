@@ -6,6 +6,7 @@ import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostCl
 import { attachWithThreadId } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createAppRouter } from "@/router";
 import { renderWithProviders } from "@/utils/test-utils";
+import { installTestVisualViewport } from "../visualViewportTestSupport";
 import {
   attachResponse,
   createGuiHostCommands,
@@ -97,15 +98,14 @@ const nextFrame = (): Promise<void> =>
 
 function installViewport() {
   const original = Object.getOwnPropertyDescriptor(window, "visualViewport");
-  const viewport = Object.assign(new EventTarget(), { height: 699, offsetTop: 0 });
-  Object.defineProperty(window, "visualViewport", { configurable: true, value: viewport });
+  const { viewport, dispatchResize } = installTestVisualViewport({ height: 699, offsetTop: 0 });
   vi.spyOn(document.documentElement, "clientHeight", "get").mockReturnValue(699);
   const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => undefined);
   return {
     scrollBy,
     async resize(height = 361) {
       viewport.height = height;
-      viewport.dispatchEvent(new Event("resize"));
+      dispatchResize();
       await nextFrame();
     },
     restore() {

@@ -1,5 +1,4 @@
 import { beforeEach, expect, test, vi } from "vitest";
-import { useEffect } from "react";
 import {
   attachResponse,
   attachWithCommittedMessages,
@@ -16,16 +15,15 @@ import {
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
+import { createActiveThreadSessionProbe } from "./activeThreadSessionProbe";
+import { ThreadSwitchCapabilityProbe as SharedThreadSwitchCapabilityProbe } from "./appThreadSwitchCapabilityProbe";
 import {
-  useActiveThreadSession,
-  useActiveThreadSessionSnapshot,
-} from "@/features/appShell/AppCapabilities";
-import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
+  getAppComposer,
+  renderReadyApp,
+  initializeAppWithProjection,
+} from "./appProjectionBrowserTestSupport";
 import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
-import type {
-  GuiHostCommands,
-  StartGuiHostConnectionOptions,
-} from "@/features/guiHost/guiHostClient";
+import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import {
   attachReplacement,
   eventSubscriptionReplacement,
@@ -55,93 +53,24 @@ const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
 const candidateThreadId = "00000000-0000-0000-0000-000000000002";
-let threadSwitchProbeSession: ActiveThreadSession | null = null;
+let threadSwitchProbe = createActiveThreadSessionProbe();
 
 function ThreadSwitchCapabilityProbe() {
-  const session = useActiveThreadSession();
-  const snapshot = useActiveThreadSessionSnapshot();
-  const available = snapshot.phase === "active" || snapshot.phase === "projectionUnavailable";
-  useEffect(() => {
-    threadSwitchProbeSession = session;
-  }, [session]);
-
   return (
-    <section aria-label="Thread switch capability probe">
-      <button
-        disabled={session == null || !available}
-        onClick={() => {
-          void session?.activate(candidateThreadId);
-        }}
-        type="button"
-      >
-        Continue candidate thread
-      </button>
-      <output aria-label="Active thread session">{available ? snapshot.threadId : "none"}</output>
-      <output aria-label="Active skill catalog status">
-        {available ? snapshot.skills.type : "none"}
-      </output>
-      <output aria-label="Active skill catalog">
-        {available
-          ? snapshot.skills.candidates.map(({ name }) => name).join(",") || "none"
-          : "none"}
-      </output>
-    </section>
+    <SharedThreadSwitchCapabilityProbe
+      probe={threadSwitchProbe}
+      candidateThreadId={candidateThreadId}
+    />
   );
 }
-
-const requireThreadSwitchProbeSession = (): ActiveThreadSession => {
-  if (threadSwitchProbeSession == null) {
-    throw new Error("thread switch probe must expose an active session");
-  }
-  return threadSwitchProbeSession;
-};
-
-const waitForThreadSwitchProbeSession = async () => {
-  await expect
-    .poll(() => {
-      const snapshot = threadSwitchProbeSession?.getSnapshot();
-      return snapshot?.phase === "active" || snapshot?.phase === "projectionUnavailable";
-    })
-    .toBe(true);
-  const session = requireThreadSwitchProbeSession();
-  const snapshot = session.getSnapshot();
-  if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") {
-    throw new Error("thread switch probe session must be available");
-  }
-  return { session, snapshot };
-};
 
 beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
   vi.mocked(createComposerInputQueueCoordinator).mockClear();
-  threadSwitchProbeSession = null;
+  threadSwitchProbe = createActiveThreadSessionProbe();
 });
-
-const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
-  screen.getByRole("combobox", { name: "Message Codex", exact: true });
-
-const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
-  const screen = await renderWithProviders(<App />);
-  const options = getHostOptions(startGuiHostConnectionMock);
-
-  queueAttachProjectionResponse(commandHandle);
-  initializeHost(options, commandHandle);
-  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
-
-  return { commandHandle, options, screen };
-};
-
-const initializeAppWithProjection = (
-  options: StartGuiHostConnectionOptions,
-  response = attachResponse,
-  commands = createGuiHostCommands(),
-): GuiHostCommands => {
-  queueAttachProjectionResponse(commands, response);
-  initializeHost(options, commands);
-  return commands;
-};
 
 test("App dispatches projection display facts and updates the active session", async () => {
   const { store } = await renderWithProviders(
@@ -162,7 +91,7 @@ test("App dispatches projection display facts and updates the active session", a
     .toBe(threadId);
   emitProjectionEvent(options, projectionEvent);
 
-  const { snapshot: sessionSnapshot } = await waitForThreadSwitchProbeSession();
+  const { snapshot: sessionSnapshot } = await threadSwitchProbe.waitAvailable();
   if (sessionSnapshot.phase !== "active") throw new Error("expected an active session");
   const { turns: _turns, status: _status, ...thread } = attachResponse.snapshot.thread;
   const runtime = selectThreadRuntimeRecord(store.getState(), launchThreadId);
@@ -200,7 +129,7 @@ test("App classifies snapshot-ahead projection events as snapshot duplicate repl
     .toBe(launchThreadId);
   emitProjectionEvent(options, eventTurnStarted);
 
-  const { snapshot } = await waitForThreadSwitchProbeSession();
+  const { snapshot } = await threadSwitchProbe.waitAvailable();
   if (snapshot.phase !== "active") throw new Error("expected an active session");
   expect(snapshot.activeTurnId).toBe(eventTurnStarted.event.notification.turn.id);
   expect(selectThreadRuntimeRecord(store.getState(), launchThreadId)?.threadId).toBe(
@@ -236,7 +165,7 @@ test("App replays startup notifications against the accepted attach baseline", a
 
   await expect
     .poll(() => {
-      const snapshot = threadSwitchProbeSession?.getSnapshot();
+      const snapshot = threadSwitchProbe.read()?.getSnapshot();
       return snapshot?.phase === "active" ? snapshot.activeTurnId : null;
     })
     .toBe(oldOnlyTurn.id);
@@ -256,8 +185,8 @@ test.each(["success", "failure"])(
 
     initializeHost(options, commands);
     await expect.poll(pendingAttach.getState).toBe("pending");
-    await expect.poll(() => threadSwitchProbeSession?.getSnapshot().phase).toBe("loading");
-    const session = requireThreadSwitchProbeSession();
+    await expect.poll(() => threadSwitchProbe.read()?.getSnapshot().phase).toBe("loading");
+    const session = threadSwitchProbe.requireSession();
     await expect.element(activeThread).toHaveTextContent("none");
     await expect.element(continueButton).toBeDisabled();
     expect(selectThreadRuntimeRecord(screen.store.getState(), launchThreadId)).toBeNull();
@@ -278,7 +207,7 @@ test.each(["success", "failure"])(
 
     await expect.element(activeThread).toHaveTextContent("none");
     await expect.element(continueButton).toBeDisabled();
-    expect(threadSwitchProbeSession).toBe(session);
+    expect(threadSwitchProbe.read()).toBe(session);
     expect(session.getSnapshot()).toMatchObject({ phase: "failed", threadId: launchThreadId });
     expect(session.getCollectionSnapshot()).toMatchObject({
       viewedThreadId: launchThreadId,
@@ -344,7 +273,7 @@ test("App rejects a startup attach that returns a different thread identity", as
 
 test("App does not render optimistic user messages after send", async () => {
   const commandHandle = createGuiHostCommands();
-  const { screen } = await renderReadyApp(commandHandle);
+  const { screen } = await renderReadyApp(startGuiHostConnectionMock, commandHandle);
 
   await getAppComposer(screen).fill("Not optimistic");
   await screen.getByRole("button", { name: "Send", exact: true }).click();

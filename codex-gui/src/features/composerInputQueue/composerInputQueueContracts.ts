@@ -290,6 +290,7 @@ export type ComposerInputQueueReleaseState =
 export type ComposerRejectedSteerView = Readonly<{
   key: string;
   preview: ComposerInputPreview;
+  text: string | null;
   reason: RejectedSteer["reason"];
 }>;
 

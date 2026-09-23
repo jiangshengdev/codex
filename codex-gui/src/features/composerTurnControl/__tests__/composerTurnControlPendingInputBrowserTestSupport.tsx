@@ -15,6 +15,7 @@ import type {
   ComposerPendingInputPageResult,
 } from "@/features/composerInputQueue/composerInputQueueContracts";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 
 const attachResponse = attachBaseline;
 
@@ -104,7 +105,7 @@ export const createQueueControllerHarness = (
     steer: [...initialDetails.steer],
   };
   let movementBlocked = false;
-  const listeners = new Set<() => void>();
+  const listeners = createListenerSet();
   const pageReadOverrides: PendingInputPageReadOverride[] = [];
   let pageReadFallbackOverride: PendingInputPageReadOverride | null = null;
   const cursorFacts = new WeakMap<
@@ -280,7 +281,7 @@ export const createQueueControllerHarness = (
       });
       details = { ...details, [lane]: nextLane };
       snapshot = { ...snapshot, detailRevision: snapshot.detailRevision + 1 };
-      for (const listener of listeners) listener();
+      listeners.notify();
       const position = reordered.findIndex(({ key }) => key === request.key) + 1;
       return {
         type: "moved",
@@ -328,10 +329,7 @@ export const createQueueControllerHarness = (
     deletePendingInput,
     movePendingInput,
     getSnapshot: () => snapshot,
-    subscribe: (listener: () => void) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
+    subscribe: (listener: () => void) => listeners.subscribe(listener),
     dispose: vi.fn<ComposerInputQueueCoordinator["dispose"]>(),
   } satisfies ComposerInputQueueCoordinator;
 
@@ -348,7 +346,7 @@ export const createQueueControllerHarness = (
     submitSteer,
     publish(next: ComposerInputQueueCoordinatorSnapshot): void {
       snapshot = next;
-      for (const listener of listeners) listener();
+      listeners.notify();
     },
     replaceDetails(next: PendingInputHarnessDetails): void {
       details = { ordinary: [...next.ordinary], steer: [...next.steer] };

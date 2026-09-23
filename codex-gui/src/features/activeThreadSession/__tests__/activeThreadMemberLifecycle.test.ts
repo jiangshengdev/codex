@@ -56,6 +56,55 @@ function createHarness(
 }
 
 describe("active thread member lifecycle", () => {
+  it("stops recovery pagination at a later loaded match without resuming", async () => {
+    const h = createHarness();
+    await h.member.initialize();
+    const before = h.member.getState().snapshot;
+    if (before?.phase !== "active") throw new Error("expected active member");
+    h.member.connectionUnavailable();
+    const replacement = createGuiHostCommands({ loadedThreadIds: [threadId] });
+    vi.mocked(replacement.listLoadedThreads)
+      .mockResolvedValueOnce({ data: ["another-task"], nextCursor: "second" })
+      .mockResolvedValueOnce({ data: [threadId], nextCursor: "unused" });
+    h.connection.replace(replacement);
+
+    await expect(h.member.recoverConnection(before.identity)).resolves.toEqual({
+      type: "recovered",
+    });
+    expect(vi.mocked(replacement.listLoadedThreads).mock.calls).toEqual([
+      [{}],
+      [{ cursor: "second" }],
+    ]);
+    expect(replacement.resumeThread).not.toHaveBeenCalled();
+    expect(replacement.attachThreadProjection).toHaveBeenCalledTimes(1);
+  });
+
+  it("abandons a stale recovery page without resuming or requesting another page", async () => {
+    const h = createHarness();
+    await h.member.initialize();
+    const before = h.member.getState().snapshot;
+    if (before?.phase !== "active") throw new Error("expected active member");
+    h.member.connectionUnavailable();
+    const replacement = createGuiHostCommands({ loadedThreadIds: [] });
+    const secondPage = createDeferred<Awaited<ReturnType<typeof replacement.listLoadedThreads>>>();
+    vi.mocked(replacement.listLoadedThreads)
+      .mockResolvedValueOnce({ data: [], nextCursor: "second" })
+      .mockReturnValueOnce(secondPage.promise);
+    h.connection.replace(replacement);
+    const pending = h.member.recoverConnection(before.identity);
+    await vi.waitFor(() => {
+      expect(replacement.listLoadedThreads).toHaveBeenCalledTimes(2);
+    });
+    h.connection.revoke();
+    h.member.connectionUnavailable();
+    secondPage.resolve({ data: [], nextCursor: "unused" });
+
+    await expect(pending).resolves.toEqual({ type: "unavailable" });
+    expect(replacement.listLoadedThreads).toHaveBeenCalledTimes(2);
+    expect(replacement.resumeThread).not.toHaveBeenCalled();
+    expect(replacement.attachThreadProjection).not.toHaveBeenCalled();
+  });
+
   it("preserves unknown delivery and never sends it again when the connection recovers", async () => {
     const h = createHarness();
     await h.member.initialize();
@@ -94,7 +143,9 @@ describe("active thread member lifecycle", () => {
     vi.mocked(replacement.attachThreadProjection).mockReturnValueOnce(attach.promise);
     h.connection.replace(replacement);
     const pending = h.member.recoverConnection(before.identity);
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(replacement.attachThreadProjection).toHaveBeenCalledTimes(1);
+    });
     const response = attachWithSnapshotThread(
       attachBaseline,
       attachBaseline.snapshot.thread,
@@ -125,7 +176,9 @@ describe("active thread member lifecycle", () => {
     vi.mocked(replacement.attachThreadProjection).mockReturnValueOnce(attached.promise);
     h.connection.replace(replacement);
     const pending = h.member.recoverConnection(before.identity);
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(replacement.attachThreadProjection).toHaveBeenCalledTimes(1);
+    });
     h.connection.revoke();
     h.member.connectionUnavailable();
     attached.resolve(attachBaseline);
@@ -418,7 +471,9 @@ describe("active thread member lifecycle", () => {
     const attach = createDeferred<typeof attachBaseline>();
     vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(attach.promise);
     const pending = h.member.initialize();
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(1);
+    });
     h.member.suspendRestored();
     h.member.invalidateSkills();
     attach.resolve(attachBaseline);
@@ -466,7 +521,9 @@ describe("active thread member lifecycle", () => {
     const cleanupError = new Error("detach unknown");
     vi.mocked(h.commands.detachThreadProjection).mockRejectedValue(cleanupError);
     const pending = h.member.initialize();
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(1);
+    });
     h.member.handleProjectionClosed(closedBackpressure);
     attach.resolve(attachBaseline);
     await expect(pending).resolves.toMatchObject({
@@ -529,7 +586,9 @@ describe("active thread member lifecycle", () => {
     const attach = createDeferred<typeof attachBaseline>();
     vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(attach.promise);
     const pending = h.member.initialize();
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(1);
+    });
     h.member.dispose();
     h.connection.revoke();
     expect(h.commands.detachThreadProjection).not.toHaveBeenCalled();
@@ -549,7 +608,9 @@ describe("active thread member lifecycle", () => {
     vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(attach.promise);
     vi.mocked(h.commands.detachThreadProjection).mockRejectedValueOnce(cleanupError);
     const pending = h.member.initialize();
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(h.commands.attachThreadProjection).toHaveBeenCalledTimes(1);
+    });
     h.member.dispose();
     h.connection.revoke();
     const replacement = createGuiHostCommands({ loadedThreadIds: [threadId] });

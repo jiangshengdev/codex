@@ -9,6 +9,7 @@ import type {
 } from "@codex-protocol/v2";
 import type { RequestParams, RequestResponse } from "../appServerProtocol";
 import { isGuiHostCommandError } from "../guiHostClient";
+import { createThreadResumeResponse } from "./threadResumeTestBuilders";
 import {
   recordStatusLabels,
   readLatestRpcRequest,
@@ -28,21 +29,6 @@ const turnSteerParams = (threadId: string): TurnSteerParams => ({
   expectedTurnId: "turn-active",
   clientUserMessageId: null,
   input: [{ type: "text", text: "Guide", text_elements: [] }],
-});
-
-const threadResumeResponse = (threadId: string): RequestResponse<"thread/resume"> => ({
-  thread: { ...attachBaseline.snapshot.thread, id: threadId },
-  model: "gpt-5",
-  modelProvider: "openai",
-  serviceTier: null,
-  cwd: attachBaseline.snapshot.thread.cwd,
-  instructionSources: [],
-  approvalPolicy: "on-request",
-  approvalsReviewer: "user",
-  sandbox: { type: "dangerFullAccess" },
-  reasoningEffort: null,
-  turnsBackwardsCursor: null,
-  itemsBackwardsCursor: null,
 });
 
 const threadId = attachBaseline.snapshot.thread.id;
@@ -128,7 +114,10 @@ describe("guiHostClient commands", () => {
     await expect(readPromise).resolves.toEqual(readResponse);
 
     const resumeParams: RequestParams<"thread/resume"> = { threadId };
-    const resumeResponse = threadResumeResponse(threadId);
+    const resumeResponse = createThreadResumeResponse(
+      { ...attachBaseline.snapshot.thread, id: threadId },
+      { model: "gpt-5", modelProvider: "openai", approvalPolicy: "on-request" },
+    );
     const resumePromise = commands.resumeThread(resumeParams);
     const resumeRequest = readLatestRpcRequest(socket, "thread/resume");
     expect(resumeRequest).toEqual({

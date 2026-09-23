@@ -17,16 +17,16 @@ import {
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
-import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
+import { createActiveThreadSessionProbe } from "./activeThreadSessionProbe";
+import { ThreadSwitchCapabilityProbe as SharedThreadSwitchCapabilityProbe } from "./appThreadSwitchCapabilityProbe";
 import {
-  useActiveThreadSession,
-  useActiveThreadSessionSnapshot,
-} from "@/features/appShell/AppCapabilities";
-import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
-import type {
-  GuiHostCommands,
-  StartGuiHostConnectionOptions,
-} from "@/features/guiHost/guiHostClient";
+  getAppComposer,
+  renderReadyApp,
+  initializeAppWithProjection,
+} from "./appProjectionBrowserTestSupport";
+import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
+import { useActiveThreadSession } from "@/features/appShell/AppCapabilities";
+import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import {
   closedBackpressure,
   eventItemStarted,
@@ -51,99 +51,30 @@ const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
 const candidateThreadId = "00000000-0000-0000-0000-000000000002";
-let threadSwitchProbeSession: ActiveThreadSession | null = null;
+let threadSwitchProbe = createActiveThreadSessionProbe();
 
 function ThreadSwitchCapabilityProbe() {
-  const session = useActiveThreadSession();
-  const snapshot = useActiveThreadSessionSnapshot();
-  const available = snapshot.phase === "active" || snapshot.phase === "projectionUnavailable";
-  useEffect(() => {
-    threadSwitchProbeSession = session;
-  }, [session]);
-
   return (
-    <section aria-label="Thread switch capability probe">
-      <button
-        disabled={session == null || !available}
-        onClick={() => {
-          void session?.activate(candidateThreadId);
-        }}
-        type="button"
-      >
-        Continue candidate thread
-      </button>
-      <output aria-label="Active thread session">{available ? snapshot.threadId : "none"}</output>
-      <output aria-label="Active skill catalog status">
-        {available ? snapshot.skills.type : "none"}
-      </output>
-      <output aria-label="Active skill catalog">
-        {available
-          ? snapshot.skills.candidates.map(({ name }) => name).join(",") || "none"
-          : "none"}
-      </output>
-    </section>
+    <SharedThreadSwitchCapabilityProbe
+      probe={threadSwitchProbe}
+      candidateThreadId={candidateThreadId}
+    />
   );
 }
 
 function CurrentTaskWithSessionProbe() {
   const session = useActiveThreadSession();
   useEffect(() => {
-    threadSwitchProbeSession = session;
+    threadSwitchProbe.capture(session);
   }, [session]);
   return <CurrentTaskPage />;
 }
 
-const requireThreadSwitchProbeSession = (): ActiveThreadSession => {
-  if (threadSwitchProbeSession == null) {
-    throw new Error("thread switch probe must expose an active session");
-  }
-  return threadSwitchProbeSession;
-};
-
-const waitForThreadSwitchProbeSession = async () => {
-  await expect
-    .poll(() => {
-      const snapshot = threadSwitchProbeSession?.getSnapshot();
-      return snapshot?.phase === "active" || snapshot?.phase === "projectionUnavailable";
-    })
-    .toBe(true);
-  const session = requireThreadSwitchProbeSession();
-  const snapshot = session.getSnapshot();
-  if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") {
-    throw new Error("thread switch probe session must be available");
-  }
-  return { session, snapshot };
-};
-
 beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
-  threadSwitchProbeSession = null;
+  threadSwitchProbe = createActiveThreadSessionProbe();
 });
-
-const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
-  screen.getByRole("combobox", { name: "Message Codex", exact: true });
-
-const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
-  const screen = await renderWithProviders(<App />);
-  const options = getHostOptions(startGuiHostConnectionMock);
-
-  queueAttachProjectionResponse(commandHandle);
-  initializeHost(options, commandHandle);
-  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
-
-  return { commandHandle, options, screen };
-};
-
-const initializeAppWithProjection = (
-  options: StartGuiHostConnectionOptions,
-  response = attachResponse,
-  commands = createGuiHostCommands(),
-): GuiHostCommands => {
-  queueAttachProjectionResponse(commands, response);
-  initializeHost(options, commands);
-  return commands;
-};
 
 const expectAppComposerDisabled = async (
   screen: Awaited<ReturnType<typeof renderWithProviders>>,
@@ -164,7 +95,7 @@ async function recoverStaleOrdinaryDraft(failStorage: boolean) {
   const options = getHostOptions(startGuiHostConnectionMock);
   const baseline = attachWithCommittedMessages();
   const commands = initializeAppWithProjection(options, baseline);
-  const { snapshot } = await waitForThreadSwitchProbeSession();
+  const { snapshot } = await threadSwitchProbe.waitAvailable();
   const role = snapshot.composerRole;
   const save = vi.spyOn(role, "saveDraft").mockImplementation(() => ({
     type: "unavailable",
@@ -254,7 +185,7 @@ test("App stops forwarding runtime events after backpressure pauses synchronizat
 
   const options = getHostOptions(startGuiHostConnectionMock);
   initializeAppWithProjection(options);
-  const { session } = await waitForThreadSwitchProbeSession();
+  const { session } = await threadSwitchProbe.waitAvailable();
   emitProjectionClosed(options, projectionClosed);
   await expect.poll(() => session.getSnapshot().phase).toBe("projectionUnavailable");
   const unavailableSnapshot = session.getSnapshot();
@@ -275,7 +206,7 @@ test("App stops forwarding runtime events after backpressure pauses synchronizat
 
 test("App disables composer after projection backpressure pauses synchronization", async () => {
   const commandHandle = createGuiHostCommands();
-  const { options, screen } = await renderReadyApp(commandHandle);
+  const { options, screen } = await renderReadyApp(startGuiHostConnectionMock, commandHandle);
   const projectionClosed = closedBackpressure;
   emitProjectionClosed(options, projectionClosed);
 
@@ -374,7 +305,7 @@ test.each([
 );
 
 test("App retains projection failure diagnostics when the host connection closes", async () => {
-  const { options, screen } = await renderReadyApp();
+  const { options, screen } = await renderReadyApp(startGuiHostConnectionMock);
   emitProjectionClosed(options, closedBackpressure);
   await expect
     .element(screen.getByText("Message synchronization paused", { exact: true }))
@@ -402,7 +333,7 @@ test("App records a synchronization pause when a projection event breaks the bas
 
   const options = getHostOptions(startGuiHostConnectionMock);
   initializeAppWithProjection(options);
-  const { session } = await waitForThreadSwitchProbeSession();
+  const { session } = await threadSwitchProbe.waitAvailable();
   emitProjectionEvent(options, projectionEvent);
 
   await expect
@@ -538,7 +469,7 @@ test("CurrentTaskPage retains its draft, transcript and diagnostics through fail
 });
 
 test("CurrentTaskPage explains a broken commit chain without duplicating the transcript notice", async () => {
-  const { options, screen } = await renderReadyApp();
+  const { options, screen } = await renderReadyApp(startGuiHostConnectionMock);
   emitProjectionEvent(options, eventItemStarted);
   await expect
     .element(
@@ -557,7 +488,7 @@ test("CurrentTaskPage explains a broken commit chain without duplicating the tra
 });
 
 test("CurrentTaskPage explains a missing turn from a legal projection event", async () => {
-  const { options, screen } = await renderReadyApp();
+  const { options, screen } = await renderReadyApp(startGuiHostConnectionMock);
   emitProjectionEvent(
     options,
     eventWithEnvelope(eventItemStarted, { parentCommitId: attachResponse.snapshot.headCommitId }),

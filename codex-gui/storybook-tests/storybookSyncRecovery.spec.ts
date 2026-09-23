@@ -2,6 +2,7 @@ import { storybookOrigin } from "./servers";
 import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
 import { installPausedClock } from "./pausedClock";
+import { clickCenterWithPointer } from "./pointerClick";
 import { composer } from "../e2e/persistenceHarness";
 
 test.use({ locale: "en" });
@@ -17,12 +18,7 @@ test("sync retry preserves the paused conversation and other tasks", async ({ pa
   await page.getByRole("button", { name: "Restore sync", exact: true }).click();
   const pending = page.getByRole("button", { name: "Restoring sync…", exact: true });
   await expect(pending).toHaveAttribute("aria-disabled", "true");
-  const pendingBounds = await pending.boundingBox();
-  assert(pendingBounds);
-  await page.mouse.click(
-    pendingBounds.x + pendingBounds.width / 2,
-    pendingBounds.y + pendingBounds.height / 2,
-  );
+  await clickCenterWithPointer(page, pending);
   await pending.press("Enter");
   await page.clock.runFor(2_000);
   await expect(

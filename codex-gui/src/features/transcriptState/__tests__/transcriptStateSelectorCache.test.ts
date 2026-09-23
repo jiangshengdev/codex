@@ -1,14 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import { requiredTranscriptState } from "./requiredTranscriptState";
-import {
-  activeThreadReadModelSlotCreated,
-  activeThreadReadModelTransitionApplied,
-} from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import {
   attachBaseline,
   attachReplacement,
@@ -48,20 +42,10 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
-const threadRuntimeDeltasAccepted = ({
-  notifications,
-}: Pick<
-  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
-  "notifications"
->) => readModelAction({ type: "deltasAccepted", notifications });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
 
 describe("transcript state selector cache", () => {
   it("keeps context page topology selectors stable when entry revisions change", () => {
@@ -71,7 +55,7 @@ describe("transcript state selector cache", () => {
     const activityId = "activity-context-page-cache";
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn(turnId, [
             contextCompaction("compaction-context-page-cache"),
@@ -112,7 +96,7 @@ describe("transcript state selector cache", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-context-page-cache-update",
@@ -142,7 +126,7 @@ describe("transcript state selector cache", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-cached", [agentMessage("agent-cached", "Cached answer", "commentary")]),
         ]),
@@ -170,7 +154,7 @@ describe("transcript state selector cache", () => {
     expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toBe(firstEntry);
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-other-started",
@@ -187,7 +171,7 @@ describe("transcript state selector cache", () => {
     expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toBe(firstEntry);
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-other-completed",
@@ -209,7 +193,7 @@ describe("transcript state selector cache", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-cached", [agentMessage("agent-cached", "Cached answer", "commentary")]),
         ]),
@@ -229,7 +213,7 @@ describe("transcript state selector cache", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-cached-append",
@@ -280,7 +264,7 @@ describe("transcript state selector cache", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-reattach", [
             agentMessage("agent-reattach", "Before reconnect", "commentary"),
@@ -298,7 +282,7 @@ describe("transcript state selector cache", () => {
     const beforeReattachEntry = selectTranscriptEntry(store.getState(), identity.threadId, entryId);
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachReplacement, [
           baseTurn("turn-reattach", [
             agentMessage("agent-reattach", "After reconnect", "commentary"),
@@ -338,9 +322,9 @@ describe("transcript state selector cache", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-live-cache-started",
@@ -365,7 +349,7 @@ describe("transcript state selector cache", () => {
     ).toBe(firstChunk);
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-unrelated-committed",
@@ -386,9 +370,9 @@ describe("transcript state selector cache", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-live-cache-first",
@@ -405,7 +389,7 @@ describe("transcript state selector cache", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-live-cache-second",
@@ -444,11 +428,11 @@ describe("transcript state selector cache", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const initialItem = agentMessage("agent-live-cache-delta", "", "commentary");
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-live-cache-delta-started",
@@ -470,7 +454,7 @@ describe("transcript state selector cache", () => {
     expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toBeNull();
 
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           agentMessageDelta(
             eventAgentMessageDelta,
@@ -512,11 +496,11 @@ describe("transcript state selector cache", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const initialItem = agentMessage("agent-live-cache-settled", "", "commentary");
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-live-cache-settled-started",
@@ -528,7 +512,7 @@ describe("transcript state selector cache", () => {
     );
 
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           agentMessageDelta(
             eventAgentMessageDelta,
@@ -569,7 +553,7 @@ describe("transcript state selector cache", () => {
     expect(beforeSettlementEntry).toBe(beforeSettlement?.entries[0]);
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-live-cache-settled-completed",
@@ -639,7 +623,9 @@ describe("transcript state selector cache", () => {
     ];
 
     store.dispatch(
-      threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, activities)])),
+      actions.threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [baseTurn(turnId, activities)]),
+      ),
     );
 
     const targetEntryId = transcriptEntryIdFor(turnId, targetActivity.id);
@@ -668,7 +654,7 @@ describe("transcript state selector cache", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-sub-agent-cache-update",
@@ -741,7 +727,7 @@ describe("transcript state selector cache", () => {
       ),
     ];
     store.dispatch(
-      threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, entries)])),
+      actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, entries)])),
     );
 
     const targetId = transcriptEntryIdFor(turnId, target.id);
@@ -762,7 +748,7 @@ describe("transcript state selector cache", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-collab-cache-update",
@@ -818,10 +804,12 @@ describe("transcript state selector cache", () => {
     const target = reasoningItem("reasoning-cache", []);
 
     store.dispatch(
-      threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, stableItems)])),
+      actions.threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [baseTurn(turnId, stableItems)]),
+      ),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(eventItemStarted, "commit-reasoning-cache", turnId, target),
         replay: "live",
       }),
@@ -837,7 +825,7 @@ describe("transcript state selector cache", () => {
     );
 
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           reasoningSummaryTextDelta(
             eventReasoningSummaryTextDelta,

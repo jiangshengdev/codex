@@ -14,6 +14,7 @@ import { TranscriptContextPagination } from "./TranscriptContextPagination";
 import { useTranscriptSelector } from "./TranscriptReadContext";
 import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
 import { useTurnPositionScroll } from "./useTurnPositionScroll";
+import { hasTranscriptFragmentContent } from "@/features/transcriptState/transcriptFragmentVisibility";
 
 export type CommittedTranscriptTurnFragmentRendererProps = Readonly<{
   fragmentId: string;
@@ -129,11 +130,10 @@ export const CommittedTranscriptSurfaceRenderer = ({
         return false;
       }
       const turn = selectTranscriptTurnFromTranscriptState(state, fragment.turnId);
-      return (
-        fragment.leadingPromptEntryId != null ||
-        fragment.middleEntryCount > 0 ||
-        fragment.finalAssistantEntryIds.length > 0 ||
-        (turn?.error != null && lastFragmentIdsByTurnId[fragment.turnId] === fragment.id)
+      return hasTranscriptFragmentContent(
+        fragment,
+        turn,
+        lastFragmentIdsByTurnId[fragment.turnId] === fragment.id,
       );
     });
   });

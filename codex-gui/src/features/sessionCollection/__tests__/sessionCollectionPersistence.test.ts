@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { MemoryStorage } from "@/__tests__/memoryStorageMock";
+import { withSessionStorageGetter } from "@/__tests__/sessionStorageTestSupport";
 import {
   SessionCollectionPersistenceError,
   SessionCollectionPersistenceStore,
@@ -6,14 +8,6 @@ import {
 
 const firstThreadId = "11111111-1111-4111-8111-111111111111";
 const secondThreadId = "22222222-2222-4222-8222-222222222222";
-
-class MemoryStorage {
-  readonly values = new Map<string, string>();
-  getItem = vi.fn<(key: string) => string | null>((key) => this.values.get(key) ?? null);
-  setItem = vi.fn<(key: string, value: string) => void>((key, value) => {
-    this.values.set(key, value);
-  });
-}
 
 function createStore(storage: MemoryStorage, authorizationContext = "context-one") {
   return new SessionCollectionPersistenceStore({ storage, authorizationContext });
@@ -109,6 +103,7 @@ describe("SessionCollectionPersistenceStore", () => {
     ["invalid JSON", "malformed"],
     ["null", "malformed"],
     ["[]", "malformed"],
+    ["false", "malformed"],
     ["{}", "malformed"],
     [JSON.stringify({ version: 2 }), "unsupportedVersion"],
     [
@@ -156,24 +151,17 @@ describe("SessionCollectionPersistenceStore", () => {
     expect([...storage.values]).toEqual(before);
   });
 
-  it("reports blocked sessionStorage access", () => {
-    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
-    Object.defineProperty(globalThis, "sessionStorage", {
-      configurable: true,
-      get: () => {
+  it.each(["blocked", "missing"])("reports %s sessionStorage access", (availability) => {
+    withSessionStorageGetter(
+      () => {
+        if (availability === "missing") return undefined;
         throw new Error("blocked");
       },
-    });
-    try {
-      expect(
-        () => new SessionCollectionPersistenceStore({ authorizationContext: "context-one" }),
-      ).toThrow(new SessionCollectionPersistenceError("unavailable"));
-    } finally {
-      if (descriptor === undefined) {
-        Reflect.deleteProperty(globalThis, "sessionStorage");
-      } else {
-        Object.defineProperty(globalThis, "sessionStorage", descriptor);
-      }
-    }
+      () => {
+        expect(
+          () => new SessionCollectionPersistenceStore({ authorizationContext: "context-one" }),
+        ).toThrow(new SessionCollectionPersistenceError("unavailable"));
+      },
+    );
   });
 });

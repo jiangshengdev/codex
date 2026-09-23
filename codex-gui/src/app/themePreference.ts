@@ -1,22 +1,18 @@
 import { createContext, use } from "react";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 
 export type ThemePreference = "light" | "dark" | "system";
 
 export function createThemePreferenceStore() {
   let preference: ThemePreference = "system";
-  const listeners = new Set<() => void>();
+  const listeners = createListenerSet();
   return {
     getSnapshot: () => preference,
-    subscribe: (listener: () => void) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    subscribe: (listener: () => void) => listeners.subscribe(listener),
     setPreference: (next: ThemePreference) => {
       if (preference === next) return;
       preference = next;
-      for (const listener of listeners) listener();
+      listeners.notify();
     },
   };
 }

@@ -5,7 +5,7 @@ import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
-import { errorText } from "@/text/errorText";
+import { aggregateErrorText } from "@/text/aggregateErrorText";
 import { useActiveThreadCollectionSnapshot, useAppCapabilities } from "./AppCapabilities";
 import { AppShellTopBar } from "./AppShellTopBar";
 import { ConnectionRecoveryNotice } from "./ConnectionRecoveryNotice";
@@ -78,7 +78,7 @@ export function AppShell({ children }: AppShellProps) {
               />
             ) : null}
             {collection.errors.map(({ operation, threadId, error }) => {
-              const diagnostic = collectionErrorText(error);
+              const diagnostic = aggregateErrorText(error);
 
               return (
                 <Alert key={`${operation}:${threadId ?? ""}`} role="alert" status="danger">
@@ -107,12 +107,6 @@ export function AppShell({ children }: AppShellProps) {
       </div>
     </div>
   );
-}
-
-function collectionErrorText(error: unknown): string {
-  return error instanceof AggregateError
-    ? error.errors.map(collectionErrorText).join("; ")
-    : errorText(error);
 }
 
 function contentLayoutForRouteTarget(routeTarget: GuiRouteTarget): "reading" | "wide" {

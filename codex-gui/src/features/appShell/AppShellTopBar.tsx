@@ -20,6 +20,7 @@ import {
 } from "./AppCapabilities";
 import { ActiveThreadCollectionMenu } from "./ActiveThreadCollectionMenu";
 import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation";
+import { TopBarNavigationItem } from "./TopBarNavigationItem";
 
 export function AppShellTopBar() {
   const { t } = useLingui();
@@ -126,123 +127,43 @@ export function AppShellTopBar() {
             </Drawer.Header>
             <Drawer.Body className="-mx-1 -my-px min-h-0 overflow-y-auto p-1">
               <nav aria-label={t`Main navigation`} className="flex flex-col gap-1">
-                <Button
-                  aria-describedby="new-session-navigation-description"
-                  aria-current={isNewTask ? "page" : undefined}
-                  aria-labelledby="new-session-navigation-label"
-                  className="h-auto min-h-9 justify-start gap-3 rounded-2xl px-2 py-1.5 text-start whitespace-normal md:h-auto"
-                  fullWidth
+                <TopBarNavigationItem
+                  id="new-session-navigation"
+                  isCurrent={isNewTask}
                   isDisabled={!canOpenNewSession}
-                  variant="ghost"
                   onPress={navigateToNewSession}
-                >
-                  <span
-                    aria-hidden="true"
-                    className="flex w-4 shrink-0 items-center justify-center self-stretch"
-                  >
-                    {isNewTask ? (
-                      <span
-                        className="size-2 rounded-full bg-muted"
-                        data-current-page-indicator="true"
-                      />
-                    ) : null}
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col items-start">
-                    <span
-                      className="text-sm font-medium text-foreground"
-                      id="new-session-navigation-label"
-                    >
-                      <Trans>New session</Trans>
-                    </span>
-                    <span
-                      className="text-xs font-normal text-wrap wrap-break-word text-muted"
-                      id="new-session-navigation-description"
-                    >
-                      {canOpenNewSession ? (
-                        <Trans>Start a conversation</Trans>
-                      ) : (
-                        <Trans>A working directory is required to start a session.</Trans>
-                      )}
-                    </span>
-                  </span>
-                </Button>
-                <Button
-                  aria-describedby="current-task-navigation-description"
-                  aria-current={isCurrentTask ? "page" : undefined}
-                  aria-labelledby="current-task-navigation-label"
-                  className="h-auto min-h-9 justify-start gap-3 rounded-2xl px-2 py-1.5 text-start whitespace-normal md:h-auto"
-                  fullWidth
+                  label={<Trans>New session</Trans>}
+                  description={
+                    canOpenNewSession ? (
+                      <Trans>Start a conversation</Trans>
+                    ) : (
+                      <Trans>A working directory is required to start a session.</Trans>
+                    )
+                  }
+                />
+                <TopBarNavigationItem
+                  id="current-task-navigation"
+                  isCurrent={isCurrentTask}
                   isDisabled={activeThreadId == null}
-                  variant="ghost"
                   onPress={navigateToCurrentTask}
-                >
-                  <span
-                    aria-hidden="true"
-                    className="flex w-4 shrink-0 items-center justify-center self-stretch"
-                  >
-                    {isCurrentTask ? (
-                      <span
-                        aria-hidden="true"
-                        className="size-2 rounded-full bg-muted"
-                        data-current-page-indicator="true"
-                      />
-                    ) : null}
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col items-start">
-                    <span
-                      className="text-sm font-medium text-foreground"
-                      id="current-task-navigation-label"
-                    >
-                      <Trans>Current task</Trans>
-                    </span>
-                    <span
-                      className="text-xs font-normal text-wrap wrap-break-word text-muted"
-                      id="current-task-navigation-description"
-                    >
-                      <Trans comment="Description for the current task destination in the navigation drawer">
-                        Open current task
-                      </Trans>
-                    </span>
-                  </span>
-                </Button>
-                <Button
-                  aria-describedby="history-navigation-description"
-                  aria-current={isHistory ? "page" : undefined}
-                  aria-labelledby="history-navigation-label"
-                  className="h-auto min-h-9 justify-start gap-3 rounded-2xl px-2 py-1.5 text-start whitespace-normal md:h-auto"
-                  fullWidth
-                  variant="ghost"
+                  label={<Trans>Current task</Trans>}
+                  description={
+                    <Trans comment="Description for the current task destination in the navigation drawer">
+                      Open current task
+                    </Trans>
+                  }
+                />
+                <TopBarNavigationItem
+                  id="history-navigation"
+                  isCurrent={isHistory}
                   onPress={navigateToHistory}
-                >
-                  <span
-                    aria-hidden="true"
-                    className="flex w-4 shrink-0 items-center justify-center self-stretch"
-                  >
-                    {isHistory ? (
-                      <span
-                        aria-hidden="true"
-                        className="size-2 rounded-full bg-muted"
-                        data-current-page-indicator="true"
-                      />
-                    ) : null}
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col items-start">
-                    <span
-                      className="text-sm font-medium text-foreground"
-                      id="history-navigation-label"
-                    >
-                      <Trans>History</Trans>
-                    </span>
-                    <span
-                      className="text-xs font-normal text-wrap wrap-break-word text-muted"
-                      id="history-navigation-description"
-                    >
-                      <Trans comment="Description for the task history destination in the navigation drawer">
-                        Browse task history
-                      </Trans>
-                    </span>
-                  </span>
-                </Button>
+                  label={<Trans>History</Trans>}
+                  description={
+                    <Trans comment="Description for the task history destination in the navigation drawer">
+                      Browse task history
+                    </Trans>
+                  }
+                />
               </nav>
               <ActiveThreadCollectionMenu
                 close={() => {

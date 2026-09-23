@@ -3,10 +3,7 @@ import {
   attachResponse,
   createGuiHostCommands,
   emitProjectionEvent,
-  getHostOptions,
-  initializeHost,
   launchThreadId,
-  queueAttachProjectionResponse,
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
@@ -14,7 +11,7 @@ import {
   renderActiveComposerQueueApp,
   startTurnParamsAt,
 } from "./appComposerQueueBrowserTestSupport";
-import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
+import { renderReadyApp } from "./appProjectionBrowserTestSupport";
 import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
@@ -33,7 +30,6 @@ import {
   turnCompleted,
   turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import { renderWithProviders } from "@/utils/test-utils";
 
 const guiHostClientMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -88,20 +84,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
 });
-
-const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
-  screen.getByRole("combobox", { name: "Message Codex", exact: true });
-
-const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
-  const screen = await renderWithProviders(<App />);
-  const options = getHostOptions(startGuiHostConnectionMock);
-
-  queueAttachProjectionResponse(commandHandle);
-  initializeHost(options, commandHandle);
-  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
-
-  return { commandHandle, options, screen };
-};
 
 test("App keeps a local Stop paused until explicit rejected-first and ordinary FIFO recovery", async () => {
   let startedTurnSequence = 0;
@@ -328,7 +310,7 @@ test("App auto-recovers a non-local interruption rejected-first before ordinary 
 
 test("App enables Stop for the current active turn", async () => {
   const commandHandle = createGuiHostCommands();
-  const { options, screen } = await renderReadyApp(commandHandle);
+  const { options, screen } = await renderReadyApp(startGuiHostConnectionMock, commandHandle);
   const projectionEvent = eventTurnStarted;
   emitProjectionEvent(options, projectionEvent);
 

@@ -3,7 +3,10 @@ import type {
   ComposerInputQueueReleaseBlocker,
   ComposerInputQueueView,
 } from "./composerInputQueueContracts";
-import { projectComposerInputPreview } from "./composerInputPreview";
+import {
+  projectComposerInputPreview,
+  projectComposerInputTextDetail,
+} from "./composerInputPreview";
 import { copyComposerInputPayload } from "@/features/composerInput/composerInputPayload";
 import type { ComposerSteerQueueOverview } from "./composerSteerQueueState";
 
@@ -16,6 +19,7 @@ export function projectComposerInputQueueView(
   const rejectedSteers = steerOverview.rejectedSteersQueue.map(({ intent, reason }) => ({
     key: intent.message.id,
     preview: projectComposerInputPreview(copyComposerInputPayload(intent.message.input)),
+    text: projectComposerInputTextDetail(intent.message.input),
     reason,
   }));
   const blockers: ComposerInputQueueReleaseBlocker[] = [];

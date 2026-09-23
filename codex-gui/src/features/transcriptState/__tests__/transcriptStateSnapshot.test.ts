@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import { requiredTranscriptState } from "./requiredTranscriptState";
 import {
@@ -39,15 +40,10 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
-let sessionRevision = 0;
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) =>
-  activeThreadReadModelTransitionApplied({
-    identity,
-    sessionRevision: ++sessionRevision,
-    facts: [{ type: "baselineAttached", response }],
-  });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
 
 describe("transcript state snapshot reducer", () => {
   it("registers transcript state in the app store", () => {
@@ -152,7 +148,7 @@ describe("transcript state snapshot reducer", () => {
     const attach = attachWithTurns(attachBaseline, turns);
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
-    const action = threadRuntimeAttached(attach);
+    const action = actions.threadRuntimeAttached(attach);
     store.dispatch(action);
 
     expect(requiredTranscriptState(store.getState(), identity.threadId)).toStrictEqual({
@@ -167,7 +163,7 @@ describe("transcript state snapshot reducer", () => {
   it("rejects equal and stale read-model transitions", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
-    const current = threadRuntimeAttached(attachBaseline);
+    const current = actions.threadRuntimeAttached(attachBaseline);
     store.dispatch(current);
     const before = requiredTranscriptState(store.getState(), identity.threadId);
     const staleFacts: readonly ActiveThreadProjectionReadModelFact[] = [
@@ -196,24 +192,17 @@ describe("transcript state snapshot reducer", () => {
   it("applies a session transition's baseline and accepted facts in FIFO order", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
-    const revision = ++sessionRevision;
-
-    store.dispatch(
-      activeThreadReadModelTransitionApplied({
-        identity,
-        sessionRevision: revision,
-        facts: [
-          { type: "baselineAttached", response: attachWithTurns(attachBaseline, []) },
-          {
-            type: "eventAccepted",
-            payload: { notification: eventTurnStarted, replay: "live" },
-          },
-        ],
-      }),
+    const action = actions.readModelAction(
+      { type: "baselineAttached", response: attachWithTurns(attachBaseline, []) },
+      {
+        type: "eventAccepted",
+        payload: { notification: eventTurnStarted, replay: "live" },
+      },
     );
+    store.dispatch(action);
 
     expect(requiredTranscriptState(store.getState(), identity.threadId).sessionRevision).toBe(
-      revision,
+      action.payload.sessionRevision,
     );
     expect(selectTranscriptTurnIds(store.getState(), identity.threadId)).toStrictEqual([
       "turn-in-progress",
@@ -236,7 +225,7 @@ describe("transcript state snapshot reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithChat));
+    store.dispatch(actions.threadRuntimeAttached(attachWithChat));
 
     expect(selectTranscriptTurnIds(store.getState(), identity.threadId)).toStrictEqual([
       "turn-snapshot",
@@ -333,7 +322,7 @@ describe("transcript state snapshot reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [turn])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [turn])));
 
     const transcriptTurn = selectTranscriptTurn(store.getState(), identity.threadId, turn.id);
     expect(transcriptTurn).toStrictEqual({
@@ -389,7 +378,7 @@ describe("transcript state snapshot reducer", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-layout", [
             userMessage("user-leading", [textInput("Initial prompt")]),
@@ -468,7 +457,7 @@ describe("transcript state snapshot reducer", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-sub-agent-activity-snapshot", [
             userMessage("user-sub-agent-activity-snapshot", [textInput("Initial prompt")]),
@@ -558,7 +547,7 @@ describe("transcript state snapshot reducer", () => {
     const turnId = "turn-collab-snapshot";
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn(turnId, [
             userMessage("user-collab-snapshot", [textInput("Delegate work")]),
@@ -632,7 +621,7 @@ describe("transcript state snapshot reducer", () => {
     const turnId = "turn-activity-first-snapshot";
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn(turnId, [
             collabAgentToolCall("collab-first-snapshot", "wait", "completed"),
@@ -662,7 +651,7 @@ describe("transcript state snapshot reducer", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-assistant-first", [
             agentMessage("agent-first-commentary", "Working first", "commentary"),
@@ -706,7 +695,7 @@ describe("transcript state snapshot reducer", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-final-first", [
             agentMessage("agent-final-first", "Final first", "final_answer"),
@@ -755,7 +744,7 @@ describe("transcript state snapshot reducer", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-multi-final", [
             userMessage("user-multi-final", [textInput("Prompt")]),
@@ -790,7 +779,7 @@ describe("transcript state snapshot reducer", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-phase", [
             agentMessage("agent-commentary", "Working", "commentary"),
@@ -843,7 +832,7 @@ describe("transcript state snapshot reducer", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-filtered", [
             userMessage("image-only", [imageInput("https://example.invalid/image.png")]),

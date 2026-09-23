@@ -1,14 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import { requiredTranscriptState } from "./requiredTranscriptState";
-import {
-  activeThreadReadModelSlotCreated,
-  activeThreadReadModelTransitionApplied,
-} from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import {
   attachBaseline,
   eventAgentMessageDelta,
@@ -31,32 +25,22 @@ import {
 } from "../transcriptStateSlice";
 
 const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
-const threadRuntimeDeltasAccepted = ({
-  notifications,
-}: Pick<
-  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
-  "notifications"
->) => readModelAction({ type: "deltasAccepted", notifications });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
 
 describe("transcript state live streaming reducer", () => {
   it("keeps a started final answer out of middle until its first delta makes it visible", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
 
     const initialItem = agentMessage("agent-live-started", "", "final_answer");
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-live-started-slot",
@@ -105,7 +89,7 @@ describe("transcript state live streaming reducer", () => {
     );
 
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           agentMessageDelta(
             eventAgentMessageDelta,
@@ -162,13 +146,13 @@ describe("transcript state live streaming reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
     const initialPulse = selectTranscriptLiveScrollPulse(store.getState(), identity.threadId);
 
     const initialItem = agentMessage("agent-streaming", "", "commentary");
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-streaming-started",
@@ -183,7 +167,7 @@ describe("transcript state live streaming reducer", () => {
     ).toBe(0);
     expect(selectTranscriptLiveScrollPulse(store.getState(), identity.threadId)).toBe(initialPulse);
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           agentMessageDelta(eventAgentMessageDelta, "turn-streaming", "agent-streaming", "Hello"),
         ],
@@ -196,7 +180,7 @@ describe("transcript state live streaming reducer", () => {
       initialPulse + 1,
     );
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           agentMessageDelta(eventAgentMessageDelta, "turn-streaming", "agent-streaming", " world"),
         ],
@@ -253,10 +237,10 @@ describe("transcript state live streaming reducer", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
     const initialItem = agentMessage("agent-empty-delta", "", "commentary");
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const initialPulse = selectTranscriptLiveScrollPulse(store.getState(), identity.threadId);
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-empty-delta-started",
@@ -267,7 +251,7 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           agentMessageDelta(eventAgentMessageDelta, "turn-empty-delta", "agent-empty-delta", ""),
         ],
@@ -314,16 +298,18 @@ describe("transcript state live streaming reducer", () => {
       " world",
     );
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: started,
         replay: "live",
       }),
     );
     const pulseAfterStarted = selectTranscriptLiveScrollPulse(store.getState(), identity.threadId);
 
-    store.dispatch(threadRuntimeDeltasAccepted({ notifications: [firstDelta, secondDelta] }));
+    store.dispatch(
+      actions.threadRuntimeDeltasAccepted({ notifications: [firstDelta, secondDelta] }),
+    );
 
     const entryId = transcriptEntryIdFor("turn-streaming-batch", "agent-streaming-batch");
     const expectedBatchStoredEntry = {
@@ -369,9 +355,9 @@ describe("transcript state live streaming reducer", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
     const initialItem = agentMessage("agent-streaming-single-batch", "", "commentary");
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-streaming-single-batch-started",
@@ -384,7 +370,7 @@ describe("transcript state live streaming reducer", () => {
     const pulseAfterStarted = selectTranscriptLiveScrollPulse(store.getState(), identity.threadId);
 
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           agentMessageDelta(
             eventAgentMessageDelta,
@@ -448,9 +434,9 @@ describe("transcript state live streaming reducer", () => {
     const firstItem = agentMessage("agent-streaming-batch-first", "", "commentary");
     const secondItem = agentMessage("agent-streaming-batch-second", "", "commentary");
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-streaming-batch-first-started",
@@ -461,7 +447,7 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-streaming-batch-second-started",
@@ -474,7 +460,7 @@ describe("transcript state live streaming reducer", () => {
     const pulseAfterStarted = selectTranscriptLiveScrollPulse(store.getState(), identity.threadId);
 
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           agentMessageDelta(
             eventAgentMessageDelta,
@@ -583,11 +569,11 @@ describe("transcript state live streaming reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const beforeState = requiredTranscriptState(store.getState(), identity.threadId);
 
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           agentMessageDelta(eventAgentMessageDelta, "turn-missing", "agent-missing", "Ignored"),
         ],
@@ -605,11 +591,11 @@ describe("transcript state live streaming reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const beforeState = requiredTranscriptState(store.getState(), identity.threadId);
 
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           agentMessageDelta(
             eventAgentMessageDelta,
@@ -639,9 +625,9 @@ describe("transcript state live streaming reducer", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
     const initialItem = agentMessage("agent-streaming-filtered-batch", "", "commentary");
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-streaming-filtered-batch-started",
@@ -654,7 +640,7 @@ describe("transcript state live streaming reducer", () => {
     const pulseAfterStarted = selectTranscriptLiveScrollPulse(store.getState(), identity.threadId);
 
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           {
             ...agentMessageDelta(

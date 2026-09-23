@@ -6,26 +6,15 @@ import {
   type ComposerInputQueue,
   type ComposerInputQueueTransition,
   type ComposerQueueMessage,
-  type ComposerPendingInputLane,
 } from "../composerInputQueue";
 import { composerDraftCapture, composerQueueMessage } from "./composerInputQueueTestFixtures";
+
+import { expectPendingPage as pendingPage } from "./composerPendingInputTestSupport";
 
 const message = (id: string): ComposerQueueMessage => composerQueueMessage(id);
 
 function submit(queue: ComposerInputQueue, id: string): ComposerInputQueueTransition {
   return queue.submit(message(id));
-}
-
-function pendingPage(queue: ComposerInputQueue, lane: ComposerPendingInputLane, limit = 100) {
-  const result = queue.readPendingInputPage({
-    lane,
-    revision: queue.detailRevision(),
-    cursor: null,
-    limit,
-  });
-  expect(result.type).toBe("page");
-  if (result.type !== "page") throw new Error(`expected ${lane} detail page`);
-  return result;
 }
 
 describe("composer input queue", () => {

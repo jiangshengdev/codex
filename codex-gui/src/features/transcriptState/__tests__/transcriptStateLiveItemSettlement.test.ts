@@ -1,14 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import { requiredTranscriptState } from "./requiredTranscriptState";
-import {
-  activeThreadReadModelSlotCreated,
-  activeThreadReadModelTransitionApplied,
-} from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import {
   attachBaseline,
   eventAgentMessageDelta,
@@ -31,32 +25,22 @@ import {
 } from "../transcriptStateSlice";
 
 const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
-const threadRuntimeDeltasAccepted = ({
-  notifications,
-}: Pick<
-  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
-  "notifications"
->) => readModelAction({ type: "deltasAccepted", notifications });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
 
 describe("transcript state live item lifecycle reducer", () => {
   it("removes the live item after committing the completed agent message", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const initialItem = agentMessage("agent-settled", "", "final_answer");
     const completedItem = agentMessage("agent-settled", "Completed answer", "final_answer");
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-settled-started",
@@ -88,7 +72,7 @@ describe("transcript state live item lifecycle reducer", () => {
     ).toBeNull();
     const beforeDuplicateState = requiredTranscriptState(store.getState(), identity.threadId);
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-settled-started-duplicate",
@@ -107,7 +91,7 @@ describe("transcript state live item lifecycle reducer", () => {
       sessionRevision: beforeDuplicateState.sessionRevision,
     }).toStrictEqual(beforeDuplicateState);
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-settled-completed",
@@ -159,10 +143,10 @@ describe("transcript state live item lifecycle reducer", () => {
     const entryId = transcriptEntryIdFor(turnId, itemId);
     const emptyFinalItem = agentMessage(itemId, "", "final_answer");
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-empty-final-settled-started",
@@ -173,7 +157,7 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-empty-final-settled-completed",
@@ -213,9 +197,9 @@ describe("transcript state live item lifecycle reducer", () => {
     const entryId = transcriptEntryIdFor(turnId, itemId);
     const initialItem = agentMessage(itemId, "", "final_answer");
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-final-to-commentary-started",
@@ -226,7 +210,7 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           agentMessageDelta(eventAgentMessageDelta, turnId, itemId, "Visible final draft"),
         ],
@@ -240,7 +224,7 @@ describe("transcript state live item lifecycle reducer", () => {
     });
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-final-to-commentary-completed",
@@ -293,9 +277,9 @@ describe("transcript state live item lifecycle reducer", () => {
     const chunkId = `${turnId}:chunk:0`;
     const initialItem = agentMessage(itemId, "", null);
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-phase-null-to-final-started",
@@ -306,7 +290,7 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [agentMessageDelta(eventAgentMessageDelta, turnId, itemId, "Visible draft")],
       }),
     );
@@ -349,7 +333,7 @@ describe("transcript state live item lifecycle reducer", () => {
     ).toStrictEqual([itemId]);
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-phase-null-to-final-completed",
@@ -393,9 +377,9 @@ describe("transcript state live item lifecycle reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-missing-slot-completed",
@@ -442,13 +426,13 @@ describe("transcript state live item lifecycle reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const initialItem = agentMessage("agent-empty-settled", "", "commentary");
     const completedItem = agentMessage("agent-empty-settled", "", "commentary");
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-empty-settled-started",
@@ -463,7 +447,7 @@ describe("transcript state live item lifecycle reducer", () => {
         ?.middleEntryCount,
     ).toBe(0);
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-empty-settled-completed",
@@ -509,9 +493,9 @@ describe("transcript state live item lifecycle reducer", () => {
     const initialItem = agentMessage("agent-direct-middle", "", "commentary");
     const completedItem = agentMessage("agent-direct-middle", "Completed commentary", "commentary");
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-direct-middle-started",
@@ -522,7 +506,7 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-direct-middle-completed",

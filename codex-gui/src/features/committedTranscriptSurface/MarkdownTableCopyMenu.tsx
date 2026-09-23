@@ -1,7 +1,7 @@
 import { Alert, Dropdown, Tooltip, buttonVariants } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { Check, Copy } from "lucide-react";
-import { use, useEffect, useRef, useState, type RefObject } from "react";
+import { use, type RefObject } from "react";
 import {
   StreamdownContext,
   extractTableDataFromElement,
@@ -9,6 +9,7 @@ import {
   tableDataToMarkdown,
   tableDataToTSV,
 } from "streamdown";
+import { useMarkdownCopyFeedback } from "./useMarkdownCopyFeedback";
 
 export function MarkdownTableCopyMenu({
   tableRef,
@@ -17,16 +18,7 @@ export function MarkdownTableCopyMenu({
 }) {
   const { t } = useLingui();
   const { isAnimating } = use(StreamdownContext);
-  const [result, setResult] = useState<"idle" | "pending" | "copied" | "failed">("idle");
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const mounted = useRef(false);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      clearTimeout(timer.current);
-    };
-  }, []);
+  const { status: result, copy: copyWithFeedback } = useMarkdownCopyFeedback();
 
   const available =
     typeof window !== "undefined" &&
@@ -40,9 +32,7 @@ export function MarkdownTableCopyMenu({
   ) => {
     const table = tableRef.current;
     if (!table) return;
-    clearTimeout(timer.current);
-    setResult("pending");
-    try {
+    await copyWithFeedback(async () => {
       const content = serialize(extractTableDataFromElement(table));
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -50,14 +40,7 @@ export function MarkdownTableCopyMenu({
           "text/html": new Blob([table.outerHTML], { type: "text/html" }),
         }),
       ]);
-      if (!mounted.current) return;
-      setResult("copied");
-      timer.current = setTimeout(() => {
-        setResult("idle");
-      }, 2000);
-    } catch {
-      if (mounted.current) setResult("failed");
-    }
+    });
   };
 
   return (

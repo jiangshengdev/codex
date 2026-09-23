@@ -1,6 +1,7 @@
 import { vi } from "vitest";
 import { TOKEN_FRAGMENT_KEY } from "@codex-gui-host-contract";
 import { consumeBrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
+import { createThreadResumeResponse } from "@/features/guiHost/__tests__/threadResumeTestBuilders";
 import type {
   GuiHostCommands,
   GuiHostStatus,
@@ -101,20 +102,12 @@ export const createGuiHostCommands = ({
     if (!storedThreadIds.includes(threadId)) {
       return Promise.reject(new Error(`no rollout found for thread id ${threadId}`));
     }
-    return Promise.resolve({
-      thread: { ...attachResponse.snapshot.thread, id: threadId },
-      model: "gpt-5",
-      modelProvider: "openai",
-      serviceTier: null,
-      cwd: attachResponse.snapshot.thread.cwd,
-      instructionSources: [],
-      approvalPolicy: "on-request",
-      approvalsReviewer: "user",
-      sandbox: { type: "dangerFullAccess" },
-      reasoningEffort: null,
-      turnsBackwardsCursor: null,
-      itemsBackwardsCursor: null,
-    });
+    return Promise.resolve(
+      createThreadResumeResponse(
+        { ...attachResponse.snapshot.thread, id: threadId },
+        { model: "gpt-5", modelProvider: "openai", approvalPolicy: "on-request" },
+      ),
+    );
   }),
   detachThreadProjection: vi
     .fn<GuiHostCommands["detachThreadProjection"]>()

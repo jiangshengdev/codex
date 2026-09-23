@@ -3,6 +3,7 @@ import {
   type GuiHostCommands,
 } from "@/features/guiHost/guiHostCommandGateway";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
+import { createThreadResumeResponse } from "@/features/guiHost/__tests__/threadResumeTestBuilders";
 import { createListenerSet } from "@/subscriptions/listenerSet";
 import {
   agentMessage,
@@ -11,6 +12,7 @@ import {
   attachWithTurns,
   baseTurn,
 } from "@/features/projection/__tests__/projectionTestBuilders";
+import { recoveryConversationTurns } from "./recoveryConversation";
 
 export const recoveryFirstId = "00000000-0000-0000-0000-000000000001";
 export const recoverySecondId = "00000000-0000-0000-0000-000000000002";
@@ -20,6 +22,7 @@ type AttachOutcome = "success" | "failure" | "pending";
 
 function retainedTask(threadId: string, label: string): AttachResponse {
   const attach = attachWithTurns(attachWithThreadId(attachBaseline, threadId), [
+    ...recoveryConversationTurns(label),
     baseTurn(`recovery-turn-${label}`, [
       agentMessage(`recovery-answer-${label}`, `Retained answer ${label}`),
     ]),
@@ -128,20 +131,14 @@ export function createRecoveryCommands() {
     listLoadedThreads: () => Promise.resolve({ data: [...tasks.keys()], nextCursor: null }),
     readThread: ({ threadId }) => Promise.resolve({ thread: task(threadId).snapshot.thread }),
     resumeThread: ({ threadId }) =>
-      Promise.resolve({
-        thread: task(threadId).snapshot.thread,
-        model: "storybook-model",
-        modelProvider: "storybook",
-        serviceTier: null,
-        cwd: "/storybook/recovery",
-        instructionSources: [],
-        approvalPolicy: "on-request",
-        approvalsReviewer: "user",
-        sandbox: { type: "dangerFullAccess" },
-        reasoningEffort: null,
-        turnsBackwardsCursor: null,
-        itemsBackwardsCursor: null,
-      }),
+      Promise.resolve(
+        createThreadResumeResponse(task(threadId).snapshot.thread, {
+          model: "storybook-model",
+          modelProvider: "storybook",
+          cwd: "/storybook/recovery",
+          approvalPolicy: "on-request",
+        }),
+      ),
     detachThreadProjection: () => Promise.resolve({ status: "detached" }),
     startTurn: rejectSend,
     steerTurn: rejectSend,
