@@ -1,10 +1,10 @@
-import { catalog, skill } from "./composerEditorBrowserTestSupport";
+import { skill } from "./composerEditorBrowserTestSupport";
 import { withNavigatorPlatform } from "./navigatorPlatformBrowserTestSupport";
 import {
   dispatchEnterShortcut,
   dispatchHistoryShortcut,
 } from "./composerKeyboardBrowserTestSupport";
-import { createRef, useState, type CSSProperties, type RefObject } from "react";
+import { createRef, type RefObject } from "react";
 import {
   $getRoot,
   $getSelection,
@@ -24,12 +24,10 @@ import type {
   SkillCatalogState,
 } from "@/features/skillCatalog/skillCatalogOwner";
 
-import {
-  ComposerEditor,
-  type ComposerEditorController,
-  type ComposerEditorProps,
-} from "../ComposerEditor";
+import { type ComposerEditorController, type ComposerEditorProps } from "../ComposerEditor";
 import type { ComposerDraft } from "../composerDraft";
+import { ComposerEditorFixture } from "./composerEditorBrowserTestFixture";
+import { IndependentEditorsFixture } from "./independentEditorsFixture";
 import { dispatchCompositionEnd } from "./composerEditorCompositionBrowserTestSupport";
 import {
   collapsedCaretOffset,
@@ -507,78 +505,6 @@ async function renderEditor(
   await expect.poll(() => controllerRef.current).not.toBeNull();
   return { controllerRef, screen };
 }
-
-function ComposerEditorFixture(props: Omit<ComposerEditorProps, "skillMenuParent">) {
-  const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
-
-  return (
-    <div className="w-96 max-w-full">
-      <div ref={setSkillMenuParent} style={fixtureSkillMenuParentStyle} />
-      <ComposerEditor {...props} skillMenuParent={skillMenuParent} />
-    </div>
-  );
-}
-
-function IndependentEditorsFixture({
-  firstControllerRef,
-  firstSubmit,
-  secondControllerRef,
-  secondSubmit,
-}: Readonly<{
-  firstControllerRef: RefObject<ComposerEditorController | null>;
-  firstSubmit: ComposerEditorProps["onSubmit"];
-  secondControllerRef: RefObject<ComposerEditorController | null>;
-  secondSubmit: ComposerEditorProps["onSubmit"];
-}>) {
-  const [firstMenuParent, setFirstMenuParent] = useState<HTMLElement | null>(null);
-  const [secondMenuParent, setSecondMenuParent] = useState<HTMLElement | null>(null);
-  const skillCatalog = catalog("ready", [skill("alpha", "/alpha")]);
-
-  return (
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <div
-          aria-label="First skill suggestions"
-          ref={setFirstMenuParent}
-          role="region"
-          style={fixtureSkillMenuParentStyle}
-        />
-        <ComposerEditor
-          ariaLabel="First message"
-          controllerRef={firstControllerRef}
-          disabled={false}
-          guardCompositionEndEnter={false}
-          onSubmit={firstSubmit}
-          placeholder="First message"
-          skillCatalog={skillCatalog}
-          skillMenuParent={firstMenuParent}
-        />
-      </div>
-      <div>
-        <div
-          aria-label="Second skill suggestions"
-          ref={setSecondMenuParent}
-          role="region"
-          style={fixtureSkillMenuParentStyle}
-        />
-        <ComposerEditor
-          ariaLabel="Second message"
-          controllerRef={secondControllerRef}
-          disabled={false}
-          guardCompositionEndEnter={false}
-          onSubmit={secondSubmit}
-          placeholder="Second message"
-          skillCatalog={skillCatalog}
-          skillMenuParent={secondMenuParent}
-        />
-      </div>
-    </div>
-  );
-}
-
-const fixtureSkillMenuParentStyle = {
-  "--composer-skill-menu-max-height": "18rem",
-} as CSSProperties;
 
 function getController(ref: RefObject<ComposerEditorController | null>): ComposerEditorController {
   if (ref.current == null) {

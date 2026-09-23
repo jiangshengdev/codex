@@ -1,5 +1,5 @@
 import { dispatchEnterShortcut } from "./composerKeyboardBrowserTestSupport";
-import { createRef, useState, type CSSProperties, type RefObject } from "react";
+import { createRef, useState, type RefObject } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -11,6 +11,7 @@ import {
   type ComposerEditorProps,
 } from "../ComposerEditor";
 import { catalog, getController, renderEditor, skill } from "./composerEditorBrowserTestSupport";
+import { IndependentEditorsFixture } from "./independentEditorsFixture";
 import { withNavigatorPlatform } from "./navigatorPlatformBrowserTestSupport";
 import {
   collapsedCaretOffset,
@@ -302,64 +303,3 @@ function DrawerEditorFixture({
     </div>
   );
 }
-
-function IndependentEditorsFixture({
-  firstControllerRef,
-  firstSubmit,
-  secondControllerRef,
-  secondSubmit,
-}: Readonly<{
-  firstControllerRef: RefObject<ComposerEditorController | null>;
-  firstSubmit: ComposerEditorProps["onSubmit"];
-  secondControllerRef: RefObject<ComposerEditorController | null>;
-  secondSubmit: ComposerEditorProps["onSubmit"];
-}>) {
-  const [firstMenuParent, setFirstMenuParent] = useState<HTMLElement | null>(null);
-  const [secondMenuParent, setSecondMenuParent] = useState<HTMLElement | null>(null);
-  const skillCatalog = catalog("ready", [skill("alpha", "/alpha")]);
-
-  return (
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <div
-          aria-label="First skill suggestions"
-          ref={setFirstMenuParent}
-          role="region"
-          style={fixtureSkillMenuParentStyle}
-        />
-        <ComposerEditor
-          ariaLabel="First message"
-          controllerRef={firstControllerRef}
-          disabled={false}
-          guardCompositionEndEnter={false}
-          onSubmit={firstSubmit}
-          placeholder="First message"
-          skillCatalog={skillCatalog}
-          skillMenuParent={firstMenuParent}
-        />
-      </div>
-      <div>
-        <div
-          aria-label="Second skill suggestions"
-          ref={setSecondMenuParent}
-          role="region"
-          style={fixtureSkillMenuParentStyle}
-        />
-        <ComposerEditor
-          ariaLabel="Second message"
-          controllerRef={secondControllerRef}
-          disabled={false}
-          guardCompositionEndEnter={false}
-          onSubmit={secondSubmit}
-          placeholder="Second message"
-          skillCatalog={skillCatalog}
-          skillMenuParent={secondMenuParent}
-        />
-      </div>
-    </div>
-  );
-}
-
-const fixtureSkillMenuParentStyle = {
-  "--composer-skill-menu-max-height": "18rem",
-} as CSSProperties;
