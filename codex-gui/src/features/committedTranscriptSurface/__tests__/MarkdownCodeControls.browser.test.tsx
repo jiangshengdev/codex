@@ -4,13 +4,11 @@ import { renderWithProviders as render } from "@/utils/test-utils";
 import { MarkdownText } from "../MarkdownText";
 import { LiveMarkdownText } from "../LiveMarkdownText";
 
-const { writeText } = vi.hoisted(() => {
+const { writeText } = await vi.hoisted(async () => {
+  const { installClipboardForTest } = await import("@/__tests__/clipboardTestSupport");
   const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
   vi.stubGlobal("isSecureContext", true);
-  Object.defineProperty(navigator, "clipboard", {
-    configurable: true,
-    value: { writeText },
-  });
+  installClipboardForTest({ writeText });
   return { writeText };
 });
 

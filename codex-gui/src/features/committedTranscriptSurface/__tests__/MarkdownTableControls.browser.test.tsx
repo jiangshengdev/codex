@@ -9,12 +9,13 @@ import { disableMotionForTest } from "@/utils/test-utils";
 import { MarkdownText } from "../MarkdownText";
 import { LiveMarkdownText } from "../LiveMarkdownText";
 
-vi.hoisted(() => {
+const { installClipboardForTest } = await vi.hoisted(async () => {
+  const { installClipboardForTest } = await import("@/__tests__/clipboardTestSupport");
   vi.stubGlobal("isSecureContext", true);
-  Object.defineProperty(navigator, "clipboard", {
-    configurable: true,
-    value: { writeText: vi.fn<Clipboard["writeText"]>().mockResolvedValue(undefined) },
+  installClipboardForTest({
+    writeText: vi.fn<Clipboard["writeText"]>().mockResolvedValue(undefined),
   });
+  return { installClipboardForTest };
 });
 
 const markdown =
@@ -36,7 +37,7 @@ const content = (children: ReactNode) => (
 const installClipboard = (
   write = vi.fn<(items: ClipboardItems) => Promise<void>>().mockResolvedValue(undefined),
 ) => {
-  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { write } });
+  installClipboardForTest({ write });
   return write;
 };
 
@@ -85,8 +86,7 @@ test.for(["insecure", "missing ClipboardItem", "missing write"])(
     installClipboard();
     if (missing === "insecure") vi.stubGlobal("isSecureContext", false);
     if (missing === "missing ClipboardItem") vi.stubGlobal("ClipboardItem", undefined);
-    if (missing === "missing write")
-      Object.defineProperty(navigator, "clipboard", { configurable: true, value: {} });
+    if (missing === "missing write") installClipboardForTest({});
     const screen = await render(content(<MarkdownText source={markdown} />));
     await expect.element(screen.getByRole("table")).toBeVisible();
     await expect
