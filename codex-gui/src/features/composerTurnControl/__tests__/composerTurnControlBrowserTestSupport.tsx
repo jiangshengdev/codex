@@ -33,6 +33,7 @@ import {
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import type { AppLocale } from "@/i18n";
 import { renderWithProviders } from "@/utils/test-utils";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 
 import { ComposerTurnControl } from "../ComposerTurnControl";
 import { ComposerPendingInputProvider } from "../ComposerPendingInputProvider";
@@ -62,13 +63,10 @@ export const createComposerSkillCatalogHarness = (
   initial: SkillCatalogState = readyEmptySkillCatalog,
 ): ComposerSkillCatalogHarness => {
   let snapshot = initial;
-  const listeners = new Set<() => void>();
+  const listeners = createListenerSet();
   const controller = {
     getSnapshot: () => snapshot,
-    subscribe: (listener: () => void) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
+    subscribe: (listener: () => void) => listeners.subscribe(listener),
     invalidate: vi.fn<ComposerSkillCatalogHarnessController["invalidate"]>().mockReturnValue(true),
     retry: vi.fn<ComposerSkillCatalogHarnessController["retry"]>().mockReturnValue(true),
   } satisfies ComposerSkillCatalogHarnessController;
@@ -77,7 +75,7 @@ export const createComposerSkillCatalogHarness = (
     controller,
     publish(next: SkillCatalogState): void {
       snapshot = next;
-      for (const listener of listeners) listener();
+      listeners.notify();
     },
   };
 };
