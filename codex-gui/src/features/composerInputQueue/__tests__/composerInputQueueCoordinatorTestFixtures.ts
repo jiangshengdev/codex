@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { createDeferred } from "@/__tests__/testDeferred";
 import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import {
   eventWithEnvelope,
@@ -51,14 +52,12 @@ export function createPersistenceTestContext(): CreateComposerInputQueueCoordina
   };
 }
 
-export function deferredStart() {
-  let resolve!: (response: StartResponse) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<StartResponse>((yes, no) => {
-    resolve = yes;
-    reject = no;
-  });
-  return { promise, resolve, reject };
+export function deferredStart(): {
+  promise: Promise<StartResponse>;
+  resolve: (response: StartResponse) => void;
+  reject: (error: unknown) => void;
+} {
+  return createDeferred<StartResponse>();
 }
 
 export function live(
