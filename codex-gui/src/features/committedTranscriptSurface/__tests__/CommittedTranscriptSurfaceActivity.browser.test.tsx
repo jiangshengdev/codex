@@ -1,10 +1,6 @@
-import { expect, test } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, expect, test } from "vitest";
 import { makeStore } from "@/app/store";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import {
   agentMessage,
   attachWithTurns,
@@ -33,18 +29,10 @@ import {
   makeTranscriptStore,
 } from "./transcriptSurfaceFixtures";
 
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({
-    identity: transcriptIdentity,
-    sessionRevision: ++sessionRevision,
-    facts,
-  });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(transcriptIdentity);
+});
 
 test.each([
   [
@@ -70,7 +58,7 @@ test.each([
     );
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn(`turn-sub-agent-${kind}`, [
             subAgentActivity(`activity-sub-agent-${kind}`, kind, agentPath),
@@ -115,7 +103,7 @@ test.each([
     );
     const turnId = "turn-underscore-names";
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn(turnId, [
             userMessage("user-underscore-names", [textInput("Inspect underscore names")]),
@@ -136,7 +124,7 @@ test.each([
     await expect.element(activity).toBeVisible();
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-underscore-final",
@@ -193,7 +181,7 @@ test.each([1, 2, 3, 4])("aggregates %s adjacent started activities in order", as
   ].join(" ");
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn(
           `turn-adjacent-started-${String(count)}`,
@@ -241,7 +229,7 @@ test("keeps started and completed rows separate and limits completed chips", asy
   const turnId = "turn-started-completed-row-boundary";
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn(turnId, [
           subAgentActivity("activity-started", "started", "/root/starter"),
@@ -285,7 +273,7 @@ test("localizes completed sub-agent activity with an omitted count", async () =>
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn(
           "turn-omitted-completed-zh-cn",
@@ -322,7 +310,7 @@ test("localizes omitted interacted sub-agent activity in natural order", async (
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn(
           "turn-omitted-interacted-zh-cn",
@@ -356,7 +344,7 @@ test("keeps repeated paths and disambiguates colliding leaves with the shortest 
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-sub-agent-labels", [
           subAgentActivity("activity-repeat-a", "started", "/root/shared_worker", {
@@ -404,7 +392,7 @@ test("breaks sub-agent rows on a different kind and collab activity", async () =
   const turnId = "turn-sub-agent-row-boundaries";
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn(turnId, [
           subAgentActivity("activity-start-a", "started", "/root/agent_a"),
@@ -466,7 +454,7 @@ test("renders non-interactive aggregated sub-agent activity and folds it after t
   ];
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn(turnId, [
           userMessage("user-sub-agent-activity-surface", [textInput("Inspect activity")]),
@@ -560,7 +548,7 @@ test("renders non-interactive aggregated sub-agent activity and folds it after t
     .toBeDisabled();
 
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: itemCompleted(
         eventItemCompleted,
         "commit-sub-agent-surface-final",
@@ -598,7 +586,7 @@ test("separates activity groups around middle messages", async () => {
   const afterTitle = "Closed agents/after-message";
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn(turnId, [
           subAgentActivity("activity-before-message", "started", "/root/before_message"),
@@ -640,7 +628,7 @@ test("separates activity groups around middle status entries", async () => {
   const afterTitle = "Interrupted After status";
   const sourceStore = makeTranscriptStore(transcriptIdentity);
   sourceStore.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn(turnId, [
           subAgentActivity("activity-before-status", "started", "/root/before_status"),
@@ -720,7 +708,7 @@ test("renders terminal collab activity accessibly and restores its order after e
   const closeTitle = "Closed agent-reviewer";
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn(turnId, [
           userMessage("user-collab-surface", [textInput("Delegate work")]),
@@ -755,7 +743,7 @@ test("renders terminal collab activity accessibly and restores its order after e
   }
 
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: itemCompleted(
         eventItemCompleted,
         "commit-collab-surface-final",
@@ -788,7 +776,7 @@ test("localizes transcript copy without rebuilding semantic activity views", asy
   const store = makeTranscriptStore(transcriptIdentity);
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn(turnId, [
           subAgentActivity(activityId, "started", agentPath),
@@ -896,9 +884,9 @@ test("settles one started wait article in place across intermediate disclosure s
   const turnId = "turn-started-wait-surface";
   const itemId = "collab-started-wait-surface";
 
-  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: itemStarted(
         eventItemStarted,
         "commit-started-wait-surface",
@@ -917,7 +905,7 @@ test("settles one started wait article in place across intermediate disclosure s
     .toBeDisabled();
 
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: itemCompleted(
         eventItemCompleted,
         "commit-between-started-wait",
@@ -928,7 +916,7 @@ test("settles one started wait article in place across intermediate disclosure s
     }),
   );
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: itemCompleted(
         eventItemCompleted,
         "commit-terminal-wait-surface",
@@ -946,7 +934,7 @@ test("settles one started wait article in place across intermediate disclosure s
     .not.toBeInTheDocument();
 
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: itemCompleted(
         eventItemCompleted,
         "commit-final-started-wait",

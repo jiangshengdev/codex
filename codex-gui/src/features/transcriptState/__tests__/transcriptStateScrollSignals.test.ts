@@ -1,13 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import {
-  activeThreadReadModelSlotCreated,
-  activeThreadReadModelTransitionApplied,
-} from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import {
   attachBaseline,
   attachReplacement,
@@ -39,33 +33,23 @@ import {
 } from "../transcriptStateSlice";
 
 const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
-const threadRuntimeDeltasAccepted = ({
-  notifications,
-}: Pick<
-  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
-  "notifications"
->) => readModelAction({ type: "deltasAccepted", notifications });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
 
 describe("transcript state scroll signals", () => {
   it("sets the committed scroll commit key from accepted attach snapshots", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
 
     expect(selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId)).toBe(
       `attach:${attachBaseline.snapshot.thread.id}:${attachBaseline.subscriptionId}:none`,
     );
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachReplacement, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachReplacement, [])));
 
     expect(selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId)).toBe(
       `attach:${attachReplacement.snapshot.thread.id}:${attachReplacement.subscriptionId}:${attachReplacement.snapshot.headCommitId ?? "none"}`,
@@ -76,11 +60,11 @@ describe("transcript state scroll signals", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-started-no-dom",
@@ -96,7 +80,7 @@ describe("transcript state scroll signals", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-filtered-no-dom",
@@ -112,7 +96,7 @@ describe("transcript state scroll signals", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-visible-dom",
@@ -128,7 +112,7 @@ describe("transcript state scroll signals", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-visible-dom",
@@ -149,7 +133,7 @@ describe("transcript state scroll signals", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-reasoning-scroll";
     const itemId = "reasoning-scroll";
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
     const initialPulse = selectTranscriptLiveScrollPulse(store.getState(), identity.threadId);
     const signals = () => [
@@ -158,10 +142,10 @@ describe("transcript state scroll signals", () => {
     ];
     const observed = [signals()];
     const event = (notification: ReturnType<typeof itemStarted>) =>
-      store.dispatch(threadRuntimeEventBuffered({ notification, replay: "live" }));
+      store.dispatch(actions.threadRuntimeEventBuffered({ notification, replay: "live" }));
     const delta = (targetId: string, text: string, summaryIndex = 0) =>
       store.dispatch(
-        threadRuntimeDeltasAccepted({
+        actions.threadRuntimeDeltasAccepted({
           notifications: [
             reasoningSummaryTextDelta(
               eventReasoningSummaryTextDelta,
@@ -221,12 +205,12 @@ describe("transcript state scroll signals", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
     const initialPulse = selectTranscriptLiveScrollPulse(store.getState(), identity.threadId);
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: turnStarted(
           eventTurnStarted,
           "commit-live-scroll-pulse-turn",
@@ -236,7 +220,7 @@ describe("transcript state scroll signals", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-live-scroll-pulse-started",
@@ -254,7 +238,7 @@ describe("transcript state scroll signals", () => {
     );
 
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           agentMessageDelta(
             eventAgentMessageDelta,
@@ -273,7 +257,7 @@ describe("transcript state scroll signals", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-live-scroll-pulse-completed",
@@ -296,13 +280,13 @@ describe("transcript state scroll signals", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
     const initialPulse = selectTranscriptLiveScrollPulse(store.getState(), identity.threadId);
     const plan = planItem("plan-live-scroll-pulse");
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-plan-live-scroll-pulse-started",
@@ -330,7 +314,7 @@ describe("transcript state scroll signals", () => {
     ).toBeNull();
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-plan-live-scroll-pulse-completed",
@@ -367,12 +351,12 @@ describe("transcript state scroll signals", () => {
     const turnId = "turn-collab-scroll-signals";
     const wait = collabAgentToolCall("collab-scroll-wait", "wait", "inProgress");
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
     const initialPulse = selectTranscriptLiveScrollPulse(store.getState(), identity.threadId);
     const dispatchStarted = (commitId: string, item: ReturnType<typeof collabAgentToolCall>) => {
       store.dispatch(
-        threadRuntimeEventBuffered({
+        actions.threadRuntimeEventBuffered({
           notification: itemStarted(eventItemStarted, commitId, turnId, item),
           replay: "live",
         }),
@@ -380,7 +364,7 @@ describe("transcript state scroll signals", () => {
     };
     const dispatchCompleted = (commitId: string, item: ReturnType<typeof collabAgentToolCall>) => {
       store.dispatch(
-        threadRuntimeEventBuffered({
+        actions.threadRuntimeEventBuffered({
           notification: itemCompleted(eventItemCompleted, commitId, turnId, item),
           replay: "live",
         }),

@@ -1,10 +1,6 @@
-import { assert, expect, test } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, assert, expect, test } from "vitest";
 import { page } from "vitest/browser";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import {
   agentMessage,
   agentMessageDelta,
@@ -32,30 +28,10 @@ import { selectCommittedTranscriptScrollCommitKey } from "@/features/transcriptS
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
 import { transcriptIdentity, renderTranscriptWithProviders } from "./transcriptSurfaceFixtures";
 
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({
-    identity: transcriptIdentity,
-    sessionRevision: ++sessionRevision,
-    facts,
-  });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
-const threadRuntimeDeltasAccepted = ({
-  notifications,
-}: Pick<
-  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
-  "notifications"
->) => readModelAction({ type: "deltasAccepted", notifications });
-const threadRuntimeManualReconnectRequired = (
-  input: Omit<
-    Extract<ActiveThreadProjectionReadModelFact, { type: "projectionUnavailable" }>,
-    "type"
-  >,
-) => readModelAction({ type: "projectionUnavailable", ...input });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(transcriptIdentity);
+});
 
 const quotaErrorMessage = [
   "unexpected status 403 Forbidden: token quota is not enough, token remain quota: ¥0.064714, need quota: ¥0.072198 (request id: 202608140209338062200938268d9d60dAEpcHp), url:",
@@ -87,9 +63,9 @@ test("scrolls only overflowing formulas without shrinking them across message li
       transcriptIdentity,
       <CommittedTranscriptSurface identity={transcriptIdentity} />,
     );
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "overflow-start",
@@ -100,7 +76,7 @@ test("scrolls only overflowing formulas without shrinking them across message li
       }),
     );
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [agentMessageDelta(eventAgentMessageDelta, turnId, itemId, source)],
       }),
     );
@@ -148,7 +124,7 @@ test("scrolls only overflowing formulas without shrinking them across message li
 
     await verifyOverflow();
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "overflow-complete",
@@ -163,7 +139,7 @@ test("scrolls only overflowing formulas without shrinking them across message li
       .toBeNull();
     await verifyOverflow();
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [baseTurn(turnId, [agentMessage(itemId, source)])]),
       ),
     );
@@ -179,7 +155,7 @@ test("preserves the original inline math baseline and full formula height", asyn
     <CommittedTranscriptSurface identity={transcriptIdentity} />,
   );
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-math-baseline", [
           agentMessage(
@@ -247,7 +223,7 @@ test("renders committed user and assistant messages from an attached baseline", 
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-surface", [
           userMessage("user-surface", [textInput("Hello "), textInput("surface")]),
@@ -279,7 +255,7 @@ test("renders an attached failed-turn error after the turn content", async () =>
   const turnId = "turn-attached-failed-error";
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         failedTurn(turnId, quotaError, [
           userMessage("user-attached-failed-error", [textInput("Use the remaining quota")]),
@@ -329,9 +305,13 @@ test("renders one error alert for a repeated live error-only turn completion", a
     failedTurn(turnId, quotaError),
   );
 
-  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-  store.dispatch(threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }));
-  store.dispatch(threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }));
+  store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  store.dispatch(
+    actions.threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }),
+  );
+  store.dispatch(
+    actions.threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }),
+  );
 
   const turn = screen.getByRole("article", { name: `Turn ${turnId}` });
   const errorAlert = turn.getByRole("alert");
@@ -351,7 +331,7 @@ test("keeps same raw item ids isolated between turns", async () => {
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-shared-item-first", [
           agentMessage("agent-shared-item", "First turn payload", "commentary"),
@@ -379,7 +359,7 @@ test("renders assistant transcript markdown", async () => {
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-markdown", [
           agentMessage(
@@ -487,7 +467,7 @@ test("renders dollar math with semantic output and loaded fonts in assistant his
     <CommittedTranscriptSurface identity={transcriptIdentity} />,
   );
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-math", [
           userMessage("user-math", [textInput("Keep $x^2$ literal")]),
@@ -512,7 +492,7 @@ test("renders backslash geometry and algebra alongside dollar math in assistant 
     <CommittedTranscriptSurface identity={transcriptIdentity} />,
   );
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-backslash-math", [
           agentMessage(
@@ -545,9 +525,9 @@ test.each(["\n", "\r\n"])(
     );
     const turnId = "turn-live-backslash";
     const itemId = "agent-live-backslash";
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "backslash-start",
@@ -559,7 +539,7 @@ test.each(["\n", "\r\n"])(
     );
     const append = (delta: string) =>
       store.dispatch(
-        threadRuntimeDeltasAccepted({
+        actions.threadRuntimeDeltasAccepted({
           notifications: [
             agentMessageDelta(
               eventAgentMessageDelta,
@@ -603,7 +583,7 @@ test.each(["\n", "\r\n"])(
         lineEnding,
       );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "backslash-complete",
@@ -618,7 +598,7 @@ test.each(["\n", "\r\n"])(
       .toBeNull();
     await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(2);
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [baseTurn(turnId, [agentMessage(itemId, source)])]),
       ),
     );
@@ -655,7 +635,7 @@ test.each(["history", "live"] as const)(
     const reasoningSource = String.raw`Reasoning \(x\) \[y\] $z$ $$w$$`;
     const itemId = `agent-boundaries-${mode}`;
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn(turnId, [
             userMessage(`user-${mode}`, [textInput(userSource)]),
@@ -667,7 +647,7 @@ test.each(["history", "live"] as const)(
     );
     if (mode === "live") {
       store.dispatch(
-        threadRuntimeEventBuffered({
+        actions.threadRuntimeEventBuffered({
           notification: itemStarted(
             eventItemStarted,
             "boundaries-start",
@@ -678,7 +658,7 @@ test.each(["history", "live"] as const)(
         }),
       );
       store.dispatch(
-        threadRuntimeDeltasAccepted({
+        actions.threadRuntimeDeltasAccepted({
           notifications: [agentMessageDelta(eventAgentMessageDelta, turnId, itemId, source)],
         }),
       );
@@ -748,7 +728,7 @@ unfinished
 
 **Still readable**`;
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(
           attachBaseline,
           mode === "history" ? [baseTurn(turnId, [agentMessage(itemId, source)])] : [],
@@ -757,7 +737,7 @@ unfinished
     );
     if (mode === "live") {
       store.dispatch(
-        threadRuntimeEventBuffered({
+        actions.threadRuntimeEventBuffered({
           notification: itemStarted(
             eventItemStarted,
             "containers-start",
@@ -768,7 +748,7 @@ unfinished
         }),
       );
       store.dispatch(
-        threadRuntimeDeltasAccepted({
+        actions.threadRuntimeDeltasAccepted({
           notifications: [agentMessageDelta(eventAgentMessageDelta, turnId, itemId, source)],
         }),
       );
@@ -799,7 +779,7 @@ test("keeps user markdown syntax as plain text", async () => {
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-user-markdown-literal", [
           userMessage("user-markdown-literal", [textInput("# User heading\n- User item")]),
@@ -820,18 +800,18 @@ test("preserves default math completion while assistant deltas settle into histo
     transcriptIdentity,
     <CommittedTranscriptSurface identity={transcriptIdentity} />,
   );
-  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
   const turnId = "turn-streaming-math";
   const itemId = "agent-streaming-math";
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: itemStarted(eventItemStarted, "math-start", turnId, agentMessage(itemId, "")),
       replay: "live",
     }),
   );
   const append = (delta: string) =>
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [agentMessageDelta(eventAgentMessageDelta, turnId, itemId, delta)],
       }),
     );
@@ -849,7 +829,7 @@ test("preserves default math completion while assistant deltas settle into histo
     .toContain("Done");
   const source = "Single $x^2$\n\n$$\ny^2\n$$\n\nDone";
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: itemCompleted(
         eventItemCompleted,
         "math-completed",
@@ -865,7 +845,7 @@ test("preserves default math completion while assistant deltas settle into histo
   await expect.poll(() => document.querySelectorAll(".katex math").length).toBe(2);
   expect(document.querySelectorAll(".katex-display")).toHaveLength(1);
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [baseTurn(turnId, [agentMessage(itemId, source)])]),
     ),
   );
@@ -878,7 +858,7 @@ test("keeps reasoning and code literal and leaves invalid math readable", async 
     <CommittedTranscriptSurface identity={transcriptIdentity} />,
   );
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-math-boundaries", [
           reasoningItem("reasoning-math", ["Reasoning $x^2$ and $$y^2$$"]),
@@ -908,7 +888,7 @@ test("keeps raw html and images inactive while allowing markdown links", async (
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-markdown-safety", [
           agentMessage(
@@ -952,7 +932,7 @@ test("updates committed message text after snapshot reattach with stable ids", a
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-reattach", [agentMessage("agent-reattach", "Before reconnect")]),
       ]),
@@ -962,7 +942,7 @@ test("updates committed message text after snapshot reattach with stable ids", a
   await expect.element(screen.getByText("Before reconnect")).toBeVisible();
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-reattach", [agentMessage("agent-reattach", "After reconnect")]),
       ]),
@@ -979,19 +959,19 @@ test("renders live assistant text between intermediate updates and final answers
     <CommittedTranscriptSurface identity={transcriptIdentity} />,
   );
 
-  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
   const attachScrollKey = selectCommittedTranscriptScrollCommitKey(
     store.getState(),
     transcriptIdentity.threadId,
   );
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: turnStarted(eventTurnStarted, "commit-turn-live", inProgressTurn("turn-live")),
       replay: "live",
     }),
   );
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: itemStarted(
         eventItemStarted,
         "commit-started",
@@ -1010,7 +990,7 @@ test("renders live assistant text between intermediate updates and final answers
   expect(document.querySelector(".committed-transcript-live-assistant-message")).toBeNull();
 
   store.dispatch(
-    threadRuntimeDeltasAccepted({
+    actions.threadRuntimeDeltasAccepted({
       notifications: [
         agentMessageDelta(
           eventAgentMessageDelta,
@@ -1041,7 +1021,7 @@ test("renders live assistant text between intermediate updates and final answers
   ).toBe(attachScrollKey);
 
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: itemCompleted(
         eventItemCompleted,
         "commit-completed",
@@ -1066,12 +1046,12 @@ test("keeps middle message order stable while live messages settle out of order"
     <CommittedTranscriptSurface identity={transcriptIdentity} />,
   );
 
-  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
   const turn = screen.getByRole("article", { name: "Turn turn-middle-order" });
   const messages = turn.getByRole("article");
   const startLiveMessage = (itemId: string) => {
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           `commit-middle-order-start-${itemId}`,
@@ -1084,7 +1064,7 @@ test("keeps middle message order stable while live messages settle out of order"
   };
   const appendLiveMessageDelta = (itemId: string, source: string) => {
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           agentMessageDelta(eventAgentMessageDelta, "turn-middle-order", itemId, source),
         ],
@@ -1093,7 +1073,7 @@ test("keeps middle message order stable while live messages settle out of order"
   };
   const completeMessage = (itemId: string, source: string) => {
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           `commit-middle-order-complete-${itemId}`,
@@ -1135,9 +1115,9 @@ test("leaves live synchronization interruption presentation to the current task 
   );
   const attach = attachWithTurns(attachBaseline, []);
 
-  store.dispatch(threadRuntimeAttached(attach));
+  store.dispatch(actions.threadRuntimeAttached(attach));
   store.dispatch(
-    threadRuntimeManualReconnectRequired({
+    actions.threadRuntimeManualReconnectRequired({
       reason: "backpressure",
       threadId: attach.snapshot.thread.id,
       subscriptionId: attach.subscriptionId,

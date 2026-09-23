@@ -1,14 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import { requiredTranscriptState } from "./requiredTranscriptState";
-import {
-  activeThreadReadModelSlotCreated,
-  activeThreadReadModelTransitionApplied,
-} from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import {
   attachBaseline,
   eventItemCompleted,
@@ -39,20 +33,10 @@ import {
 } from "../transcriptStateSlice";
 
 const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
-const threadRuntimeDeltasAccepted = ({
-  notifications,
-}: Pick<
-  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
-  "notifications"
->) => readModelAction({ type: "deltasAccepted", notifications });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
 
 describe("transcript state committed terminal reducer", () => {
   it.each(["interrupted", "failed"] as const)(
@@ -66,16 +50,16 @@ describe("transcript state committed terminal reducer", () => {
       const entryId = transcriptEntryIdFor(turnId, itemId);
       const chunkId = turnId + ":chunk:0";
       const live = (
-        notification: Parameters<typeof threadRuntimeEventBuffered>[0]["notification"],
-      ) => store.dispatch(threadRuntimeEventBuffered({ notification, replay: "live" }));
+        notification: Parameters<typeof actions.threadRuntimeEventBuffered>[0]["notification"],
+      ) => store.dispatch(actions.threadRuntimeEventBuffered({ notification, replay: "live" }));
 
-      store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+      store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
       live(
         itemStarted(eventItemStarted, "commit-start-" + status, turnId, reasoningItem(itemId, [])),
       );
       live(itemCompleted(eventItemCompleted, "commit-activity-" + status, turnId, activity));
       store.dispatch(
-        threadRuntimeDeltasAccepted({
+        actions.threadRuntimeDeltasAccepted({
           notifications: [
             reasoningSummaryTextDelta(
               eventReasoningSummaryTextDelta,
@@ -139,9 +123,9 @@ describe("transcript state committed terminal reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: turnStarted(
           eventTurnStarted,
           "commit-start-done",
@@ -151,7 +135,7 @@ describe("transcript state committed terminal reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: turnCompleted(eventTurnCompleted, "commit-complete-done", {
           ...baseTurn("turn-done", []),
           status: "completed",
@@ -191,12 +175,12 @@ describe("transcript state committed terminal reducer", () => {
       failedTurn(turnId, error),
     );
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }),
+      actions.threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }),
+      actions.threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }),
     );
 
     expect(selectTranscriptTurnIds(store.getState(), identity.threadId)).toStrictEqual([turnId]);
@@ -221,7 +205,7 @@ describe("transcript state committed terminal reducer", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: turnCompleted(
           eventTurnCompleted,
           "commit-live-error-cleared",

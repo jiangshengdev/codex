@@ -1,9 +1,6 @@
-import { expect, test } from "vitest";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, expect, test } from "vitest";
+import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import {
   attachBaseline,
   eventItemCompleted,
@@ -31,36 +28,22 @@ type SurfaceRender = Awaited<ReturnType<typeof renderWithProviders>>;
 type SurfaceStore = SurfaceRender["store"];
 type ProjectionEvent = ActiveThreadProjectionAcceptedEvent["notification"];
 
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({
-    identity: transcriptIdentity,
-    sessionRevision: ++sessionRevision,
-    facts,
-  });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
-const threadRuntimeDeltasAccepted = ({
-  notifications,
-}: Pick<
-  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
-  "notifications"
->) => readModelAction({ type: "deltasAccepted", notifications });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(transcriptIdentity);
+});
 
 const renderSurface = async () => {
   const result = await renderTranscriptWithProviders(
     transcriptIdentity,
     <CommittedTranscriptSurface identity={transcriptIdentity} />,
   );
-  result.store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  result.store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
   return result;
 };
 
 const dispatchEvent = (store: SurfaceStore, notification: ProjectionEvent) =>
-  store.dispatch(threadRuntimeEventBuffered({ notification, replay: "live" }));
+  store.dispatch(actions.threadRuntimeEventBuffered({ notification, replay: "live" }));
 
 const startReasoning = (store: SurfaceStore, turnId: string, itemId: string) =>
   dispatchEvent(
@@ -76,7 +59,7 @@ const appendSummary = (
   summaryIndex: number,
 ) =>
   store.dispatch(
-    threadRuntimeDeltasAccepted({
+    actions.threadRuntimeDeltasAccepted({
       notifications: [
         reasoningSummaryTextDelta(
           eventReasoningSummaryTextDelta,
@@ -113,7 +96,7 @@ test("reveals only a closed reasoning title and keeps one live status across sum
   expect(status.element().closest(".card.card--default")).not.toBeNull();
 
   store.dispatch(
-    threadRuntimeDeltasAccepted({
+    actions.threadRuntimeDeltasAccepted({
       notifications: [
         reasoningSummaryPartAddedDelta(eventReasoningSummaryPartAddedDelta, turnId, itemId, 2),
         reasoningSummaryTextDelta(
@@ -265,7 +248,7 @@ test("does not mount an empty article for raw-only or empty-summary reasoning", 
 
   startReasoning(store, turnId, itemId);
   store.dispatch(
-    threadRuntimeDeltasAccepted({
+    actions.threadRuntimeDeltasAccepted({
       notifications: [
         reasoningTextDelta(
           eventReasoningTextDelta,

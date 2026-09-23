@@ -1,14 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import { requiredTranscriptState } from "./requiredTranscriptState";
-import {
-  activeThreadReadModelSlotCreated,
-  activeThreadReadModelTransitionApplied,
-} from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import {
   attachBaseline,
   attachReplacement,
@@ -40,14 +34,10 @@ import {
 } from "../transcriptStateSlice";
 
 const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
 
 describe("transcript state replay and event dedup", () => {
   it("keeps a snapshot compaction boundary idempotent across duplicate completed replay", () => {
@@ -57,7 +47,7 @@ describe("transcript state replay and event dedup", () => {
     const itemId = "compaction-snapshot-duplicate";
     const snapshotTurn = baseTurn(turnId, [contextCompaction(itemId)]);
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
     const beforePage = selectTranscriptContextPage(
       store.getState(),
@@ -72,7 +62,9 @@ describe("transcript state replay and event dedup", () => {
     );
 
     for (const notification of [replay, replay]) {
-      store.dispatch(threadRuntimeEventBuffered({ notification, replay: "snapshotDuplicate" }));
+      store.dispatch(
+        actions.threadRuntimeEventBuffered({ notification, replay: "snapshotDuplicate" }),
+      );
     }
 
     expect(selectTranscriptContextPageIds(store.getState(), identity.threadId)).toStrictEqual([
@@ -94,7 +86,7 @@ describe("transcript state replay and event dedup", () => {
       reasoningItem("reasoning-snapshot-duplicate", ["Already attached"]),
     ]);
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
     const beforeTurn = selectTranscriptTurn(
       store.getState(),
@@ -108,7 +100,7 @@ describe("transcript state replay and event dedup", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-snapshot-duplicate",
@@ -140,7 +132,7 @@ describe("transcript state replay and event dedup", () => {
     const snapshotItem = agentMessage("agent-snapshot-duplicate-live", "Already attached");
     const snapshotTurn = baseTurn("turn-snapshot-duplicate-live", [snapshotItem]);
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
     const beforeTurn = selectTranscriptTurn(
       store.getState(),
@@ -154,7 +146,7 @@ describe("transcript state replay and event dedup", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-duplicate-started",
@@ -165,7 +157,7 @@ describe("transcript state replay and event dedup", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-duplicate-completed",
@@ -197,9 +189,9 @@ describe("transcript state replay and event dedup", () => {
     const turnId = "turn-reasoning-duplicate";
     const itemId = "reasoning-duplicate";
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-reasoning-duplicate",
@@ -210,7 +202,7 @@ describe("transcript state replay and event dedup", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-reasoning-duplicate",
@@ -265,9 +257,9 @@ describe("transcript state replay and event dedup", () => {
       receiverThreadIds: ["agent-a"],
     });
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(eventItemStarted, "commit-collab-replay-a", turnA, startedA),
         replay: "live",
       }),
@@ -302,7 +294,7 @@ describe("transcript state replay and event dedup", () => {
         replay: "snapshotDuplicate" as const,
       },
     ]) {
-      store.dispatch(threadRuntimeEventBuffered(payload));
+      store.dispatch(actions.threadRuntimeEventBuffered(payload));
     }
 
     expect(
@@ -313,7 +305,7 @@ describe("transcript state replay and event dedup", () => {
       ),
     ).toBe(beforeReplay);
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-collab-replay-b",
@@ -376,9 +368,9 @@ describe("transcript state replay and event dedup", () => {
     const turnId = "turn-collab-replacement";
     const itemId = "collab-replacement";
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-collab-replacement-started",
@@ -414,7 +406,7 @@ describe("transcript state replay and event dedup", () => {
     });
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachReplacement, [
           baseTurn(turnId, [
             userMessage("user-collab-replacement", [textInput("Prompt")]),

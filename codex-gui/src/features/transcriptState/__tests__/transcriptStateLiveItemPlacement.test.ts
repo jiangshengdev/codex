@@ -1,14 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import { requiredTranscriptState } from "./requiredTranscriptState";
-import {
-  activeThreadReadModelSlotCreated,
-  activeThreadReadModelTransitionApplied,
-} from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import {
   attachBaseline,
   eventItemCompleted,
@@ -30,26 +24,22 @@ import {
 } from "../transcriptStateSlice";
 
 const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
 
 describe("transcript state live item lifecycle reducer", () => {
   it("keeps itemStarted slot order stable and ignores duplicate live slot insertion", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const firstItem = agentMessage("agent-slot-first", "First", "commentary");
     const secondItem = agentMessage("agent-slot-second", "Second", "commentary");
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-slot-first",
@@ -62,7 +52,7 @@ describe("transcript state live item lifecycle reducer", () => {
     const beforeDuplicateState = requiredTranscriptState(store.getState(), identity.threadId);
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-slot-first-duplicate-id",
@@ -83,7 +73,7 @@ describe("transcript state live item lifecycle reducer", () => {
     }).toStrictEqual(beforeDuplicateState);
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-slot-second",
@@ -140,7 +130,7 @@ describe("transcript state live item lifecycle reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const firstItem = agentMessage("agent-remove-first", "", null);
     const secondItem = agentMessage("agent-remove-second", "Still live", "commentary");
     const completedFirstItem = agentMessage(
@@ -150,7 +140,7 @@ describe("transcript state live item lifecycle reducer", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-remove-first-started",
@@ -161,7 +151,7 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-remove-second-started",
@@ -197,7 +187,7 @@ describe("transcript state live item lifecycle reducer", () => {
         ?.entries,
     ).toStrictEqual([]);
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-remove-first-completed",
@@ -254,12 +244,12 @@ describe("transcript state live item lifecycle reducer", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const firstItem = agentMessage("agent-empty-first", "", "commentary");
     const secondItem = agentMessage("agent-empty-second", "", "commentary");
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-empty-first-started",
@@ -270,7 +260,7 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-empty-second-started",
@@ -296,7 +286,7 @@ describe("transcript state live item lifecycle reducer", () => {
         ?.entries,
     ).toStrictEqual([]);
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-empty-first-completed",
@@ -351,10 +341,10 @@ describe("transcript state live item lifecycle reducer", () => {
       (_, index) => `agent-hidden-initial-${String(index)}`,
     );
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     for (const [index, itemId] of initialItemIds.entries()) {
       store.dispatch(
-        threadRuntimeEventBuffered({
+        actions.threadRuntimeEventBuffered({
           notification: itemStarted(
             eventItemStarted,
             `commit-hidden-initial-started-${String(index)}`,
@@ -370,7 +360,7 @@ describe("transcript state live item lifecycle reducer", () => {
       .slice(0, TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT)
       .entries()) {
       store.dispatch(
-        threadRuntimeEventBuffered({
+        actions.threadRuntimeEventBuffered({
           notification: itemCompleted(
             eventItemCompleted,
             `commit-hidden-initial-completed-${String(index)}`,
@@ -389,7 +379,7 @@ describe("transcript state live item lifecycle reducer", () => {
     );
     for (const [index, itemId] of addedItemIds.entries()) {
       store.dispatch(
-        threadRuntimeEventBuffered({
+        actions.threadRuntimeEventBuffered({
           notification: itemStarted(
             eventItemStarted,
             `commit-hidden-added-started-${String(index)}`,
@@ -465,10 +455,10 @@ describe("transcript state live item lifecycle reducer", () => {
     store.dispatch(activeThreadReadModelSlotCreated(identity));
     const turnId = "turn-started-activity-chunks";
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     for (let index = 0; index <= TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT; index += 1) {
       store.dispatch(
-        threadRuntimeEventBuffered({
+        actions.threadRuntimeEventBuffered({
           notification: itemStarted(
             eventItemStarted,
             `commit-started-activity-${String(index)}`,

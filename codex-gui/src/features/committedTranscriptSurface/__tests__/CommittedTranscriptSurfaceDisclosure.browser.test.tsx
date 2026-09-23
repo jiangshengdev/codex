@@ -1,6 +1,5 @@
-import { expect, test } from "vitest";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, expect, test } from "vitest";
 import {
   agentMessage,
   attachWithTurns,
@@ -14,16 +13,10 @@ import { TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT } from "@/features/transcriptState/
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
 import { transcriptIdentity, renderTranscriptWithProviders } from "./transcriptSurfaceFixtures";
 
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({
-    identity: transcriptIdentity,
-    sessionRevision: ++sessionRevision,
-    facts,
-  });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(transcriptIdentity);
+});
 
 test("renders temporary content forced open until a final answer exists", async () => {
   const { store, ...screen } = await renderTranscriptWithProviders(
@@ -32,7 +25,7 @@ test("renders temporary content forced open until a final answer exists", async 
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-temporary-open", [
           agentMessage("agent-commentary-open", "Working before final", "commentary"),
@@ -54,7 +47,7 @@ test("renders temporary content collapsed beside the final answer once final ans
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-temporary-collapsed", [
           agentMessage("agent-commentary-collapsed", "Hidden working note", "commentary"),
@@ -81,7 +74,7 @@ test("keeps the final answer visible while temporary disclosure is collapsed", a
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-temporary-spacing", [
           agentMessage("agent-commentary-spacing", "Hidden spacing note", "commentary"),
@@ -102,7 +95,7 @@ test("does not mount collapsed temporary markdown before expansion", async () =>
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-collapsed-markdown", [
           agentMessage("agent-collapsed-markdown", "# Hidden markdown heading", "commentary"),
@@ -146,7 +139,7 @@ test("renders one collapsed temporary module for a turn split across chunks", as
   const lastActivityTitle = `Started Cross chunk ${String(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT)}`;
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-temporary-cross-chunk", [
           ...activityItems,
@@ -192,7 +185,7 @@ test("renders later user messages inside the intermediate disclosure", async () 
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-middle-user", [
           userMessage("user-leading-middle", [textInput("Initial prompt")]),
@@ -224,7 +217,7 @@ test("renders multiple final assistant messages outside the intermediate disclos
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-multi-final-surface", [
           userMessage("user-multi-final-surface", [textInput("Prompt")]),
@@ -250,7 +243,7 @@ test("renders legacy assistant messages inside the intermediate disclosure", asy
   );
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-legacy-phase", [
           agentMessage("agent-legacy", "Legacy assistant text", null),
