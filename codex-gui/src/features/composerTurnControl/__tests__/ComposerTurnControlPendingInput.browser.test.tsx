@@ -1,4 +1,5 @@
 import { dispatchGuideShortcut } from "@/features/composerEditor/__tests__/composerKeyboardBrowserTestSupport";
+import { composerTextWithoutTrailingBrowserPlaceholders } from "./composerTextBrowserTestSupport";
 import { Button, Toast } from "@heroui/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
@@ -93,10 +94,6 @@ const skillsRoleFor = (
   refreshSkills: () => controller.invalidate(),
   retrySkills: () => controller.retry(),
 });
-const composerTextWithoutTrailingBrowserPlaceholders = (
-  element: Readonly<Pick<Node, "textContent">>,
-): string => (element.textContent ?? "").replace(/[ \n\r\u00a0\u200b]+$/u, "");
-
 afterEach(() => {
   restoreMotion?.();
   restoreMotion = undefined;

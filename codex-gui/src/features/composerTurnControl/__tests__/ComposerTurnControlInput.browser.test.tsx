@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
+import { composerTextWithoutTrailingBrowserPlaceholders } from "./composerTextBrowserTestSupport";
 import { userEvent } from "vitest/browser";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { dispatchCompositionEnd } from "@/features/composerEditor/__tests__/composerEditorCompositionBrowserTestSupport";
@@ -40,10 +41,6 @@ const expectStartTurnCalledOnceWithText = (
     input: [{ type: "text", text, text_elements: [] }],
   });
 };
-
-const composerTextWithoutTrailingBrowserPlaceholders = (
-  element: Readonly<Pick<Node, "textContent">>,
-): string => (element.textContent ?? "").replace(/[ \n\r\u00a0\u200b]+$/u, "");
 
 const dispatchComposition = (element: Element, data: string): void => {
   element.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
