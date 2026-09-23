@@ -29,13 +29,7 @@ import {
   type TurnPositionRequest,
 } from "@/features/browserLaunch/useTurnPositionRequest";
 
-function isMacAppleWebKitRuntime(): boolean {
-  return (
-    navigator.vendor === "Apple Computer, Inc." &&
-    navigator.platform === "MacIntel" &&
-    navigator.maxTouchPoints <= 1
-  );
-}
+import { isMacAppleWebKitRuntime } from "@/features/composerEditor/composerRuntime";
 
 export function CurrentTaskPage() {
   const { t } = useLingui();

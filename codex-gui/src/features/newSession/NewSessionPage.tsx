@@ -19,6 +19,7 @@ import { errorText } from "@/text/errorText";
 import type { NewSessionSnapshot } from "./newSessionOwner";
 import { NewSessionWorkingDirectory } from "./NewSessionWorkingDirectory";
 import { useNewSessionSkillCatalog } from "./useNewSessionSkillCatalog";
+import { isMacAppleWebKitRuntime } from "@/features/composerEditor/composerRuntime";
 
 export function NewSessionPage() {
   const { newSessionOwner, commands } = useAppCapabilities();
@@ -132,10 +133,7 @@ function NewSessionEditor({
         authorizationToken,
         onControllerChange: setController,
         disabled: commands == null || snapshot.isInputLocked,
-        guardCompositionEndEnter:
-          navigator.vendor === "Apple Computer, Inc." &&
-          navigator.platform === "MacIntel" &&
-          navigator.maxTouchPoints <= 1,
+        guardCompositionEndEnter: isMacAppleWebKitRuntime(),
         initialDraft: snapshot.draft,
         onDraftChange: (draft) => {
           newSessionOwner.saveDraft(draft);
