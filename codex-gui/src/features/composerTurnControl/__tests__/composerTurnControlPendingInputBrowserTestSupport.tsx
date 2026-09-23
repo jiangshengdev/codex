@@ -24,13 +24,26 @@ const threadId = attachResponse.snapshot.thread.id;
 export async function waitForPendingDrawerOpen() {
   const backdrop = document.querySelector('[data-slot="drawer-backdrop"]');
   if (!(backdrop instanceof HTMLElement)) throw new Error("Expected drawer backdrop");
+  const dialog = backdrop.querySelector('[data-slot="drawer-dialog"]');
+  if (!(dialog instanceof HTMLElement)) throw new Error("Expected drawer dialog");
   await expect
-    .poll(() =>
-      backdrop
-        .getAnimations({ subtree: true })
-        .filter((animation) => animation.playState === "running"),
-    )
-    .toHaveLength(0);
+    .poll(() => {
+      // An offscreen drawer can appear stable before its entry transition starts.
+      const bounds = dialog.getBoundingClientRect();
+      return (
+        bounds.width > 0 &&
+        bounds.height > 0 &&
+        bounds.left >= 0 &&
+        bounds.right <= window.innerWidth &&
+        bounds.top >= 0 &&
+        bounds.bottom <= window.innerHeight &&
+        backdrop.querySelector('[data-entering="true"]') == null &&
+        backdrop
+          .getAnimations({ subtree: true })
+          .every((animation) => animation.playState !== "running" && !animation.pending)
+      );
+    })
+    .toBe(true);
 }
 
 export function observePendingDrawerExit(onExit: () => void) {

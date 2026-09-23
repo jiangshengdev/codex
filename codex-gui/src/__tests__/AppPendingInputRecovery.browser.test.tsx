@@ -34,6 +34,7 @@ import { composerQueueMessage } from "@/features/composerInputQueue/__tests__/co
 import { createComposerInterruptState } from "@/features/composerInputQueue/composerInterruptState";
 import { BrowserPersistenceStore } from "@/features/browserPersistence/browserPersistenceStore";
 import { consumeBrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
+import { waitForPendingDrawerOpen } from "@/features/composerTurnControl/__tests__/composerTurnControlPendingInputBrowserTestSupport";
 
 const hostMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -195,6 +196,7 @@ test.each([HISTORY_LIST_ROUTE_PATH, NEW_TASK_ROUTE_PATH, CURRENT_TASK_ROUTE_PATH
       .getByRole("group", { name: "Pending: Queued 1", exact: true })
       .getByRole("button", { name: "Queued 1", exact: true })
       .click();
+    await waitForPendingDrawerOpen();
     await screen.getByRole("button", { name: "Edit", exact: true }).click();
     await screen
       .getByRole("combobox", { name: "Edit pending message", exact: true })
