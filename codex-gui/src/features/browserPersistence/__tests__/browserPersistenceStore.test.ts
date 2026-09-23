@@ -117,6 +117,10 @@ describe("BrowserPersistenceStore", () => {
 
   it.each([
     ["invalid JSON", "malformed"],
+    ["null", "malformed"],
+    ["[]", "malformed"],
+    ["false", "malformed"],
+    ["{}", "unsupportedVersion"],
     [JSON.stringify({ version: 2 }), "unsupportedVersion"],
     [JSON.stringify({ version: 1 }), "malformed"],
     [
@@ -216,11 +220,12 @@ describe("BrowserPersistenceStore", () => {
     expect(storage.setItem).not.toHaveBeenCalled();
   });
 
-  it("reports an unavailable browser sessionStorage getter", () => {
+  it.each(["blocked", "missing"])("reports %s browser sessionStorage", (availability) => {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
     Object.defineProperty(globalThis, "sessionStorage", {
       configurable: true,
       get: () => {
+        if (availability === "missing") return undefined;
         throw new Error("blocked");
       },
     });

@@ -109,6 +109,7 @@ describe("SessionCollectionPersistenceStore", () => {
     ["invalid JSON", "malformed"],
     ["null", "malformed"],
     ["[]", "malformed"],
+    ["false", "malformed"],
     ["{}", "malformed"],
     [JSON.stringify({ version: 2 }), "unsupportedVersion"],
     [
@@ -156,11 +157,12 @@ describe("SessionCollectionPersistenceStore", () => {
     expect([...storage.values]).toEqual(before);
   });
 
-  it("reports blocked sessionStorage access", () => {
+  it.each(["blocked", "missing"])("reports %s sessionStorage access", (availability) => {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
     Object.defineProperty(globalThis, "sessionStorage", {
       configurable: true,
       get: () => {
+        if (availability === "missing") return undefined;
         throw new Error("blocked");
       },
     });
