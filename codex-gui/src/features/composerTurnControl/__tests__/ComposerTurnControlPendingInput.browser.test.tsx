@@ -634,6 +634,7 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
 });
 
 test("edits and deletes an ordinary pending message in one Drawer without changing the main draft", async () => {
+  restoreMotion = disableMotionForTest();
   const view = await renderComposerTurnControl({
     scenario: { type: "activeFixture", captureEditReservations: true },
   });
