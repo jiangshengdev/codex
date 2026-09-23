@@ -16,7 +16,8 @@ import {
   eventTurnCompleted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import type { SkillCatalogCandidate } from "@/features/skillCatalog/skillCatalogOwner";
-import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
+import { renderWithProviders } from "@/utils/test-utils";
+import { enableMotionForTest } from "@/__tests__/browserMotion";
 
 import { ComposerTurnControl } from "../ComposerTurnControl";
 import { ComposerPendingInputProvider } from "../ComposerPendingInputProvider";
@@ -36,7 +37,6 @@ import {
 const attachResponse = attachBaseline;
 
 const threadId = attachResponse.snapshot.thread.id;
-let restoreMotion: (() => void) | undefined;
 
 beforeEach(async () => {
   await userEvent.unhover(document.body);
@@ -49,8 +49,6 @@ const skillsRoleFor = (
   retrySkills: () => controller.retry(),
 });
 afterEach(() => {
-  restoreMotion?.();
-  restoreMotion = undefined;
   vi.restoreAllMocks();
 });
 
@@ -60,7 +58,6 @@ test.each([375, 1280])(
     const viewport = { width: window.innerWidth, height: window.innerHeight };
     try {
       await page.viewport(width, 900);
-      restoreMotion = disableMotionForTest();
       const reference = await renderWithProviders(
         <>
           <Button size="sm">Compact reference</Button>
@@ -216,7 +213,6 @@ test.each([false, true])(
   "shows the selected skill and catalog tooltip while editing a pending message (StrictMode=%s)",
   async (strictMode) => {
     const consoleError = vi.spyOn(console, "error");
-    restoreMotion = disableMotionForTest();
     const selectedSkill: SkillCatalogCandidate = {
       name: "pending-skill",
       path: "/repo/skills/hidden-pending-location/SKILL.md",
@@ -297,7 +293,6 @@ test.each([false, true])(
 );
 
 test("shows Guide only for an active turn and submits an accepted draft as steer", async () => {
-  restoreMotion = disableMotionForTest();
   const idleScreen = await renderComposerTurnControl();
   await expect
     .element(idleScreen.getByRole("button", { name: "Guide", exact: true }))
@@ -634,7 +629,6 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
 });
 
 test("edits and deletes an ordinary pending message in one Drawer without changing the main draft", async () => {
-  restoreMotion = disableMotionForTest();
   const view = await renderComposerTurnControl({
     scenario: { type: "activeFixture", captureEditReservations: true },
   });
@@ -1086,6 +1080,7 @@ test.each(
 )(
   "keeps the pending panel mounted and visible throughout $lane $method exit",
   async ({ lane, method }) => {
+    enableMotionForTest();
     const item = pendingInputItem("pending", lane, {
       type: "text",
       text: "Queued message",
@@ -1169,6 +1164,7 @@ test.each(
 );
 
 test("returns to the Composer when the queue empties during the exit animation", async () => {
+  enableMotionForTest();
   const harness = createQueueControllerHarness(
     queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1, canStop: true }),
     {
@@ -1245,6 +1241,7 @@ test("closes and clears pending details when counts become empty", async () => {
 });
 
 test("does not reopen a closing Drawer when new pending input arrives before presence ends", async () => {
+  enableMotionForTest();
   const harness = createQueueControllerHarness(
     queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1, canStop: true }),
     {
@@ -1306,7 +1303,6 @@ test("does not reopen a closing Drawer when new pending input arrives before pre
 });
 
 test("replaces an open pending-input owner without leaking its cached view into the new owner", async () => {
-  restoreMotion = disableMotionForTest();
   const queueHarness = createQueueControllerHarness(
     queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1 }),
     {

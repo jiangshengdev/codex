@@ -1,21 +1,14 @@
-import { afterEach, expect, test } from "vitest";
+import { expect, test } from "vitest";
 import { attachResponse } from "@/__tests__/appBrowserTestSupport";
 import {
   activeThreadReadModelSlotCreated,
   activeThreadReadModelTransitionApplied,
 } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
-import { disableMotionForTest } from "@/utils/test-utils";
 import { currentThreadId, renderTopBar } from "./appShellTopBarBrowserTestSupport";
 
 const otherThreadId = "00000000-0000-0000-0000-000000000099";
 let sessionRevision = 0;
-let restoreMotion: (() => void) | undefined;
-
-afterEach(() => {
-  restoreMotion?.();
-  restoreMotion = undefined;
-});
 
 const baselineAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
@@ -135,7 +128,6 @@ test("Drawer exposes named navigation and Escape closes it with focus returned t
 });
 
 test("History navigation uses the canonical list URL and closes the Drawer", async () => {
-  restoreMotion = disableMotionForTest();
   const { router, screen } = await renderTopBar({
     initialEntry: `/task/${currentThreadId}`,
     routeTarget: { type: "currentTask", threadId: currentThreadId },

@@ -1,11 +1,10 @@
 import { render } from "vitest-browser-react";
-import { afterEach, assert, beforeEach, expect, test, vi } from "vitest";
+import { assert, beforeEach, expect, test, vi } from "vitest";
 import { setupI18n } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
 import { page, userEvent } from "vitest/browser";
 import type { ReactNode } from "react";
 import "@/index.css";
-import { disableMotionForTest } from "@/utils/test-utils";
 import { MarkdownText } from "../MarkdownText";
 import { LiveMarkdownText } from "../LiveMarkdownText";
 
@@ -21,14 +20,9 @@ const { installClipboardForTest } = await vi.hoisted(async () => {
 const markdown =
   '| Name | Value | Empty |\n| --- | --- | --- |\n| **A & B** | "one,two" | |\n| Pipe | one\\|two | |';
 const clipboardItem = globalThis.ClipboardItem;
-let restoreMotion: () => void;
 beforeEach(() => {
   vi.stubGlobal("isSecureContext", true);
   vi.stubGlobal("ClipboardItem", clipboardItem);
-  restoreMotion = disableMotionForTest();
-});
-afterEach(() => {
-  restoreMotion();
 });
 
 const content = (children: ReactNode) => (

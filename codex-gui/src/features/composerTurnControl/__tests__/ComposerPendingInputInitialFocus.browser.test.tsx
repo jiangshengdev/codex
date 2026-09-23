@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { enableMotionForTest } from "@/__tests__/browserMotion";
 
 import { renderComposerTurnControl } from "./composerTurnControlBrowserTestSupport";
 import {
@@ -8,6 +9,8 @@ import {
 } from "./composerTurnControlPendingInputBrowserTestSupport";
 
 test("focuses the heading on each pending Drawer mount and restores nested menu focus", async () => {
+  // Preserve the real Drawer/menu timing of the delayed-focus regression (CNB #17).
+  enableMotionForTest();
   const ordinary = ["First", "Second"].map((text) =>
     pendingInputItem(text, "ordinary", { type: "text", text, truncated: false }),
   );

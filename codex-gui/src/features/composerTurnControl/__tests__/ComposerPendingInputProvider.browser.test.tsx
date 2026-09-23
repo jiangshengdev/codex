@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vitest";
+import { enableMotionForTest } from "@/__tests__/browserMotion";
 import { exposedBackdropPosition } from "@/__tests__/backdropBrowserTestSupport";
 import { installClipboardForTest } from "@/__tests__/clipboardTestSupport";
 import {
@@ -16,6 +17,7 @@ import { ComposerTurnControl } from "../ComposerTurnControl";
 test.each(["unmount", "replace"])(
   "restores the Provider focus target after Composer %s during exit",
   async (change) => {
+    enableMotionForTest();
     const screen = await renderComposerTurnControl({ scenario: { type: "activeFixture" } });
     await screen.composer().fill("Queued message");
     await screen.getByRole("button", { name: "Send", exact: true }).click();

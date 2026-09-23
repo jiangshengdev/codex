@@ -19,6 +19,10 @@ export function defineBrowserConfig({ browser, ...test }: BrowserTestConfig) {
       test: {
         root: import.meta.dirname,
         ...test,
+        setupFiles: [
+          "./src/__tests__/browserSetup.ts",
+          ...(test.setupFiles ? [test.setupFiles].flat() : []),
+        ],
         watch: false,
         browser: {
           ...browser,
