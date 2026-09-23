@@ -1,6 +1,7 @@
 import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 import { expectScrollableContent } from "./storybookTextAssertions";
+import { isPendingDrawerReady } from "../src/__tests__/pendingDrawerReady";
 
 test.use({ locale: "en" });
 
@@ -56,12 +57,7 @@ test("returns to the main draft when the last queued message starts sending duri
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
     .getByRole("button", { name: "Queued 1", exact: true })
     .click();
-  await page.waitForFunction(() => {
-    const backdrop = document.querySelector('[data-slot="drawer-backdrop"]');
-    return backdrop
-      ?.getAnimations({ subtree: true })
-      .every((animation) => animation.playState !== "running");
-  });
+  await page.waitForFunction(isPendingDrawerReady);
   const injected = page.evaluate(
     () =>
       new Promise<boolean>((resolve) => {
@@ -94,12 +90,7 @@ test("opens the real queue and restores keyboard focus", async ({ page }) => {
   await trigger.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog")).toContainText("Ordinary message 1");
-  await page.waitForFunction(() =>
-    document
-      .querySelector('[data-slot="drawer-backdrop"]')
-      ?.getAnimations({ subtree: true })
-      .every((animation) => animation.playState !== "running"),
-  );
+  await page.waitForFunction(isPendingDrawerReady);
   const continuity = trigger.evaluate(
     (entry) =>
       new Promise<{ stable: boolean; sawExit: boolean; samples: number }>((resolve) => {

@@ -651,6 +651,7 @@ test("edits and deletes an ordinary pending message in one Drawer without changi
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   expect(screen.getByRole("dialog").all().length).toBe(1);
 
+  await waitForPendingDrawerOpen();
   await dialog.getByRole("button", { name: "Edit", exact: true }).click();
   const pendingEditor = screen.getByRole("combobox", {
     name: "Edit pending message",
@@ -758,6 +759,7 @@ test("returns focus to the Composer when cancelling an edit synchronously drains
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
     .getByRole("button", { name: "Queued 1", exact: true })
     .click();
+  await waitForPendingDrawerOpen();
   await screen.getByRole("button", { name: "Edit", exact: true }).click();
   await expect
     .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
@@ -916,6 +918,7 @@ test("retains unsaved edits through a projection pause and a new subscription wi
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
     .getByRole("button", { name: "Queued 1", exact: true })
     .click();
+  await waitForPendingDrawerOpen();
   await screen.getByRole("button", { name: "Edit", exact: true }).click();
   await expect
     .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
