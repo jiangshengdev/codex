@@ -428,19 +428,16 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   setProjectionUnavailable = (unavailable: boolean): void => {
     if (this.disposed || this.projectionUnavailable === unavailable) return;
     this.projectionUnavailable = unavailable;
-    this.queue.setAutomaticSendingPaused(this.automaticSendingPaused());
-    if (!unavailable) {
-      this.receiveFact(() => {
-        this.consumeTransition(this.queue.drain());
-      });
-      this.liveManagement.flushDeferredDrains();
-    }
-    this.publishSnapshot();
+    this.updateSendingAvailability(unavailable);
   };
 
   setConnectionUnavailable = (unavailable: boolean): void => {
     if (this.disposed || this.connectionUnavailable === unavailable) return;
     this.connectionUnavailable = unavailable;
+    this.updateSendingAvailability(unavailable);
+  };
+
+  private updateSendingAvailability(unavailable: boolean): void {
     this.queue.setAutomaticSendingPaused(this.automaticSendingPaused());
     if (!unavailable) {
       this.receiveFact(() => {
@@ -449,7 +446,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       this.liveManagement.flushDeferredDrains();
     }
     this.publishSnapshot();
-  };
+  }
 
   reconcileProjection = (
     turns: readonly Turn[] | null,
