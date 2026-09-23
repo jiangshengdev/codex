@@ -10,6 +10,7 @@ import {
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
+import { getAppComposer } from "./appProjectionBrowserTestSupport";
 import type {
   ComposerPendingInputCursor,
   ComposerPendingInputLane,
@@ -31,9 +32,6 @@ type ActiveAppCommandOverrides = Partial<{
   startTurn: Mock<GuiHostCommands["startTurn"]>;
   steerTurn: Mock<GuiHostCommands["steerTurn"]>;
 }>;
-
-const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
-  screen.getByRole("combobox", { name: "Message Codex", exact: true });
 
 export function attachmentFileInput(container: ParentNode = document) {
   const input = container.querySelector('input[type="file"]');

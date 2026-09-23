@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
-import { useEffect } from "react";
 import {
   attachResponse,
   createDeferred,
@@ -21,10 +20,8 @@ import {
 } from "./appBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
 import { createActiveThreadSessionProbe } from "./activeThreadSessionProbe";
-import {
-  useActiveThreadSession,
-  useActiveThreadSessionSnapshot,
-} from "@/features/appShell/AppCapabilities";
+import { ThreadSwitchCapabilityProbe as SharedThreadSwitchCapabilityProbe } from "./appThreadSwitchCapabilityProbe";
+import { getAppComposer, renderReadyApp } from "./appProjectionBrowserTestSupport";
 import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
 import type {
@@ -53,34 +50,11 @@ const candidateThreadId = "00000000-0000-0000-0000-000000000002";
 let threadSwitchProbe = createActiveThreadSessionProbe();
 
 function ThreadSwitchCapabilityProbe() {
-  const session = useActiveThreadSession();
-  const snapshot = useActiveThreadSessionSnapshot();
-  const available = snapshot.phase === "active" || snapshot.phase === "projectionUnavailable";
-  useEffect(() => {
-    threadSwitchProbe.capture(session);
-  }, [session]);
-
   return (
-    <section aria-label="Thread switch capability probe">
-      <button
-        disabled={session == null || !available}
-        onClick={() => {
-          void session?.activate(candidateThreadId);
-        }}
-        type="button"
-      >
-        Continue candidate thread
-      </button>
-      <output aria-label="Active thread session">{available ? snapshot.threadId : "none"}</output>
-      <output aria-label="Active skill catalog status">
-        {available ? snapshot.skills.type : "none"}
-      </output>
-      <output aria-label="Active skill catalog">
-        {available
-          ? snapshot.skills.candidates.map(({ name }) => name).join(",") || "none"
-          : "none"}
-      </output>
-    </section>
+    <SharedThreadSwitchCapabilityProbe
+      probe={threadSwitchProbe}
+      candidateThreadId={candidateThreadId}
+    />
   );
 }
 
@@ -144,9 +118,6 @@ const expectHorizontalAlignment = (first: Element, second: Element): void => {
   expect(Math.abs(firstBounds.right - secondBounds.right)).toBeLessThanOrEqual(1);
 };
 
-const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
-  screen.getByRole("combobox", { name: "Message Codex", exact: true });
-
 const expectEditorReachable = async (editor: Element): Promise<void> => {
   await expect
     .poll(() => {
@@ -176,24 +147,13 @@ const expectEditorReachable = async (editor: Element): Promise<void> => {
     .toEqual({ withinViewport: true, canBeHit: true });
 };
 
-const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
-  const screen = await renderWithProviders(<App />);
-  const options = getHostOptions(startGuiHostConnectionMock);
-
-  queueAttachProjectionResponse(commandHandle);
-  initializeHost(options, commandHandle);
-  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
-
-  return { commandHandle, options, screen };
-};
-
 afterEach(() => {
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
   scrollToDocumentTop();
 });
 
 test("App renders the committed transcript shell without visible host debug details", async () => {
-  const { screen } = await renderReadyApp();
+  const { screen } = await renderReadyApp(startGuiHostConnectionMock);
   const topNotices = screen.container.querySelector("[data-app-shell-top-notices]");
 
   await expect
@@ -207,7 +167,7 @@ test("App renders the committed transcript shell without visible host debug deta
 });
 
 test("App renders composer in the shell without visible host debug details", async () => {
-  const { screen } = await renderReadyApp();
+  const { screen } = await renderReadyApp(startGuiHostConnectionMock);
   const transcriptBottomSentinel = screen.container.querySelector(
     ".committed-transcript-bottom-sentinel",
   );
@@ -253,7 +213,7 @@ test("App keeps the skill menu anchored above the composer across responsive vie
         }),
       ),
     );
-    const { screen } = await renderReadyApp(commands);
+    const { screen } = await renderReadyApp(startGuiHostConnectionMock, commands);
     activeFixture.unmount = screen.unmount;
     const editor = getAppComposer(screen);
     const composerShell = screen.getByRole("region", { name: "Message composer" }).element();
@@ -705,7 +665,7 @@ test("App fails closed on history when the authorization session has no active t
 });
 
 test("App shows a QR access popover before the Stop button", async () => {
-  const { screen } = await renderReadyApp();
+  const { screen } = await renderReadyApp(startGuiHostConnectionMock);
 
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
   const buttons = Array.from(screen.container.querySelectorAll("button"));

@@ -23,6 +23,7 @@ import {
   startTurnParamsAt,
 } from "./appComposerQueueBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
+import { getAppComposer } from "./appProjectionBrowserTestSupport";
 import { createActiveThreadSessionProbe } from "./activeThreadSessionProbe";
 import { createQueueCoordinatorMock } from "./queueCoordinatorMock";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
@@ -180,9 +181,6 @@ const expectStartTurnCalledOnceWithText = (
     input: [{ type: "text", text, text_elements: [] }],
   });
 };
-
-const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
-  screen.getByRole("combobox", { name: "Message Codex", exact: true });
 
 beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);

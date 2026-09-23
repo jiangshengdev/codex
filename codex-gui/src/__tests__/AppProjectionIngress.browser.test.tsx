@@ -1,5 +1,4 @@
 import { beforeEach, expect, test, vi } from "vitest";
-import { useEffect } from "react";
 import {
   attachResponse,
   attachWithCommittedMessages,
@@ -17,15 +16,14 @@ import {
 } from "./appBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
 import { createActiveThreadSessionProbe } from "./activeThreadSessionProbe";
+import { ThreadSwitchCapabilityProbe as SharedThreadSwitchCapabilityProbe } from "./appThreadSwitchCapabilityProbe";
 import {
-  useActiveThreadSession,
-  useActiveThreadSessionSnapshot,
-} from "@/features/appShell/AppCapabilities";
+  getAppComposer,
+  renderReadyApp,
+  initializeAppWithProjection,
+} from "./appProjectionBrowserTestSupport";
 import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
-import type {
-  GuiHostCommands,
-  StartGuiHostConnectionOptions,
-} from "@/features/guiHost/guiHostClient";
+import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import {
   attachReplacement,
   eventSubscriptionReplacement,
@@ -58,34 +56,11 @@ const candidateThreadId = "00000000-0000-0000-0000-000000000002";
 let threadSwitchProbe = createActiveThreadSessionProbe();
 
 function ThreadSwitchCapabilityProbe() {
-  const session = useActiveThreadSession();
-  const snapshot = useActiveThreadSessionSnapshot();
-  const available = snapshot.phase === "active" || snapshot.phase === "projectionUnavailable";
-  useEffect(() => {
-    threadSwitchProbe.capture(session);
-  }, [session]);
-
   return (
-    <section aria-label="Thread switch capability probe">
-      <button
-        disabled={session == null || !available}
-        onClick={() => {
-          void session?.activate(candidateThreadId);
-        }}
-        type="button"
-      >
-        Continue candidate thread
-      </button>
-      <output aria-label="Active thread session">{available ? snapshot.threadId : "none"}</output>
-      <output aria-label="Active skill catalog status">
-        {available ? snapshot.skills.type : "none"}
-      </output>
-      <output aria-label="Active skill catalog">
-        {available
-          ? snapshot.skills.candidates.map(({ name }) => name).join(",") || "none"
-          : "none"}
-      </output>
-    </section>
+    <SharedThreadSwitchCapabilityProbe
+      probe={threadSwitchProbe}
+      candidateThreadId={candidateThreadId}
+    />
   );
 }
 
@@ -96,30 +71,6 @@ beforeEach(() => {
   vi.mocked(createComposerInputQueueCoordinator).mockClear();
   threadSwitchProbe = createActiveThreadSessionProbe();
 });
-
-const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
-  screen.getByRole("combobox", { name: "Message Codex", exact: true });
-
-const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
-  const screen = await renderWithProviders(<App />);
-  const options = getHostOptions(startGuiHostConnectionMock);
-
-  queueAttachProjectionResponse(commandHandle);
-  initializeHost(options, commandHandle);
-  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
-
-  return { commandHandle, options, screen };
-};
-
-const initializeAppWithProjection = (
-  options: StartGuiHostConnectionOptions,
-  response = attachResponse,
-  commands = createGuiHostCommands(),
-): GuiHostCommands => {
-  queueAttachProjectionResponse(commands, response);
-  initializeHost(options, commands);
-  return commands;
-};
 
 test("App dispatches projection display facts and updates the active session", async () => {
   const { store } = await renderWithProviders(
@@ -322,7 +273,7 @@ test("App rejects a startup attach that returns a different thread identity", as
 
 test("App does not render optimistic user messages after send", async () => {
   const commandHandle = createGuiHostCommands();
-  const { screen } = await renderReadyApp(commandHandle);
+  const { screen } = await renderReadyApp(startGuiHostConnectionMock, commandHandle);
 
   await getAppComposer(screen).fill("Not optimistic");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
