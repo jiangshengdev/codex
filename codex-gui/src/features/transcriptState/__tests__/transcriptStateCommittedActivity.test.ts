@@ -1,14 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import { requiredTranscriptState } from "./requiredTranscriptState";
-import {
-  activeThreadReadModelSlotCreated,
-  activeThreadReadModelTransitionApplied,
-} from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import {
   attachBaseline,
   eventItemCompleted,
@@ -38,21 +32,17 @@ import {
 } from "../transcriptStateSlice";
 
 const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
 
 describe("transcript state committed activity reducer", () => {
   it("ignores token usage updates before transcript dedupe and scroll commits", () => {
     const store = makeStore();
     store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachBaseline));
+    store.dispatch(actions.threadRuntimeAttached(attachBaseline));
     const revisionBefore = requiredTranscriptState(
       store.getState(),
       identity.threadId,
@@ -63,7 +53,7 @@ describe("transcript state committed activity reducer", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({ notification: eventTokenUsageUpdated, replay: "live" }),
+      actions.threadRuntimeEventBuffered({ notification: eventTokenUsageUpdated, replay: "live" }),
     );
 
     expect(
@@ -84,9 +74,9 @@ describe("transcript state committed activity reducer", () => {
       "agents/implementer",
     );
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(eventItemStarted, "commit-sub-agent-started", turnId, activity),
         replay: "live",
       }),
@@ -116,7 +106,7 @@ describe("transcript state committed activity reducer", () => {
     ).toBeNull();
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-sub-agent-completed",
@@ -170,11 +160,13 @@ describe("transcript state committed activity reducer", () => {
     completedOnlyStore.dispatch(activeThreadReadModelSlotCreated(identity));
 
     snapshotStore.dispatch(
-      threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, [activity])])),
+      actions.threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [baseTurn(turnId, [activity])]),
+      ),
     );
-    completedOnlyStore.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    completedOnlyStore.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     completedOnlyStore.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-sub-agent-completed-only",
@@ -225,13 +217,13 @@ describe("transcript state committed activity reducer", () => {
     completedOnlyStore.dispatch(activeThreadReadModelSlotCreated(identity));
 
     snapshotStore.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [baseTurn(turnId, [started, completed])]),
       ),
     );
-    completedOnlyStore.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    completedOnlyStore.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     completedOnlyStore.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-sub-agent-started-activity",
@@ -255,7 +247,7 @@ describe("transcript state committed activity reducer", () => {
     );
 
     completedOnlyStore.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-sub-agent-completed-activity",
@@ -340,18 +332,18 @@ describe("transcript state committed activity reducer", () => {
     completedOnlyStore.dispatch(activeThreadReadModelSlotCreated(identity));
 
     snapshotStore.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [baseTurn(turnId, [leading, activity, final])]),
       ),
     );
-    completedOnlyStore.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    completedOnlyStore.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     for (const [commitId, item] of [
       ["leading", leading],
       ["activity", activity],
       ["final", final],
     ] as const) {
       completedOnlyStore.dispatch(
-        threadRuntimeEventBuffered({
+        actions.threadRuntimeEventBuffered({
           notification: itemCompleted(
             eventItemCompleted,
             `commit-collab-${commitId}`,
@@ -398,7 +390,7 @@ describe("transcript state committed activity reducer", () => {
     const waitId = "collab-empty-wait";
     const resumeId = "collab-authoritative-resume";
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     for (const [commitId, item] of [
       ["wait", collabAgentToolCall(waitId, "wait", "inProgress")],
       [
@@ -413,7 +405,7 @@ describe("transcript state committed activity reducer", () => {
       ],
     ] as const) {
       store.dispatch(
-        threadRuntimeEventBuffered({
+        actions.threadRuntimeEventBuffered({
           notification: itemStarted(
             eventItemStarted,
             `commit-collab-started-${commitId}`,
@@ -448,7 +440,7 @@ describe("transcript state committed activity reducer", () => {
     ]);
 
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-collab-between",
@@ -469,7 +461,7 @@ describe("transcript state committed activity reducer", () => {
       ],
     ] as const) {
       store.dispatch(
-        threadRuntimeEventBuffered({
+        actions.threadRuntimeEventBuffered({
           notification: itemCompleted(
             eventItemCompleted,
             `commit-collab-terminal-${commitId}`,
@@ -536,10 +528,11 @@ describe("transcript state committed activity reducer", () => {
     const chunkId = turnId + ":chunk:0";
     const before = agentMessage("commentary-before-reasoning", "Before", "commentary");
     const after = subAgentActivity("activity-after-reasoning", "started", "agents/worker");
-    const live = (notification: Parameters<typeof threadRuntimeEventBuffered>[0]["notification"]) =>
-      store.dispatch(threadRuntimeEventBuffered({ notification, replay: "live" }));
+    const live = (
+      notification: Parameters<typeof actions.threadRuntimeEventBuffered>[0]["notification"],
+    ) => store.dispatch(actions.threadRuntimeEventBuffered({ notification, replay: "live" }));
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     live(itemCompleted(eventItemCompleted, "commit-before-reasoning", turnId, before));
     live(eventReasoningItemStarted);
     live(itemCompleted(eventItemCompleted, "commit-after-reasoning", turnId, after));

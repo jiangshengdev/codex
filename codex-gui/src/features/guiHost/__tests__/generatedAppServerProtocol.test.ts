@@ -15,6 +15,7 @@ import {
 } from "@/generated/appServerProtocol/appServerPayloadValidators.js";
 import { validateJSONRPCMessage } from "@/generated/appServerProtocol/jsonRpcEnvelopeValidators.js";
 import type { RequestResponse } from "../appServerProtocol";
+import { createThreadResumeResponse } from "./threadResumeTestBuilders";
 
 const historyThread = attachBaseline.snapshot.thread;
 
@@ -24,20 +25,11 @@ const threadListResponse = {
   backwardsCursor: null,
 } satisfies RequestResponse<"thread/list">;
 
-const threadResumeResponse = {
-  thread: historyThread,
+const threadResumeResponse = createThreadResumeResponse(historyThread, {
   model: "gpt-5",
   modelProvider: "openai",
-  serviceTier: null,
-  cwd: historyThread.cwd,
-  instructionSources: [],
   approvalPolicy: "on-request",
-  approvalsReviewer: "user",
-  sandbox: { type: "dangerFullAccess" },
-  reasoningEffort: null,
-  turnsBackwardsCursor: null,
-  itemsBackwardsCursor: null,
-} satisfies RequestResponse<"thread/resume">;
+});
 
 describe("generated app-server protocol", () => {
   it.each([

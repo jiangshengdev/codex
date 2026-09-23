@@ -1,4 +1,5 @@
 import { expect, type Page, type WebSocketRoute } from "@playwright/test";
+import { createThreadResumeResponse } from "@/features/guiHost/__tests__/threadResumeTestBuilders";
 import {
   attachBaseline,
   eventTurnCompleted,
@@ -17,7 +18,6 @@ import type {
   ThreadLoadedListResponse,
   ThreadProjectionDetachResponse,
   ThreadReadResponse,
-  ThreadResumeResponse,
   ThreadStatusChangedNotification,
 } from "@codex-protocol/v2";
 
@@ -76,20 +76,13 @@ export async function createPersistenceHarness(page: Page, initiallyActive = fal
           return;
         case "thread/resume": {
           const thread = currentThread();
-          reply({
-            thread,
-            model: "test-model",
-            modelProvider: thread.modelProvider,
-            serviceTier: null,
-            cwd: thread.cwd,
-            instructionSources: [],
-            approvalPolicy: "never",
-            approvalsReviewer: "user",
-            sandbox: { type: "dangerFullAccess" },
-            reasoningEffort: null,
-            turnsBackwardsCursor: null,
-            itemsBackwardsCursor: null,
-          } satisfies ThreadResumeResponse);
+          reply(
+            createThreadResumeResponse(thread, {
+              model: "test-model",
+              modelProvider: thread.modelProvider,
+              approvalPolicy: "never",
+            }),
+          );
           return;
         }
         case "skills/list":

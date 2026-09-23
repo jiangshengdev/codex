@@ -6,7 +6,6 @@ import {
   DisclosureGroup,
   Dropdown,
   Label,
-  Modal,
   Separator,
 } from "@heroui/react";
 import { ArrowDown, ArrowUp, Ellipsis, Pencil, Trash2 } from "lucide-react";
@@ -19,6 +18,7 @@ import type {
   ComposerPendingInputMoveDestination,
   ComposerPendingInputPageItem,
 } from "@/features/composerInputQueue/composerInputQueueContracts";
+import { ComposerFullMessagePreview } from "./ComposerFullMessagePreview";
 import { ComposerInputPreviewContent } from "./ComposerInputPreviewContent";
 import type { ComposerPendingInputPrefixes } from "./composerPendingInputPages";
 
@@ -253,38 +253,18 @@ function PendingInputItem({
     }
     setDetailText(detail.text);
   };
-  const content =
-    preview.type === "text" && preview.truncated ? (
-      <>
-        <ComposerInputPreviewContent preview={preview} />
-        <Modal isOpen={detailText != null} onOpenChange={onDetailOpenChange}>
-          <Button className="self-end" size="sm" variant="tertiary">
-            <Trans comment="Open a dialog containing the complete pending message">
-              View full message
-            </Trans>
-          </Button>
-          <Modal.Backdrop>
-            <Modal.Container scroll="inside" size="lg">
-              <Modal.Dialog>
-                <Modal.CloseTrigger />
-                <Modal.Header>
-                  <Modal.Heading>
-                    <Trans>Pending details</Trans>
-                  </Modal.Heading>
-                </Modal.Header>
-                <Modal.Body>
-                  <p className="min-w-0 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">
-                    {detailText}
-                  </p>
-                </Modal.Body>
-              </Modal.Dialog>
-            </Modal.Container>
-          </Modal.Backdrop>
-        </Modal>
-      </>
-    ) : (
+  const content = (
+    <ComposerFullMessagePreview
+      fullText={detailText}
+      heading={<Trans>Pending details</Trans>}
+      isOpen={detailText != null}
+      onOpenChange={onDetailOpenChange}
+      showFullMessage={preview.type === "text" && preview.truncated}
+      spacing="compact"
+    >
       <ComposerInputPreviewContent preview={preview} />
-    );
+    </ComposerFullMessagePreview>
+  );
   return (
     <Card
       aria-label={previewText}

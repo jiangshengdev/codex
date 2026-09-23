@@ -12,6 +12,7 @@ import {
 } from "../appBrowserTestSupport";
 import { readPendingTextPreviews, startTurnParamsAt } from "../appComposerQueueBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "../appBrowserRenderHarness";
+import { getAppComposer, renderReadyApp } from "../appProjectionBrowserTestSupport";
 import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type {
   GuiHostCommands,
@@ -66,20 +67,6 @@ afterEach(() => {
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
 });
 
-const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
-  screen.getByRole("combobox", { name: "Message Codex", exact: true });
-
-const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
-  const screen = await renderWithProviders(<App />);
-  const options = getHostOptions(startGuiHostConnectionMock);
-
-  queueAttachProjectionResponse(commandHandle);
-  initializeHost(options, commandHandle);
-  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
-
-  return { commandHandle, options, screen };
-};
-
 const renderActiveApp = async () => {
   const startTurn = vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
     turn: inProgressTurn("turn-started-from-app"),
@@ -132,7 +119,7 @@ test("App sends ordinary Enter through start identity and renders only its live 
     turn: startedTurn,
   });
   const commandHandle: GuiHostCommands = { ...createGuiHostCommands(), startTurn };
-  const { options, screen } = await renderReadyApp(commandHandle);
+  const { options, screen } = await renderReadyApp(startGuiHostConnectionMock, commandHandle);
   const composer = getAppComposer(screen);
 
   await composer.fill(text);

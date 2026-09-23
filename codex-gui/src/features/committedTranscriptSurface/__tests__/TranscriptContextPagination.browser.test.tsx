@@ -1,9 +1,5 @@
-import { expect, test } from "vitest";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, expect, test } from "vitest";
 import {
   attachWithTurns,
   baseTurn,
@@ -33,18 +29,10 @@ import {
   makeTranscriptStore,
 } from "./transcriptSurfaceFixtures";
 
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({
-    identity: transcriptIdentity,
-    sessionRevision: ++sessionRevision,
-    facts,
-  });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(transcriptIdentity);
+});
 
 const boundaryOnlyFailure = {
   message: "The request failed after context compaction",
@@ -72,7 +60,7 @@ test("navigates attached context pages and unmounts the previous page", async ()
     transcriptIdentity,
     <CommittedTranscriptSurface identity={transcriptIdentity} />,
   );
-  store.dispatch(threadRuntimeAttached(attachedContextPages(8)));
+  store.dispatch(actions.threadRuntimeAttached(attachedContextPages(8)));
 
   const pagination = screen.getByRole("navigation", { name: "Transcript context pages" });
   const previous = pagination.getByRole("button", { name: "Previous context page" });
@@ -110,7 +98,7 @@ test("renders an isolated read-only snapshot through the same current-page surfa
     transcriptIdentity,
     <CommittedTranscriptSurface identity={transcriptIdentity} />,
   );
-  store.dispatch(threadRuntimeAttached(attach));
+  store.dispatch(actions.threadRuntimeAttached(attach));
 
   const liveRegion = liveScreen.getByRole("region", { name: "Committed transcript" });
   await expect.element(liveScreen.getByText("Message on context page 3")).toBeVisible();
@@ -137,7 +125,7 @@ test("renders an isolated read-only snapshot through the same current-page surfa
     .not.toBeInTheDocument();
 
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: contextCompactionCompleted(
         eventItemCompleted,
         "commit-read-only-live-ingress",
@@ -168,7 +156,7 @@ test("keeps a selected historical page while live compactions extend the followe
     <CommittedTranscriptSurface identity={transcriptIdentity} />,
   );
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-history", [
           userMessage("user-history", [textInput("Historical context page")]),
@@ -191,7 +179,7 @@ test("keeps a selected historical page while live compactions extend the followe
   await expect.element(screen.getByText("Historical context page")).toBeVisible();
 
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: contextCompactionCompleted(
         eventItemCompleted,
         "commit-compaction-3",
@@ -213,7 +201,7 @@ test("keeps a selected historical page while live compactions extend the followe
   for (const page of [4, 5]) {
     const pageText = String(page);
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: contextCompactionCompleted(
           eventItemCompleted,
           `commit-compaction-${pageText}`,
@@ -241,7 +229,7 @@ test("renders a same-turn failure on a boundary-only latest page", async () => {
   const turnId = "turn-boundary-only-failure";
 
   store.dispatch(
-    threadRuntimeAttached(
+    actions.threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         inProgressTurn(turnId, [
           userMessage("user-before-boundary-only-failure", [
@@ -252,7 +240,7 @@ test("renders a same-turn failure on a boundary-only latest page", async () => {
     ),
   );
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: contextCompactionCompleted(
         eventItemCompleted,
         "commit-boundary-only-failure",
@@ -263,7 +251,7 @@ test("renders a same-turn failure on a boundary-only latest page", async () => {
     }),
   );
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: turnCompleted(
         eventTurnCompleted,
         "commit-turn-boundary-only-failure",
@@ -293,7 +281,7 @@ test("keeps a selected historical page across a same-thread replacement attach",
     transcriptIdentity,
     <CommittedTranscriptSurface identity={transcriptIdentity} />,
   );
-  store.dispatch(threadRuntimeAttached(attachedContextPages(4)));
+  store.dispatch(actions.threadRuntimeAttached(attachedContextPages(4)));
 
   const pagination = screen.getByRole("navigation", { name: "Transcript context pages" });
   const thirdPage = pagination.getByRole("button", { name: "Context page 3" });
@@ -301,21 +289,21 @@ test("keeps a selected historical page across a same-thread replacement attach",
   await expect.element(thirdPage).toHaveAttribute("aria-current", "page");
   await expect.element(screen.getByText("Message on context page 3")).toBeVisible();
 
-  store.dispatch(threadRuntimeAttached(attachedContextPages(5, attachReplacement)));
+  store.dispatch(actions.threadRuntimeAttached(attachedContextPages(5, attachReplacement)));
 
   await expect.element(thirdPage).toHaveAttribute("aria-current", "page");
   await expect.element(screen.getByText("Message on context page 3")).toBeVisible();
   await expect.element(screen.getByText("Message on context page 5")).not.toBeInTheDocument();
   await expect.element(pagination.getByRole("button", { name: "Context page 5" })).toBeVisible();
 
-  store.dispatch(threadRuntimeAttached(attachedContextPages(2, attachReplacement)));
+  store.dispatch(actions.threadRuntimeAttached(attachedContextPages(2, attachReplacement)));
 
   const clampedPage = pagination.getByRole("button", { name: "Context page 2" });
   await expect.element(clampedPage).toHaveAttribute("aria-current", "page");
   await expect.element(screen.getByText("Message on context page 2")).toBeVisible();
 
   store.dispatch(
-    threadRuntimeEventBuffered({
+    actions.threadRuntimeEventBuffered({
       notification: contextCompactionCompleted(
         eventItemCompleted,
         "commit-compaction-after-clamp",
@@ -333,7 +321,7 @@ test("keeps a selected historical page across a same-thread replacement attach",
 
 test("localizes the context boundary on later pages", async () => {
   const store = makeTranscriptStore(transcriptIdentity);
-  store.dispatch(threadRuntimeAttached(attachedContextPages(2)));
+  store.dispatch(actions.threadRuntimeAttached(attachedContextPages(2)));
 
   const screen = await renderTranscriptWithProviders(
     transcriptIdentity,

@@ -21,8 +21,69 @@ import {
 } from "../composerDraft";
 import { $createSkillNode, $isSkillNode, SkillNode, type SkillNodeState } from "../SkillNode";
 import { $createAttachmentNode, AttachmentNode } from "../AttachmentNode";
+import { $getComposerText } from "../composerText";
 
 describe("composerDraft", () => {
+  it.each(["ready", "uploading", "failed"] as const)(
+    "keeps canonical copy and send text aligned across Unicode, skills, paragraphs and %s attachments",
+    (status) => {
+      const editor = createTestEditor();
+      editor.update(
+        () => {
+          $getRoot().append(
+            $createParagraphNode().append(
+              $createTextNode("资料🙂 "),
+              $createSkillNode(skill("alpha", "/skills/alpha", "技能")),
+            ),
+            $createParagraphNode(),
+            $createParagraphNode().append(
+              $createAttachmentNode({
+                id: "first",
+                name: "甲.txt",
+                mediaType: "file",
+                status: "ready",
+                path: "/tmp/甲.txt",
+                failure: null,
+              }),
+              $createAttachmentNode({
+                id: "second",
+                name: "乙.txt",
+                mediaType: "file",
+                status,
+                path: status === "ready" ? "/tmp/b.txt" : "",
+                failure: status === "failed" ? "interrupted" : null,
+              }),
+            ),
+            $createParagraphNode().append($createTextNode("结束")),
+          );
+        },
+        { discrete: true },
+      );
+
+      const text = `资料🙂 $alpha\n\n/tmp/甲.txt ${status === "ready" ? "/tmp/b.txt" : ""}\n结束`;
+      const capture = captureComposerDraft(editor.getEditorState());
+      expect(capture.input).toEqual([
+        {
+          type: "text",
+          text,
+          text_elements: [
+            { byteRange: { start: 19, end: 31 }, placeholder: "甲.txt" },
+            ...(status === "ready"
+              ? [{ byteRange: { start: 32, end: 42 }, placeholder: "乙.txt" }]
+              : []),
+          ],
+        },
+        { type: "skill", name: "alpha", path: "/skills/alpha" },
+      ]);
+      expect(
+        editor.getEditorState().read(() => $getComposerText($getRoot().getChildren(), "canonical")),
+      ).toBe(text);
+      expect(capture.textContent).toBe("资料🙂 $技能\n\n甲.txt乙.txt\n结束");
+      expect(projectComposerDraft(editor.getEditorState()).textContent).toBe(capture.textContent);
+      expect(capture.attachmentsReady).toBe(status === "ready");
+    },
+  );
+
   it("round-trips mixed UTF-8 text, a skill, a file, and images in document rather than creation order", () => {
     const source = createTestEditor();
     const selected = skill("alpha", "/skills/alpha", "技能");

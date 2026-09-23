@@ -13,10 +13,8 @@ import {
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
-import type {
-  GuiHostCommands,
-  StartGuiHostConnectionOptions,
-} from "@/features/guiHost/guiHostClient";
+import { initializeAppWithProjection } from "./appProjectionBrowserTestSupport";
+import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import {
   eventAgentMessageDelta,
   eventItemCompleted,
@@ -107,16 +105,6 @@ const expectDocumentScrollStaysAwayFromBottom = async (maxScrollTop: number): Pr
 
     await waitForBrowserFrame();
   }
-};
-
-const initializeAppWithProjection = (
-  options: StartGuiHostConnectionOptions,
-  response = attachResponse,
-  commands = createGuiHostCommands(),
-): GuiHostCommands => {
-  queueAttachProjectionResponse(commands, response);
-  initializeHost(options, commands);
-  return commands;
 };
 
 afterEach(() => {

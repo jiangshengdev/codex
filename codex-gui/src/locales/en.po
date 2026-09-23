@@ -33,7 +33,7 @@ msgid "{0, plural, one {# mention} other {# mentions}}"
 msgstr "{0, plural, one {# mention} other {# mentions}}"
 
 #. placeholder {0}: snapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:106
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:113
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 
@@ -43,12 +43,12 @@ msgid "{0, plural, one {# skill} other {# skills}}"
 msgstr "{0, plural, one {# skill} other {# skills}}"
 
 #. Accessible name for a selected skill details trigger
-#: src/features/composerEditor/SelectedSkillToken.tsx:53
+#: src/features/composerEditor/SelectedSkillToken.tsx:54
 msgid "{0} skill details"
 msgstr "{0} skill details"
 
 #. Accessible name for an invalid selected skill details trigger
-#: src/features/composerEditor/SelectedSkillToken.tsx:57
+#: src/features/composerEditor/SelectedSkillToken.tsx:58
 msgid "{0} skill details, {1}"
 msgstr "{0} skill details, {1}"
 
@@ -58,7 +58,7 @@ msgid "{hours}h {paddedMinutes}m {seconds}s"
 msgstr "{hours}h {paddedMinutes}m {seconds}s"
 
 #. Disclosure label showing how many intermediate transcript updates it contains
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:99
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:100
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 
@@ -97,8 +97,8 @@ msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 msgid "A message update is missing its associated turn, so it cannot be fully displayed."
 msgstr "A message update is missing its associated turn, so it cannot be fully displayed."
 
-#: src/features/appShell/AppShellTopBar.tsx:164
-#: src/features/newSession/NewSessionPage.tsx:36
+#: src/features/appShell/AppShellTopBar.tsx:140
+#: src/features/newSession/NewSessionPage.tsx:37
 msgid "A working directory is required to start a session."
 msgstr "A working directory is required to start a session."
 
@@ -112,9 +112,7 @@ msgid "Active tasks"
 msgstr "Active tasks"
 
 #. Source label for a skill installed by an administrator
-#. Source label for a skill installed by an administrator
-#: src/features/composerEditor/SelectedSkillToken.tsx:180
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:301
+#: src/features/composerEditor/skillSourceMessages.ts:29
 msgid "Admin"
 msgstr "Admin"
 
@@ -142,7 +140,7 @@ msgid "Attachments are not ready"
 msgstr "Attachments are not ready"
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:240
+#: src/features/appShell/AppShellTopBar.tsx:162
 msgid "Browse task history"
 msgstr "Browse task history"
 
@@ -200,7 +198,7 @@ msgid "Closed {receiver}"
 msgstr "Closed {receiver}"
 
 #. Success label on a Markdown code block copy button.
-#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:49
+#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:21
 msgid "Code copied"
 msgstr "Code copied"
 
@@ -216,7 +214,7 @@ msgstr "Committed transcript"
 
 #. Status chip for a completed turn
 #. Status of a collaborating agent that completed its work
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:191
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:186
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:97
 msgid "Completed"
 msgstr "Completed"
@@ -300,7 +298,7 @@ msgid "Context usage details, {usedTokensLabel} tokens used, context window capa
 msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 
 #. Resumes sending this page's restored queue; does not open the queue
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:125
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:132
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:73
 msgid "Continue sending"
 msgstr "Continue sending"
@@ -319,7 +317,7 @@ msgid "Copy changes"
 msgstr "Copy changes"
 
 #. Copy the entire Markdown code block to the clipboard.
-#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:53
+#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:25
 msgid "Copy code"
 msgstr "Copy code"
 
@@ -329,17 +327,17 @@ msgstr "Copy failed. Select the text and copy it manually."
 
 #. Opens the Markdown table copy format menu.
 #. Opens the Markdown table copy format menu.
-#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:69
-#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:89
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:52
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:72
 msgid "Copy table"
 msgstr "Copy table"
 
-#: src/features/committedTranscriptSurface/MarkdownCode.tsx:71
+#: src/features/committedTranscriptSurface/MarkdownCode.tsx:69
 msgid "Could not copy code. Try again."
 msgstr "Could not copy code. Try again."
 
 #. Table clipboard write failed; the copy menu remains available for retry.
-#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:133
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:116
 msgid "Could not copy table. Try again."
 msgstr "Could not copy table. Try again."
 
@@ -352,8 +350,8 @@ msgstr "Could not load the preview of {name}. The file may no longer be availabl
 msgid "Could not read the image preview. Check the connection and access permissions."
 msgstr "Could not read the image preview. Check the connection and access permissions."
 
-#: src/features/appShell/AppShellTopBar.tsx:57
-#: src/features/appShell/AppShellTopBar.tsx:196
+#: src/features/appShell/AppShellTopBar.tsx:58
+#: src/features/appShell/AppShellTopBar.tsx:149
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "Current task"
@@ -390,7 +388,7 @@ msgstr "Current task is waiting for input"
 msgid "Current task status is unknown"
 msgstr "Current task status is unknown"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:86
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:87
 msgid "Currently unable to guide; added to queue"
 msgstr "Currently unable to guide; added to queue"
 
@@ -399,12 +397,12 @@ msgstr "Currently unable to guide; added to queue"
 msgid "Dark theme"
 msgstr "Dark theme"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:322
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:400
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:302
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:380
 msgid "Delete"
 msgstr "Delete"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:303
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:283
 msgid "Delete this pending message?"
 msgstr "Delete this pending message?"
 
@@ -438,7 +436,7 @@ msgstr "Dismiss"
 msgid "Duration {duration}"
 msgstr "Duration {duration}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:388
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:368
 msgid "Edit"
 msgstr "Edit"
 
@@ -485,7 +483,7 @@ msgid "Exit fullscreen"
 msgstr "Exit fullscreen"
 
 #. Status chip for a failed turn
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:201
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:196
 msgid "Failed"
 msgstr "Failed"
 
@@ -545,7 +543,7 @@ msgstr "Go back home"
 msgid "Guide"
 msgstr "Guide"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:66
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:67
 msgid "Guide status unknown"
 msgstr "Guide status unknown"
 
@@ -557,8 +555,8 @@ msgstr "Guiding"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 
-#: src/features/appShell/AppShellTopBar.tsx:62
-#: src/features/appShell/AppShellTopBar.tsx:234
+#: src/features/appShell/AppShellTopBar.tsx:63
+#: src/features/appShell/AppShellTopBar.tsx:160
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "History"
@@ -567,7 +565,7 @@ msgstr "History"
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
-#: src/features/appShell/AppShellTopBar.tsx:59
+#: src/features/appShell/AppShellTopBar.tsx:60
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
 msgid "History detail"
@@ -586,13 +584,13 @@ msgstr "Image preview is not authorized. Open the current GUI launch link."
 
 #. Short in-progress label for the current task beside the composer QR button
 #. Status chip for a turn that is still in progress
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:206
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:201
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:39
 msgid "In progress"
 msgstr "In progress"
 
 #. Input may already belong to the existing task queue; do not offer another send
-#: src/features/newSession/NewSessionPage.tsx:110
+#: src/features/newSession/NewSessionPage.tsx:111
 msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 msgstr "Input handoff could not be confirmed. Open the session to review its queue before continuing."
 
@@ -603,7 +601,7 @@ msgstr "Interacted with <0/> <1/>"
 
 #. Status chip for an interrupted turn
 #. Status of a collaborating agent whose work was interrupted
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:196
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:191
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:88
 msgid "Interrupted"
 msgstr "Interrupted"
@@ -624,7 +622,7 @@ msgstr "Interrupted."
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:312
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:292
 msgid "Keep"
 msgstr "Keep"
 
@@ -644,9 +642,9 @@ msgstr "Load history"
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:270
-#: src/features/currentTask/CurrentTaskPage.tsx:343
-#: src/features/currentTask/CurrentTaskPage.tsx:410
+#: src/features/currentTask/CurrentTaskPage.tsx:265
+#: src/features/currentTask/CurrentTaskPage.tsx:338
+#: src/features/currentTask/CurrentTaskPage.tsx:405
 msgid "Load task"
 msgstr "Load task"
 
@@ -677,7 +675,7 @@ msgstr "Loading preview of {name}…"
 msgid "Loading preview…"
 msgstr "Loading preview…"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:442
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:415
 msgid "Loading skills…"
 msgstr "Loading skills…"
 
@@ -686,18 +684,18 @@ msgstr "Loading skills…"
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:263
-#: src/features/currentTask/CurrentTaskPage.tsx:329
-#: src/features/currentTask/CurrentTaskPage.tsx:390
-#: src/features/currentTask/CurrentTaskPage.tsx:559
+#: src/features/currentTask/CurrentTaskPage.tsx:258
+#: src/features/currentTask/CurrentTaskPage.tsx:324
+#: src/features/currentTask/CurrentTaskPage.tsx:385
+#: src/features/currentTask/CurrentTaskPage.tsx:554
 msgid "Loading task…"
 msgstr "Loading task…"
 
-#: src/features/appShell/AppShellTopBar.tsx:128
+#: src/features/appShell/AppShellTopBar.tsx:129
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:99
+#: src/features/appShell/AppShellTopBar.tsx:100
 msgid "Menu"
 msgstr "Menu"
 
@@ -727,7 +725,7 @@ msgstr "Message updates arrived out of order, so the conversation may be incompl
 msgid "Message updates have piled up, so synchronization has paused."
 msgstr "Message updates have piled up, so synchronization has paused."
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:355
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:335
 msgid "More move options for pending message: {previewText}"
 msgstr "More move options for pending message: {previewText}"
 
@@ -736,36 +734,36 @@ msgstr "More move options for pending message: {previewText}"
 msgid "More options for {title}"
 msgstr "More options for {title}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:342
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:322
 msgid "Move down pending message: {previewText}"
 msgstr "Move down pending message: {previewText}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:372
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:352
 msgid "Move pending message to first"
 msgstr "Move pending message to first"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:377
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:357
 msgid "Move pending message to last"
 msgstr "Move pending message to last"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:374
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:354
 msgid "Move to first"
 msgstr "Move to first"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:379
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:359
 msgid "Move to last"
 msgstr "Move to last"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:330
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:310
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:124
+#: src/features/appShell/AppShellTopBar.tsx:125
 msgid "Navigation"
 msgstr "Navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:61
-#: src/features/appShell/AppShellTopBar.tsx:155
+#: src/features/appShell/AppShellTopBar.tsx:62
+#: src/features/appShell/AppShellTopBar.tsx:135
 #: src/features/documentTitle/DocumentTitleOwner.tsx:52
 msgid "New session"
 msgstr "New session"
@@ -792,7 +790,7 @@ msgstr "No committed messages yet."
 msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:276
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:277
 msgid "No matching skills"
 msgstr "No matching skills"
 
@@ -816,7 +814,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:202
+#: src/features/appShell/AppShellTopBar.tsx:151
 msgid "Open current task"
 msgstr "Open current task"
 
@@ -825,15 +823,15 @@ msgstr "Open current task"
 msgid "Open fork"
 msgstr "Open fork"
 
-#: src/features/newSession/NewSessionPage.tsx:99
+#: src/features/newSession/NewSessionPage.tsx:100
 msgid "Open session"
 msgstr "Open session"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:227
+#: src/features/currentTask/CurrentTaskPage.tsx:222
 msgid "Open task"
 msgstr "Open task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:213
+#: src/features/currentTask/CurrentTaskPage.tsx:208
 msgid "Opening task…"
 msgstr "Opening task…"
 
@@ -847,7 +845,8 @@ msgid "Page not found"
 msgstr "Page not found"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:206
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:272
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:259
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:94
 msgid "Pending details"
 msgstr "Pending details"
 
@@ -868,7 +867,7 @@ msgstr "Pending message editor"
 msgid "Pending message was not reordered"
 msgstr "Pending message was not reordered"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:137
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:144
 msgid "Pending messages"
 msgstr "Pending messages"
 
@@ -944,25 +943,25 @@ msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
 
 #. Reload the current task's runtime status
-#: src/features/currentTask/CurrentTaskPage.tsx:412
+#: src/features/currentTask/CurrentTaskPage.tsx:407
 msgid "Refresh status"
 msgstr "Refresh status"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:444
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:417
 msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:392
+#: src/features/currentTask/CurrentTaskPage.tsx:387
 msgid "Refreshing status…"
 msgstr "Refreshing status…"
 
 #. Button that retries loading the available skill catalog
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:421
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:394
 msgid "Reload skills"
 msgstr "Reload skills"
 
 #. Skill catalog reload button while the request is pending
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:414
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:387
 msgid "Reloading skills…"
 msgstr "Reloading skills…"
 
@@ -989,29 +988,27 @@ msgstr "Remove or replace invalid skills before saving."
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
-#: src/features/currentTask/CurrentTaskPage.tsx:223
-#: src/features/currentTask/CurrentTaskPage.tsx:339
-#: src/features/currentTask/CurrentTaskPage.tsx:406
+#: src/features/currentTask/CurrentTaskPage.tsx:218
+#: src/features/currentTask/CurrentTaskPage.tsx:334
+#: src/features/currentTask/CurrentTaskPage.tsx:401
 msgid "Remove task"
 msgstr "Remove task"
 
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
-#: src/features/currentTask/CurrentTaskPage.tsx:209
-#: src/features/currentTask/CurrentTaskPage.tsx:325
-#: src/features/currentTask/CurrentTaskPage.tsx:386
+#: src/features/currentTask/CurrentTaskPage.tsx:204
+#: src/features/currentTask/CurrentTaskPage.tsx:320
+#: src/features/currentTask/CurrentTaskPage.tsx:381
 msgid "Removing task…"
 msgstr "Removing task…"
 
 #. Source label for a skill provided by the current repository
-#. Source label for a skill provided by the current repository
-#: src/features/composerEditor/SelectedSkillToken.tsx:170
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:291
+#: src/features/composerEditor/skillSourceMessages.ts:15
 msgid "Repository"
 msgstr "Repository"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:151
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:152
 msgid "Request failed"
 msgstr "Request failed"
 
@@ -1054,7 +1051,7 @@ msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
 #. Pending state of Continue sending while recovering previously unsent messages
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:117
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:124
 msgid "Resuming sending"
 msgstr "Resuming sending"
 
@@ -1119,17 +1116,17 @@ msgid "Scan with phone"
 msgstr "Scan with phone"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:269
-#: src/features/newSession/NewSessionPage.tsx:169
+#: src/features/newSession/NewSessionPage.tsx:167
 msgid "Send"
 msgstr "Send"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:161
+#: src/features/newSession/NewSessionPage.tsx:159
 msgid "Sending"
 msgstr "Sending"
 
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:98
-#: src/features/composerTurnControl/ComposerUnknownMessagePreview.tsx:47
+#: src/features/composerTurnControl/ComposerUnknownMessagePreview.tsx:31
 msgid "Sending result unknown"
 msgstr "Sending result unknown"
 
@@ -1150,7 +1147,7 @@ msgstr "Show more guiding messages"
 msgid "Show more queued messages"
 msgstr "Show more queued messages"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:448
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:421
 msgid "Showing saved skills because refresh failed"
 msgstr "Showing saved skills because refresh failed"
 
@@ -1159,11 +1156,11 @@ msgstr "Showing saved skills because refresh failed"
 msgid "Shutdown"
 msgstr "Shutdown"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:446
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:419
 msgid "Skills could not be loaded"
 msgstr "Skills could not be loaded"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:451
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:424
 msgid "Some skills could not be loaded"
 msgstr "Some skills could not be loaded"
 
@@ -1188,7 +1185,7 @@ msgstr "Spawned {receiver} ({model} {reasoningEffort})"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "Spawned {receiver} ({reasoningEffort})"
 
-#: src/features/appShell/AppShellTopBar.tsx:162
+#: src/features/appShell/AppShellTopBar.tsx:138
 msgid "Start a conversation"
 msgstr "Start a conversation"
 
@@ -1215,9 +1212,7 @@ msgid "Synchronization could not be restored. You can try again."
 msgstr "Synchronization could not be restored. You can try again."
 
 #. Source label for a skill provided by the Codex system
-#. Source label for a skill provided by the Codex system
-#: src/features/composerEditor/SelectedSkillToken.tsx:175
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:296
+#: src/features/composerEditor/skillSourceMessages.ts:22
 msgid "System"
 msgstr "System"
 
@@ -1231,12 +1226,12 @@ msgid "System theme"
 msgstr "System theme"
 
 #. Table clipboard write succeeded.
-#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:126
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:109
 msgid "Table copied"
 msgstr "Table copied"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:234
-#: src/features/currentTask/CurrentTaskPage.tsx:453
+#: src/features/currentTask/CurrentTaskPage.tsx:229
+#: src/features/currentTask/CurrentTaskPage.tsx:448
 msgid "Task action failed"
 msgstr "Task action failed"
 
@@ -1264,7 +1259,7 @@ msgid "Task updates are paused"
 msgstr "Task updates are paused"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:107
+#: src/features/appShell/AppShellTopBar.tsx:108
 msgid "Tasks or the connection need attention."
 msgstr "Tasks or the connection need attention."
 
@@ -1301,12 +1296,12 @@ msgid "The conversation shown here may be out of date. Restore sync to get the l
 msgstr "The conversation shown here may be out of date. Restore sync to get the latest content."
 
 #. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
-#: src/features/newSession/NewSessionPage.tsx:116
+#: src/features/newSession/NewSessionPage.tsx:117
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "The creation result is unknown. Retrying may leave an extra empty session."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:284
-#: src/features/currentTask/CurrentTaskPage.tsx:358
+#: src/features/currentTask/CurrentTaskPage.tsx:279
+#: src/features/currentTask/CurrentTaskPage.tsx:353
 msgid "The current task could not be loaded."
 msgstr "The current task could not be loaded."
 
@@ -1356,7 +1351,7 @@ msgstr "The specified turn was not found."
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:456
+#: src/features/currentTask/CurrentTaskPage.tsx:451
 msgid "The task action could not be completed."
 msgstr "The task action could not be completed."
 
@@ -1376,11 +1371,11 @@ msgstr "The task connection could not be prepared."
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:238
+#: src/features/currentTask/CurrentTaskPage.tsx:233
 msgid "The task could not be opened."
 msgstr "The task could not be opened."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:240
+#: src/features/currentTask/CurrentTaskPage.tsx:235
 msgid "The task could not be removed."
 msgstr "The task could not be removed."
 
@@ -1396,7 +1391,7 @@ msgstr "The task list could not be updated."
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:478
+#: src/features/currentTask/CurrentTaskPage.tsx:473
 msgid "The task recovery could not be completed."
 msgstr "The task recovery could not be completed."
 
@@ -1421,11 +1416,11 @@ msgstr "This editing session is no longer available."
 msgid "This message has entered the sending process and can no longer be managed."
 msgstr "This message has entered the sending process and can no longer be managed."
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:418
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:398
 msgid "This message has entered the sending process."
 msgstr "This message has entered the sending process."
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:416
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:396
 msgid "This message is being edited."
 msgstr "This message is being edited."
 
@@ -1474,7 +1469,7 @@ msgid "Transcript context pages"
 msgstr "Transcript context pages"
 
 #. Accessible label for a transcript turn identified by its raw turn ID
-#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:217
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:212
 msgid "Turn {resolvedTurnId}"
 msgstr "Turn {resolvedTurnId}"
 
@@ -1499,16 +1494,16 @@ msgstr "Unable to load history"
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:281
-#: src/features/currentTask/CurrentTaskPage.tsx:355
+#: src/features/currentTask/CurrentTaskPage.tsx:276
+#: src/features/currentTask/CurrentTaskPage.tsx:350
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:475
+#: src/features/currentTask/CurrentTaskPage.tsx:470
 msgid "Unable to recover the current task"
 msgstr "Unable to recover the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:147
+#: src/features/currentTask/CurrentTaskPage.tsx:142
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "Unable to retry this task. Review its current state and try again."
 
@@ -1517,7 +1512,7 @@ msgstr "Unable to retry this task. Review its current state and try again."
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
-#: src/features/newSession/NewSessionPage.tsx:106
+#: src/features/newSession/NewSessionPage.tsx:107
 msgid "Unable to start the conversation"
 msgstr "Unable to start the conversation"
 
@@ -1583,9 +1578,7 @@ msgid "Uploading"
 msgstr "Uploading"
 
 #. Source label for a skill installed by the current user
-#. Source label for a skill installed by the current user
-#: src/features/composerEditor/SelectedSkillToken.tsx:165
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:286
+#: src/features/composerEditor/skillSourceMessages.ts:8
 msgid "User"
 msgstr "User"
 
@@ -1598,10 +1591,8 @@ msgstr "View"
 msgid "View diagnostic information"
 msgstr "View diagnostic information"
 
-#. Open a dialog containing the complete pending message
-#. Open a dialog containing the complete unknown-send message
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:262
-#: src/features/composerTurnControl/ComposerUnknownMessagePreview.tsx:37
+#. Open a dialog containing the complete message shown in a truncated composer preview
+#: src/features/composerTurnControl/ComposerFullMessagePreview.tsx:27
 msgid "View full message"
 msgstr "View full message"
 
@@ -1679,7 +1670,7 @@ msgstr "Waiting for input"
 msgid "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
 msgstr "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:79
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:80
 msgid "Will send first"
 msgstr "Will send first"
 
@@ -1711,7 +1702,7 @@ msgstr "Your changes have not been saved. Return to copy them, or discard them t
 msgid "Your edits are retained below. Copy anything you want to keep before discarding."
 msgstr "Your edits are retained below. Copy anything you want to keep before discarding."
 
-#: src/features/newSession/NewSessionPage.tsx:120
+#: src/features/newSession/NewSessionPage.tsx:121
 msgid "Your input is retained. Retry to continue."
 msgstr "Your input is retained. Retry to continue."
 

@@ -16,7 +16,6 @@ import {
 } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import { createActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
 import type {
-  ActiveThreadComposerRole,
   ActiveThreadSession,
   ActiveThreadSkillsRole,
 } from "@/features/activeThreadSession/activeThreadSession";
@@ -33,9 +32,11 @@ import {
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import type { AppLocale } from "@/i18n";
 import { renderWithProviders } from "@/utils/test-utils";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 
 import { ComposerTurnControl } from "../ComposerTurnControl";
 import { ComposerPendingInputProvider } from "../ComposerPendingInputProvider";
+import { createComposerRole } from "./composerTurnControlTestRoles";
 
 const attachResponse = attachBaseline;
 const threadId = attachResponse.snapshot.thread.id;
@@ -62,13 +63,10 @@ export const createComposerSkillCatalogHarness = (
   initial: SkillCatalogState = readyEmptySkillCatalog,
 ): ComposerSkillCatalogHarness => {
   let snapshot = initial;
-  const listeners = new Set<() => void>();
+  const listeners = createListenerSet();
   const controller = {
     getSnapshot: () => snapshot,
-    subscribe: (listener: () => void) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
+    subscribe: (listener: () => void) => listeners.subscribe(listener),
     invalidate: vi.fn<ComposerSkillCatalogHarnessController["invalidate"]>().mockReturnValue(true),
     retry: vi.fn<ComposerSkillCatalogHarnessController["retry"]>().mockReturnValue(true),
   } satisfies ComposerSkillCatalogHarnessController;
@@ -77,70 +75,10 @@ export const createComposerSkillCatalogHarness = (
     controller,
     publish(next: SkillCatalogState): void {
       snapshot = next;
-      for (const listener of listeners) listener();
+      listeners.notify();
     },
   };
 };
-
-const staleSessionOperation = (revision: number) =>
-  ({
-    type: "unavailable",
-    scope: "activeThreadSession",
-    reason: "staleRevision",
-    revision,
-  }) as const;
-
-const composerRoleFor = (
-  controller: ComposerInputQueueCoordinator,
-  getRevision: () => number,
-): Partial<ActiveThreadComposerRole> => ({
-  getDraft: controller.getDraft,
-  retainDraft: controller.retainDraft,
-  saveDraft: (revision, draft) =>
-    revision === getRevision() ? controller.saveDraft(draft) : staleSessionOperation(getRevision()),
-  retryPersistence: (revision) =>
-    revision === getRevision()
-      ? controller.retryPersistence()
-      : staleSessionOperation(getRevision()),
-  resumeRestored: (revision, persistenceRevision) =>
-    revision === getRevision()
-      ? controller.resumeRestored(persistenceRevision)
-      : staleSessionOperation(getRevision()),
-  discardUnknown: (revision, id, persistenceRevision) =>
-    revision === getRevision()
-      ? controller.discardUnknown(id, persistenceRevision)
-      : staleSessionOperation(getRevision()),
-  beginPendingInputEdit: (revision, request, restore) =>
-    revision === getRevision()
-      ? controller.beginPendingInputEdit(request, restore)
-      : staleSessionOperation(getRevision()),
-  deletePendingInput: (revision, request) =>
-    revision === getRevision()
-      ? controller.deletePendingInput(request)
-      : staleSessionOperation(getRevision()),
-  interruptActiveTurn: (revision) =>
-    revision === getRevision()
-      ? controller.interruptActiveTurn()
-      : staleSessionOperation(getRevision()),
-  movePendingInput: (revision, request) =>
-    revision === getRevision()
-      ? controller.movePendingInput(request)
-      : staleSessionOperation(getRevision()),
-  promoteOrdinaryFrontToSteer: (revision) =>
-    revision === getRevision()
-      ? controller.promoteOrdinaryFrontToSteer()
-      : staleSessionOperation(getRevision()),
-  readPendingInputDetail: (request) => controller.readPendingInputDetail(request),
-  readPendingInputPage: (request) => controller.readPendingInputPage(request),
-  recover: (revision) =>
-    revision === getRevision() ? controller.recover() : staleSessionOperation(getRevision()),
-  submit: (revision, capture) =>
-    revision === getRevision() ? controller.submit(capture) : staleSessionOperation(getRevision()),
-  submitSteer: (revision, capture) =>
-    revision === getRevision()
-      ? controller.submitSteer(capture)
-      : staleSessionOperation(getRevision()),
-});
 
 const skillsRoleFor = (
   controller: ComposerSkillCatalogHarnessController,
@@ -254,7 +192,7 @@ export async function renderComposerTurnControl({
   let revision = 1;
   const identity = createActiveThreadSessionIdentity(threadId);
   const sessionHarness = createActiveThreadSessionHarness({
-    composerRole: composerRoleFor(controller, () => revision),
+    composerRole: createComposerRole(controller, () => revision),
     skillsRole: skillsRoleFor(skills),
   });
   sessionHarness.session.subscribe(() => {

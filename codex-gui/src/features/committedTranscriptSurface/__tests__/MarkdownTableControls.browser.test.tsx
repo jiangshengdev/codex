@@ -9,12 +9,13 @@ import { disableMotionForTest } from "@/utils/test-utils";
 import { MarkdownText } from "../MarkdownText";
 import { LiveMarkdownText } from "../LiveMarkdownText";
 
-vi.hoisted(() => {
+const { installClipboardForTest } = await vi.hoisted(async () => {
+  const { installClipboardForTest } = await import("@/__tests__/clipboardTestSupport");
   vi.stubGlobal("isSecureContext", true);
-  Object.defineProperty(navigator, "clipboard", {
-    configurable: true,
-    value: { writeText: vi.fn<Clipboard["writeText"]>().mockResolvedValue(undefined) },
+  installClipboardForTest({
+    writeText: vi.fn<Clipboard["writeText"]>().mockResolvedValue(undefined),
   });
+  return { installClipboardForTest };
 });
 
 const markdown =
@@ -36,7 +37,7 @@ const content = (children: ReactNode) => (
 const installClipboard = (
   write = vi.fn<(items: ClipboardItems) => Promise<void>>().mockResolvedValue(undefined),
 ) => {
-  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { write } });
+  installClipboardForTest({ write });
   return write;
 };
 
@@ -85,8 +86,7 @@ test.for(["insecure", "missing ClipboardItem", "missing write"])(
     installClipboard();
     if (missing === "insecure") vi.stubGlobal("isSecureContext", false);
     if (missing === "missing ClipboardItem") vi.stubGlobal("ClipboardItem", undefined);
-    if (missing === "missing write")
-      Object.defineProperty(navigator, "clipboard", { configurable: true, value: {} });
+    if (missing === "missing write") installClipboardForTest({});
     const screen = await render(content(<MarkdownText source={markdown} />));
     await expect.element(screen.getByRole("table")).toBeVisible();
     await expect
@@ -134,7 +134,38 @@ test("keeps the copy trigger focusable while a clipboard write is pending", asyn
   completeWrite();
   await expect.element(screen.getByRole("status")).toHaveTextContent("Table copied");
   await expect.element(copy).not.toHaveAttribute("aria-disabled", "true");
+  await expect.element(screen.getByRole("status"), { timeout: 3000 }).not.toBeInTheDocument();
 });
+
+test.for(["resolve", "reject"])(
+  "ignores a table clipboard write that settles after unmount: %s",
+  async (outcome) => {
+    let settle: (() => void) | undefined;
+    const writeResult = new Promise<void>((resolve, reject) => {
+      settle =
+        outcome === "resolve"
+          ? resolve
+          : () => {
+              reject(new Error("Permission denied"));
+            };
+    });
+    installClipboard(vi.fn<Clipboard["write"]>().mockReturnValue(writeResult));
+    const screen = await render(content(<MarkdownText source={markdown} />));
+    await screen.getByRole("button", { name: "Copy table", exact: true }).click();
+    await page.getByRole("menuitem", { name: "CSV", exact: true }).click();
+    await screen.unmount();
+    const timer = vi.spyOn(globalThis, "setTimeout");
+    try {
+      assert(settle);
+      settle();
+      await writeResult.catch(() => undefined);
+      expect(timer.mock.calls.filter(([, delay]) => delay === 2000)).toHaveLength(0);
+      expect(screen.container.textContent).toBe("");
+    } finally {
+      timer.mockRestore();
+    }
+  },
+);
 
 test("supports keyboard menu navigation, fullscreen focus and layered Escape", async () => {
   const write = installClipboard();

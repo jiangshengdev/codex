@@ -44,6 +44,25 @@ async function assertCombinedRecovery(page: Page) {
   await expect(priority.first()).toContainText("Guide message 1");
   await expect(priority.nth(1)).toHaveText("Guide message 2");
   await expectScrollableContent(priority.first());
+  await expect(priority.nth(1).getByRole("button", { name: "View full message" })).toHaveCount(0);
+  const viewMore = priority.first().getByRole("button", { name: "View full message", exact: true });
+  await expect
+    .poll(async () => {
+      const row = await priority.first().boundingBox();
+      const button = await viewMore.boundingBox();
+      return row != null && button != null
+        ? Math.abs(row.x + row.width - button.x - button.width)
+        : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThanOrEqual(1);
+  await viewMore.click();
+  const detail = page.getByRole("dialog", { name: "Pending details", exact: true });
+  await expect(detail).toContainText("END OF Guide message 1");
+  await expect(detail).toContainText("end-of-reference");
+  await expect(detail).toContainText(/\n\nCheck the narrow-screen/);
+  await page.keyboard.press("Escape");
+  await expect(detail).toHaveCount(0);
+  await expect(viewMore).toBeFocused();
 }
 
 async function assertUnsentRecovery(page: Page) {

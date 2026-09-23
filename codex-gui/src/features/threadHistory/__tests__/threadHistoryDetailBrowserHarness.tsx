@@ -21,6 +21,7 @@ import { CURRENT_TASK_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { DocumentTitleOwner } from "@/features/documentTitle/DocumentTitleOwner";
 import { renderWithProviders } from "@/utils/test-utils";
+import { createListenerSet } from "@/subscriptions/listenerSet";
 import { ThreadHistoryDetailPage } from "../ThreadHistoryDetailPage";
 
 export const detailThreadId = "00000000-0000-0000-0000-000000000088";
@@ -33,21 +34,14 @@ type CapabilitiesStore = Readonly<{
 
 const createCapabilitiesStore = (initial: AppCapabilities): CapabilitiesStore => {
   let snapshot = initial;
-  const listeners = new Set<() => void>();
+  const listeners = createListenerSet();
   return {
     getSnapshot: () => snapshot,
     publish: (next) => {
       snapshot = next;
-      for (const listener of listeners) {
-        listener();
-      }
+      listeners.notify();
     },
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    subscribe: (listener) => listeners.subscribe(listener),
   };
 };
 

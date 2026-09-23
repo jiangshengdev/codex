@@ -1,7 +1,7 @@
 import { storybookOrigin } from "./servers";
-import assert from "node:assert/strict";
 import { expect, test } from "@playwright/test";
 import { installPausedClock } from "./pausedClock";
+import { clickCenterWithPointer } from "./pointerClick";
 
 test.use({ locale: "en" });
 
@@ -20,12 +20,7 @@ test("retained page reconnects after failure without losing its conversation or 
   await page.getByRole("button", { name: "Reconnect", exact: true }).click();
   const pending = page.getByRole("button", { name: "Reconnecting…", exact: true });
   await expect(pending).toHaveAttribute("aria-disabled", "true");
-  const pendingBounds = await pending.boundingBox();
-  assert(pendingBounds);
-  await page.mouse.click(
-    pendingBounds.x + pendingBounds.width / 2,
-    pendingBounds.y + pendingBounds.height / 2,
-  );
+  await clickCenterWithPointer(page, pending);
   await pending.press("Enter");
   await page.clock.runFor(2_000);
   await expect(

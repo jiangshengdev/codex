@@ -37,8 +37,14 @@ const meta = {
 } satisfies Meta<typeof RecoveryPagePreview>;
 export default meta;
 type Story = StoryObj<typeof meta>;
-export const PartialRecovery: Story = { args: { setup: partialRecovery } };
-export const Recovered: Story = { args: { setup: () => Promise.resolve() } };
+export const PartialRecovery: Story = {
+  args: { setup: partialRecovery },
+  parameters: { layout: "fullscreen", hasFixedHeader: true },
+};
+export const Recovered: Story = {
+  args: { setup: () => Promise.resolve() },
+  parameters: { layout: "fullscreen", hasFixedHeader: true },
+};
 export const Waiting: Story = {
   render: () => (
     <ConnectionTaskRecoveryNotice

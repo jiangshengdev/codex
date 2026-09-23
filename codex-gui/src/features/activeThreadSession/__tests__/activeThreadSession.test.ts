@@ -129,8 +129,9 @@ it("restores every member independently while preserving navigation made during 
     threadId === replacementThreadId ? second.promise : first.promise,
   );
   const recovery = h.controller.restoreConnection(replacement, () => replacementThreadId);
-  await Promise.resolve();
-  expect(replacement.attachThreadProjection).toHaveBeenCalledTimes(2);
+  await vi.waitFor(() => {
+    expect(replacement.attachThreadProjection).toHaveBeenCalledTimes(2);
+  });
   await h.session.view(attachBaseline.snapshot.thread.id);
   const error = new Error("background member failed");
   second.reject(error);

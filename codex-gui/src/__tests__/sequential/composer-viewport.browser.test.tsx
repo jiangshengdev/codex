@@ -9,6 +9,7 @@ import {
   launchThreadId,
 } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred } from "@/__tests__/testDeferred";
+import { installTestVisualViewport } from "@/__tests__/visualViewportTestSupport";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import {
   activeThreadReadModelSlotCreated,
@@ -158,12 +159,6 @@ const nextAnimationFrame = (): Promise<void> =>
     });
   });
 
-type MutableVisualViewport = VisualViewport & {
-  height: number;
-  offsetTop: number;
-  pageTop: number;
-};
-
 function installVisualViewport({
   height,
   offsetTop = 0,
@@ -173,26 +168,11 @@ function installVisualViewport({
   offsetTop?: number;
   pageTop?: number;
 }) {
-  const target = new EventTarget();
   const originalVisualViewport = window.visualViewport;
-  const viewport = {
-    addEventListener: target.addEventListener.bind(target),
-    dispatchEvent: target.dispatchEvent.bind(target),
-    height,
-    offsetTop,
-    pageTop,
-    removeEventListener: target.removeEventListener.bind(target),
-  } as MutableVisualViewport;
-
-  Object.defineProperty(window, "visualViewport", {
-    configurable: true,
-    value: viewport,
-  });
+  const { viewport, dispatchResize } = installTestVisualViewport({ height, offsetTop, pageTop });
 
   return {
-    dispatchResize() {
-      return target.dispatchEvent(new Event("resize"));
-    },
+    dispatchResize,
     restore() {
       Object.defineProperty(window, "visualViewport", {
         configurable: true,

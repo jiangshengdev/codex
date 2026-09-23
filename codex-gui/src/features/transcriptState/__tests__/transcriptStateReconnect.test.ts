@@ -1,13 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import {
-  activeThreadReadModelSlotCreated,
-  activeThreadReadModelTransitionApplied,
-} from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadProjectionAcceptedEvent,
-  ActiveThreadProjectionReadModelFact,
-} from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import {
   attachBaseline,
   attachReplacement,
@@ -37,26 +31,10 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
-let sessionRevision = 0;
-const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
-  activeThreadReadModelTransitionApplied({ identity, sessionRevision: ++sessionRevision, facts });
-const threadRuntimeAttached = (
-  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
-) => readModelAction({ type: "baselineAttached", response });
-const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedEvent) =>
-  readModelAction({ type: "eventAccepted", payload });
-const threadRuntimeDeltasAccepted = ({
-  notifications,
-}: Pick<
-  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
-  "notifications"
->) => readModelAction({ type: "deltasAccepted", notifications });
-const threadRuntimeManualReconnectRequired = (
-  fact: Omit<
-    Extract<ActiveThreadProjectionReadModelFact, { type: "projectionUnavailable" }>,
-    "type"
-  >,
-) => readModelAction({ type: "projectionUnavailable", ...fact });
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
 
 describe("transcript state reconnect reducer", () => {
   it("rebuilds context pages from reattach without duplicating compaction boundaries", () => {
@@ -72,14 +50,16 @@ describe("transcript state reconnect reducer", () => {
       ]),
     ];
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, snapshotTurns)));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, snapshotTurns)));
     const beforeReattachPage = selectTranscriptContextPage(
       store.getState(),
       identity.threadId,
       "context-page:2",
     );
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachReplacement, snapshotTurns)));
+    store.dispatch(
+      actions.threadRuntimeAttached(attachWithTurns(attachReplacement, snapshotTurns)),
+    );
 
     expect(selectTranscriptContextPageIds(store.getState(), identity.threadId)).toStrictEqual([
       "context-page:1",
@@ -104,9 +84,9 @@ describe("transcript state reconnect reducer", () => {
       baseTurn("turn-existing", [reasoningItem("reasoning-existing", ["Existing summary"])]),
     ]);
 
-    store.dispatch(threadRuntimeAttached(attachWithChat));
+    store.dispatch(actions.threadRuntimeAttached(attachWithChat));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-streaming",
@@ -117,7 +97,7 @@ describe("transcript state reconnect reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           reasoningSummaryTextDelta(
             eventReasoningSummaryTextDelta,
@@ -130,7 +110,7 @@ describe("transcript state reconnect reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeManualReconnectRequired({
+      actions.threadRuntimeManualReconnectRequired({
         reason: "backpressure",
         threadId: attachWithChat.snapshot.thread.id,
         subscriptionId: attachWithChat.subscriptionId,
@@ -195,9 +175,9 @@ describe("transcript state reconnect reducer", () => {
       baseTurn("turn-after-reconnect", [reasoningItem("reasoning-after", ["Restored summary"])]),
     ]);
 
-    store.dispatch(threadRuntimeAttached(attachWithChat));
+    store.dispatch(actions.threadRuntimeAttached(attachWithChat));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-before",
@@ -208,14 +188,14 @@ describe("transcript state reconnect reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeManualReconnectRequired({
+      actions.threadRuntimeManualReconnectRequired({
         reason: "backpressure",
         threadId: attachWithChat.snapshot.thread.id,
         subscriptionId: attachWithChat.subscriptionId,
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-reattach-streaming",
@@ -226,7 +206,7 @@ describe("transcript state reconnect reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeDeltasAccepted({
+      actions.threadRuntimeDeltasAccepted({
         notifications: [
           reasoningSummaryTextDelta(
             eventReasoningSummaryTextDelta,
@@ -252,9 +232,9 @@ describe("transcript state reconnect reducer", () => {
       title: "Before reattach",
       revision: 1,
     });
-    store.dispatch(threadRuntimeAttached(replacementAttach));
+    store.dispatch(actions.threadRuntimeAttached(replacementAttach));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-before",
@@ -315,9 +295,9 @@ describe("transcript state reconnect reducer", () => {
     const initialItem = agentMessage("agent-reconnect-live", "");
     const completedItem = agentMessage("agent-reconnect-live", "Completed before reconnect");
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemStarted(
           eventItemStarted,
           "commit-reconnect-started",
@@ -328,7 +308,7 @@ describe("transcript state reconnect reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered({
+      actions.threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
           "commit-reconnect-completed",
@@ -340,7 +320,7 @@ describe("transcript state reconnect reducer", () => {
     );
 
     store.dispatch(
-      threadRuntimeManualReconnectRequired({
+      actions.threadRuntimeManualReconnectRequired({
         reason: "backpressure",
         threadId: attachBaseline.snapshot.thread.id,
         subscriptionId: attachBaseline.subscriptionId,
@@ -385,7 +365,7 @@ describe("transcript state reconnect reducer", () => {
     ]);
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-after-reconnect", [
             agentMessage("agent-after-reconnect", "After reconnect"),

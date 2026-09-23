@@ -23,7 +23,7 @@ function RecoveryPage({
   }, [pathname, ready, scenario]);
   if (!ready) return null;
   return (
-    <div className="relative [transform:translateZ(0)]" data-recovery-send-count={sendCount}>
+    <div className="relative" data-recovery-send-count={sendCount}>
       <AppCapabilitiesContext value={capabilities}>
         <AppShell>
           <CurrentTaskPage />
@@ -41,6 +41,7 @@ export function RecoveryPagePreview({
   return (
     <StrictMode>
       <PendingInputPreview
+        className=""
         key={String(startup)}
         createScenario={() => createRecoveryPageScenario(dispatch, setup, startup)}
       >

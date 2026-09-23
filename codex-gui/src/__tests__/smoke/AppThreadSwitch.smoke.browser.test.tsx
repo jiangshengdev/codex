@@ -14,15 +14,14 @@ import {
   type StartGuiHostConnectionMock,
 } from "../appBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "../appBrowserRenderHarness";
+import { createActiveThreadSessionProbe } from "../activeThreadSessionProbe";
+import { createQueueCoordinatorMock } from "../queueCoordinatorMock";
 import {
   useActiveThreadSession,
   useActiveThreadSessionSnapshot,
 } from "@/features/appShell/AppCapabilities";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
-import {
-  createComposerInputQueueCoordinator,
-  type ComposerInputQueueCoordinator,
-} from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import { createComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type {
   GuiHostCommands,
   StartGuiHostConnectionOptions,
@@ -63,7 +62,7 @@ const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
 const candidateThreadId = "00000000-0000-0000-0000-000000000002";
-let threadSwitchProbeSession: ActiveThreadSession | null = null;
+let threadSwitchProbe = createActiveThreadSessionProbe();
 let threadSwitchProbePromise: ReturnType<ActiveThreadSession["activate"]> | null = null;
 
 function ThreadSwitchCapabilityProbe() {
@@ -71,7 +70,7 @@ function ThreadSwitchCapabilityProbe() {
   const snapshot = useActiveThreadSessionSnapshot();
   const available = snapshot.phase === "active" || snapshot.phase === "projectionUnavailable";
   useEffect(() => {
-    threadSwitchProbeSession = session;
+    threadSwitchProbe.capture(session);
   }, [session]);
 
   return (
@@ -100,115 +99,6 @@ function ThreadSwitchCapabilityProbe() {
   );
 }
 
-const createQueueCoordinatorMock = (
-  threadId: string,
-  releaseReadiness: ReturnType<ComposerInputQueueCoordinator["getReleaseReadiness"]> = {
-    type: "safe",
-  },
-) => {
-  const reservationRelease = vi.fn<() => void>();
-  const observeAcceptedEvent = vi.fn<ComposerInputQueueCoordinator["observeAcceptedEvent"]>();
-  const dispose = vi.fn<ComposerInputQueueCoordinator["dispose"]>();
-  const coordinator = {
-    getDraft: vi.fn<ComposerInputQueueCoordinator["getDraft"]>().mockReturnValue(null),
-    saveDraft: vi.fn<ComposerInputQueueCoordinator["saveDraft"]>().mockReturnValue(true),
-    retainDraft: vi.fn<ComposerInputQueueCoordinator["retainDraft"]>().mockReturnValue(true),
-    retryPersistence: vi
-      .fn<ComposerInputQueueCoordinator["retryPersistence"]>()
-      .mockReturnValue(false),
-    resumeRestored: vi.fn<ComposerInputQueueCoordinator["resumeRestored"]>().mockReturnValue(false),
-    suspendRestored: vi.fn<ComposerInputQueueCoordinator["suspendRestored"]>(),
-    completeRestoreReconciliation:
-      vi.fn<ComposerInputQueueCoordinator["completeRestoreReconciliation"]>(),
-    reconcileRestoredTurns: vi.fn<ComposerInputQueueCoordinator["reconcileRestoredTurns"]>(),
-    setProjectionUnavailable: vi.fn<ComposerInputQueueCoordinator["setProjectionUnavailable"]>(),
-    setConnectionUnavailable: vi.fn<ComposerInputQueueCoordinator["setConnectionUnavailable"]>(),
-    reconcileProjection: vi
-      .fn<ComposerInputQueueCoordinator["reconcileProjection"]>()
-      .mockReturnValue({ type: "committed" }),
-    discardUnknown: vi.fn<ComposerInputQueueCoordinator["discardUnknown"]>().mockReturnValue(false),
-    ownerThreadId: threadId,
-    submit: vi.fn<ComposerInputQueueCoordinator["submit"]>().mockReturnValue({ type: "accepted" }),
-    submitSteer: vi
-      .fn<ComposerInputQueueCoordinator["submitSteer"]>()
-      .mockReturnValue({ type: "accepted" }),
-    promoteOrdinaryFrontToSteer: vi
-      .fn<ComposerInputQueueCoordinator["promoteOrdinaryFrontToSteer"]>()
-      .mockReturnValue(false),
-    interruptActiveTurn: vi
-      .fn<ComposerInputQueueCoordinator["interruptActiveTurn"]>()
-      .mockReturnValue(false),
-    recover: vi.fn<ComposerInputQueueCoordinator["recover"]>().mockReturnValue(false),
-    observeAcceptedEvent,
-    getReleaseReadiness: vi
-      .fn<ComposerInputQueueCoordinator["getReleaseReadiness"]>()
-      .mockReturnValue(releaseReadiness),
-    reserveRelease: vi
-      .fn<ComposerInputQueueCoordinator["reserveRelease"]>()
-      .mockImplementation(() =>
-        releaseReadiness.type === "blocked"
-          ? releaseReadiness
-          : { type: "reserved", reservation: { release: reservationRelease } },
-      ),
-    readPendingInputPage: vi
-      .fn<ComposerInputQueueCoordinator["readPendingInputPage"]>()
-      .mockReturnValue({ type: "unavailable", scope: "ownerGone", reason: "disposed" }),
-    readPendingInputDetail: vi
-      .fn<ComposerInputQueueCoordinator["readPendingInputDetail"]>()
-      .mockReturnValue({ type: "unavailable", scope: "ownerGone", reason: "disposed" }),
-    beginPendingInputEdit: vi
-      .fn<ComposerInputQueueCoordinator["beginPendingInputEdit"]>()
-      .mockReturnValue({ type: "unavailable", scope: "ownerGone", reason: "disposed" }),
-    deletePendingInput: vi
-      .fn<ComposerInputQueueCoordinator["deletePendingInput"]>()
-      .mockReturnValue({ type: "unavailable", scope: "ownerGone", reason: "disposed" }),
-    movePendingInput: vi
-      .fn<ComposerInputQueueCoordinator["movePendingInput"]>()
-      .mockReturnValue({ type: "unavailable", scope: "ownerGone", reason: "disposed" }),
-    getSnapshot: vi.fn<ComposerInputQueueCoordinator["getSnapshot"]>().mockReturnValue({
-      ordinaryQueuedCount: 0,
-      guidingCount: 0,
-      detailRevision: 0,
-      recoveryCount: 0,
-      recovery: null,
-      isRecovering: false,
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      canStop: false,
-      interrupt: null,
-      pendingInputManagementOutcome: null,
-      persistence: { error: null, restoredPaused: false, revision: null, unknownMessages: [] },
-    }),
-    subscribe: vi
-      .fn<ComposerInputQueueCoordinator["subscribe"]>()
-      .mockReturnValue(vi.fn<() => void>()),
-    dispose,
-  } satisfies ComposerInputQueueCoordinator;
-  return { coordinator, dispose, observeAcceptedEvent, reservationRelease };
-};
-
-const requireThreadSwitchProbeSession = (): ActiveThreadSession => {
-  if (threadSwitchProbeSession == null) {
-    throw new Error("thread switch probe must expose an active session");
-  }
-  return threadSwitchProbeSession;
-};
-
-const waitForThreadSwitchProbeSession = async () => {
-  await expect
-    .poll(() => {
-      const snapshot = threadSwitchProbeSession?.getSnapshot();
-      return snapshot?.phase === "active" || snapshot?.phase === "projectionUnavailable";
-    })
-    .toBe(true);
-  const session = requireThreadSwitchProbeSession();
-  const snapshot = session.getSnapshot();
-  if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") {
-    throw new Error("thread switch probe session must be available");
-  }
-  return { session, snapshot };
-};
-
 const requireThreadSwitchProbePromise = () => {
   if (threadSwitchProbePromise == null) {
     throw new Error("thread switch probe must start a switch");
@@ -225,7 +115,7 @@ const renderThreadSwitchProbe = async (commands: GuiHostCommands) => {
   initializeHost(options, commands);
   const continueButton = screen.getByRole("button", { name: "Continue candidate thread" });
   await expect.element(continueButton).toBeEnabled();
-  const { snapshot } = await waitForThreadSwitchProbeSession();
+  const { snapshot } = await threadSwitchProbe.waitAvailable();
   expect(snapshot.threadId).toBe(launchThreadId);
   return { continueButton, options, screen };
 };
@@ -235,7 +125,7 @@ beforeEach(() => {
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
   vi.mocked(createComposerInputQueueCoordinator).mockClear();
-  threadSwitchProbeSession = null;
+  threadSwitchProbe = createActiveThreadSessionProbe();
   threadSwitchProbePromise = null;
 });
 
@@ -260,7 +150,7 @@ test("App publishes a completed thread switch atomically through one session", a
   const { continueButton, options, screen } = await renderThreadSwitchProbe(commands);
   vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
   const activeThread = screen.getByLabelText("Active thread session");
-  const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
+  const { session: activeThreadSession } = await threadSwitchProbe.waitAvailable();
 
   await expect.element(activeThread).toHaveTextContent(launchThreadId);
   await continueButton.click();
@@ -298,7 +188,7 @@ test("App publishes a completed thread switch atomically through one session", a
   emitProjectionDelta(options, candidateDelta);
 
   await expect.element(activeThread).toHaveTextContent("loading");
-  expect(threadSwitchProbeSession).toBe(activeThreadSession);
+  expect(threadSwitchProbe.read()).toBe(activeThreadSession);
   expect(
     selectTranscriptEntry(
       screen.store.getState(),
@@ -372,7 +262,7 @@ test("App shows the failed target while retaining the initial session in the bac
   const commands = createGuiHostCommands();
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
   vi.mocked(commands.attachThreadProjection).mockRejectedValueOnce(error);
-  const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
+  const { session: activeThreadSession } = await threadSwitchProbe.waitAvailable();
 
   await continueButton.click();
   await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({

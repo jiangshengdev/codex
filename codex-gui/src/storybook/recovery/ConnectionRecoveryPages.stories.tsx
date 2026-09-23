@@ -9,6 +9,8 @@ const meta = {
   title: "Recovery/Connection recovery/Pages",
   component: RecoveryPagePreview,
   parameters: {
+    layout: "fullscreen",
+    hasFixedHeader: true,
     docs: {
       description: {
         component:

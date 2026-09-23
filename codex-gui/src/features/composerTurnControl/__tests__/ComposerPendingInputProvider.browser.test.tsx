@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vitest";
+import { installClipboardForTest } from "@/__tests__/clipboardTestSupport";
 import {
   createActiveThreadSessionHarness,
   disposedActiveThreadSessionSnapshot,
@@ -97,7 +98,7 @@ test("keeps unsaved edits after the Composer unmounts and returns from discard c
     .not.toBeInTheDocument();
   const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
   const original = Object.getOwnPropertyDescriptor(navigator, "clipboard");
-  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  installClipboardForTest({ writeText });
   try {
     await screen.getByRole("button", { name: "Copy changes", exact: true }).click();
     expect(writeText).toHaveBeenCalledExactlyOnceWith("Keep this changed text");

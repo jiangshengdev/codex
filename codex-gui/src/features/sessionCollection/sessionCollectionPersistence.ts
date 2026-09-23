@@ -1,8 +1,10 @@
+import {
+  createSessionRecordOperations,
+  type SessionRecordStorage,
+} from "@/storage/sessionRecordOperations";
 import { isValidThreadId } from "@/features/browserLaunch/guiRouteTarget";
 
 const sessionCollectionStorageKey = "codex-gui.sessionCollection";
-
-type SessionCollectionStorage = Pick<Storage, "getItem" | "setItem">;
 
 type SessionCollectionRecord = Readonly<{
   version: 1;
@@ -32,10 +34,12 @@ export class SessionCollectionPersistenceError extends Error {
   }
 }
 
+const recordOperations = createSessionRecordOperations(SessionCollectionPersistenceError);
+
 /** Membership only; browserLaunch owns the saved viewing target and authorization. */
 export class SessionCollectionPersistenceStore {
   private readonly authorizationContext: string;
-  private readonly storage: SessionCollectionStorage;
+  private readonly storage: SessionRecordStorage;
 
   constructor({
     authorizationContext,
@@ -43,19 +47,14 @@ export class SessionCollectionPersistenceStore {
   }: {
     /** Opaque identity from browserLaunch, never the launch token. */
     authorizationContext: string;
-    storage?: SessionCollectionStorage;
+    storage?: SessionRecordStorage;
   }) {
     this.authorizationContext = authorizationContext;
-    this.storage = storage ?? readSessionStorage();
+    this.storage = storage ?? recordOperations.readSessionStorage();
   }
 
   read = (): SessionCollectionReadResult => {
-    let stored: string | null;
-    try {
-      stored = this.storage.getItem(sessionCollectionStorageKey);
-    } catch (error: unknown) {
-      throw new SessionCollectionPersistenceError("read", error);
-    }
+    const stored = recordOperations.read(this.storage, sessionCollectionStorageKey);
     if (stored === null) {
       return { type: "absent" };
     }
@@ -77,37 +76,12 @@ export class SessionCollectionPersistenceStore {
       threadIds: [...new Set(threadIds)],
     } satisfies SessionCollectionRecord);
     parseRecord(serialized);
-    try {
-      this.storage.setItem(sessionCollectionStorageKey, serialized);
-    } catch (error: unknown) {
-      throw new SessionCollectionPersistenceError("write", error);
-    }
+    recordOperations.write(this.storage, sessionCollectionStorageKey, serialized);
   };
 }
 
-function readSessionStorage(): SessionCollectionStorage {
-  try {
-    const storage = (globalThis as { sessionStorage?: Storage }).sessionStorage;
-    if (storage === undefined) {
-      throw new Error("Session storage is unavailable");
-    }
-    return storage;
-  } catch (error: unknown) {
-    throw new SessionCollectionPersistenceError("unavailable", error);
-  }
-}
-
 function parseRecord(stored: string): SessionCollectionRecord {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stored);
-  } catch (error: unknown) {
-    throw new SessionCollectionPersistenceError("malformed", error);
-  }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new SessionCollectionPersistenceError("malformed");
-  }
-  const record = parsed as Record<string, unknown>;
+  const record = recordOperations.parseObject(stored);
   if (!Object.hasOwn(record, "version")) {
     throw new SessionCollectionPersistenceError("malformed");
   }

@@ -1,3 +1,4 @@
+export { dispatchGuideShortcut } from "@/features/composerEditor/__tests__/composerKeyboardBrowserTestSupport";
 import { expect, vi, type Mock } from "vitest";
 import { page } from "vitest/browser";
 import {
@@ -9,6 +10,7 @@ import {
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
+import { getAppComposer } from "./appProjectionBrowserTestSupport";
 import type {
   ComposerPendingInputCursor,
   ComposerPendingInputLane,
@@ -30,9 +32,6 @@ type ActiveAppCommandOverrides = Partial<{
   startTurn: Mock<GuiHostCommands["startTurn"]>;
   steerTurn: Mock<GuiHostCommands["steerTurn"]>;
 }>;
-
-const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
-  screen.getByRole("combobox", { name: "Message Codex", exact: true });
 
 export function attachmentFileInput(container: ParentNode = document) {
   const input = container.querySelector('input[type="file"]');
@@ -174,16 +173,3 @@ export const readGuiHostCommandCallCounts = (
   steerTurn: vi.mocked(commands.steerTurn).mock.calls.length,
   interruptTurn: vi.mocked(commands.interruptTurn).mock.calls.length,
 });
-
-export const dispatchGuideShortcut = (element: Element): void => {
-  const isMac = navigator.platform.startsWith("Mac");
-  element.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      ctrlKey: !isMac,
-      key: "Enter",
-      metaKey: isMac,
-    }),
-  );
-};

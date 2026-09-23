@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { withSessionStorageGetter } from "@/__tests__/sessionStorageTestSupport";
 import { consumeBrowserAuthorizationSession } from "../browserAuthorizationSession";
 
 const firstThreadId = "11111111-2222-3333-4444-555555555555";
@@ -404,27 +405,19 @@ describe("consumeBrowserAuthorizationSession", () => {
       }),
     ).toThrow(new Error("Unable to read browser authorization session"));
 
-    const previousDescriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
-    Object.defineProperty(globalThis, "sessionStorage", {
-      configurable: true,
-      get: () => {
+    withSessionStorageGetter(
+      () => {
         throw new Error("unavailable");
       },
-    });
-    try {
-      expect(() =>
-        consumeBrowserAuthorizationSession({
-          location: new URL("https://codex.test/history"),
-          replaceState: vi.fn<History["replaceState"]>(),
-        }),
-      ).toThrow(new Error("Browser authorization session storage is unavailable"));
-    } finally {
-      if (previousDescriptor == null) {
-        Reflect.deleteProperty(globalThis, "sessionStorage");
-      } else {
-        Object.defineProperty(globalThis, "sessionStorage", previousDescriptor);
-      }
-    }
+      () => {
+        expect(() =>
+          consumeBrowserAuthorizationSession({
+            location: new URL("https://codex.test/history"),
+            replaceState: vi.fn<History["replaceState"]>(),
+          }),
+        ).toThrow(new Error("Browser authorization session storage is unavailable"));
+      },
+    );
   });
 
   it("keeps the committed snapshot unchanged when a later storage write fails", () => {
