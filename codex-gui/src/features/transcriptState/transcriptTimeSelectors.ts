@@ -1,4 +1,5 @@
 import type { TranscriptState } from "./transcriptStateModel";
+import { hasTranscriptFragmentContent } from "./transcriptFragmentVisibility";
 import { selectLastTranscriptFragmentIdsByTurnIdFromTranscriptState } from "./transcriptStateSelectors";
 
 const timeLabelsCache = new WeakMap<TranscriptState, Record<string, number>>();
@@ -22,10 +23,7 @@ export const selectTranscriptTimeLabelsFromTranscriptState = (
       if (fragment == null || firstFragments.has(fragment.turnId)) continue;
       const turn = state.turnsById[fragment.turnId];
       if (
-        fragment.leadingPromptEntryId != null ||
-        fragment.middleEntryCount > 0 ||
-        fragment.finalAssistantEntryIds.length > 0 ||
-        (turn?.error != null && lastFragments[fragment.turnId] === fragmentId)
+        hasTranscriptFragmentContent(fragment, turn, lastFragments[fragment.turnId] === fragmentId)
       )
         firstFragments.set(fragment.turnId, fragmentId);
     }

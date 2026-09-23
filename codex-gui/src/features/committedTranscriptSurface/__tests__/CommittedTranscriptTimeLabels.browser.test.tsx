@@ -4,6 +4,7 @@ import {
   agentMessage,
   baseTurn,
   contextCompaction,
+  failedTurn,
   textInput,
   turnWithTiming,
   userMessage,
@@ -13,6 +14,39 @@ import { renderWithProviders } from "@/utils/test-utils";
 import { ReadOnlyCommittedTranscriptSurface } from "../CommittedTranscriptSurface";
 
 afterEach(() => vi.useRealTimers());
+
+test("shows an error-only turn with its time label instead of the empty state", async () => {
+  vi.setSystemTime(new Date(2026, 8, 12, 23));
+  const startedAt = new Date(2026, 8, 12, 9, 37).getTime() / 1000;
+  const screen = await renderWithProviders(
+    <ReadOnlyCommittedTranscriptSurface
+      surfaceKey="error-only"
+      transcriptState={buildTranscriptStateFromTurns([
+        turnWithTiming(baseTurn("empty"), {
+          startedAt: startedAt - 60,
+          completedAt: null,
+          durationMs: null,
+        }),
+        turnWithTiming(
+          failedTurn("failed", {
+            message: "Request could not complete",
+            codexErrorInfo: null,
+            additionalDetails: null,
+            misalignment: null,
+          }),
+          { startedAt, completedAt: null, durationMs: null },
+        ),
+      ])}
+    />,
+  );
+  await expect
+    .element(screen.getByText("Request could not complete", { exact: true }))
+    .toBeVisible();
+  await expect.element(screen.getByText("Today 09:37", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("Today 09:36", { exact: true })).not.toBeInTheDocument();
+  await expect.element(screen.getByText("No committed messages yet.")).not.toBeInTheDocument();
+  expect(document.querySelectorAll(".committed-transcript-time-label")).toHaveLength(1);
+});
 
 test("labels the first turn and each local four-hour boundary with actual time", async () => {
   vi.setSystemTime(new Date(2026, 8, 12, 23));
