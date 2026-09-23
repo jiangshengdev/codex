@@ -1,26 +1,20 @@
-import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { afterEach, describe, expect, test } from "vitest";
 
 import { cleanTestArtifacts, findTestArtifactDirs } from "./core";
+import { createTestTempRoots } from "../testTempRoots";
 
-const tempRoots: string[] = [];
-
-async function makeTempRoot(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "codex-gui-clean-test-artifacts-"));
-  tempRoots.push(root);
-  return root;
-}
+const tempRoots = createTestTempRoots("codex-gui-clean-test-artifacts-");
 
 afterEach(async () => {
-  await Promise.all(tempRoots.splice(0).map((root) => rm(root, { force: true, recursive: true })));
+  await tempRoots.cleanup();
 });
 
 describe("findTestArtifactDirs", () => {
   test("finds screenshots, traces, and vitest attachment directories under the project root", async () => {
-    const root = await makeTempRoot();
+    const root = await tempRoots.create();
     await mkdir(path.join(root, "src/__tests__/__screenshots__"), { recursive: true });
     await mkdir(path.join(root, "src/__tests__/__traces__"), { recursive: true });
     await mkdir(path.join(root, "src/features/.vitest-attachments"), { recursive: true });
@@ -36,7 +30,7 @@ describe("findTestArtifactDirs", () => {
   });
 
   test("skips bulky generated directories while searching", async () => {
-    const root = await makeTempRoot();
+    const root = await tempRoots.create();
     await mkdir(path.join(root, "node_modules/pkg/__screenshots__"), { recursive: true });
     await mkdir(path.join(root, "src/__screenshots__"), { recursive: true });
 
@@ -48,7 +42,7 @@ describe("findTestArtifactDirs", () => {
 
 describe("cleanTestArtifacts", () => {
   test("removes matching artifact directories and reports removed paths", async () => {
-    const root = await makeTempRoot();
+    const root = await tempRoots.create();
     const screenshotDir = path.join(root, "src/__tests__/__screenshots__");
     const traceDir = path.join(root, "src/__tests__/__traces__");
     const attachmentDir = path.join(root, ".vitest-attachments");
@@ -73,7 +67,7 @@ describe("cleanTestArtifacts", () => {
   });
 
   test("succeeds without changes when no artifact directories exist", async () => {
-    const root = await makeTempRoot();
+    const root = await tempRoots.create();
     await mkdir(path.join(root, "src/__tests__/not-an-artifact"), { recursive: true });
 
     await expect(cleanTestArtifacts(root)).resolves.toEqual({

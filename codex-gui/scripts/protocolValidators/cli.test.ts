@@ -1,18 +1,10 @@
-import {
-  mkdtemp,
-  mkdir,
-  readFile,
-  readdir,
-  rename as renamePath,
-  rm,
-  writeFile,
-} from "node:fs/promises";
-import os from "node:os";
+import { mkdir, readFile, readdir, rename as renamePath, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import type { loadProtocolInputs as loadProtocolInputsFunction } from "./core";
+import { createTestTempRoots } from "../testTempRoots";
 import {
   checkGeneratedArtifacts,
   loadAppServerGenerationInputs,
@@ -20,13 +12,12 @@ import {
   writeGeneratedArtifacts,
 } from "./cli";
 
-const tempRoots: string[] = [];
+const tempRoots = createTestTempRoots("codex-gui-protocol-validators-");
 type GenerateArtifacts = () => Promise<ReadonlyMap<string, string>>;
 type LoadProtocolInputs = typeof loadProtocolInputsFunction;
 
 async function makeOutputDirectory(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "codex-gui-protocol-validators-"));
-  tempRoots.push(root);
+  const root = await tempRoots.create();
 
   const outputDirectory = path.join(root, "generated");
   await mkdir(outputDirectory);
@@ -45,7 +36,7 @@ async function readDirectory(outputDirectory: string): Promise<Record<string, st
 }
 
 afterEach(async () => {
-  await Promise.all(tempRoots.splice(0).map((root) => rm(root, { force: true, recursive: true })));
+  await tempRoots.cleanup();
 });
 
 describe("loadAppServerGenerationInputs", () => {
