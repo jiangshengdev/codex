@@ -2,6 +2,7 @@ import { Button, toast } from "@heroui/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import { exposedBackdropPosition } from "@/__tests__/backdropBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
@@ -520,7 +521,7 @@ test("keeps a long history continuation failure visible beside the retry action"
   if (!(backdrop instanceof HTMLElement)) {
     throw new Error("Expected diagnostic modal backdrop");
   }
-  await userEvent.click(backdrop, { position: { x: 2, y: 2 } });
+  await userEvent.click(backdrop, { position: exposedBackdropPosition(backdrop) });
   await expect.element(dialog).not.toBeInTheDocument();
   await expect.element(disclosure).toHaveFocus();
 

@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vitest";
+import { exposedBackdropPosition } from "@/__tests__/backdropBrowserTestSupport";
 import { installClipboardForTest } from "@/__tests__/clipboardTestSupport";
 import {
   createActiveThreadSessionHarness,
@@ -154,9 +155,7 @@ test.each(["close", "escape", "backdrop"])(
     else {
       const backdrop = document.querySelector('[data-slot="drawer-backdrop"]');
       if (!(backdrop instanceof HTMLElement)) throw new Error("Expected drawer backdrop");
-      // Chromium may leave a fixed iframe backdrop's top edge clipped (crbug.com/1334265).
-      // Click halfway down the exposed left strip, outside the right-side drawer.
-      await screen.user.click(backdrop, { position: { x: 2, y: backdrop.clientHeight / 2 } });
+      await screen.user.click(backdrop, { position: exposedBackdropPosition(backdrop) });
     }
     await expect.element(screen.getByRole("alertdialog")).toBeVisible();
     expect(cancel).not.toHaveBeenCalled();

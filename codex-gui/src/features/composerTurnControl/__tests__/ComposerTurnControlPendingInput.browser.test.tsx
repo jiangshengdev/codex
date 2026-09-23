@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import { exposedBackdropPosition } from "@/__tests__/backdropBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { ActiveThreadSkillsRole } from "@/features/activeThreadSession/activeThreadSession";
@@ -1144,7 +1145,7 @@ test.each(
       else {
         const backdrop = document.querySelector('[data-slot="drawer-backdrop"]');
         if (!(backdrop instanceof HTMLElement)) throw new Error("Expected drawer backdrop");
-        await screen.user.click(backdrop, { position: { x: 2, y: backdrop.clientHeight / 2 } });
+        await screen.user.click(backdrop, { position: exposedBackdropPosition(backdrop) });
       }
       await expect.element(dialog).not.toBeInTheDocument();
       await expect.element(trigger).toHaveFocus();
