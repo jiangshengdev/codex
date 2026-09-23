@@ -14,6 +14,7 @@ import { parse as parseUri } from "uri-js";
 import { remarkBackslashMath } from "./remarkBackslashMath";
 import { MarkdownCode } from "./MarkdownCode";
 import { MarkdownTable } from "./MarkdownTable";
+import { isMarkdownTextCopyAvailable } from "./markdownClipboard";
 
 const isAbsolutePath = isAbsolute;
 
@@ -72,10 +73,7 @@ export const assistantStreamdownPlugins = {
 };
 export const assistantRemarkPlugins = [...Object.values(defaultRemarkPlugins), remarkBackslashMath];
 
-const clipboardWriteAvailable =
-  typeof window !== "undefined" &&
-  window.isSecureContext &&
-  typeof (navigator as Partial<Pick<Navigator, "clipboard">>).clipboard?.writeText === "function";
+const clipboardWriteAvailable = isMarkdownTextCopyAvailable();
 
 export const streamdownControls: ControlsConfig = clipboardWriteAvailable
   ? { code: false, table: false }

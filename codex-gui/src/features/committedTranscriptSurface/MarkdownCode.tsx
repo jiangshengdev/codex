@@ -8,13 +8,11 @@ import {
   type Components,
 } from "streamdown";
 import { MarkdownCodeCopyButton } from "./MarkdownCodeCopyButton";
+import { isMarkdownTextCopyAvailable } from "./markdownClipboard";
 
 type MarkdownCodeProps = ComponentProps<Exclude<NonNullable<Components["code"]>, string>>;
 
-const codeClipboardAvailable =
-  typeof window !== "undefined" &&
-  window.isSecureContext &&
-  typeof (navigator as Partial<Pick<Navigator, "clipboard">>).clipboard?.writeText === "function";
+const codeClipboardAvailable = isMarkdownTextCopyAvailable();
 
 export const MarkdownCode = ({ children, className, node, ...props }: MarkdownCodeProps) => {
   const { lineNumbers } = use(StreamdownContext);

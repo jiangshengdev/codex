@@ -1,8 +1,9 @@
 import { Button, Tooltip } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { Check, Copy } from "lucide-react";
-import { use, useEffect, useRef, useState } from "react";
+import { use } from "react";
 import { StreamdownContext } from "streamdown";
+import { useMarkdownCopyFeedback } from "./useMarkdownCopyFeedback";
 
 export const MarkdownCodeCopyButton = ({
   code,
@@ -13,36 +14,7 @@ export const MarkdownCodeCopyButton = ({
 }) => {
   const { t } = useLingui();
   const { isAnimating } = use(StreamdownContext);
-  const [status, setStatus] = useState<"idle" | "pending" | "copied" | "failed">("idle");
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const mounted = useRef(false);
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      clearTimeout(timer.current);
-    };
-  }, []);
-
-  const copy = async () => {
-    clearTimeout(timer.current);
-    setStatus("pending");
-    onErrorChange(false);
-    try {
-      await navigator.clipboard.writeText(code);
-      if (!mounted.current) return;
-      setStatus("copied");
-      timer.current = setTimeout(() => {
-        setStatus("idle");
-      }, 2000);
-    } catch {
-      if (mounted.current) {
-        setStatus("failed");
-        onErrorChange(true);
-      }
-    }
-  };
+  const { status, copy } = useMarkdownCopyFeedback(onErrorChange);
 
   const label =
     status === "copied"
@@ -66,7 +38,7 @@ export const MarkdownCodeCopyButton = ({
         aria-label={label}
         isDisabled={isAnimating || status === "pending"}
         onPress={() => {
-          void copy();
+          void copy(() => navigator.clipboard.writeText(code));
         }}
       >
         {status === "copied" ? (

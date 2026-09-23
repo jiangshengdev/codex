@@ -31,6 +31,9 @@ test("code blocks offer copying without a download action", async () => {
   await expect
     .element(screen.getByRole("button", { name: "Code copied", exact: true }))
     .toBeEnabled();
+  await expect
+    .element(screen.getByRole("button", { name: "Copy code", exact: true }), { timeout: 3000 })
+    .toBeEnabled();
 });
 
 test("failed copying reports an error and allows retry", async () => {
