@@ -927,28 +927,17 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     request: ComposerPendingInputMoveRequest,
   ): ComposerPendingInputMoveResult => {
     const resolution = this.resolvePendingInputManagement(request);
-    if (resolution.type === "stale" || resolution.type === "conflict") {
+    if (
+      resolution.type === "stale" ||
+      resolution.type === "conflict" ||
+      resolution.type === "notManageable"
+    ) {
       return resolution;
     }
-    if (resolution.type === "ordinary") {
-      const moved = this.ordinaryState.movePendingInput(resolution.index, request.destination);
-      if (moved.type === "notManageable") {
-        return { type: "notManageable", revision: this.pendingInputIdentity.detailRevision() };
-      }
-      if (moved.type === "noOp") {
-        return { ...moved, revision: this.pendingInputIdentity.detailRevision() };
-      }
-      this.pendingInputIdentity.advanceRevision();
-      return {
-        ...moved,
-        revision: this.pendingInputIdentity.detailRevision(),
-        lane: "ordinary",
-      };
-    }
-    if (resolution.type === "notManageable") {
-      return resolution;
-    }
-    const moved = this.steerState.movePendingInput(resolution.messageId, request.destination);
+    const moved =
+      resolution.type === "ordinary"
+        ? this.ordinaryState.movePendingInput(resolution.index, request.destination)
+        : this.steerState.movePendingInput(resolution.messageId, request.destination);
     if (moved.type === "notManageable") {
       return { type: "notManageable", revision: this.pendingInputIdentity.detailRevision() };
     }
@@ -959,7 +948,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     return {
       ...moved,
       revision: this.pendingInputIdentity.detailRevision(),
-      lane: "steer",
+      lane: resolution.type,
     };
   };
 
