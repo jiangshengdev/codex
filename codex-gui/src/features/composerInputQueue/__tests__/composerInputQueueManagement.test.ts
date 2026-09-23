@@ -177,6 +177,72 @@ describe("composer input queue", () => {
   });
 
   it.each([
+    ["ordinary", "invalidDraft"],
+    ["ordinary", "throw"],
+    ["steer", "invalidDraft"],
+    ["steer", "throw"],
+  ] as const)("preserves %s ownership after a reentrant restore ends in %s", (lane, failure) => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    if (lane === "steer") queue.submitSteer(message("in-flight"));
+    for (const id of ["a", "b"]) {
+      if (lane === "ordinary") queue.submit(message(id));
+      else queue.submitSteer(message(id));
+    }
+    const beforePage = pendingPage(queue, lane);
+    const item = beforePage.items[lane === "ordinary" ? 0 : 1];
+    if (item == null) throw new Error("expected editable message");
+    const revision = queue.detailRevision();
+    const beforeView = queue.view();
+    const request = { key: item.key, revision };
+    const restoreError = new Error("restore failed");
+    const begin = () =>
+      queue.beginPendingInputEdit(request, (draft) => {
+        expect(draft).toEqual(message("a").draft);
+        expect(queue.deletePendingInput(request)).toEqual({
+          type: "conflict",
+          reason: "editInProgress",
+          revision,
+        });
+        expect(
+          queue.beginPendingInputEdit(request, () => {
+            throw new Error("nested restore must not run");
+          }),
+        ).toEqual({ type: "conflict", reason: "editInProgress", revision });
+        expect(queue.submit(message("reentrant"))).toEqual({
+          result: { type: "ownershipMismatch", subject: "pendingInputEdit" },
+          effects: [],
+        });
+        expect(queue.submitSteer(message("reentrant"))).toEqual({
+          result: { type: "ownershipMismatch", subject: "pendingInputEdit" },
+          effects: [],
+        });
+        expect(queue.drainPendingInput({ lane })).toEqual({
+          result: { type: "ownershipMismatch", subject: "pendingInputEdit" },
+          effects: [],
+        });
+        if (failure === "throw") throw restoreError;
+        return { type: "invalidDraft" };
+      });
+    let result: ReturnType<typeof begin> | undefined;
+    let caught: unknown;
+    try {
+      result = begin();
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBe(failure === "throw" ? restoreError : undefined);
+    expect(result).toEqual(failure === "throw" ? undefined : { type: "invalidDraft", revision });
+    expect(queue.detailRevision()).toBe(revision);
+    expect(queue.view()).toEqual(beforeView);
+    expect(pendingPage(queue, lane)).toEqual(beforePage);
+    const retried = queue.beginPendingInputEdit(request, () => ({ type: "restored" }));
+    if (retried.type !== "begun") throw new Error("expected retry to acquire edit");
+    expect(retried.revision).toBe(revision + 1);
+    expect(retried.reservation.cancel().type).toBe("cancelled");
+    expect(pendingPage(queue, lane).items).toEqual(beforePage.items);
+  });
+
+  it.each([
     ["head", 0, ["editing", "manageable", "manageable"]],
     ["middle", 1, ["manageable", "editing", "manageable"]],
     ["tail", 2, ["manageable", "manageable", "editing"]],
