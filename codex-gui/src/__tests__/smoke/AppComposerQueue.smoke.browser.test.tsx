@@ -39,7 +39,7 @@ import {
   selectTranscriptEntry,
   transcriptEntryIdFor,
 } from "@/features/transcriptState/transcriptStateSlice";
-import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
+import { renderWithProviders } from "@/utils/test-utils";
 
 const guiHostClientMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -52,7 +52,6 @@ vi.mock("@/features/composerInputQueue/composerInputQueueCoordinator", { spy: tr
 
 const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
-let restoreMotion: (() => void) | undefined;
 
 beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
@@ -62,8 +61,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  restoreMotion?.();
-  restoreMotion = undefined;
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
 });
 
@@ -183,7 +180,6 @@ test("App sends ordinary Enter through start identity and renders only its live 
 });
 
 test("App queues during an active turn and starts exactly once after its live terminal event", async () => {
-  restoreMotion = disableMotionForTest();
   const { activeTurn, options, queueCoordinator, screen, startTurn } = await renderActiveApp();
   const transcript = screen.getByRole("region", { name: "Committed transcript" });
 

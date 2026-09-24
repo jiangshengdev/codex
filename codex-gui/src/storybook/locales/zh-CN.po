@@ -131,7 +131,7 @@ msgid "Redux slots: {count}; route: {pathname}"
 msgstr "Redux 槽位：{count}；路由：{pathname}"
 
 #. Stop freezing the captured recovery notification and show live coordinator state
-#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:87
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:88
 msgid "Release recovery display"
 msgstr "结束恢复状态展示"
 
@@ -176,7 +176,7 @@ msgstr "已收到运行时确认"
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #: src/storybook/composer/ComposerPreview.tsx:159
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:204
-#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:104
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:105
 msgid "Simulate current turn completed"
 msgstr "模拟当前轮次完成"
 
@@ -198,7 +198,7 @@ msgstr "模拟引导明确失败"
 #. Reject guidance because the simulated active turn cannot be steered
 #. Reject guidance because the simulated active turn cannot be steered
 #: src/storybook/composer/ComposerGuidePreview.tsx:72
-#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:42
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:43
 msgid "Simulate guide refusal"
 msgstr "模拟引导被拒绝"
 
@@ -210,19 +210,19 @@ msgstr "模拟引导请求响应"
 #. Inject the runtime user-message event confirming accepted guide delivery
 #. Inject the runtime user-message event confirming accepted guide delivery
 #: src/storybook/composer/ComposerGuidePreview.tsx:63
-#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:33
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:34
 msgid "Simulate guide runtime confirmation"
 msgstr "模拟引导的运行时确认"
 
 #. Resolve the local guide request as accepted by the active turn
-#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:24
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:25
 msgid "Simulate guide success"
 msgstr "模拟引导成功"
 
 #. Leave delivery of the local guide request uncertain
 #. Leave delivery of the local guide request uncertain
 #: src/storybook/composer/ComposerGuidePreview.tsx:96
-#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:51
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:52
 msgid "Simulate guide unknown"
 msgstr "模拟引导状态未知"
 
@@ -240,7 +240,7 @@ msgstr "模拟返回"
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
 #: src/storybook/composer/ComposerPreview.tsx:140
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:234
-#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:140
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:141
 msgid "Simulate runtime confirmation"
 msgstr "模拟运行时确认"
 
@@ -257,7 +257,7 @@ msgstr "模拟保存失败"
 #. Reject the simulated ordinary send as definitely not accepted
 #. Reject the simulated sending request with definite non-delivery
 #: src/storybook/composer/ComposerPreview.tsx:117
-#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:126
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:127
 msgid "Simulate send failure"
 msgstr "模拟发送失败"
 
@@ -265,7 +265,7 @@ msgstr "模拟发送失败"
 #. Resolve the pending local start-turn request without injecting a runtime event
 #: src/storybook/composer/ComposerPreview.tsx:110
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:219
-#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:117
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:118
 msgid "Simulate send response"
 msgstr "模拟发送响应"
 
@@ -318,7 +318,7 @@ msgstr "此控件注入编辑会话失效的结果，用于预览内容保护。
 msgid "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
 msgstr "此场景在请求编辑时注入发送冲突结果，不模拟队列调度。"
 
-#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:77
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:78
 msgid "This preview freezes the brief recovery notification. Release it to inspect the pending send request."
 msgstr "此预览暂停展示短暂的恢复状态。结束展示后，可检查等待中的发送请求。"
 

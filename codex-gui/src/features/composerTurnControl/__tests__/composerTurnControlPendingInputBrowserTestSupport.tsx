@@ -1,4 +1,5 @@
 import { expect, vi } from "vitest";
+import { isPendingDrawerReady } from "@/__tests__/pendingDrawerReady";
 
 import type {
   ComposerInputQueueCoordinator,
@@ -22,15 +23,7 @@ const attachResponse = attachBaseline;
 const threadId = attachResponse.snapshot.thread.id;
 
 export async function waitForPendingDrawerOpen() {
-  const backdrop = document.querySelector('[data-slot="drawer-backdrop"]');
-  if (!(backdrop instanceof HTMLElement)) throw new Error("Expected drawer backdrop");
-  await expect
-    .poll(() =>
-      backdrop
-        .getAnimations({ subtree: true })
-        .filter((animation) => animation.playState === "running"),
-    )
-    .toHaveLength(0);
+  await expect.poll(isPendingDrawerReady).toBe(true);
 }
 
 export function observePendingDrawerExit(onExit: () => void) {

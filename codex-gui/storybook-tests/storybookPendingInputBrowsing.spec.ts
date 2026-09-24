@@ -1,8 +1,40 @@
 import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
 import { expectScrollableContent } from "./storybookTextAssertions";
+import { isPendingDrawerReady } from "../src/__tests__/pendingDrawerReady";
 
 test.use({ locale: "en" });
+
+for (const width of [375, 1280]) {
+  test(`queue entries navigate to their expanded group at ${String(width)}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 720 });
+    await page.goto(
+      `${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--both-lanes`,
+    );
+    for (const [entryName, headingName] of [
+      ["Queued 23", "Queued 23"],
+      ["Guide 23", "Guiding 23"],
+    ]) {
+      const entry = page.getByRole("group", { name: /^Pending:/ }).getByRole("button", {
+        name: entryName,
+        exact: true,
+      });
+      for (let visit = 0; visit < 2; visit += 1) {
+        await entry.click();
+        const dialog = page.getByRole("dialog");
+        const heading = dialog.getByRole("heading", { name: headingName, exact: true });
+        await expect(heading).toBeInViewport();
+        await expect(heading.getByRole("button")).toHaveAttribute("aria-expanded", "true");
+        await expect(heading.getByRole("button")).toBeFocused();
+        await page.keyboard.press("Enter");
+        await expect(heading.getByRole("button")).toHaveAttribute("aria-expanded", "false");
+        await page.keyboard.press("Escape");
+        await expect(dialog).toHaveCount(0);
+        await expect(entry).toBeFocused();
+      }
+    }
+  });
+}
 
 for (const width of [375, 1280]) {
   test(`directly previews mixed lists and long details at ${String(width)}px`, async ({ page }) => {
@@ -56,12 +88,7 @@ test("returns to the main draft when the last queued message starts sending duri
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
     .getByRole("button", { name: "Queued 1", exact: true })
     .click();
-  await page.waitForFunction(() => {
-    const backdrop = document.querySelector('[data-slot="drawer-backdrop"]');
-    return backdrop
-      ?.getAnimations({ subtree: true })
-      .every((animation) => animation.playState !== "running");
-  });
+  await page.waitForFunction(isPendingDrawerReady);
   const injected = page.evaluate(
     () =>
       new Promise<boolean>((resolve) => {
@@ -94,12 +121,7 @@ test("opens the real queue and restores keyboard focus", async ({ page }) => {
   await trigger.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog")).toContainText("Ordinary message 1");
-  await page.waitForFunction(() =>
-    document
-      .querySelector('[data-slot="drawer-backdrop"]')
-      ?.getAnimations({ subtree: true })
-      .every((animation) => animation.playState !== "running"),
-  );
+  await page.waitForFunction(isPendingDrawerReady);
   const continuity = trigger.evaluate(
     (entry) =>
       new Promise<{ stable: boolean; sawExit: boolean; samples: number }>((resolve) => {

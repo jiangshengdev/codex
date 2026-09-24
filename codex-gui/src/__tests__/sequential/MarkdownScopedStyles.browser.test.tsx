@@ -16,7 +16,6 @@ import {
   itemCompleted,
   itemStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import { disableMotionForTest } from "@/utils/test-utils";
 import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
 import {
   transcriptIdentity,
@@ -79,7 +78,6 @@ test.for(["light", "dark"])("uses HeroUI surfaces for table headers in %s theme"
 test.for(["light", "dark"])(
   "keeps rich text local through streaming and fullscreen in %s theme",
   async (theme) => {
-    const restoreMotion = disableMotionForTest();
     const previousTheme = document.documentElement.getAttribute("data-theme");
     const originalViewport = { width: window.innerWidth, height: window.innerHeight };
     document.documentElement.setAttribute("data-theme", theme);
@@ -385,7 +383,6 @@ test.for(["light", "dark"])(
         .not.toBeInTheDocument();
       expect(outside()).toEqual(before);
     } finally {
-      restoreMotion();
       if (previousTheme === null) document.documentElement.removeAttribute("data-theme");
       else document.documentElement.setAttribute("data-theme", previousTheme);
       await page.viewport(originalViewport.width, originalViewport.height);

@@ -1,9 +1,12 @@
 import { Trans } from "@lingui/react/macro";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ComposerFullMessagePreview } from "./ComposerFullMessagePreview";
 import { ComposerInputPreviewContent } from "./ComposerInputPreviewContent";
 
-export function ComposerUnknownMessagePreview({ text }: Readonly<{ text: string }>) {
+export function ComposerUnknownMessagePreview({
+  actions,
+  text,
+}: Readonly<{ actions: ReactNode; text: string }>) {
   const textRef = useRef<HTMLParagraphElement>(null);
   const [isTruncated, setIsTruncated] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -27,6 +30,8 @@ export function ComposerUnknownMessagePreview({ text }: Readonly<{ text: string 
 
   return (
     <ComposerFullMessagePreview
+      actions={actions}
+      actionLayout="adaptive"
       fullText={text}
       heading={<Trans>Sending result unknown</Trans>}
       isOpen={isOpen}

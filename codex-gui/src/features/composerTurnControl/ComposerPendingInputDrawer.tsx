@@ -19,6 +19,7 @@ import {
 import type {
   ComposerPendingInputAlert,
   ComposerPendingInputCurrentFacts,
+  ComposerPendingInputGroup,
   ComposerPendingInputSession,
   ComposerPendingInputSessionSnapshot,
 } from "./composerPendingInputSession";
@@ -60,18 +61,48 @@ export function ComposerPendingInputDrawer({
     result: "copied" | "failed";
   } | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
-  const onHeadingMount = useCallback((heading: HTMLHeadingElement | null): void => {
-    headingRef.current = heading;
-    // Set initial focus before useDialog's effect so its delayed fallback cannot
-    // steal focus while a nested menu is restoring its trigger (CNB #17).
-    heading?.focus();
-  }, []);
+  const initialLane = pendingInputSnapshot.view?.initialLane;
+  const onHeadingMount = useCallback(
+    (heading: HTMLHeadingElement | null): void => {
+      headingRef.current = heading;
+      // Set initial focus before useDialog's effect so its delayed fallback cannot
+      // steal focus while a nested menu is restoring its trigger (CNB #17).
+      heading?.focus();
+      if (heading == null || initialLane == null) return;
+      queueMicrotask(() => {
+        if (headingRef.current !== heading || !heading.isConnected) return;
+        const target = laneTriggerRefs.current.get(initialLane);
+        target?.focus({ preventScroll: true });
+        target?.scrollIntoView({ block: "start", behavior: "instant" });
+      });
+    },
+    [initialLane],
+  );
   const editorControllerRef = useRef<Readonly<{
     preparationToken: number;
     controller: ComposerEditorController;
   }> | null>(null);
   const itemFocusTargetsRef = useRef(new Map<string, HTMLElement>());
-  const laneHeadingRefs = useRef(new Map<ComposerPendingInputLane, HTMLHeadingElement>());
+  const laneTriggerRefs = useRef(new Map<ComposerPendingInputGroup, HTMLButtonElement>());
+  const registerLaneTrigger = useCallback(
+    (lane: ComposerPendingInputGroup, element: HTMLButtonElement | null) => {
+      const previous = laneTriggerRefs.current.get(lane);
+      if (element == null) {
+        const current = pendingInputSession.getSnapshot();
+        if (
+          current.phase === "open" &&
+          current.view?.edit == null &&
+          previous?.closest('[data-slot="disclosure"]')?.contains(document.activeElement)
+        ) {
+          headingRef.current?.focus();
+        }
+        laneTriggerRefs.current.delete(lane);
+      } else {
+        laneTriggerRefs.current.set(lane, element);
+      }
+    },
+    [pendingInputSession],
+  );
   const scheduledEffectIdsRef = useRef(new Set<number>());
   const adapterMountedRef = useRef(false);
   const presenceGenerationRef = useRef(pendingInputSnapshot.ownerGeneration);
@@ -131,10 +162,10 @@ export function ComposerPendingInputDrawer({
           if (attached?.preparationToken === target.preparationToken) attached.controller.focus();
           else (retainedRef.current ?? headingRef.current)?.focus();
         } else if (target.type === "laneHeading") {
-          (laneHeadingRefs.current.get(target.lane) ?? headingRef.current)?.focus();
+          (laneTriggerRefs.current.get(target.lane) ?? headingRef.current)?.focus();
         } else {
           const itemTarget = itemFocusTargetsRef.current.get(target.key);
-          const laneTarget = laneHeadingRefs.current.get(target.fallbackLane);
+          const laneTarget = laneTriggerRefs.current.get(target.fallbackLane);
           (itemTarget ?? laneTarget ?? headingRef.current)?.focus();
         }
         pendingInputSession.consumeEffect(effect.id);
@@ -209,7 +240,7 @@ export function ComposerPendingInputDrawer({
                 )}
               </Drawer.Heading>
             </Drawer.Header>
-            <Drawer.Body className="grid content-start gap-3">
+            <Drawer.Body className="-mx-1 grid content-start gap-3 p-1">
               {recoveryNotice}
               {pendingInputSnapshot.alert == null ? null : (
                 <PendingManagementAlert alert={pendingInputSnapshot.alert} />
@@ -237,15 +268,13 @@ export function ComposerPendingInputDrawer({
                   onMove={moveItem}
                   onShowMore={showMore}
                   ordinaryQueuedCount={ordinaryQueuedCount}
+                  rejectedSteers={snapshot.rejectedSteers}
                   pages={visiblePages}
                   registerItemFocusTarget={(key, element) => {
                     if (element == null) itemFocusTargetsRef.current.delete(key);
                     else itemFocusTargetsRef.current.set(key, element);
                   }}
-                  registerLaneHeading={(lane, element) => {
-                    if (element == null) laneHeadingRefs.current.delete(lane);
-                    else laneHeadingRefs.current.set(lane, element);
-                  }}
+                  registerLaneTrigger={registerLaneTrigger}
                 />
               ) : null}
               {edit?.phase === "retained" ? (
@@ -384,26 +413,58 @@ export function ComposerPendingInputTrigger({
 }>) {
   const { t } = useLingui();
   const { guidingCount, ordinaryQueuedCount } = facts.snapshot;
+  const priorityCount = facts.snapshot.rejectedSteers.length;
+  const [lastLane, setLastLane] = useState<ComposerPendingInputGroup>("priority");
+  const focusLane =
+    lastLane === "priority" && priorityCount > 0
+      ? "priority"
+      : lastLane === "ordinary" && ordinaryQueuedCount > 0
+        ? "ordinary"
+        : guidingCount > 0
+          ? "steer"
+          : priorityCount > 0
+            ? "priority"
+            : "ordinary";
   const triggerLabel =
-    guidingCount > 0 && ordinaryQueuedCount > 0
-      ? t`Pending: Guide ${guidingCount}, Queued ${ordinaryQueuedCount}`
-      : guidingCount > 0
-        ? t`Pending: Guide ${guidingCount}`
-        : t`Pending: Queued ${ordinaryQueuedCount}`;
+    priorityCount > 0
+      ? t`Pending: Priority ${priorityCount}, Guide ${guidingCount}, Queued ${ordinaryQueuedCount}`
+      : guidingCount > 0 && ordinaryQueuedCount > 0
+        ? t`Pending: Guide ${guidingCount}, Queued ${ordinaryQueuedCount}`
+        : guidingCount > 0
+          ? t`Pending: Guide ${guidingCount}`
+          : t`Pending: Queued ${ordinaryQueuedCount}`;
   return (
     <ButtonGroup
       aria-label={triggerLabel}
-      className="justify-self-start"
+      className="max-w-full flex-wrap justify-self-start"
       size="sm"
       variant="tertiary"
     >
-      {guidingCount > 0 ? (
+      {priorityCount > 0 ? (
         <Button
-          ref={triggerRef}
+          ref={focusLane === "priority" ? triggerRef : undefined}
           onPress={() => {
-            session.open(facts);
+            setLastLane("priority");
+            session.open(facts, "priority");
           }}
         >
+          <Trans comment="Read-only queue of rejected guidance that will be sent before ordinary queued messages">
+            Priority
+          </Trans>
+          <Chip color="accent" size="sm" variant="soft">
+            {priorityCount}
+          </Chip>
+        </Button>
+      ) : null}
+      {guidingCount > 0 ? (
+        <Button
+          ref={focusLane === "steer" ? triggerRef : undefined}
+          onPress={() => {
+            setLastLane("steer");
+            session.open(facts, "steer");
+          }}
+        >
+          {priorityCount > 0 ? <ButtonGroup.Separator /> : null}
           <Trans>Guide</Trans>
           <Chip color="accent" size="sm" variant="soft">
             {guidingCount}
@@ -412,12 +473,13 @@ export function ComposerPendingInputTrigger({
       ) : null}
       {ordinaryQueuedCount > 0 ? (
         <Button
-          ref={guidingCount > 0 ? undefined : triggerRef}
+          ref={focusLane === "ordinary" ? triggerRef : undefined}
           onPress={() => {
-            session.open(facts);
+            setLastLane("ordinary");
+            session.open(facts, "ordinary");
           }}
         >
-          {guidingCount > 0 ? <ButtonGroup.Separator /> : null}
+          {priorityCount > 0 || guidingCount > 0 ? <ButtonGroup.Separator /> : null}
           <Trans>Queued</Trans>
           <Chip color="accent" size="sm" variant="soft">
             {ordinaryQueuedCount}

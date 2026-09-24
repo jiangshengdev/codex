@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Card,
   Chip,
@@ -10,7 +11,7 @@ import {
 } from "@heroui/react";
 import { ArrowDown, ArrowUp, Ellipsis, Pencil, Trash2 } from "lucide-react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useState } from "react";
+import { useCallback, useId, useState, type ReactNode } from "react";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type {
   ComposerPendingInputDetailResult,
@@ -21,6 +22,8 @@ import type {
 import { ComposerFullMessagePreview } from "./ComposerFullMessagePreview";
 import { ComposerInputPreviewContent } from "./ComposerInputPreviewContent";
 import type { ComposerPendingInputPrefixes } from "./composerPendingInputPages";
+import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import type { ComposerPendingInputGroup } from "./composerPendingInputSession";
 
 export type ComposerPendingInputListPages = ComposerPendingInputPrefixes &
   Readonly<{
@@ -36,9 +39,10 @@ export function ComposerPendingInputList({
   onMove,
   onShowMore,
   ordinaryQueuedCount,
+  rejectedSteers,
   pages,
   registerItemFocusTarget,
-  registerLaneHeading,
+  registerLaneTrigger,
 }: Readonly<{
   actionsDisabled: boolean;
   deleteItem: (item: ComposerPendingInputPageItem) => boolean;
@@ -51,12 +55,13 @@ export function ComposerPendingInputList({
   ) => void;
   onShowMore: (lane: ComposerPendingInputLane) => void;
   ordinaryQueuedCount: number;
+  rejectedSteers: ComposerInputQueueCoordinatorSnapshot["rejectedSteers"];
   pages: ComposerPendingInputListPages | null;
   registerItemFocusTarget: (key: string, element: HTMLElement | null) => void;
-  registerLaneHeading: (lane: ComposerPendingInputLane, element: HTMLHeadingElement | null) => void;
+  registerLaneTrigger: (lane: ComposerPendingInputGroup, element: HTMLButtonElement | null) => void;
 }>) {
   if (pages == null) return null;
-  if (guidingCount === 0 && ordinaryQueuedCount === 0)
+  if (guidingCount === 0 && ordinaryQueuedCount === 0 && rejectedSteers.length === 0)
     return (
       <p className="text-sm">
         <Trans>No pending messages</Trans>
@@ -66,8 +71,50 @@ export function ComposerPendingInputList({
     <DisclosureGroup
       allowsMultipleExpanded
       className="min-w-0"
-      defaultExpandedKeys={["steer", "ordinary"]}
+      defaultExpandedKeys={["priority", "steer", "ordinary"]}
     >
+      {rejectedSteers.length > 0 ? (
+        <PendingInputSection
+          lane="priority"
+          count={rejectedSteers.length}
+          title={
+            <Trans comment="Read-only queue of rejected guidance that will be sent before ordinary queued messages">
+              Priority
+            </Trans>
+          }
+          registerLaneTrigger={registerLaneTrigger}
+        >
+          <Alert status="accent" role="status">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>
+                <Trans>Currently unable to guide; added to queue</Trans>
+              </Alert.Title>
+            </Alert.Content>
+          </Alert>
+          <ul className="grid min-w-0 gap-2">
+            {rejectedSteers.map((item) => (
+              <li className="min-w-0" key={item.key}>
+                <Card>
+                  <Card.Content className="min-w-0 text-foreground">
+                    <ComposerFullMessagePreview
+                      fullText={item.text}
+                      heading={<Trans>Pending details</Trans>}
+                      showFullMessage={item.preview.type === "text" && item.preview.truncated}
+                      spacing="compact"
+                    >
+                      <ComposerInputPreviewContent preview={item.preview} />
+                    </ComposerFullMessagePreview>
+                  </Card.Content>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </PendingInputSection>
+      ) : null}
+      {rejectedSteers.length > 0 && (guidingCount > 0 || ordinaryQueuedCount > 0) ? (
+        <Separator className="my-2" />
+      ) : null}
       {guidingCount > 0 ? (
         <PendingInputGroup
           actionsDisabled={actionsDisabled}
@@ -82,7 +129,7 @@ export function ComposerPendingInputList({
           onMove={onMove}
           onShowMore={onShowMore}
           registerItemFocusTarget={registerItemFocusTarget}
-          registerLaneHeading={registerLaneHeading}
+          registerLaneTrigger={registerLaneTrigger}
           revision={pages.revision}
         />
       ) : null}
@@ -101,7 +148,7 @@ export function ComposerPendingInputList({
           onMove={onMove}
           onShowMore={onShowMore}
           registerItemFocusTarget={registerItemFocusTarget}
-          registerLaneHeading={registerLaneHeading}
+          registerLaneTrigger={registerLaneTrigger}
           revision={pages.revision}
         />
       ) : null}
@@ -122,7 +169,7 @@ function PendingInputGroup({
   onMove,
   onShowMore,
   registerItemFocusTarget,
-  registerLaneHeading,
+  registerLaneTrigger,
   revision,
 }: Readonly<{
   actionsDisabled: boolean;
@@ -141,28 +188,85 @@ function PendingInputGroup({
   onShowMore: (lane: ComposerPendingInputLane) => void;
   revision: number;
   registerItemFocusTarget: (key: string, element: HTMLElement | null) => void;
-  registerLaneHeading: (lane: ComposerPendingInputLane, element: HTMLHeadingElement | null) => void;
+  registerLaneTrigger: (lane: ComposerPendingInputGroup, element: HTMLButtonElement | null) => void;
 }>) {
   const { t } = useLingui();
+  return (
+    <PendingInputSection
+      lane={lane}
+      count={count}
+      title={lane === "steer" ? <Trans>Guiding</Trans> : <Trans>Queued</Trans>}
+      registerLaneTrigger={registerLaneTrigger}
+    >
+      <ul className="grid min-w-0 gap-2">
+        {items.map((item) => (
+          <li className="min-w-0" key={`${String(revision)}:${item.key}`}>
+            <PendingInputItem
+              actionsDisabled={actionsDisabled}
+              composerRole={composerRole}
+              item={item}
+              onBeginEdit={onBeginEdit}
+              onDetailFailure={onDetailFailure}
+              onDelete={onDelete}
+              onMove={onMove}
+              registerItemFocusTarget={registerItemFocusTarget}
+              revision={revision}
+            />
+          </li>
+        ))}
+      </ul>
+      {!nextCursorAvailable ? null : (
+        <Button
+          aria-label={
+            lane === "steer" ? t`Show more guiding messages` : t`Show more queued messages`
+          }
+          className="justify-self-center"
+          onPress={() => {
+            onShowMore(lane);
+          }}
+          variant="secondary"
+        >
+          <Trans>Show more</Trans>
+        </Button>
+      )}
+    </PendingInputSection>
+  );
+}
+
+function PendingInputSection({
+  lane,
+  count,
+  title,
+  registerLaneTrigger,
+  children,
+}: Readonly<{
+  lane: ComposerPendingInputGroup;
+  count: number;
+  title: ReactNode;
+  registerLaneTrigger: (lane: ComposerPendingInputGroup, element: HTMLButtonElement | null) => void;
+  children: ReactNode;
+}>) {
+  const headingId = useId();
+  const onTriggerMount = useCallback(
+    (element: HTMLButtonElement | null) => {
+      registerLaneTrigger(lane, element);
+    },
+    [lane, registerLaneTrigger],
+  );
   return (
     <Disclosure id={lane}>
       {({ isExpanded }) => (
         <>
-          <Disclosure.Heading
-            level={3}
-            ref={(element) => {
-              registerLaneHeading(lane, element);
-            }}
-            tabIndex={-1}
-          >
+          <Disclosure.Heading id={headingId} level={3}>
             <Button
+              ref={onTriggerMount}
               slot="trigger"
               size="sm"
               variant={isExpanded ? "secondary" : "tertiary"}
-              className={`w-full border-none ${isExpanded ? "" : "bg-transparent"}`}
+              className={`w-full scroll-mt-2 border-none ${isExpanded ? "" : "bg-transparent"}`}
             >
               <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                {lane === "steer" ? <Trans>Guiding</Trans> : <Trans>Queued</Trans>}
+                {title}
                 <Chip color="accent" size="sm" variant="soft">
                   {count}
                 </Chip>
@@ -170,40 +274,8 @@ function PendingInputGroup({
               <Disclosure.Indicator className="text-muted" />
             </Button>
           </Disclosure.Heading>
-          <Disclosure.Content>
-            <Disclosure.Body className="grid min-w-0 gap-3">
-              <ul className="grid min-w-0 gap-2">
-                {items.map((item) => (
-                  <li className="min-w-0" key={`${String(revision)}:${item.key}`}>
-                    <PendingInputItem
-                      actionsDisabled={actionsDisabled}
-                      composerRole={composerRole}
-                      item={item}
-                      onBeginEdit={onBeginEdit}
-                      onDetailFailure={onDetailFailure}
-                      onDelete={onDelete}
-                      onMove={onMove}
-                      registerItemFocusTarget={registerItemFocusTarget}
-                      revision={revision}
-                    />
-                  </li>
-                ))}
-              </ul>
-              {!nextCursorAvailable ? null : (
-                <Button
-                  aria-label={
-                    lane === "steer" ? t`Show more guiding messages` : t`Show more queued messages`
-                  }
-                  className="justify-self-center"
-                  onPress={() => {
-                    onShowMore(lane);
-                  }}
-                  variant="tertiary"
-                >
-                  <Trans>Show more</Trans>
-                </Button>
-              )}
-            </Disclosure.Body>
+          <Disclosure.Content role="region" aria-labelledby={headingId}>
+            <Disclosure.Body className="grid min-w-0 gap-3">{children}</Disclosure.Body>
           </Disclosure.Content>
         </>
       )}
@@ -255,6 +327,17 @@ function PendingInputItem({
   };
   const content = (
     <ComposerFullMessagePreview
+      footerStart={
+        item.management.type !== "manageable" && item.management.type !== "editing" ? (
+          <Chip color="default" size="sm" variant="soft">
+            <Chip.Label>
+              <Trans comment="Status label on a pending message; entered the sending process does not mean delivery succeeded.">
+                Entered sending process
+              </Trans>
+            </Chip.Label>
+          </Chip>
+        ) : null
+      }
       fullText={detailText}
       heading={<Trans>Pending details</Trans>}
       isOpen={detailText != null}
@@ -275,7 +358,7 @@ function PendingInputItem({
       role="group"
       tabIndex={-1}
     >
-      <Card.Content>{content}</Card.Content>
+      <Card.Content className="text-foreground">{content}</Card.Content>
       {item.management.type === "manageable" ? (
         confirmingDelete ? (
           <Card.Footer className="flex-wrap justify-end gap-2">
@@ -390,15 +473,11 @@ function PendingInputItem({
             </Button>
           </Card.Footer>
         )
-      ) : (
+      ) : item.management.type === "editing" ? (
         <p className="text-sm text-muted">
-          {item.management.type === "editing" ? (
-            <Trans>This message is being edited.</Trans>
-          ) : (
-            <Trans>This message has entered the sending process.</Trans>
-          )}
+          <Trans>This message is being edited.</Trans>
         </p>
-      )}
+      ) : null}
     </Card>
   );
 }

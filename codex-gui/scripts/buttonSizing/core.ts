@@ -120,7 +120,7 @@ export function inspectButtons(fileName: string, source: string): SizingReport {
               inFailure) ||
             (fileName.endsWith("NewSessionPage.tsx") && name === "Button" && inFailure) ||
             (fileName.endsWith("ComposerPendingInputList.tsx") &&
-              owner === "PendingInputGroup" &&
+              owner === "PendingInputSection" &&
               literal(node, "slot") === "trigger"));
         if (name === "button" && compactOwners.has(owner)) {
           const forwarded =

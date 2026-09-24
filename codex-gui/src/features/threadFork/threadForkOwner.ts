@@ -47,8 +47,12 @@ export class ThreadForkOwner {
 
   private readonly navigate: (threadId: string) => void | Promise<void>;
 
-  constructor(navigate: (threadId: string) => void | Promise<void>) {
+  constructor(
+    navigate: (threadId: string) => void | Promise<void>,
+    initialSnapshot?: ThreadForkSnapshot,
+  ) {
     this.navigate = navigate;
+    if (initialSnapshot !== undefined) this.snapshot = initialSnapshot;
   }
 
   readonly getSnapshot = (): ThreadForkSnapshot => this.snapshot;

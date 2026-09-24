@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { enableMotionForTest } from "@/__tests__/browserMotion";
 
 import { renderComposerTurnControl } from "./composerTurnControlBrowserTestSupport";
 import {
@@ -7,7 +8,9 @@ import {
   queueSnapshot,
 } from "./composerTurnControlPendingInputBrowserTestSupport";
 
-test("focuses the heading on each pending Drawer mount and restores nested menu focus", async () => {
+test("focuses the requested group on each pending Drawer mount and restores nested menu focus", async () => {
+  // Preserve the real Drawer/menu timing of the delayed-focus regression (CNB #17).
+  enableMotionForTest();
   const ordinary = ["First", "Second"].map((text) =>
     pendingInputItem(text, "ordinary", { type: "text", text, truncated: false }),
   );
@@ -27,7 +30,7 @@ test("focuses the heading on each pending Drawer mount and restores nested menu 
     // A deliberate initial focus target avoids the dialog's delayed fallback focus,
     // which can otherwise interrupt nested menu restoration (CNB #17).
     await expect
-      .element(dialog.getByRole("heading", { name: "Pending details", exact: true }))
+      .element(dialog.getByRole("button", { name: "Queued 2", exact: true }))
       .toHaveFocus();
     const menuTrigger = dialog.getByRole("button", {
       name: "More move options for pending message: First",

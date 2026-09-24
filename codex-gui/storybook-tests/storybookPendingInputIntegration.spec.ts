@@ -8,7 +8,7 @@ test("preserves edits and order across priority delivery and ordinary recovery",
 }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--combined`);
   const openQueue = page
-    .getByRole("group", { name: "Pending: Queued 3", exact: true })
+    .getByRole("group", { name: /^Pending:/ })
     .getByRole("button", { name: "Queued 3", exact: true });
   await openQueue.click();
   const dialog = page.getByRole("dialog");
@@ -27,7 +27,9 @@ test("preserves edits and order across priority delivery and ordinary recovery",
     })
     .click();
   await page.getByRole("menuitem", { name: "Move to first", exact: true }).click();
-  await expect(dialog.getByRole("listitem").first()).toContainText("Revised third message");
+  await expect(
+    dialog.getByRole("region", { name: "Queued 3", exact: true }).getByRole("listitem").first(),
+  ).toContainText("Revised third message");
   await page.keyboard.press("Escape");
   await expect(openQueue).toBeFocused();
   await expect(page.getByRole("textbox", { name: "Main draft", exact: true })).toHaveValue(
@@ -39,12 +41,12 @@ test("preserves edits and order across priority delivery and ordinary recovery",
   });
   const response = page.getByRole("button", { name: "Simulate send response", exact: true });
   const confirm = page.getByRole("button", { name: "Simulate runtime confirmation", exact: true });
-  await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Priority 2", exact: true })).toBeVisible();
   await complete.click();
-  await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Priority / })).toHaveCount(0);
   await response.click();
   await confirm.click();
-  await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Priority / })).toHaveCount(0);
   await complete.click();
   await page.getByRole("button", { name: "Simulate send failure", exact: true }).click();
   await expect(page.getByText("1 message has not been sent", { exact: true })).toBeVisible();
@@ -90,8 +92,8 @@ test.describe("Chinese narrow preview", () => {
     await page.keyboard.press("Enter");
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("heading", { name: "待处理详情", exact: true })).toBeVisible();
-    // The heading receives initial focus; the close control precedes it in tab order.
-    await expect(dialog.getByRole("heading", { name: "待处理详情", exact: true })).toBeFocused();
+    // The requested group receives initial focus; the close control precedes it in tab order.
+    await expect(dialog.getByRole("button", { name: "引导中 23", exact: true })).toBeFocused();
     await page.keyboard.press("Shift+Tab");
     await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeFocused();
     await page.keyboard.press("Tab");

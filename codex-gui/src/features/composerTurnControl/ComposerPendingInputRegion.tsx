@@ -1,16 +1,16 @@
-import { Chip, Separator, Surface } from "@heroui/react";
+import { Alert, Chip, Separator, Surface } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { Fragment, type ReactNode, type Ref } from "react";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
+import { FailureLayout } from "@/feedback/FailureLayout";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
-import { ComposerFullMessagePreview } from "./ComposerFullMessagePreview";
-import { ComposerInputPreviewContent } from "./ComposerInputPreviewContent";
 import { ComposerPendingInputTrigger } from "./ComposerPendingInputDrawer";
-import type {
-  ComposerPendingInputSession,
-  ComposerPendingInputSessionSnapshot,
+import {
+  hasPendingInputs,
+  type ComposerPendingInputSession,
+  type ComposerPendingInputSessionSnapshot,
 } from "./composerPendingInputSession";
 
 export type ComposerPendingInputRegionProps = Readonly<{
@@ -44,61 +44,27 @@ export function ComposerPendingInputRegion({
 }: ComposerPendingInputRegionProps) {
   const { t } = useLingui();
   const groups: { key: string; node: ReactNode }[] = [];
-  const hasNormalPending = snapshot.guidingCount > 0 || snapshot.ordinaryQueuedCount > 0;
+  const showPendingTrigger = hasPendingInputs(snapshot) || pendingInputSnapshot.phase === "open";
 
-  if (hasNormalPending || pendingInputSnapshot.phase === "open") {
+  if (showPendingTrigger || snapshot.hasUnknownSteer) {
     groups.push({
       key: "normal",
       node: (
-        <ComposerPendingInputTrigger
-          facts={{ composerRole, mutationsEnabled, sessionRevision, snapshot }}
-          session={pendingInputSession}
-          triggerRef={triggerRef}
-        />
-      ),
-    });
-  }
-
-  if (snapshot.hasUnknownSteer) {
-    groups.push({
-      key: "unknown-steer",
-      node: (
-        <p className="text-sm text-warning" role="status">
-          <Trans>Guide status unknown</Trans>
-        </p>
-      ),
-    });
-  }
-
-  if (snapshot.rejectedSteers.length > 0) {
-    groups.push({
-      key: "rejected",
-      node: (
-        <div className="grid min-w-0 gap-2">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-medium">
-              <Trans>Will send first</Trans>
-            </h3>
-            <Chip color="accent" size="sm" variant="soft">
-              {snapshot.rejectedSteers.length}
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {showPendingTrigger ? (
+            <ComposerPendingInputTrigger
+              facts={{ composerRole, mutationsEnabled, sessionRevision, snapshot }}
+              session={pendingInputSession}
+              triggerRef={triggerRef}
+            />
+          ) : null}
+          {snapshot.hasUnknownSteer ? (
+            <Chip color="warning" size="sm" variant="soft" role="status">
+              <Chip.Label>
+                <Trans>Guide status unknown</Trans>
+              </Chip.Label>
             </Chip>
-          </div>
-          <p className="text-sm text-warning" role="status">
-            <Trans>Currently unable to guide; added to queue</Trans>
-          </p>
-          <ul className="grid max-h-[min(30vh,240px)] min-w-0 gap-2 overflow-y-auto">
-            {snapshot.rejectedSteers.map((item) => (
-              <li className="min-w-0" key={item.key}>
-                <ComposerFullMessagePreview
-                  fullText={item.text}
-                  heading={<Trans>Pending details</Trans>}
-                  showFullMessage={item.preview.type === "text" && item.preview.truncated}
-                >
-                  <ComposerInputPreviewContent preview={item.preview} />
-                </ComposerFullMessagePreview>
-              </li>
-            ))}
-          </ul>
+          ) : null}
         </div>
       ),
     });
@@ -108,30 +74,38 @@ export function ComposerPendingInputRegion({
     groups.push({
       key: "recovery",
       node: (
-        <div className="flex flex-wrap items-center gap-2">
-          <span id={recoveryDescriptionId}>
-            <Plural
-              value={snapshot.recoveryCount}
-              one="# message has not been sent"
-              other="# messages have not been sent"
-            />
-          </span>
-          <RetryActionButton
-            aria-describedby={recoveryDescriptionId}
-            isDisabled={!canRecover}
-            isPending={snapshot.isRecovering}
-            pendingChildren={
-              <Trans comment="Pending state of Continue sending while recovering previously unsent messages">
-                Resuming sending
-              </Trans>
+        <Alert status="warning" role="status">
+          <Alert.Indicator />
+          <FailureLayout
+            actions={
+              <RetryActionButton
+                aria-describedby={recoveryDescriptionId}
+                isDisabled={!canRecover}
+                isPending={snapshot.isRecovering}
+                pendingChildren={
+                  <Trans comment="Pending state of Continue sending while recovering previously unsent messages">
+                    Resuming sending
+                  </Trans>
+                }
+                onPress={onRecover}
+                size="sm"
+                variant="primary"
+              >
+                <Trans>Continue sending</Trans>
+              </RetryActionButton>
             }
-            onPress={onRecover}
-            size="sm"
-            variant="secondary"
           >
-            <Trans>Continue sending</Trans>
-          </RetryActionButton>
-        </div>
+            <Alert.Content>
+              <Alert.Title id={recoveryDescriptionId}>
+                <Plural
+                  value={snapshot.recoveryCount}
+                  one="# message has not been sent"
+                  other="# messages have not been sent"
+                />
+              </Alert.Title>
+            </Alert.Content>
+          </FailureLayout>
+        </Alert>
       ),
     });
   }

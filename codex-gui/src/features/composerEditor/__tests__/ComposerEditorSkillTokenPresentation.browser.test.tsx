@@ -1,10 +1,10 @@
 import { dispatchHistoryShortcut } from "./composerKeyboardBrowserTestSupport";
 import { createRef } from "react";
 import { $getSelection, $isNodeSelection, getNearestEditorFromDOMNode } from "lexical";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
+import { renderWithProviders } from "@/utils/test-utils";
 import type {
   SkillCatalogCandidate,
   SkillCatalogState,
@@ -20,15 +20,8 @@ import {
   skill,
 } from "./composerEditorBrowserTestSupport";
 
-let restoreMotion: (() => void) | undefined;
-
 beforeEach(async () => {
   await userEvent.unhover(document.body);
-});
-
-afterEach(() => {
-  restoreMotion?.();
-  restoreMotion = undefined;
 });
 
 test.for([
@@ -43,7 +36,6 @@ test.for([
 ] as const)(
   "keeps %s %s source and description consistent before and after selection",
   async ([locale, scope, source]) => {
-    restoreMotion = disableMotionForTest();
     const selectedSkill = {
       ...skill("review", "/skills/review/SKILL.md", "Review", "Long description", scope),
       shortDescription: "  Preferred summary  ",
@@ -69,7 +61,6 @@ test.for([
 );
 
 test("renders an inline HeroUI skill chip whose tooltip discloses only catalog-backed details", async () => {
-  restoreMotion = disableMotionForTest();
   const selectedSkill: SkillCatalogCandidate = {
     ...skill(
       "review",
@@ -203,7 +194,6 @@ test("skips the skill host during Tab traversal without opening its tooltip", as
 });
 
 test("shows invalid chip details only when a complete ready catalog confirms its path is unavailable", async () => {
-  restoreMotion = disableMotionForTest();
   const selectedSkill = skill(
     "canonical-skill",
     "/private/skills/missing-location/SKILL.md",
@@ -328,7 +318,6 @@ test("shows invalid chip details only when a complete ready catalog confirms its
 });
 
 test("reprojects invalid sibling collision paths after deleting one skill", async () => {
-  restoreMotion = disableMotionForTest();
   const { controllerRef, primary, screen } = await renderInvalidSiblingCollisionScenario();
 
   await expectPathDetails(screen, /Alpha Shared/i, "alpha/shared");
@@ -344,7 +333,6 @@ test("reprojects invalid sibling collision paths after deleting one skill", asyn
 });
 
 test("reprojects invalid sibling collision paths through undo and redo", async () => {
-  restoreMotion = disableMotionForTest();
   const { controllerRef, editor, primary, screen, selectedPaths } =
     await renderInvalidSiblingCollisionScenario();
 
@@ -370,7 +358,6 @@ test("reprojects invalid sibling collision paths through undo and redo", async (
 });
 
 test("reprojects invalid sibling collision paths through draft restore", async () => {
-  restoreMotion = disableMotionForTest();
   const { collidingDraft, controllerRef, primary, screen, selectedPaths, singleDraft } =
     await renderInvalidSiblingCollisionScenario();
 
