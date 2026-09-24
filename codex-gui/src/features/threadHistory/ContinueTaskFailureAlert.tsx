@@ -38,7 +38,7 @@ export function ContinueTaskFailureAlert({
         <Alert role="alert" status="danger">
           <Alert.Indicator />
           <FailureLayout>
-            <Alert.Content className="gap-2">
+            <Alert.Content>
               <Alert.Title>
                 <Trans>Unable to continue this task</Trans>
               </Alert.Title>
@@ -188,7 +188,7 @@ function ContinueTaskUnavailableAlert({
         <Alert role="alert" status="danger">
           <Alert.Indicator />
           <FailureLayout>
-            <Alert.Content className="gap-2">
+            <Alert.Content>
               <Alert.Title>
                 {failure.progress === "beforeCommit" ? (
                   <Trans>Unable to continue this task</Trans>
@@ -227,7 +227,7 @@ function ContinueTaskUnavailableAlert({
         <Alert role="alert" status="danger">
           <Alert.Indicator />
           <FailureLayout>
-            <Alert.Content className="gap-2">
+            <Alert.Content>
               <Alert.Title>
                 <Trans>Unable to continue this task</Trans>
               </Alert.Title>
