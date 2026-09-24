@@ -33,7 +33,7 @@ msgid "{0, plural, one {# mention} other {# mentions}}"
 msgstr "{0, plural, one {# 个提及} other {# 个提及}}"
 
 #. placeholder {0}: snapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:135
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:137
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# 条消息尚未发送} other {# 条消息尚未发送}}"
 
@@ -298,7 +298,7 @@ msgid "Context usage details, {usedTokensLabel} tokens used, context window capa
 msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗口容量未知"
 
 #. Resumes sending this page's restored queue; does not open the queue
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:129
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:131
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:73
 msgid "Continue sending"
 msgstr "继续发送"
@@ -388,7 +388,7 @@ msgstr "当前任务等待输入"
 msgid "Current task status is unknown"
 msgstr "当前任务状态未知"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:88
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:90
 msgid "Currently unable to guide; added to queue"
 msgstr "当前无法引导，已加入队列"
 
@@ -548,7 +548,7 @@ msgstr "返回首页"
 msgid "Guide"
 msgstr "引导"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:68
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:69
 msgid "Guide status unknown"
 msgstr "引导状态未知"
 
@@ -851,7 +851,7 @@ msgstr "找不到页面"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:206
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:259
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:95
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:97
 msgid "Pending details"
 msgstr "待处理详情"
 
@@ -872,7 +872,7 @@ msgstr "待发送消息编辑区"
 msgid "Pending message was not reordered"
 msgstr "待处理消息未重新排序"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:153
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:155
 msgid "Pending messages"
 msgstr "待处理消息"
 
@@ -1056,7 +1056,7 @@ msgid "Resuming {receiver}"
 msgstr "正在恢复 {receiver}"
 
 #. Pending state of Continue sending while recovering previously unsent messages
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:121
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:123
 msgid "Resuming sending"
 msgstr "正在继续发送"
 
@@ -1675,7 +1675,7 @@ msgstr "等待输入"
 msgid "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
 msgstr "正在等待压缩请求结果。确认结果前，仍无法发送消息。"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:81
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:83
 msgid "Will send first"
 msgstr "将优先发送"
 

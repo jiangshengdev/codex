@@ -64,9 +64,11 @@ export function ComposerPendingInputRegion({
     groups.push({
       key: "unknown-steer",
       node: (
-        <p className="text-sm text-warning" role="status">
-          <Trans>Guide status unknown</Trans>
-        </p>
+        <Chip color="warning" size="sm" variant="soft" role="status">
+          <Chip.Label>
+            <Trans>Guide status unknown</Trans>
+          </Chip.Label>
+        </Chip>
       ),
     });
   }
