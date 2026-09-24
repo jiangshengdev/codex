@@ -11,6 +11,7 @@ import {
   type RecoveryScenario,
 } from "./recoveryScenario";
 import { DevOnly } from "../../../environment/DevOnly";
+import { PendingInputBrowsingInitialState } from "../PendingInputBrowsingInitialState";
 
 function GuideControls({ scenario }: Readonly<{ scenario: RecoveryScenario }>) {
   const requests = useSyncExternalStore(scenario.steers.subscribe, scenario.steers.getSnapshot);
@@ -148,7 +149,14 @@ function RecoveryControls({
 function RecoveryView({
   scenario,
   preset,
-}: Readonly<{ scenario: RecoveryScenario; preset: RecoveryPreset }>) {
+  openInitially,
+  priorityDetail,
+}: Readonly<{
+  scenario: RecoveryScenario;
+  preset: RecoveryPreset;
+  openInitially: boolean;
+  priorityDetail: boolean;
+}>) {
   const snapshot = useSyncExternalStore(scenario.display.subscribe, scenario.display.getSnapshot);
   return (
     <PendingInputScenarioView
@@ -158,6 +166,14 @@ function RecoveryView({
     >
       <GuideControls scenario={scenario} />
       <RecoveryControls scenario={scenario} preset={preset} />
+      {(openInitially || priorityDetail) &&
+      snapshot.rejectedSteers.length > 0 &&
+      snapshot.guidingCount > 0 ? (
+        <PendingInputBrowsingInitialState
+          targetGroup="priority"
+          detail={priorityDetail ? "priority" : undefined}
+        />
+      ) : null}
     </PendingInputScenarioView>
   );
 }
@@ -165,13 +181,29 @@ function RecoveryView({
 export function PendingInputRecoveryPreview({
   preset = "guiding",
   mixedText = false,
-}: Readonly<{ preset?: RecoveryPreset; mixedText?: boolean }>) {
+  allQueuesGuidingCount = 1,
+  openInitially = false,
+  priorityDetail = false,
+}: Readonly<{
+  preset?: RecoveryPreset;
+  mixedText?: boolean;
+  allQueuesGuidingCount?: number;
+  openInitially?: boolean;
+  priorityDetail?: boolean;
+}>) {
   return (
     <PendingInputPreview
-      key={`${preset}-${String(mixedText)}`}
-      createScenario={() => createRecoveryScenario(preset, mixedText)}
+      key={`${preset}-${String(mixedText)}-${String(allQueuesGuidingCount)}-${String(openInitially)}-${String(priorityDetail)}`}
+      createScenario={() => createRecoveryScenario(preset, mixedText, allQueuesGuidingCount)}
     >
-      {(scenario) => <RecoveryView scenario={scenario} preset={preset} />}
+      {(scenario) => (
+        <RecoveryView
+          scenario={scenario}
+          preset={preset}
+          openInitially={openInitially}
+          priorityDetail={priorityDetail}
+        />
+      )}
     </PendingInputPreview>
   );
 }

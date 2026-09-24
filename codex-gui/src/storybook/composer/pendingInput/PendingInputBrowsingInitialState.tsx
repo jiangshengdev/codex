@@ -1,39 +1,56 @@
 import { useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
-import { userEvent, within } from "storybook/test";
+import { within } from "storybook/test";
 import { useComposerPendingInput } from "@/features/composerTurnControl/composerPendingInputHost";
+import type { ComposerPendingInputGroup } from "@/features/composerTurnControl/composerPendingInputSession";
 
 export function PendingInputBrowsingInitialState({
   detail,
-}: Readonly<{ detail?: "ordinary" | "guiding" }>) {
+  targetGroup,
+}: Readonly<{
+  detail?: "ordinary" | "guiding" | "priority";
+  targetGroup?: ComposerPendingInputGroup;
+}>) {
   const host = useComposerPendingInput();
   const { t } = useLingui();
   const [failure, setFailure] = useState<{ error: unknown } | null>(null);
   const label = t`View full message`;
   useEffect(() => {
-    let current = true;
-    const isCurrent = () => current;
     const binding = host.getSnapshot().connection?.binding;
     if (binding == null) throw new Error("Pending preview binding is required");
-    if (host.getSnapshot().pending.phase === "closed") host.session.open(binding);
+    if (host.getSnapshot().pending.phase === "closed") host.session.open(binding, targetGroup);
     if (detail != null) {
-      const initialize = async () => {
-        const dialog = await within(document.body).findByRole("dialog");
-        if (!isCurrent()) return;
-        const row = await within(dialog).findByRole("group", {
-          name: detail === "ordinary" ? /^Ordinary message 1\s/ : /^Guide message 1\s/,
-        });
-        if (!isCurrent()) return;
-        await userEvent.click(within(row).getByRole("button", { name: label }));
+      // Observe the real portal without entering a testing-library act scope
+      // from a running React effect.
+      const initialize = () => {
+        const dialog = within(document.body).queryByRole("dialog");
+        if (dialog == null) return;
+        const row =
+          detail === "priority"
+            ? within(dialog).queryAllByRole("region")[0]
+            : within(dialog).queryByRole("group", {
+                name: detail === "ordinary" ? /^Ordinary message 1\s/ : /^Guide message 1\s/,
+              });
+        if (row == null) return;
+        const [button] = within(row).queryAllByRole("button", { name: label });
+        if (button == null) return;
+        observer.disconnect();
+        clearTimeout(timeout);
+        button.click();
       };
-      void initialize().catch((error: unknown) => {
-        if (current) setFailure({ error });
-      });
+      const observer = new MutationObserver(initialize);
+      const timeout = setTimeout(() => {
+        observer.disconnect();
+        setFailure({ error: new Error("Pending preview full message button was not mounted") });
+      }, 1000);
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+      initialize();
+      return () => {
+        observer.disconnect();
+        clearTimeout(timeout);
+      };
     }
-    return () => {
-      current = false;
-    };
-  }, [detail, host, label]);
+  }, [detail, host, label, targetGroup]);
   if (failure != null) throw failure.error;
   return null;
 }

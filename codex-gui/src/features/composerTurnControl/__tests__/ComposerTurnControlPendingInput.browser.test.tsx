@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import { exposedBackdropPosition } from "@/__tests__/backdropBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { ActiveThreadSkillsRole } from "@/features/activeThreadSession/activeThreadSession";
@@ -15,7 +16,8 @@ import {
   eventTurnCompleted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import type { SkillCatalogCandidate } from "@/features/skillCatalog/skillCatalogOwner";
-import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
+import { renderWithProviders } from "@/utils/test-utils";
+import { enableMotionForTest } from "@/__tests__/browserMotion";
 
 import { ComposerTurnControl } from "../ComposerTurnControl";
 import { ComposerPendingInputProvider } from "../ComposerPendingInputProvider";
@@ -35,7 +37,6 @@ import {
 const attachResponse = attachBaseline;
 
 const threadId = attachResponse.snapshot.thread.id;
-let restoreMotion: (() => void) | undefined;
 
 beforeEach(async () => {
   await userEvent.unhover(document.body);
@@ -48,8 +49,6 @@ const skillsRoleFor = (
   retrySkills: () => controller.retry(),
 });
 afterEach(() => {
-  restoreMotion?.();
-  restoreMotion = undefined;
   vi.restoreAllMocks();
 });
 
@@ -59,7 +58,6 @@ test.each([375, 1280])(
     const viewport = { width: window.innerWidth, height: window.innerHeight };
     try {
       await page.viewport(width, 900);
-      restoreMotion = disableMotionForTest();
       const reference = await renderWithProviders(
         <>
           <Button size="sm">Compact reference</Button>
@@ -215,7 +213,6 @@ test.each([false, true])(
   "shows the selected skill and catalog tooltip while editing a pending message (StrictMode=%s)",
   async (strictMode) => {
     const consoleError = vi.spyOn(console, "error");
-    restoreMotion = disableMotionForTest();
     const selectedSkill: SkillCatalogCandidate = {
       name: "pending-skill",
       path: "/repo/skills/hidden-pending-location/SKILL.md",
@@ -296,7 +293,6 @@ test.each([false, true])(
 );
 
 test("shows Guide only for an active turn and submits an accepted draft as steer", async () => {
-  restoreMotion = disableMotionForTest();
   const idleScreen = await renderComposerTurnControl();
   await expect
     .element(idleScreen.getByRole("button", { name: "Guide", exact: true }))
@@ -439,7 +435,7 @@ test("routes guide shortcuts by draft presence while ordinary Enter stays ordina
   expect(harness.submitSteer).toHaveBeenCalledTimes(1);
 });
 
-test("renders one bounded pending-input Drawer while keeping exceptional states inline", async () => {
+test("renders all pending queues in one bounded Drawer while keeping unknown delivery inline", async () => {
   const longPreview = `${"Guide detail ".repeat(13)}...`;
   const longDetail = "Guide detail ".repeat(20).trim();
   const steerItems = Array.from({ length: 21 }, (_, index) =>
@@ -509,16 +505,18 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
   const region = screen.getByRole("region", { name: "Pending messages", exact: true });
   const trigger = region
     .getByRole("group", {
-      name: "Pending: Guide 21, Queued 21",
+      name: "Pending: Priority 1, Guide 21, Queued 21",
       exact: true,
     })
     .getByRole("button", { name: "Guide 21", exact: true });
 
   await expect.element(trigger).toBeVisible();
-  await expect.element(region.getByText("Will send first", { exact: true })).toBeVisible();
+  await expect
+    .element(region.getByRole("button", { name: "Priority 1", exact: true }))
+    .toBeVisible();
   await expect
     .element(region.getByText("Currently unable to guide; added to queue", { exact: true }))
-    .toBeVisible();
+    .not.toBeInTheDocument();
   await expect.element(region.getByText("Guide status unknown", { exact: true })).toBeVisible();
   await expect.element(region.getByText("Ordinary A", { exact: true })).not.toBeInTheDocument();
   expect(region.getByRole("button", { name: /retry/i }).query()).toBeNull();
@@ -545,9 +543,7 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
   await expect.element(dialog).not.toHaveTextContent("steer-long");
   await expect.element(dialog).not.toHaveTextContent("ordinary-a");
   await expect.element(dialog).toHaveTextContent(/2 images.*1 audio item.*1 skill.*1 mention/);
-  await expect
-    .element(dialog.getByText("This message has entered the sending process.", { exact: true }))
-    .toBeVisible();
+  await expect.element(dialog.getByText("Entered sending process", { exact: true })).toBeVisible();
   const dialogText = dialog.element().textContent;
   expect(dialogText.indexOf(longPreview)).toBeLessThan(dialogText.indexOf("Steer 2"));
   expect(dialogText.indexOf("Ordinary A")).toBeLessThan(dialogText.indexOf("Ordinary B"));
@@ -619,7 +615,7 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
   });
   const currentTrigger = region
     .getByRole("group", {
-      name: "Pending: Guide 1, Queued 1",
+      name: "Pending: Priority 1, Guide 1, Queued 1",
       exact: true,
     })
     .getByRole("button", { name: "Guide 1", exact: true });
@@ -650,6 +646,7 @@ test("edits and deletes an ordinary pending message in one Drawer without changi
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   expect(screen.getByRole("dialog").all().length).toBe(1);
 
+  await waitForPendingDrawerOpen();
   await dialog.getByRole("button", { name: "Edit", exact: true }).click();
   const pendingEditor = screen.getByRole("combobox", {
     name: "Edit pending message",
@@ -757,6 +754,7 @@ test("returns focus to the Composer when cancelling an edit synchronously drains
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
     .getByRole("button", { name: "Queued 1", exact: true })
     .click();
+  await waitForPendingDrawerOpen();
   await screen.getByRole("button", { name: "Edit", exact: true }).click();
   await expect
     .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
@@ -840,9 +838,7 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
     .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
 
-  await expect
-    .element(dialog.getByText("This message has entered the sending process.", { exact: true }))
-    .toBeVisible();
+  await expect.element(dialog.getByText("Entered sending process", { exact: true })).toBeVisible();
   expect(dialog.getByRole("button", { name: "Edit", exact: true }).all().length).toBe(1);
   expect(dialog.getByRole("button", { name: "Delete", exact: true }).all().length).toBe(1);
 
@@ -885,7 +881,7 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
   await expect.element(heldDialog).not.toBeInTheDocument();
   await expect.element(composer).toHaveFocus();
   await screen
-    .getByRole("group", { name: "Pending: Guide 1", exact: true })
+    .getByRole("group", { name: /^Pending:/ })
     .getByRole("button", { name: "Guide 1", exact: true })
     .click();
   await expect
@@ -915,6 +911,7 @@ test("retains unsaved edits through a projection pause and a new subscription wi
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
     .getByRole("button", { name: "Queued 1", exact: true })
     .click();
+  await waitForPendingDrawerOpen();
   await screen.getByRole("button", { name: "Edit", exact: true }).click();
   await expect
     .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
@@ -1081,6 +1078,7 @@ test.each(
 )(
   "keeps the pending panel mounted and visible throughout $lane $method exit",
   async ({ lane, method }) => {
+    enableMotionForTest();
     const item = pendingInputItem("pending", lane, {
       type: "text",
       text: "Queued message",
@@ -1144,7 +1142,7 @@ test.each(
       else {
         const backdrop = document.querySelector('[data-slot="drawer-backdrop"]');
         if (!(backdrop instanceof HTMLElement)) throw new Error("Expected drawer backdrop");
-        await screen.user.click(backdrop, { position: { x: 2, y: backdrop.clientHeight / 2 } });
+        await screen.user.click(backdrop, { position: exposedBackdropPosition(backdrop) });
       }
       await expect.element(dialog).not.toBeInTheDocument();
       await expect.element(trigger).toHaveFocus();
@@ -1164,6 +1162,7 @@ test.each(
 );
 
 test("returns to the Composer when the queue empties during the exit animation", async () => {
+  enableMotionForTest();
   const harness = createQueueControllerHarness(
     queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1, canStop: true }),
     {
@@ -1240,6 +1239,7 @@ test("closes and clears pending details when counts become empty", async () => {
 });
 
 test("does not reopen a closing Drawer when new pending input arrives before presence ends", async () => {
+  enableMotionForTest();
   const harness = createQueueControllerHarness(
     queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1, canStop: true }),
     {
@@ -1301,7 +1301,6 @@ test("does not reopen a closing Drawer when new pending input arrives before pre
 });
 
 test("replaces an open pending-input owner without leaking its cached view into the new owner", async () => {
-  restoreMotion = disableMotionForTest();
   const queueHarness = createQueueControllerHarness(
     queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1 }),
     {
@@ -1517,16 +1516,21 @@ test("renders Simplified Chinese guide and pending-input copy", async () => {
   const region = screen.getByRole("region", { name: "待处理消息", exact: true });
   const trigger = region
     .getByRole("group", {
-      name: "待处理：引导 1，排队 2",
+      name: "待处理：优先发送 1，引导 1，排队 2",
       exact: true,
     })
     .getByRole("button", { name: "引导 1", exact: true });
   await expect.element(trigger).toBeVisible();
-  await expect.element(region.getByText("将优先发送", { exact: true })).toBeVisible();
-  await expect.element(region.getByText("当前无法引导，已加入队列", { exact: true })).toBeVisible();
+  await expect
+    .element(region.getByRole("button", { name: "优先发送 1", exact: true }))
+    .toBeVisible();
+  await expect
+    .element(region.getByText("当前无法引导，已加入队列", { exact: true }))
+    .not.toBeInTheDocument();
   await expect.element(region.getByText("引导状态未知", { exact: true })).toBeVisible();
   await trigger.click();
   const dialog = screen.getByRole("dialog", { name: "待处理详情", exact: true });
+  await expect.element(dialog.getByText("当前无法引导，已加入队列", { exact: true })).toBeVisible();
   await expect.element(dialog.getByRole("heading", { name: "引导中" })).toBeVisible();
   await expect.element(dialog.getByRole("heading", { name: "已排队" })).toBeVisible();
   const secondQueuedGroup = dialog.getByRole("group", { name: "普通消息二", exact: true });
@@ -1550,7 +1554,7 @@ test("renders Simplified Chinese guide and pending-input copy", async () => {
     .toBeVisible();
   await moveMenu.getByRole("menuitem", { name: "移至队首", exact: true }).click();
   await expect
-    .element(dialog.getByRole("status"))
+    .element(dialog.getByRole("status").filter({ hasText: "已将已排队消息移到第 1 项，共 2 项。" }))
     .toHaveTextContent("已将已排队消息移到第 1 项，共 2 项。");
 });
 

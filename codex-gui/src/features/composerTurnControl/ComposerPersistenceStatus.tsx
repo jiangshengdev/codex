@@ -1,4 +1,4 @@
-import { Alert, Button } from "@heroui/react";
+import { Alert, Button, Separator } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import type { ActiveThreadSessionSnapshot } from "@/features/activeThreadSession/activeThreadSession";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
@@ -103,14 +103,16 @@ export function ComposerPersistenceStatus({
                 not cancel or retract a message on the server.
               </Trans>
             </Alert.Description>
-            <ul className="mt-4 grid max-h-[min(30vh,240px)] w-full min-w-0 gap-2 overflow-y-auto">
-              {persistence.unknownMessages.map((message) => (
-                <li key={message.id} className="min-w-0">
-                  <FailureLayout
+            <ul className="-m-1 mt-3 grid max-h-[min(30vh,240px)] min-w-0 gap-2 self-stretch overflow-y-auto p-1">
+              {persistence.unknownMessages.map((message, index) => (
+                <li key={message.id} className="grid min-w-0 gap-2">
+                  {index > 0 ? <Separator /> : null}
+                  <ComposerUnknownMessagePreview
+                    text={message.text}
                     actions={
                       <Button
                         size="sm"
-                        variant="danger"
+                        variant="danger-soft"
                         isDisabled={!enabled || persistence.error != null}
                         onPress={() => {
                           composerRole.discardUnknown(revision, message.id, persistence.revision);
@@ -121,9 +123,7 @@ export function ComposerPersistenceStatus({
                         </Trans>
                       </Button>
                     }
-                  >
-                    <ComposerUnknownMessagePreview text={message.text} />
-                  </FailureLayout>
+                  />
                 </li>
               ))}
             </ul>

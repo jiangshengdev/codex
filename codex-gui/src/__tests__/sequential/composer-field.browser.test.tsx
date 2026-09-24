@@ -1,11 +1,11 @@
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { page, userEvent, type Locator } from "vitest/browser";
 import { consumeBrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 import { renderComposerTurnControl } from "@/features/composerTurnControl/__tests__/composerTurnControlBrowserTestSupport";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import { createAppRouter } from "@/router";
-import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
+import { renderWithProviders } from "@/utils/test-utils";
 import {
   attachResponse,
   createGuiHostCommands,
@@ -23,14 +23,9 @@ vi.mock("@/features/guiHost/guiHostClient", () => ({
   startGuiHostConnection: host.startGuiHostConnection,
 }));
 
-let restoreMotion: (() => void) | undefined;
 beforeEach(async () => {
   resetAppBrowserTestSupport(host.startGuiHostConnection);
-  restoreMotion = disableMotionForTest();
   await userEvent.unhover(document.body);
-});
-afterEach(() => {
-  restoreMotion?.();
 });
 
 async function mountNewSession() {

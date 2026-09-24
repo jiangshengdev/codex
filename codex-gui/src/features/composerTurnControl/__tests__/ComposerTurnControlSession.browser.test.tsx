@@ -8,6 +8,7 @@ import {
 import { tokenUsageUpdated } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createComposerPendingInputSession } from "../composerPendingInputSession";
 import { createComposerTurnApplication } from "../composerTurnApplication";
+import { waitForPendingDrawerOpen } from "./composerTurnControlPendingInputBrowserTestSupport";
 import {
   renderComposerTurnControl,
   type RenderedComposerTurnControl,
@@ -234,6 +235,7 @@ test("disposes active Composer applications once after a real StrictMode unmount
     .getByRole("group", { name: "Pending: Queued 1", exact: true })
     .getByRole("button", { name: "Queued 1", exact: true })
     .click();
+  await waitForPendingDrawerOpen();
   await screen.getByRole("button", { name: "Edit", exact: true }).click();
   await expect
     .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
