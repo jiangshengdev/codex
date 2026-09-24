@@ -10,6 +10,7 @@ import {
 import { createListenerSet } from "@/subscriptions/listenerSet";
 import { createPendingInputScenario, manualRequests } from "../pendingInputScenario";
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
+import { mixedMessageText } from "../../../shared/mixedMessageText";
 
 export type RecoveryPreset =
   | "guiding"
@@ -48,7 +49,11 @@ export function guideRefusal() {
   });
 }
 
-export function createRecoveryScenario(preset: RecoveryPreset, mixedText = false) {
+export function createRecoveryScenario(
+  preset: RecoveryPreset,
+  mixedText = false,
+  allQueuesGuidingCount = 1,
+) {
   const recoveryPreset =
     preset === "unsent" || preset === "recoveryDisabled" || preset === "recovering";
   const scenario = createPendingInputScenario(
@@ -131,7 +136,17 @@ export function createRecoveryScenario(preset: RecoveryPreset, mixedText = false
         );
         if (result.type === "blocked") throw new Error(result.error);
         scenario.coordinator.setProjectionUnavailable(false);
-        scenario.coordinator.submitSteer(composerDraftCapture("Guidance for the new active turn"));
+        for (let index = 1; index <= allQueuesGuidingCount; index++) {
+          scenario.coordinator.submitSteer(
+            composerDraftCapture(
+              allQueuesGuidingCount === 1
+                ? "Guidance for the new active turn"
+                : mixedText
+                  ? mixedMessageText("Guidance for the new active turn", index)
+                  : `Guidance for the new active turn ${String(index)}`,
+            ),
+          );
+        }
       });
     });
   }
