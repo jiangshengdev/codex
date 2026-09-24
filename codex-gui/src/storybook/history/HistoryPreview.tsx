@@ -78,10 +78,16 @@ function HistoryRouter({ scenario }: Readonly<{ scenario: Scenario }>) {
       path: "/task/$threadId",
       component: CurrentTaskPage,
     });
-    return createRouter({
+    const previewRouter = createRouter({
       routeTree: root.addChildren([app.addChildren([list, detail, current])]),
       history: createMemoryHistory({ initialEntries: [scenario.initialPath] }),
     });
+    const navigate = previewRouter.navigate;
+    previewRouter.navigate = async (navigation) => {
+      if (navigation.to === "/task/$threadId") scenario.beforeTaskNavigation();
+      await navigate(navigation);
+    };
+    return previewRouter;
   });
   useEffect(() => {
     let active = true;

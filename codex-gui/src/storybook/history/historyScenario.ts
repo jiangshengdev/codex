@@ -1,5 +1,8 @@
 import type { AppDispatch } from "@/app/store";
-import { createActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
+import {
+  createActiveThreadSession,
+  type ActiveThreadSession,
+} from "@/features/activeThreadSession/activeThreadSession";
 import { BrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 import { createThreadResumeResponse } from "@/features/guiHost/__tests__/threadResumeTestBuilders";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
@@ -15,10 +18,18 @@ import {
 } from "./historyFixtures";
 import { createHistoryListCommand, type HistoryListScenario } from "./historyListScenarios";
 import { createHistoryReadCommand, type HistoryDetailScenario } from "./historyDetailScenarios";
+import {
+  continuationFailures,
+  continuationWarnings,
+  type ContinuationFailurePreset,
+  type ContinuationWarningPreset,
+} from "./continuationScenarios";
 
 export type HistoryScenarioOptions = Readonly<{
   list?: HistoryListScenario;
   detail?: HistoryDetailScenario;
+  continuation?: ContinuationFailurePreset | "unexpectedFailure" | "navigationFailed" | "pending";
+  warning?: ContinuationWarningPreset;
 }>;
 
 export function createHistoryScenario(dispatch: AppDispatch, options: HistoryScenarioOptions = {}) {
@@ -102,19 +113,44 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
       },
     },
   });
-  const session = {
+  const session: ActiveThreadSession = {
     ...controller.session,
-    activate: (threadId: string) => {
+    activate: async (threadId: string) => {
       activationCount += 1;
+      if (options.continuation === "pending") await wait(true);
+      if (
+        activationCount === 1 &&
+        options.continuation != null &&
+        options.continuation !== "navigationFailed" &&
+        options.continuation !== "pending"
+      ) {
+        await wait();
+        if (options.continuation === "unexpectedFailure")
+          throw new Error("STORYBOOK_CONTINUE_FAILED: Unexpected activation result.");
+        return continuationFailures[options.continuation];
+      }
       // Simulate the public activation capability returning an authoritative identity.
-      return controller.session.activate(
+      const outcome = await controller.session.activate(
         threadId === historySelectedId ? historyReturnedId : threadId,
       );
+      return outcome.type === "ready" && options.warning != null
+        ? { ...outcome, warnings: [...outcome.warnings, continuationWarnings[options.warning]] }
+        : outcome;
     },
   };
   let start: Promise<unknown> | undefined;
+  let navigationFailed = false;
   return {
-    initialPath: options.detail == null ? "/history" : `/history/${historySelectedId}`,
+    initialPath:
+      options.detail == null && options.continuation == null && options.warning == null
+        ? "/history"
+        : `/history/${historySelectedId}`,
+    beforeTaskNavigation() {
+      if (options.continuation === "navigationFailed" && !navigationFailed) {
+        navigationFailed = true;
+        throw new Error("STORYBOOK_NAVIGATION_FAILED: Local route transition failed.");
+      }
+    },
     commands,
     session,
     newSessionOwner: new NewSessionOwner(),
