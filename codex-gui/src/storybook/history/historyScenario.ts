@@ -16,7 +16,7 @@ import {
   historySelectedId,
   historyReturnedId,
   historyCwd,
-  historyTasks,
+  createHistoryFixtures,
 } from "./historyFixtures";
 import { createHistoryListCommand, type HistoryListScenario } from "./historyListScenarios";
 import { createHistoryReadCommand, type HistoryDetailScenario } from "./historyDetailScenarios";
@@ -37,6 +37,7 @@ export type HistoryScenarioOptions = Readonly<{
 
 export function createHistoryScenario(dispatch: AppDispatch, options: HistoryScenarioOptions = {}) {
   const fallback = createRecoveryCommands();
+  const tasks = createHistoryFixtures(options.list === "longContent");
   const cancellations = new Set<() => void>();
   const wait = (pending = false): Promise<void> =>
     new Promise((resolve, reject) => {
@@ -69,7 +70,7 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
     crypto.randomUUID(),
   );
   const task = (threadId: string) => {
-    const result = historyTasks.find((entry) => entry.snapshot.thread.id === threadId);
+    const result = tasks.find((entry) => entry.snapshot.thread.id === threadId);
     if (result == null) throw new Error(`Unknown local history task: ${threadId}`);
     return result;
   };
@@ -84,7 +85,11 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
       listeners.notify();
       return Promise.reject(new Error("Creating a fork is outside this local preview."));
     },
-    listThreads: createHistoryListCommand(options.list, wait),
+    listThreads: createHistoryListCommand(
+      options.list,
+      wait,
+      (threadId) => task(threadId).snapshot.thread,
+    ),
     listLoadedThreads: () => Promise.resolve({ data: [], nextCursor: null }),
     readThread: createHistoryReadCommand(
       options.detail,

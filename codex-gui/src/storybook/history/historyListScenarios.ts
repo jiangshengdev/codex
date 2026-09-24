@@ -1,5 +1,6 @@
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
-import { historyTask, historySelectedId, historyCurrentId } from "./historyFixtures";
+import { historySelectedId, historyEarlierId } from "./historyFixtures";
+import type { Thread } from "@codex-protocol/v2";
 
 export type HistoryListScenario =
   | "loading"
@@ -14,21 +15,12 @@ export type HistoryListScenario =
 export function createHistoryListCommand(
   scenario: HistoryListScenario | undefined,
   wait: (pending?: boolean) => Promise<void>,
+  getThread: (threadId: string) => Thread,
 ): GuiHostCommands["listThreads"] {
   let initialAttempts = 0;
   let appendAttempts = 0;
-  const first = historyTask(
-    historySelectedId,
-    "Investigate history recovery",
-    "Read-only history evidence",
-  ).snapshot.thread;
-  const earlier = historyTask(historyCurrentId, "Earlier investigation", "Earlier history evidence")
-    .snapshot.thread;
-  const long = {
-    ...first,
-    name: "Long history title ".repeat(30),
-    preview: "Long summary without losing the selected task context. ".repeat(40),
-  };
+  const first = getThread(historySelectedId);
+  const earlier = getThread(historyEarlierId);
   return async ({ cursor }) => {
     if (scenario === "loading") await wait(true);
     if (cursor != null) {
@@ -45,12 +37,7 @@ export function createHistoryListCommand(
     const paginated =
       scenario === "pagination" || scenario === "paginationError" || scenario === "appendLoading";
     return {
-      data:
-        scenario === "empty"
-          ? []
-          : scenario === "longContent"
-            ? [long, { ...earlier, recencyAt: first.updatedAt - 86_400 }]
-            : [first],
+      data: scenario === "empty" ? [] : scenario === "longContent" ? [first, earlier] : [first],
       nextCursor: paginated ? "local-next-page" : null,
       backwardsCursor: null,
     };

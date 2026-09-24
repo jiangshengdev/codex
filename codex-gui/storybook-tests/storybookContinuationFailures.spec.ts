@@ -78,6 +78,7 @@ for (const { story, title, description, canReturn } of failureCases) {
   const returnCount = canReturn ? 1 : 0;
   const actionName = canReturn ? "Return to current task" : "Continue this task";
   const recoveredText = canReturn ? "Current task context" : "Recovered authoritative task";
+
   test(`continuation ${story} preserves history and offers the appropriate recovery`, async ({
     page,
   }) => {

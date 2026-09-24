@@ -8,6 +8,7 @@ import {
   RouterProvider,
   useLocation,
   useRouter,
+  useMatches,
 } from "@tanstack/react-router";
 import { useAppDispatch } from "@/app/hooks";
 import { AppCapabilitiesContext } from "@/features/appShell/AppCapabilities";
@@ -15,7 +16,8 @@ import { AppShell } from "@/features/appShell/AppShell";
 import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
 import { ThreadHistoryListPage } from "@/features/threadHistory/ThreadHistoryListPage";
 import { ThreadHistoryDetailPage } from "@/features/threadHistory/ThreadHistoryDetailPage";
-import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
+import { selectGuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
+import { DocumentTitleOwner } from "@/features/documentTitle/DocumentTitleOwner";
 import { PendingInputPreview } from "../composer/pendingInput/PendingInputScenarioView";
 import { createHistoryScenario, type HistoryScenarioOptions } from "./historyScenario";
 import { ThreadForkOwner } from "@/features/threadFork/threadForkOwner";
@@ -33,15 +35,12 @@ function HistoryShell({
   const activationCount = useSyncExternalStore(scenario.subscribe, scenario.getActivationCount);
   const forkCount = useSyncExternalStore(scenario.subscribe, scenario.getForkCount);
   const pathname = useLocation({ select: (location) => location.pathname });
-  const threadId = pathname.split("/")[2] ?? "";
-  const routeTarget: GuiRouteTarget = pathname.startsWith("/task/")
-    ? { type: "currentTask", threadId }
-    : threadId !== ""
-      ? { type: "historyDetail", threadId }
-      : { type: "historyList" };
+  const routeTarget = useMatches({ select: selectGuiRouteTarget });
+  const viewedThreadId = routeTarget?.type === "currentTask" ? routeTarget.threadId : null;
   useEffect(() => {
-    if (pathname.startsWith("/task/")) void scenario.session.view(threadId);
-  }, [scenario, pathname, threadId]);
+    if (viewedThreadId != null) void scenario.session.view(viewedThreadId);
+  }, [scenario, viewedThreadId]);
+  if (routeTarget == null) return null;
   return (
     <AppCapabilitiesContext
       value={{
@@ -102,6 +101,7 @@ function HistoryRouter({ scenario }: Readonly<{ scenario: Scenario }>) {
       component: CurrentTaskPage,
     });
     const previewRouter = createRouter({
+      InnerWrap: DocumentTitleOwner,
       routeTree: root.addChildren([app.addChildren([list, detail, current])]),
       history: createMemoryHistory({ initialEntries: [scenario.initialPath] }),
     });

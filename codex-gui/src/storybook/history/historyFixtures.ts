@@ -12,6 +12,7 @@ import {
 export const historyCurrentId = "00000000-0000-0000-0000-000000000101";
 export const historySelectedId = "00000000-0000-0000-0000-000000000102";
 export const historyReturnedId = "00000000-0000-0000-0000-000000000103";
+export const historyEarlierId = "00000000-0000-0000-0000-000000000104";
 export const historyCwd = "/storybook/history";
 
 export function historyTask(threadId: string, name: string, answer: string) {
@@ -35,8 +36,27 @@ export function historyTask(threadId: string, name: string, answer: string) {
   });
 }
 
-export const historyTasks = [
-  historyTask(historyCurrentId, "Current investigation", "Current task context"),
-  historyTask(historySelectedId, "Investigate history recovery", "Read-only history evidence"),
-  historyTask(historyReturnedId, "Continued investigation", "Recovered authoritative task"),
-];
+export function createHistoryFixtures(longContent: boolean) {
+  const earlier = historyTask(
+    historyEarlierId,
+    "Earlier investigation",
+    "Earlier history evidence",
+  );
+  return [
+    historyTask(historyCurrentId, "Current investigation", "Current task context"),
+    historyTask(
+      historySelectedId,
+      longContent ? "Long history title ".repeat(30) : "Investigate history recovery",
+      longContent
+        ? "Long summary without losing the selected task context. ".repeat(40)
+        : "Read-only history evidence",
+    ),
+    historyTask(historyReturnedId, "Continued investigation", "Recovered authoritative task"),
+    longContent
+      ? attachWithSnapshotThread(earlier, {
+          ...earlier.snapshot.thread,
+          recencyAt: earlier.snapshot.thread.updatedAt - 86_400,
+        })
+      : earlier,
+  ];
+}

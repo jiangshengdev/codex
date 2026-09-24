@@ -67,6 +67,17 @@ test("appending preview keeps the existing cards while the next page is pending"
   ).toBeVisible();
 });
 
+test("an appended history card opens its own matching snapshot", async ({ page }) => {
+  await page.goto("/iframe.html?id=history-list--pagination&viewMode=story");
+  await page.getByRole("button", { name: "Load more", exact: true }).click();
+  await page.getByRole("link", { name: "Earlier investigation", exact: true }).press("Enter");
+  await expect(
+    page.getByRole("heading", { name: "Earlier investigation", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Earlier history evidence", { exact: true })).toBeVisible();
+  await expect(page.getByText("Current task context", { exact: true })).toHaveCount(0);
+});
+
 test("empty history explains the current directory scope without pagination", async ({ page }) => {
   await page.goto("/iframe.html?id=history-list--empty&viewMode=story");
   await expect(page.getByText("No history for the current working directory.")).toBeVisible();
