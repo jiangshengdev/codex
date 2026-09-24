@@ -23,7 +23,7 @@ export function ComposerFullMessagePreview({
       {children}
       {showFullMessage ? (
         <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-          <Button className="self-end" size="sm" variant="tertiary">
+          <Button className="self-end" size="sm" variant="secondary">
             <Trans comment="Open a dialog containing the complete message shown in a truncated composer preview">
               View full message
             </Trans>

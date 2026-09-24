@@ -275,7 +275,7 @@ function PendingInputItem({
       role="group"
       tabIndex={-1}
     >
-      <Card.Content>{content}</Card.Content>
+      <Card.Content className="text-foreground">{content}</Card.Content>
       {item.management.type === "manageable" ? (
         confirmingDelete ? (
           <Card.Footer className="flex-wrap justify-end gap-2">
@@ -395,7 +395,7 @@ function PendingInputItem({
           <Trans>This message is being edited.</Trans>
         </p>
       ) : (
-        <Chip className="self-start text-muted" color="default" size="sm" variant="soft">
+        <Chip className="self-start" color="default" size="sm" variant="soft">
           <Chip.Label>
             <Trans comment="Status label on a pending message; entered the sending process does not mean delivery succeeded.">
               Entered sending process
