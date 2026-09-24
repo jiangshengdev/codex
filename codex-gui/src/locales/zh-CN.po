@@ -388,7 +388,7 @@ msgstr "当前任务等待输入"
 msgid "Current task status is unknown"
 msgstr "当前任务状态未知"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:90
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:94
 msgid "Currently unable to guide; added to queue"
 msgstr "当前无法引导，已加入队列"
 
@@ -397,12 +397,12 @@ msgstr "当前无法引导，已加入队列"
 msgid "Dark theme"
 msgstr "深色主题"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:375
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:453
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:382
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:460
 msgid "Delete"
 msgstr "删除"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:356
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:363
 msgid "Delete this pending message?"
 msgstr "删除这条待处理消息？"
 
@@ -436,7 +436,7 @@ msgstr "关闭提示"
 msgid "Duration {duration}"
 msgstr "用时 {duration}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:441
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:448
 msgid "Edit"
 msgstr "编辑"
 
@@ -456,7 +456,7 @@ msgid "Enter a message before saving."
 msgstr "请先输入消息再保存。"
 
 #. Status label on a pending message; entered the sending process does not mean delivery succeeded.
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:473
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:480
 msgid "Entered sending process"
 msgstr "已进入发送流程"
 
@@ -552,7 +552,7 @@ msgstr "引导"
 msgid "Guide status unknown"
 msgstr "引导状态未知"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:197
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:204
 msgid "Guiding"
 msgstr "引导中"
 
@@ -627,7 +627,7 @@ msgstr "已中断。"
 msgid "Invalid skill"
 msgstr "无效技能"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:365
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:372
 msgid "Keep"
 msgstr "保留"
 
@@ -730,7 +730,7 @@ msgstr "消息更新顺序不一致，对话内容可能不完整。"
 msgid "Message updates have piled up, so synchronization has paused."
 msgstr "消息更新积压，同步已暂停。"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:408
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:415
 msgid "More move options for pending message: {previewText}"
 msgstr "待处理消息的更多移动选项：{previewText}"
 
@@ -739,27 +739,27 @@ msgstr "待处理消息的更多移动选项：{previewText}"
 msgid "More options for {title}"
 msgstr "{title} 的更多操作"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:395
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:402
 msgid "Move down pending message: {previewText}"
 msgstr "下移待处理消息：{previewText}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:425
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:432
 msgid "Move pending message to first"
 msgstr "将待处理消息移至队首"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:430
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:437
 msgid "Move pending message to last"
 msgstr "将待处理消息移至队尾"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:427
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:434
 msgid "Move to first"
 msgstr "移至队首"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:432
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:439
 msgid "Move to last"
 msgstr "移至队尾"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:383
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:390
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
@@ -799,7 +799,7 @@ msgstr "当前工作目录没有历史记录。"
 msgid "No matching skills"
 msgstr "没有匹配的技能"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:69
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:70
 msgid "No pending messages"
 msgstr "没有待处理消息"
 
@@ -850,8 +850,8 @@ msgid "Page not found"
 msgstr "找不到页面"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:237
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:99
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:332
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:105
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:339
 msgid "Pending details"
 msgstr "待处理详情"
 
@@ -914,7 +914,7 @@ msgstr "上一上下文页"
 #. Read-only queue of rejected guidance that will be sent before ordinary queued messages
 #. Read-only queue of rejected guidance that will be sent before ordinary queued messages
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:451
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:83
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:84
 msgid "Priority"
 msgstr "优先发送"
 
@@ -927,7 +927,7 @@ msgid "QR code for current GUI URL"
 msgstr "当前 GUI URL 的二维码。"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:483
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:197
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:204
 msgid "Queued"
 msgstr "已排队"
 
@@ -1151,15 +1151,15 @@ msgstr "发送结果未知"
 msgid "Sent input to {receiver}"
 msgstr "已向 {receiver} 发送输入"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:228
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:235
 msgid "Show more"
 msgstr "显示更多"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:220
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:227
 msgid "Show more guiding messages"
 msgstr "显示更多引导消息"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:220
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:227
 msgid "Show more queued messages"
 msgstr "显示更多排队消息"
 
@@ -1219,7 +1219,7 @@ msgid "Stop failed"
 msgstr "停止失败"
 
 #: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:33
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:315
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:322
 msgid "Structured input"
 msgstr "结构化输入"
 
@@ -1436,7 +1436,7 @@ msgstr "这条消息已进入发送流程，无法再管理。"
 #~ msgid "This message has entered the sending process."
 #~ msgstr "这条消息已进入发送流程。"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:468
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:475
 msgid "This message is being edited."
 msgstr "这条消息正在编辑。"
 

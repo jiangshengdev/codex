@@ -388,7 +388,7 @@ msgstr "Current task is waiting for input"
 msgid "Current task status is unknown"
 msgstr "Current task status is unknown"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:90
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:94
 msgid "Currently unable to guide; added to queue"
 msgstr "Currently unable to guide; added to queue"
 
@@ -397,12 +397,12 @@ msgstr "Currently unable to guide; added to queue"
 msgid "Dark theme"
 msgstr "Dark theme"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:375
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:453
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:382
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:460
 msgid "Delete"
 msgstr "Delete"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:356
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:363
 msgid "Delete this pending message?"
 msgstr "Delete this pending message?"
 
@@ -436,7 +436,7 @@ msgstr "Dismiss"
 msgid "Duration {duration}"
 msgstr "Duration {duration}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:441
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:448
 msgid "Edit"
 msgstr "Edit"
 
@@ -456,7 +456,7 @@ msgid "Enter a message before saving."
 msgstr "Enter a message before saving."
 
 #. Status label on a pending message; entered the sending process does not mean delivery succeeded.
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:473
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:480
 msgid "Entered sending process"
 msgstr "Entered sending process"
 
@@ -552,7 +552,7 @@ msgstr "Guide"
 msgid "Guide status unknown"
 msgstr "Guide status unknown"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:197
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:204
 msgid "Guiding"
 msgstr "Guiding"
 
@@ -627,7 +627,7 @@ msgstr "Interrupted."
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:365
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:372
 msgid "Keep"
 msgstr "Keep"
 
@@ -730,7 +730,7 @@ msgstr "Message updates arrived out of order, so the conversation may be incompl
 msgid "Message updates have piled up, so synchronization has paused."
 msgstr "Message updates have piled up, so synchronization has paused."
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:408
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:415
 msgid "More move options for pending message: {previewText}"
 msgstr "More move options for pending message: {previewText}"
 
@@ -739,27 +739,27 @@ msgstr "More move options for pending message: {previewText}"
 msgid "More options for {title}"
 msgstr "More options for {title}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:395
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:402
 msgid "Move down pending message: {previewText}"
 msgstr "Move down pending message: {previewText}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:425
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:432
 msgid "Move pending message to first"
 msgstr "Move pending message to first"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:430
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:437
 msgid "Move pending message to last"
 msgstr "Move pending message to last"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:427
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:434
 msgid "Move to first"
 msgstr "Move to first"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:432
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:439
 msgid "Move to last"
 msgstr "Move to last"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:383
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:390
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
@@ -799,7 +799,7 @@ msgstr "No history for the current working directory."
 msgid "No matching skills"
 msgstr "No matching skills"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:69
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:70
 msgid "No pending messages"
 msgstr "No pending messages"
 
@@ -850,8 +850,8 @@ msgid "Page not found"
 msgstr "Page not found"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:237
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:99
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:332
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:105
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:339
 msgid "Pending details"
 msgstr "Pending details"
 
@@ -914,7 +914,7 @@ msgstr "Previous context page"
 #. Read-only queue of rejected guidance that will be sent before ordinary queued messages
 #. Read-only queue of rejected guidance that will be sent before ordinary queued messages
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:451
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:83
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:84
 msgid "Priority"
 msgstr "Priority"
 
@@ -927,7 +927,7 @@ msgid "QR code for current GUI URL"
 msgstr "QR code for current GUI URL"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:483
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:197
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:204
 msgid "Queued"
 msgstr "Queued"
 
@@ -1151,15 +1151,15 @@ msgstr "Sending result unknown"
 msgid "Sent input to {receiver}"
 msgstr "Sent input to {receiver}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:228
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:235
 msgid "Show more"
 msgstr "Show more"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:220
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:227
 msgid "Show more guiding messages"
 msgstr "Show more guiding messages"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:220
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:227
 msgid "Show more queued messages"
 msgstr "Show more queued messages"
 
@@ -1219,7 +1219,7 @@ msgid "Stop failed"
 msgstr "Stop failed"
 
 #: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:33
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:315
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:322
 msgid "Structured input"
 msgstr "Structured input"
 
@@ -1436,7 +1436,7 @@ msgstr "This message has entered the sending process and can no longer be manage
 #~ msgid "This message has entered the sending process."
 #~ msgstr "This message has entered the sending process."
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:468
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:475
 msgid "This message is being edited."
 msgstr "This message is being edited."
 

@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Card,
   Chip,
@@ -86,18 +87,24 @@ export function ComposerPendingInputList({
           }
           registerLaneHeading={registerLaneHeading}
         >
-          <p className="text-sm text-muted" role="status">
-            <Trans>Currently unable to guide; added to queue</Trans>
-          </p>
+          <Alert status="accent" role="status">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>
+                <Trans>Currently unable to guide; added to queue</Trans>
+              </Alert.Title>
+            </Alert.Content>
+          </Alert>
           <ul className="grid min-w-0 gap-2">
             {rejectedSteers.map((item) => (
               <li className="min-w-0" key={item.key}>
                 <Card>
-                  <Card.Content className="min-w-0">
+                  <Card.Content className="min-w-0 text-foreground">
                     <ComposerFullMessagePreview
                       fullText={item.text}
                       heading={<Trans>Pending details</Trans>}
                       showFullMessage={item.preview.type === "text" && item.preview.truncated}
+                      spacing="compact"
                     >
                       <ComposerInputPreviewContent preview={item.preview} />
                     </ComposerFullMessagePreview>
