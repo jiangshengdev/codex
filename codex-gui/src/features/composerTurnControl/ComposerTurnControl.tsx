@@ -1,5 +1,6 @@
-import { Button, Tooltip } from "@heroui/react";
+import { Button, Chip, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { CircleAlert } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -232,9 +233,12 @@ export function ComposerTurnControl({
             usage={contextUsage}
           />
           {controlView.stop.failed ? (
-            <span className="text-sm text-danger" role="status">
-              <Trans>Stop failed</Trans>
-            </span>
+            <Chip color="danger" size="md" variant="secondary" role="status">
+              <CircleAlert aria-hidden="true" className="size-3" />
+              <Chip.Label>
+                <Trans>Stop failed</Trans>
+              </Chip.Label>
+            </Chip>
           ) : null}
           <Button
             isDisabled={!controlView.stop.enabled}
