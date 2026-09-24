@@ -14,8 +14,12 @@ import {
   historyTasks,
 } from "./historyFixtures";
 import { createHistoryListCommand, type HistoryListScenario } from "./historyListScenarios";
+import { createHistoryReadCommand, type HistoryDetailScenario } from "./historyDetailScenarios";
 
-export type HistoryScenarioOptions = Readonly<{ list?: HistoryListScenario }>;
+export type HistoryScenarioOptions = Readonly<{
+  list?: HistoryListScenario;
+  detail?: HistoryDetailScenario;
+}>;
 
 export function createHistoryScenario(dispatch: AppDispatch, options: HistoryScenarioOptions = {}) {
   const fallback = createRecoveryCommands();
@@ -61,7 +65,11 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
     ...fallback.commands,
     listThreads: createHistoryListCommand(options.list, wait),
     listLoadedThreads: () => Promise.resolve({ data: [], nextCursor: null }),
-    readThread: ({ threadId }) => Promise.resolve({ thread: task(threadId).snapshot.thread }),
+    readThread: createHistoryReadCommand(
+      options.detail,
+      ({ threadId }) => Promise.resolve({ thread: task(threadId).snapshot.thread }),
+      wait,
+    ),
     resumeThread: async ({ threadId }) => {
       if (threadId !== historyCurrentId) await wait();
       return createThreadResumeResponse(task(threadId).snapshot.thread, {
@@ -106,6 +114,7 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
   };
   let start: Promise<unknown> | undefined;
   return {
+    initialPath: options.detail == null ? "/history" : `/history/${historySelectedId}`,
     commands,
     session,
     newSessionOwner: new NewSessionOwner(),

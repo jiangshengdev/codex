@@ -80,7 +80,7 @@ function HistoryRouter({ scenario }: Readonly<{ scenario: Scenario }>) {
     });
     return createRouter({
       routeTree: root.addChildren([app.addChildren([list, detail, current])]),
-      history: createMemoryHistory({ initialEntries: ["/history"] }),
+      history: createMemoryHistory({ initialEntries: [scenario.initialPath] }),
     });
   });
   useEffect(() => {
