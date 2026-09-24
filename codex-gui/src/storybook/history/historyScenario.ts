@@ -9,6 +9,8 @@ import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { NewSessionOwner } from "@/features/newSession/newSessionOwner";
 import { attachWithSnapshotThread } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createRecoveryCommands } from "../recovery/recoveryCommands";
+import { createListenerSet } from "@/subscriptions/listenerSet";
+import type { ForkScenario } from "./forkScenarios";
 import {
   historyCurrentId,
   historySelectedId,
@@ -30,6 +32,7 @@ export type HistoryScenarioOptions = Readonly<{
   detail?: HistoryDetailScenario;
   continuation?: ContinuationFailurePreset | "unexpectedFailure" | "navigationFailed" | "pending";
   warning?: ContinuationWarningPreset;
+  fork?: ForkScenario;
 }>;
 
 export function createHistoryScenario(dispatch: AppDispatch, options: HistoryScenarioOptions = {}) {
@@ -72,8 +75,15 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
   };
   let subscription = 0;
   let activationCount = 0;
+  let forkCount = 0;
+  const listeners = createListenerSet();
   const commands: GuiHostCommands = {
     ...fallback.commands,
+    forkThread: () => {
+      forkCount += 1;
+      listeners.notify();
+      return Promise.reject(new Error("Creating a fork is outside this local preview."));
+    },
     listThreads: createHistoryListCommand(options.list, wait),
     listLoadedThreads: () => Promise.resolve({ data: [], nextCursor: null }),
     readThread: createHistoryReadCommand(
@@ -117,6 +127,11 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
     ...controller.session,
     activate: async (threadId: string) => {
       activationCount += 1;
+      listeners.notify();
+      if (options.fork === "openFailed" && activationCount === 1) {
+        await wait();
+        throw new Error("STORYBOOK_FORK_FAILED: Opening the saved fork failed again.");
+      }
       if (options.continuation === "pending") await wait(true);
       if (
         activationCount === 1 &&
@@ -141,12 +156,19 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
   let start: Promise<unknown> | undefined;
   let navigationFailed = false;
   return {
+    options,
     initialPath:
-      options.detail == null && options.continuation == null && options.warning == null
+      options.detail == null &&
+      options.continuation == null &&
+      options.warning == null &&
+      options.fork == null
         ? "/history"
         : `/history/${historySelectedId}`,
     beforeTaskNavigation() {
-      if (options.continuation === "navigationFailed" && !navigationFailed) {
+      if (
+        (options.continuation === "navigationFailed" || options.fork === "navigationFailed") &&
+        !navigationFailed
+      ) {
         navigationFailed = true;
         throw new Error("STORYBOOK_NAVIGATION_FAILED: Local route transition failed.");
       }
@@ -160,11 +182,14 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
           ? Promise.resolve()
           : controller.session.activate(historyCurrentId)),
     getActivationCount: () => activationCount,
+    getForkCount: () => forkCount,
+    subscribe: (listener: () => void) => listeners.subscribe(listener),
     dispose() {
       controller.dispose();
       for (const cancel of cancellations) cancel();
       cancellations.clear();
       fallback.dispose();
+      listeners.clear();
     },
   };
 }

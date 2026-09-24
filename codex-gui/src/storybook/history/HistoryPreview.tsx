@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   createRootRoute,
   createRoute,
@@ -18,11 +18,20 @@ import { ThreadHistoryDetailPage } from "@/features/threadHistory/ThreadHistoryD
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import { PendingInputPreview } from "../composer/pendingInput/PendingInputScenarioView";
 import { createHistoryScenario, type HistoryScenarioOptions } from "./historyScenario";
+import { ThreadForkOwner } from "@/features/threadFork/threadForkOwner";
+import { ThreadForkContext } from "@/features/threadFork/ThreadForkContext";
+import { ThreadForkNotice } from "@/features/threadFork/ThreadForkNotice";
+import { forkSnapshots } from "./forkScenarios";
 
 type Scenario = ReturnType<typeof createHistoryScenario>;
 
-function HistoryShell({ scenario }: Readonly<{ scenario: Scenario }>) {
+function HistoryShell({
+  scenario,
+  forkOwner,
+}: Readonly<{ scenario: Scenario; forkOwner: ThreadForkOwner | null }>) {
   const router = useRouter();
+  const activationCount = useSyncExternalStore(scenario.subscribe, scenario.getActivationCount);
+  const forkCount = useSyncExternalStore(scenario.subscribe, scenario.getForkCount);
   const pathname = useLocation({ select: (location) => location.pathname });
   const threadId = pathname.split("/")[2] ?? "";
   const routeTarget: GuiRouteTarget = pathname.startsWith("/task/")
@@ -48,11 +57,23 @@ function HistoryShell({ scenario }: Readonly<{ scenario: Scenario }>) {
       <div
         data-history-route={pathname}
         data-history-depth={router.history.length}
-        data-history-activations={scenario.getActivationCount()}
+        data-history-activations={activationCount}
+        data-history-forks={forkCount}
       >
-        <AppShell>
-          <Outlet />
-        </AppShell>
+        <ThreadForkContext
+          value={
+            forkOwner == null
+              ? null
+              : { owner: forkOwner, available: scenario.options.fork !== "unavailable" }
+          }
+        >
+          <AppShell>
+            <div className="app-shell-content-boundary">
+              <ThreadForkNotice />
+            </div>
+            <Outlet />
+          </AppShell>
+        </ThreadForkContext>
       </div>
     </AppCapabilitiesContext>
   );
@@ -60,8 +81,10 @@ function HistoryShell({ scenario }: Readonly<{ scenario: Scenario }>) {
 
 function HistoryRouter({ scenario }: Readonly<{ scenario: Scenario }>) {
   const [ready, setReady] = useState(false);
-  const [router] = useState(() => {
-    const root = createRootRoute({ component: () => <HistoryShell scenario={scenario} /> });
+  const [{ router, forkOwner }] = useState(() => {
+    const root = createRootRoute({
+      component: () => <HistoryShell scenario={scenario} forkOwner={owner} />,
+    });
     const app = createRoute({ getParentRoute: () => root, id: "app", component: Outlet });
     const list = createRoute({
       getParentRoute: () => app,
@@ -87,17 +110,37 @@ function HistoryRouter({ scenario }: Readonly<{ scenario: Scenario }>) {
       if (navigation.to === "/task/$threadId") scenario.beforeTaskNavigation();
       await navigate(navigation);
     };
-    return previewRouter;
+    const owner =
+      scenario.options.fork == null
+        ? null
+        : new ThreadForkOwner(async (threadId) => {
+            await previewRouter.navigate({ to: "/task/$threadId", params: { threadId } });
+            if (previewRouter.state.location.pathname !== `/task/${threadId}`)
+              throw new Error("Fork navigation did not reach the saved conversation");
+          }, forkSnapshots[scenario.options.fork]);
+    return { router: previewRouter, forkOwner: owner };
   });
   useEffect(() => {
     let active = true;
+    forkOwner?.setConnection(
+      scenario.options.fork === "unavailable"
+        ? null
+        : { commands: scenario.commands, session: scenario.session },
+    );
+    forkOwner?.setNavigation(router.state.location);
+    const unsubscribe = router.subscribe("onBeforeNavigate", (event) =>
+      forkOwner?.setNavigation(event.toLocation),
+    );
     void scenario.start().then(() => {
       if (active) setReady(true);
     });
     return () => {
       active = false;
+      unsubscribe();
+      forkOwner?.setNavigation(null);
+      forkOwner?.setConnection(null);
     };
-  }, [scenario]);
+  }, [scenario, forkOwner, router]);
   if (!ready) return null;
   return <RouterProvider router={router} />;
 }
