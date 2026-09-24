@@ -17,7 +17,7 @@ import { ThreadHistoryListPage } from "@/features/threadHistory/ThreadHistoryLis
 import { ThreadHistoryDetailPage } from "@/features/threadHistory/ThreadHistoryDetailPage";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import { PendingInputPreview } from "../composer/pendingInput/PendingInputScenarioView";
-import { createHistoryScenario } from "./historyScenario";
+import { createHistoryScenario, type HistoryScenarioOptions } from "./historyScenario";
 
 type Scenario = ReturnType<typeof createHistoryScenario>;
 
@@ -96,10 +96,14 @@ function HistoryRouter({ scenario }: Readonly<{ scenario: Scenario }>) {
   return <RouterProvider router={router} />;
 }
 
-export function HistoryPreview() {
+export function HistoryPreview(options: HistoryScenarioOptions) {
   const dispatch = useAppDispatch();
   return (
-    <PendingInputPreview className="" createScenario={() => createHistoryScenario(dispatch)}>
+    <PendingInputPreview
+      key={JSON.stringify(options)}
+      className=""
+      createScenario={() => createHistoryScenario(dispatch, options)}
+    >
       {(scenario) => <HistoryRouter scenario={scenario} />}
     </PendingInputPreview>
   );

@@ -13,9 +13,27 @@ import {
   historyCwd,
   historyTasks,
 } from "./historyFixtures";
+import { createHistoryListCommand, type HistoryListScenario } from "./historyListScenarios";
 
-export function createHistoryScenario(dispatch: AppDispatch) {
+export type HistoryScenarioOptions = Readonly<{ list?: HistoryListScenario }>;
+
+export function createHistoryScenario(dispatch: AppDispatch, options: HistoryScenarioOptions = {}) {
   const fallback = createRecoveryCommands();
+  const cancellations = new Set<() => void>();
+  const wait = (pending = false): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const cancel = () => {
+        clearTimeout(timer);
+        reject(new Error("Local history preview disposed"));
+      };
+      const timer = pending
+        ? undefined
+        : setTimeout(() => {
+            cancellations.delete(cancel);
+            resolve();
+          }, 600);
+      cancellations.add(cancel);
+    });
   const records = new Map<string, string>();
   const storage = {
     getItem: (key: string) => records.get(key) ?? null,
@@ -28,7 +46,7 @@ export function createHistoryScenario(dispatch: AppDispatch) {
     {
       token: "storybook-history-token",
       activeThreadId: null,
-      historyCwd,
+      ...(options.list === "contextUnavailable" ? {} : { historyCwd }),
     },
     crypto.randomUUID(),
   );
@@ -41,17 +59,11 @@ export function createHistoryScenario(dispatch: AppDispatch) {
   let activationCount = 0;
   const commands: GuiHostCommands = {
     ...fallback.commands,
-    listThreads: () =>
-      Promise.resolve({
-        data: [task(historySelectedId).snapshot.thread],
-        nextCursor: null,
-        backwardsCursor: null,
-      }),
+    listThreads: createHistoryListCommand(options.list, wait),
     listLoadedThreads: () => Promise.resolve({ data: [], nextCursor: null }),
     readThread: ({ threadId }) => Promise.resolve({ thread: task(threadId).snapshot.thread }),
     resumeThread: async ({ threadId }) => {
-      if (threadId !== historyCurrentId)
-        await new Promise<void>((resolve) => setTimeout(resolve, 600));
+      if (threadId !== historyCurrentId) await wait();
       return createThreadResumeResponse(task(threadId).snapshot.thread, {
         cwd: historyCwd,
         model: "storybook-model",
@@ -97,10 +109,16 @@ export function createHistoryScenario(dispatch: AppDispatch) {
     commands,
     session,
     newSessionOwner: new NewSessionOwner(),
-    start: () => (start ??= controller.session.activate(historyCurrentId)),
+    start: () =>
+      (start ??=
+        options.list === "contextUnavailable"
+          ? Promise.resolve()
+          : controller.session.activate(historyCurrentId)),
     getActivationCount: () => activationCount,
     dispose() {
       controller.dispose();
+      for (const cancel of cancellations) cancel();
+      cancellations.clear();
       fallback.dispose();
     },
   };
