@@ -6,6 +6,7 @@ export function ComposerFullMessagePreview({
   actions,
   actionLayout = "footer",
   children,
+  footerStart,
   fullText,
   heading,
   isOpen,
@@ -16,6 +17,7 @@ export function ComposerFullMessagePreview({
   actions?: ReactNode;
   actionLayout?: "footer" | "adaptive";
   children: ReactNode;
+  footerStart?: ReactNode;
   fullText: string | null;
   heading: ReactNode;
   showFullMessage: boolean;
@@ -30,11 +32,14 @@ export function ComposerFullMessagePreview({
       <div className={`min-w-0 ${inlineActions ? "max-w-full flex-[1_1_max-content]" : ""}`}>
         {children}
       </div>
-      {showFullMessage || actions ? (
-        <div className="ml-auto flex min-w-0 max-w-full shrink-0 flex-wrap justify-end gap-2">
+      {showFullMessage || actions || footerStart ? (
+        <div
+          className={`flex min-w-0 max-w-full shrink-0 flex-wrap items-center justify-end gap-2 ${footerStart ? "w-full" : "ml-auto"}`}
+        >
+          {footerStart ? <div className="mr-auto min-w-0 max-w-full">{footerStart}</div> : null}
           {showFullMessage ? (
             <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-              <Button className="self-end" size="sm" variant="outline">
+              <Button className={footerStart ? "ml-auto" : "self-end"} size="sm" variant="outline">
                 <Trans comment="Open a dialog containing the complete message shown in a truncated composer preview">
                   View full message
                 </Trans>

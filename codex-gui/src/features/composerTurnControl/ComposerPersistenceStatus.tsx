@@ -112,7 +112,7 @@ export function ComposerPersistenceStatus({
                     actions={
                       <Button
                         size="sm"
-                        variant="danger"
+                        variant="danger-soft"
                         isDisabled={!enabled || persistence.error != null}
                         onPress={() => {
                           composerRole.discardUnknown(revision, message.id, persistence.revision);

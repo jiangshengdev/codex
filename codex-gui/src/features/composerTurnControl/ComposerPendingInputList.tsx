@@ -327,6 +327,17 @@ function PendingInputItem({
   };
   const content = (
     <ComposerFullMessagePreview
+      footerStart={
+        item.management.type !== "manageable" && item.management.type !== "editing" ? (
+          <Chip color="default" size="sm" variant="soft">
+            <Chip.Label>
+              <Trans comment="Status label on a pending message; entered the sending process does not mean delivery succeeded.">
+                Entered sending process
+              </Trans>
+            </Chip.Label>
+          </Chip>
+        ) : null
+      }
       fullText={detailText}
       heading={<Trans>Pending details</Trans>}
       isOpen={detailText != null}
@@ -466,15 +477,7 @@ function PendingInputItem({
         <p className="text-sm text-muted">
           <Trans>This message is being edited.</Trans>
         </p>
-      ) : (
-        <Chip className="self-start" color="default" size="sm" variant="soft">
-          <Chip.Label>
-            <Trans comment="Status label on a pending message; entered the sending process does not mean delivery succeeded.">
-              Entered sending process
-            </Trans>
-          </Chip.Label>
-        </Chip>
-      )}
+      ) : null}
     </Card>
   );
 }
