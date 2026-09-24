@@ -25,8 +25,8 @@ for (const width of [375, 1280]) {
         const heading = dialog.getByRole("heading", { name: headingName, exact: true });
         await expect(heading).toBeInViewport();
         await expect(heading.getByRole("button")).toHaveAttribute("aria-expanded", "true");
-        await expect(heading).toBeFocused();
-        await heading.getByRole("button").click();
+        await expect(heading.getByRole("button")).toBeFocused();
+        await page.keyboard.press("Enter");
         await expect(heading.getByRole("button")).toHaveAttribute("aria-expanded", "false");
         await page.keyboard.press("Escape");
         await expect(dialog).toHaveCount(0);

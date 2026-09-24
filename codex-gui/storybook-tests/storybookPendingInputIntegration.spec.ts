@@ -93,7 +93,7 @@ test.describe("Chinese narrow preview", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("heading", { name: "待处理详情", exact: true })).toBeVisible();
     // The requested group receives initial focus; the close control precedes it in tab order.
-    await expect(dialog.getByRole("heading", { name: "引导中 23", exact: true })).toBeFocused();
+    await expect(dialog.getByRole("button", { name: "引导中 23", exact: true })).toBeFocused();
     await page.keyboard.press("Shift+Tab");
     await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeFocused();
     await page.keyboard.press("Tab");

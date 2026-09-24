@@ -30,7 +30,7 @@ test("focuses the requested group on each pending Drawer mount and restores nest
     // A deliberate initial focus target avoids the dialog's delayed fallback focus,
     // which can otherwise interrupt nested menu restoration (CNB #17).
     await expect
-      .element(dialog.getByRole("heading", { name: "Queued 2", exact: true }))
+      .element(dialog.getByRole("button", { name: "Queued 2", exact: true }))
       .toHaveFocus();
     const menuTrigger = dialog.getByRole("button", {
       name: "More move options for pending message: First",

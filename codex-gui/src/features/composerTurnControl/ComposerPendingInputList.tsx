@@ -42,7 +42,7 @@ export function ComposerPendingInputList({
   rejectedSteers,
   pages,
   registerItemFocusTarget,
-  registerLaneHeading,
+  registerLaneTrigger,
 }: Readonly<{
   actionsDisabled: boolean;
   deleteItem: (item: ComposerPendingInputPageItem) => boolean;
@@ -58,10 +58,7 @@ export function ComposerPendingInputList({
   rejectedSteers: ComposerInputQueueCoordinatorSnapshot["rejectedSteers"];
   pages: ComposerPendingInputListPages | null;
   registerItemFocusTarget: (key: string, element: HTMLElement | null) => void;
-  registerLaneHeading: (
-    lane: ComposerPendingInputGroup,
-    element: HTMLHeadingElement | null,
-  ) => void;
+  registerLaneTrigger: (lane: ComposerPendingInputGroup, element: HTMLButtonElement | null) => void;
 }>) {
   if (pages == null) return null;
   if (guidingCount === 0 && ordinaryQueuedCount === 0 && rejectedSteers.length === 0)
@@ -85,7 +82,7 @@ export function ComposerPendingInputList({
               Priority
             </Trans>
           }
-          registerLaneHeading={registerLaneHeading}
+          registerLaneTrigger={registerLaneTrigger}
         >
           <Alert status="accent" role="status">
             <Alert.Indicator />
@@ -132,7 +129,7 @@ export function ComposerPendingInputList({
           onMove={onMove}
           onShowMore={onShowMore}
           registerItemFocusTarget={registerItemFocusTarget}
-          registerLaneHeading={registerLaneHeading}
+          registerLaneTrigger={registerLaneTrigger}
           revision={pages.revision}
         />
       ) : null}
@@ -151,7 +148,7 @@ export function ComposerPendingInputList({
           onMove={onMove}
           onShowMore={onShowMore}
           registerItemFocusTarget={registerItemFocusTarget}
-          registerLaneHeading={registerLaneHeading}
+          registerLaneTrigger={registerLaneTrigger}
           revision={pages.revision}
         />
       ) : null}
@@ -172,7 +169,7 @@ function PendingInputGroup({
   onMove,
   onShowMore,
   registerItemFocusTarget,
-  registerLaneHeading,
+  registerLaneTrigger,
   revision,
 }: Readonly<{
   actionsDisabled: boolean;
@@ -191,10 +188,7 @@ function PendingInputGroup({
   onShowMore: (lane: ComposerPendingInputLane) => void;
   revision: number;
   registerItemFocusTarget: (key: string, element: HTMLElement | null) => void;
-  registerLaneHeading: (
-    lane: ComposerPendingInputGroup,
-    element: HTMLHeadingElement | null,
-  ) => void;
+  registerLaneTrigger: (lane: ComposerPendingInputGroup, element: HTMLButtonElement | null) => void;
 }>) {
   const { t } = useLingui();
   return (
@@ -202,7 +196,7 @@ function PendingInputGroup({
       lane={lane}
       count={count}
       title={lane === "steer" ? <Trans>Guiding</Trans> : <Trans>Queued</Trans>}
-      registerLaneHeading={registerLaneHeading}
+      registerLaneTrigger={registerLaneTrigger}
     >
       <ul className="grid min-w-0 gap-2">
         {items.map((item) => (
@@ -243,35 +237,33 @@ function PendingInputSection({
   lane,
   count,
   title,
-  registerLaneHeading,
+  registerLaneTrigger,
   children,
 }: Readonly<{
   lane: ComposerPendingInputGroup;
   count: number;
   title: ReactNode;
-  registerLaneHeading: (
-    lane: ComposerPendingInputGroup,
-    element: HTMLHeadingElement | null,
-  ) => void;
+  registerLaneTrigger: (lane: ComposerPendingInputGroup, element: HTMLButtonElement | null) => void;
   children: ReactNode;
 }>) {
   const headingId = useId();
-  const onHeadingMount = useCallback(
-    (element: HTMLHeadingElement | null) => {
-      registerLaneHeading(lane, element);
+  const onTriggerMount = useCallback(
+    (element: HTMLButtonElement | null) => {
+      registerLaneTrigger(lane, element);
     },
-    [lane, registerLaneHeading],
+    [lane, registerLaneTrigger],
   );
   return (
     <Disclosure id={lane}>
       {({ isExpanded }) => (
         <>
-          <Disclosure.Heading id={headingId} level={3} ref={onHeadingMount} tabIndex={-1}>
+          <Disclosure.Heading id={headingId} level={3}>
             <Button
+              ref={onTriggerMount}
               slot="trigger"
               size="sm"
               variant={isExpanded ? "secondary" : "tertiary"}
-              className={`w-full border-none ${isExpanded ? "" : "bg-transparent"}`}
+              className={`w-full scroll-mt-2 border-none ${isExpanded ? "" : "bg-transparent"}`}
             >
               <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
                 {title}

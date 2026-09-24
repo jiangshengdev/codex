@@ -28,7 +28,12 @@ for (const width of [375, 1280]) {
       await expect(
         dialog.getByRole("heading", { name: headingName, exact: true }),
       ).toBeInViewport();
-      await expect(dialog.getByRole("heading", { name: headingName, exact: true })).toBeFocused();
+      const trigger = dialog.getByRole("button", { name: headingName, exact: true });
+      await expect(trigger).toBeFocused();
+      await page.keyboard.press("Space");
+      await expect(trigger).toHaveAttribute("aria-expanded", "false");
+      await page.keyboard.press("Enter");
+      await expect(trigger).toHaveAttribute("aria-expanded", "true");
       await expect(dialog.getByRole("heading", { level: 3 })).toHaveText([
         "Priority23",
         "Guiding1",
@@ -69,7 +74,7 @@ test("keeps focus inside the drawer when the focused priority group drains", asy
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--combined`);
   await page.getByRole("button", { name: "Priority 2", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByRole("heading", { name: "Priority 2", exact: true })).toBeFocused();
+  await expect(dialog.getByRole("button", { name: "Priority 2", exact: true })).toBeFocused();
   await page
     .getByRole("button", {
       name: "Simulate current turn completed",
@@ -97,7 +102,7 @@ test("opens the read-only priority queue in the shared drawer", async ({ page })
   const dialog = page.getByRole("dialog", { name: "Pending details", exact: true });
   const heading = dialog.getByRole("heading", { name: "Priority 23", exact: true });
   await expect(heading).toBeInViewport();
-  await expect(heading).toBeFocused();
+  await expect(heading.getByRole("button")).toBeFocused();
   await expect(
     dialog.getByText("Currently unable to guide; added to queue", { exact: true }),
   ).toBeVisible();

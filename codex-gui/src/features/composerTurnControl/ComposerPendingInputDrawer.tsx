@@ -71,7 +71,7 @@ export function ComposerPendingInputDrawer({
       if (heading == null || initialLane == null) return;
       queueMicrotask(() => {
         if (headingRef.current !== heading || !heading.isConnected) return;
-        const target = laneHeadingRefs.current.get(initialLane);
+        const target = laneTriggerRefs.current.get(initialLane);
         target?.focus({ preventScroll: true });
         target?.scrollIntoView({ block: "start", behavior: "instant" });
       });
@@ -83,10 +83,10 @@ export function ComposerPendingInputDrawer({
     controller: ComposerEditorController;
   }> | null>(null);
   const itemFocusTargetsRef = useRef(new Map<string, HTMLElement>());
-  const laneHeadingRefs = useRef(new Map<ComposerPendingInputGroup, HTMLHeadingElement>());
-  const registerLaneHeading = useCallback(
-    (lane: ComposerPendingInputGroup, element: HTMLHeadingElement | null) => {
-      const previous = laneHeadingRefs.current.get(lane);
+  const laneTriggerRefs = useRef(new Map<ComposerPendingInputGroup, HTMLButtonElement>());
+  const registerLaneTrigger = useCallback(
+    (lane: ComposerPendingInputGroup, element: HTMLButtonElement | null) => {
+      const previous = laneTriggerRefs.current.get(lane);
       if (element == null) {
         const current = pendingInputSession.getSnapshot();
         if (
@@ -96,9 +96,9 @@ export function ComposerPendingInputDrawer({
         ) {
           headingRef.current?.focus();
         }
-        laneHeadingRefs.current.delete(lane);
+        laneTriggerRefs.current.delete(lane);
       } else {
-        laneHeadingRefs.current.set(lane, element);
+        laneTriggerRefs.current.set(lane, element);
       }
     },
     [pendingInputSession],
@@ -162,10 +162,10 @@ export function ComposerPendingInputDrawer({
           if (attached?.preparationToken === target.preparationToken) attached.controller.focus();
           else (retainedRef.current ?? headingRef.current)?.focus();
         } else if (target.type === "laneHeading") {
-          (laneHeadingRefs.current.get(target.lane) ?? headingRef.current)?.focus();
+          (laneTriggerRefs.current.get(target.lane) ?? headingRef.current)?.focus();
         } else {
           const itemTarget = itemFocusTargetsRef.current.get(target.key);
-          const laneTarget = laneHeadingRefs.current.get(target.fallbackLane);
+          const laneTarget = laneTriggerRefs.current.get(target.fallbackLane);
           (itemTarget ?? laneTarget ?? headingRef.current)?.focus();
         }
         pendingInputSession.consumeEffect(effect.id);
@@ -274,7 +274,7 @@ export function ComposerPendingInputDrawer({
                     if (element == null) itemFocusTargetsRef.current.delete(key);
                     else itemFocusTargetsRef.current.set(key, element);
                   }}
-                  registerLaneHeading={registerLaneHeading}
+                  registerLaneTrigger={registerLaneTrigger}
                 />
               ) : null}
               {edit?.phase === "retained" ? (
