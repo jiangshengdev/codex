@@ -544,7 +544,7 @@ msgid "Go back home"
 msgstr "返回首页"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:468
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:261
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:264
 msgid "Guide"
 msgstr "引导"
 
@@ -1131,7 +1131,7 @@ msgstr "将文件保存到运行 Codex 的机器，最大支持 50 MiB。上传�
 msgid "Scan with phone"
 msgstr "使用手机扫描"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:273
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:276
 #: src/features/newSession/NewSessionPage.tsx:167
 msgid "Send"
 msgstr "发送"
@@ -1210,11 +1210,11 @@ msgstr "开始新对话"
 msgid "Started <0/> <1/>"
 msgstr "已启动 <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:249
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:250
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:239
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:240
 msgid "Stop failed"
 msgstr "停止失败"
 
@@ -1431,10 +1431,6 @@ msgstr "本次编辑已失效，无法继续保存。"
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:538
 msgid "This message has entered the sending process and can no longer be managed."
 msgstr "这条消息已进入发送流程，无法再管理。"
-
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:398
-#~ msgid "This message has entered the sending process."
-#~ msgstr "这条消息已进入发送流程。"
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:467
 msgid "This message is being edited."
@@ -1685,10 +1681,6 @@ msgstr "等待输入"
 #: src/features/composerTurnControl/ContextUsagePopover.tsx:116
 msgid "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
 msgstr "正在等待压缩请求结果。确认结果前，仍无法发送消息。"
-
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:82
-#~ msgid "Will send first"
-#~ msgstr "将优先发送"
 
 #. Accessible name of the popover showing the new-session draft's full path
 #: src/features/newSession/NewSessionWorkingDirectory.tsx:29

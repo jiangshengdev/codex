@@ -232,46 +232,50 @@ export function ComposerTurnControl({
             onRequestCompaction={requestCompaction}
             usage={contextUsage}
           />
-          {controlView.stop.failed ? (
-            <Chip color="danger" size="md" variant="secondary" role="status">
-              <CircleAlert aria-hidden="true" className="size-3" />
-              <Chip.Label>
-                <Trans>Stop failed</Trans>
-              </Chip.Label>
-            </Chip>
-          ) : null}
-          <Button
-            isDisabled={!controlView.stop.enabled}
-            isPending={controlView.stop.pending}
-            onPress={stop}
-            variant="danger-soft"
-          >
-            <Trans>Stop</Trans>
-          </Button>
-          {controlView.guide.visible ? (
-            <Tooltip>
-              <Button
-                render={(props) => <button {...props} aria-keyshortcuts={guideShortcut.aria} />}
-                isDisabled={!controlView.guide.buttonEnabled}
-                onPress={() => {
-                  submit(undefined, "guide");
-                }}
-                variant="secondary"
-              >
-                <Trans>Guide</Trans>
-              </Button>
-              <Tooltip.Content>{guideShortcut.visible}</Tooltip.Content>
-            </Tooltip>
-          ) : null}
-          <Button
-            isDisabled={!controlView.sendEnabled}
-            onPress={() => {
-              submit();
-            }}
-            variant="outline"
-          >
-            <Trans>Send</Trans>
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            {controlView.stop.failed ? (
+              <Chip color="danger" size="md" variant="secondary" role="status">
+                <CircleAlert aria-hidden="true" className="size-3" />
+                <Chip.Label>
+                  <Trans>Stop failed</Trans>
+                </Chip.Label>
+              </Chip>
+            ) : null}
+            <Button
+              isDisabled={!controlView.stop.enabled}
+              isPending={controlView.stop.pending}
+              onPress={stop}
+              variant="danger-soft"
+            >
+              <Trans>Stop</Trans>
+            </Button>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {controlView.guide.visible ? (
+              <Tooltip>
+                <Button
+                  render={(props) => <button {...props} aria-keyshortcuts={guideShortcut.aria} />}
+                  isDisabled={!controlView.guide.buttonEnabled}
+                  onPress={() => {
+                    submit(undefined, "guide");
+                  }}
+                  variant="secondary"
+                >
+                  <Trans>Guide</Trans>
+                </Button>
+                <Tooltip.Content>{guideShortcut.visible}</Tooltip.Content>
+              </Tooltip>
+            ) : null}
+            <Button
+              isDisabled={!controlView.sendEnabled}
+              onPress={() => {
+                submit();
+              }}
+              variant="outline"
+            >
+              <Trans>Send</Trans>
+            </Button>
+          </div>
         </>
       }
     />

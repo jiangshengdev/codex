@@ -3,6 +3,64 @@ import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
 
+test.describe("Chinese stop failure layout", () => {
+  test.use({ locale: "zh-CN" });
+
+  for (const width of [320, 1280]) {
+    test(`keeps stop feedback and actions inside the composer at ${String(width)}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 568 });
+      await page.goto(
+        `${storybookOrigin}/iframe.html?id=composer-input-and-send-stop--stop-failed`,
+      );
+      const composer = page.getByRole("region", { name: "消息输入区", exact: true });
+      await expect(composer.getByText("停止失败", { exact: true })).toBeVisible();
+      for (const name of ["停止", "引导", "发送"]) {
+        await expect(composer.getByRole("button", { name, exact: true })).toBeEnabled();
+      }
+      await expect
+        .poll(() =>
+          composer.evaluate((element) => {
+            const panel = element.querySelector(".composer-panel");
+            if (!panel) return false;
+            const bounds = panel.getBoundingClientRect();
+            return Array.from(panel.querySelectorAll("button, [role='status']")).every(
+              (control) => {
+                const rect = control.getBoundingClientRect();
+                return rect.left >= bounds.left && rect.right <= bounds.right;
+              },
+            );
+          }),
+        )
+        .toBe(true);
+      for (const [first, second] of [
+        [
+          composer.getByText("停止失败", { exact: true }),
+          composer.getByRole("button", { name: "停止", exact: true }),
+        ],
+        [
+          composer.getByRole("button", { name: "引导", exact: true }),
+          composer.getByRole("button", { name: "发送", exact: true }),
+        ],
+      ] as const) {
+        await expect
+          .poll(async () => {
+            const firstBounds = await first.boundingBox();
+            const secondBounds = await second.boundingBox();
+            if (!firstBounds || !secondBounds) return false;
+            return (
+              Math.abs(
+                firstBounds.y + firstBounds.height / 2 - (secondBounds.y + secondBounds.height / 2),
+              ) < 1
+            );
+          })
+          .toBe(true);
+      }
+    });
+  }
+});
+
 test("stop failure preset keeps the turn active and allows retry without clearing the draft", async ({
   page,
 }) => {

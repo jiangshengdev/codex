@@ -67,7 +67,7 @@ export function ComposerSurface({
               <div className="flex items-center" ref={setAttachmentControlsParent} />
               {toolbarLeading}
             </div>
-            <div className="flex items-center gap-2">{actions}</div>
+            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</div>
           </div>
         </Surface>
       </Surface>

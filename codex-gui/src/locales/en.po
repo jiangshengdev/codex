@@ -544,7 +544,7 @@ msgid "Go back home"
 msgstr "Go back home"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:468
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:261
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:264
 msgid "Guide"
 msgstr "Guide"
 
@@ -1131,7 +1131,7 @@ msgstr "Save a file on the machine running Codex. Maximum size: 50 MiB. Uploadin
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:273
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:276
 #: src/features/newSession/NewSessionPage.tsx:167
 msgid "Send"
 msgstr "Send"
@@ -1210,11 +1210,11 @@ msgstr "Start a conversation"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:249
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:250
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:239
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:240
 msgid "Stop failed"
 msgstr "Stop failed"
 
@@ -1431,10 +1431,6 @@ msgstr "This editing session is no longer available."
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:538
 msgid "This message has entered the sending process and can no longer be managed."
 msgstr "This message has entered the sending process and can no longer be managed."
-
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:398
-#~ msgid "This message has entered the sending process."
-#~ msgstr "This message has entered the sending process."
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:467
 msgid "This message is being edited."
@@ -1685,10 +1681,6 @@ msgstr "Waiting for input"
 #: src/features/composerTurnControl/ContextUsagePopover.tsx:116
 msgid "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
 msgstr "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
-
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:82
-#~ msgid "Will send first"
-#~ msgstr "Will send first"
 
 #. Accessible name of the popover showing the new-session draft's full path
 #: src/features/newSession/NewSessionWorkingDirectory.tsx:29
