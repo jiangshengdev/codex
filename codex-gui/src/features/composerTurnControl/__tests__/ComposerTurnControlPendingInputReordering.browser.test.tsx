@@ -276,7 +276,7 @@ test("re-reads independent lane budgets after a move and does not locate an item
     .element(dialog.getByText("Ordinary budget 0", { exact: true }))
     .not.toBeInTheDocument();
   await expect
-    .element(dialog.getByRole("heading", { name: "Queued 41", exact: true }))
+    .element(dialog.getByRole("button", { name: "Queued 41", exact: true }))
     .toHaveFocus();
   await expect
     .element(screen.getByRole("status").filter({ hasText: "Queued message moved" }))

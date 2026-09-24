@@ -162,6 +162,7 @@ test("opens legacy accepted guidance in manual recovery without sending on start
   expect(commands.startTurn).not.toHaveBeenCalled();
   await screen
     .getByRole("status")
+    .filter({ hasText: "Restored messages are paused" })
     .getByRole("button", { name: "Continue sending", exact: true })
     .click();
   await expect

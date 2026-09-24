@@ -478,7 +478,7 @@ test("App batch rejects a non-steerable target and restores a failed merged star
   await expect
     .element(
       screen
-        .getByRole("group", { name: "Pending: Queued 1", exact: true })
+        .getByRole("group", { name: "Pending: Priority 2, Guide 0, Queued 1", exact: true })
         .getByRole("button", { name: "Queued 1", exact: true }),
     )
     .toBeVisible();
