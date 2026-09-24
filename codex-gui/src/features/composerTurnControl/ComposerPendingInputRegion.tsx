@@ -1,7 +1,8 @@
-import { Chip, Separator, Surface } from "@heroui/react";
+import { Alert, Chip, Separator, Surface } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { Fragment, type ReactNode, type Ref } from "react";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
+import { FailureLayout } from "@/feedback/FailureLayout";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
@@ -108,30 +109,38 @@ export function ComposerPendingInputRegion({
     groups.push({
       key: "recovery",
       node: (
-        <div className="flex flex-wrap items-center gap-2">
-          <span id={recoveryDescriptionId}>
-            <Plural
-              value={snapshot.recoveryCount}
-              one="# message has not been sent"
-              other="# messages have not been sent"
-            />
-          </span>
-          <RetryActionButton
-            aria-describedby={recoveryDescriptionId}
-            isDisabled={!canRecover}
-            isPending={snapshot.isRecovering}
-            pendingChildren={
-              <Trans comment="Pending state of Continue sending while recovering previously unsent messages">
-                Resuming sending
-              </Trans>
+        <Alert status="warning" role="status">
+          <Alert.Indicator />
+          <FailureLayout
+            actions={
+              <RetryActionButton
+                aria-describedby={recoveryDescriptionId}
+                isDisabled={!canRecover}
+                isPending={snapshot.isRecovering}
+                pendingChildren={
+                  <Trans comment="Pending state of Continue sending while recovering previously unsent messages">
+                    Resuming sending
+                  </Trans>
+                }
+                onPress={onRecover}
+                size="sm"
+                variant="primary"
+              >
+                <Trans>Continue sending</Trans>
+              </RetryActionButton>
             }
-            onPress={onRecover}
-            size="sm"
-            variant="secondary"
           >
-            <Trans>Continue sending</Trans>
-          </RetryActionButton>
-        </div>
+            <Alert.Content>
+              <Alert.Title id={recoveryDescriptionId}>
+                <Plural
+                  value={snapshot.recoveryCount}
+                  one="# message has not been sent"
+                  other="# messages have not been sent"
+                />
+              </Alert.Title>
+            </Alert.Content>
+          </FailureLayout>
+        </Alert>
       ),
     });
   }

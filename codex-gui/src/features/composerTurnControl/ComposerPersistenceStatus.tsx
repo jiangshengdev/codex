@@ -1,4 +1,4 @@
-import { Alert, Button } from "@heroui/react";
+import { Alert, Button, Separator } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import type { ActiveThreadSessionSnapshot } from "@/features/activeThreadSession/activeThreadSession";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
@@ -104,8 +104,9 @@ export function ComposerPersistenceStatus({
               </Trans>
             </Alert.Description>
             <ul className="mt-4 grid max-h-[min(30vh,240px)] w-full min-w-0 gap-2 overflow-y-auto">
-              {persistence.unknownMessages.map((message) => (
-                <li key={message.id} className="min-w-0">
+              {persistence.unknownMessages.map((message, index) => (
+                <li key={message.id} className="grid min-w-0 gap-2">
+                  {index > 0 ? <Separator /> : null}
                   <FailureLayout
                     actions={
                       <Button
