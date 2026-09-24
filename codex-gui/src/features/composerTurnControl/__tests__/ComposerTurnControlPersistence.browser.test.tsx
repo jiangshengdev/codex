@@ -38,7 +38,7 @@ test.each([375, 1280])("matches native compact recovery actions at %i pixels", a
           restoredPaused: true,
           revision: 7,
           unknownMessages: [
-            { id: "unknown-one", text: "First message" },
+            { id: "unknown-one", text: "Review the fictional implementation." },
             { id: "unknown-two", text: "Second message" },
           ],
         },
@@ -55,6 +55,22 @@ test.each([375, 1280])("matches native compact recovery actions at %i pixels", a
       .getByRole("button", { name: "Remove local record", exact: true })
       .elements();
     expect(remove).toHaveLength(2);
+    const preview = screen
+      .getByText("Review the fictional implementation.", { exact: true })
+      .element();
+    const previewBounds = preview.getBoundingClientRect();
+    const actionBounds = screen
+      .getByRole("button", { name: "Remove local record", exact: true })
+      .first()
+      .element()
+      .getBoundingClientRect();
+    const expectedInline = width === 1280;
+    const centerOffset =
+      actionBounds.top + actionBounds.height / 2 - (previewBounds.top + previewBounds.height / 2);
+    expect(Math.abs(centerOffset) < 1).toBe(expectedInline);
+    expect(actionBounds.left > previewBounds.right).toBe(expectedInline);
+    expect(actionBounds.top >= previewBounds.bottom).toBe(!expectedInline);
+    expect(preview.scrollHeight).toBe(preview.clientHeight);
     for (const button of [
       screen.getByRole("button", { name: "Continue sending", exact: true }).element(),
       ...remove,
@@ -145,6 +161,11 @@ test("opens the complete unknown message from a three-line preview and restores 
   expect(preview.scrollHeight).toBeGreaterThan(preview.clientHeight);
   const trigger = screen.getByRole("button", { name: "View full message", exact: true });
   await expect.element(trigger).toBeVisible();
+  const remove = screen.getByRole("button", { name: "Remove local record", exact: true }).element();
+  expect(trigger.element().getBoundingClientRect().top).toBeGreaterThanOrEqual(
+    preview.getBoundingClientRect().bottom,
+  );
+  expect(trigger.element().getBoundingClientRect().top).toBe(remove.getBoundingClientRect().top);
   trigger.element().focus();
   await screen.user.keyboard("{Enter}");
   const dialog = screen.getByRole("dialog");

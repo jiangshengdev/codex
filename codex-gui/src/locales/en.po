@@ -982,7 +982,7 @@ msgid "Remove from list"
 msgstr "Remove from list"
 
 #. Drops only this local unknown-send record, without retracting server work
-#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:120
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:121
 msgid "Remove local record"
 msgstr "Remove local record"
 
@@ -1131,7 +1131,7 @@ msgid "Sending"
 msgstr "Sending"
 
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:98
-#: src/features/composerTurnControl/ComposerUnknownMessagePreview.tsx:31
+#: src/features/composerTurnControl/ComposerUnknownMessagePreview.tsx:36
 msgid "Sending result unknown"
 msgstr "Sending result unknown"
 
@@ -1597,7 +1597,7 @@ msgid "View diagnostic information"
 msgstr "View diagnostic information"
 
 #. Open a dialog containing the complete message shown in a truncated composer preview
-#: src/features/composerTurnControl/ComposerFullMessagePreview.tsx:27
+#: src/features/composerTurnControl/ComposerFullMessagePreview.tsx:38
 msgid "View full message"
 msgstr "View full message"
 

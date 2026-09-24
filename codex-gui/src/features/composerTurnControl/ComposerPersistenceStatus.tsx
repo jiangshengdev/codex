@@ -107,7 +107,8 @@ export function ComposerPersistenceStatus({
               {persistence.unknownMessages.map((message, index) => (
                 <li key={message.id} className="grid min-w-0 gap-2">
                   {index > 0 ? <Separator /> : null}
-                  <FailureLayout
+                  <ComposerUnknownMessagePreview
+                    text={message.text}
                     actions={
                       <Button
                         size="sm"
@@ -122,9 +123,7 @@ export function ComposerPersistenceStatus({
                         </Trans>
                       </Button>
                     }
-                  >
-                    <ComposerUnknownMessagePreview text={message.text} />
-                  </FailureLayout>
+                  />
                 </li>
               ))}
             </ul>
