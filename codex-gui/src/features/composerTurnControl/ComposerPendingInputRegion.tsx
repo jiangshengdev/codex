@@ -46,29 +46,28 @@ export function ComposerPendingInputRegion({
   const { t } = useLingui();
   const groups: { key: string; node: ReactNode }[] = [];
   const hasNormalPending = snapshot.guidingCount > 0 || snapshot.ordinaryQueuedCount > 0;
+  const showPendingTrigger = hasNormalPending || pendingInputSnapshot.phase === "open";
 
-  if (hasNormalPending || pendingInputSnapshot.phase === "open") {
+  if (showPendingTrigger || snapshot.hasUnknownSteer) {
     groups.push({
       key: "normal",
       node: (
-        <ComposerPendingInputTrigger
-          facts={{ composerRole, mutationsEnabled, sessionRevision, snapshot }}
-          session={pendingInputSession}
-          triggerRef={triggerRef}
-        />
-      ),
-    });
-  }
-
-  if (snapshot.hasUnknownSteer) {
-    groups.push({
-      key: "unknown-steer",
-      node: (
-        <Chip color="warning" size="sm" variant="soft" role="status">
-          <Chip.Label>
-            <Trans>Guide status unknown</Trans>
-          </Chip.Label>
-        </Chip>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {showPendingTrigger ? (
+            <ComposerPendingInputTrigger
+              facts={{ composerRole, mutationsEnabled, sessionRevision, snapshot }}
+              session={pendingInputSession}
+              triggerRef={triggerRef}
+            />
+          ) : null}
+          {snapshot.hasUnknownSteer ? (
+            <Chip color="warning" size="sm" variant="soft" role="status">
+              <Chip.Label>
+                <Trans>Guide status unknown</Trans>
+              </Chip.Label>
+            </Chip>
+          ) : null}
+        </div>
       ),
     });
   }

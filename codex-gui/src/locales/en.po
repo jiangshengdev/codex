@@ -33,7 +33,7 @@ msgid "{0, plural, one {# mention} other {# mentions}}"
 msgstr "{0, plural, one {# mention} other {# mentions}}"
 
 #. placeholder {0}: snapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:137
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:136
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 
@@ -298,7 +298,7 @@ msgid "Context usage details, {usedTokensLabel} tokens used, context window capa
 msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 
 #. Resumes sending this page's restored queue; does not open the queue
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:131
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:130
 #: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:73
 msgid "Continue sending"
 msgstr "Continue sending"
@@ -388,7 +388,7 @@ msgstr "Current task is waiting for input"
 msgid "Current task status is unknown"
 msgstr "Current task status is unknown"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:90
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:89
 msgid "Currently unable to guide; added to queue"
 msgstr "Currently unable to guide; added to queue"
 
@@ -548,7 +548,7 @@ msgstr "Go back home"
 msgid "Guide"
 msgstr "Guide"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:69
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:66
 msgid "Guide status unknown"
 msgstr "Guide status unknown"
 
@@ -851,7 +851,7 @@ msgstr "Page not found"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:206
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:259
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:97
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:96
 msgid "Pending details"
 msgstr "Pending details"
 
@@ -872,7 +872,7 @@ msgstr "Pending message editor"
 msgid "Pending message was not reordered"
 msgstr "Pending message was not reordered"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:155
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:154
 msgid "Pending messages"
 msgstr "Pending messages"
 
@@ -1056,7 +1056,7 @@ msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
 #. Pending state of Continue sending while recovering previously unsent messages
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:123
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:122
 msgid "Resuming sending"
 msgstr "Resuming sending"
 
@@ -1675,7 +1675,7 @@ msgstr "Waiting for input"
 msgid "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
 msgstr "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:83
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:82
 msgid "Will send first"
 msgstr "Will send first"
 
