@@ -10,7 +10,7 @@ import {
 } from "@heroui/react";
 import { ArrowDown, ArrowUp, Ellipsis, Pencil, Trash2 } from "lucide-react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useState } from "react";
+import { useCallback, useId, useState, type ReactNode } from "react";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type {
   ComposerPendingInputDetailResult,
@@ -21,6 +21,8 @@ import type {
 import { ComposerFullMessagePreview } from "./ComposerFullMessagePreview";
 import { ComposerInputPreviewContent } from "./ComposerInputPreviewContent";
 import type { ComposerPendingInputPrefixes } from "./composerPendingInputPages";
+import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import type { ComposerPendingInputGroup } from "./composerPendingInputSession";
 
 export type ComposerPendingInputListPages = ComposerPendingInputPrefixes &
   Readonly<{
@@ -36,6 +38,7 @@ export function ComposerPendingInputList({
   onMove,
   onShowMore,
   ordinaryQueuedCount,
+  rejectedSteers,
   pages,
   registerItemFocusTarget,
   registerLaneHeading,
@@ -51,12 +54,16 @@ export function ComposerPendingInputList({
   ) => void;
   onShowMore: (lane: ComposerPendingInputLane) => void;
   ordinaryQueuedCount: number;
+  rejectedSteers: ComposerInputQueueCoordinatorSnapshot["rejectedSteers"];
   pages: ComposerPendingInputListPages | null;
   registerItemFocusTarget: (key: string, element: HTMLElement | null) => void;
-  registerLaneHeading: (lane: ComposerPendingInputLane, element: HTMLHeadingElement | null) => void;
+  registerLaneHeading: (
+    lane: ComposerPendingInputGroup,
+    element: HTMLHeadingElement | null,
+  ) => void;
 }>) {
   if (pages == null) return null;
-  if (guidingCount === 0 && ordinaryQueuedCount === 0)
+  if (guidingCount === 0 && ordinaryQueuedCount === 0 && rejectedSteers.length === 0)
     return (
       <p className="text-sm">
         <Trans>No pending messages</Trans>
@@ -66,8 +73,44 @@ export function ComposerPendingInputList({
     <DisclosureGroup
       allowsMultipleExpanded
       className="min-w-0"
-      defaultExpandedKeys={["steer", "ordinary"]}
+      defaultExpandedKeys={["priority", "steer", "ordinary"]}
     >
+      {rejectedSteers.length > 0 ? (
+        <PendingInputSection
+          lane="priority"
+          count={rejectedSteers.length}
+          title={
+            <Trans comment="Read-only queue of rejected guidance that will be sent before ordinary queued messages">
+              Priority
+            </Trans>
+          }
+          registerLaneHeading={registerLaneHeading}
+        >
+          <p className="text-sm text-muted" role="status">
+            <Trans>Currently unable to guide; added to queue</Trans>
+          </p>
+          <ul className="grid min-w-0 gap-2">
+            {rejectedSteers.map((item) => (
+              <li className="min-w-0" key={item.key}>
+                <Card>
+                  <Card.Content className="min-w-0">
+                    <ComposerFullMessagePreview
+                      fullText={item.text}
+                      heading={<Trans>Pending details</Trans>}
+                      showFullMessage={item.preview.type === "text" && item.preview.truncated}
+                    >
+                      <ComposerInputPreviewContent preview={item.preview} />
+                    </ComposerFullMessagePreview>
+                  </Card.Content>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </PendingInputSection>
+      ) : null}
+      {rejectedSteers.length > 0 && (guidingCount > 0 || ordinaryQueuedCount > 0) ? (
+        <Separator className="my-2" />
+      ) : null}
       {guidingCount > 0 ? (
         <PendingInputGroup
           actionsDisabled={actionsDisabled}
@@ -141,20 +184,82 @@ function PendingInputGroup({
   onShowMore: (lane: ComposerPendingInputLane) => void;
   revision: number;
   registerItemFocusTarget: (key: string, element: HTMLElement | null) => void;
-  registerLaneHeading: (lane: ComposerPendingInputLane, element: HTMLHeadingElement | null) => void;
+  registerLaneHeading: (
+    lane: ComposerPendingInputGroup,
+    element: HTMLHeadingElement | null,
+  ) => void;
 }>) {
   const { t } = useLingui();
+  return (
+    <PendingInputSection
+      lane={lane}
+      count={count}
+      title={lane === "steer" ? <Trans>Guiding</Trans> : <Trans>Queued</Trans>}
+      registerLaneHeading={registerLaneHeading}
+    >
+      <ul className="grid min-w-0 gap-2">
+        {items.map((item) => (
+          <li className="min-w-0" key={`${String(revision)}:${item.key}`}>
+            <PendingInputItem
+              actionsDisabled={actionsDisabled}
+              composerRole={composerRole}
+              item={item}
+              onBeginEdit={onBeginEdit}
+              onDetailFailure={onDetailFailure}
+              onDelete={onDelete}
+              onMove={onMove}
+              registerItemFocusTarget={registerItemFocusTarget}
+              revision={revision}
+            />
+          </li>
+        ))}
+      </ul>
+      {!nextCursorAvailable ? null : (
+        <Button
+          aria-label={
+            lane === "steer" ? t`Show more guiding messages` : t`Show more queued messages`
+          }
+          className="justify-self-center"
+          onPress={() => {
+            onShowMore(lane);
+          }}
+          variant="secondary"
+        >
+          <Trans>Show more</Trans>
+        </Button>
+      )}
+    </PendingInputSection>
+  );
+}
+
+function PendingInputSection({
+  lane,
+  count,
+  title,
+  registerLaneHeading,
+  children,
+}: Readonly<{
+  lane: ComposerPendingInputGroup;
+  count: number;
+  title: ReactNode;
+  registerLaneHeading: (
+    lane: ComposerPendingInputGroup,
+    element: HTMLHeadingElement | null,
+  ) => void;
+  children: ReactNode;
+}>) {
+  const headingId = useId();
+  const onHeadingMount = useCallback(
+    (element: HTMLHeadingElement | null) => {
+      registerLaneHeading(lane, element);
+    },
+    [lane, registerLaneHeading],
+  );
   return (
     <Disclosure id={lane}>
       {({ isExpanded }) => (
         <>
-          <Disclosure.Heading
-            level={3}
-            ref={(element) => {
-              registerLaneHeading(lane, element);
-            }}
-            tabIndex={-1}
-          >
+          <Disclosure.Heading id={headingId} level={3} ref={onHeadingMount} tabIndex={-1}>
             <Button
               slot="trigger"
               size="sm"
@@ -162,7 +267,7 @@ function PendingInputGroup({
               className={`w-full border-none ${isExpanded ? "" : "bg-transparent"}`}
             >
               <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                {lane === "steer" ? <Trans>Guiding</Trans> : <Trans>Queued</Trans>}
+                {title}
                 <Chip color="accent" size="sm" variant="soft">
                   {count}
                 </Chip>
@@ -170,40 +275,8 @@ function PendingInputGroup({
               <Disclosure.Indicator className="text-muted" />
             </Button>
           </Disclosure.Heading>
-          <Disclosure.Content>
-            <Disclosure.Body className="grid min-w-0 gap-3">
-              <ul className="grid min-w-0 gap-2">
-                {items.map((item) => (
-                  <li className="min-w-0" key={`${String(revision)}:${item.key}`}>
-                    <PendingInputItem
-                      actionsDisabled={actionsDisabled}
-                      composerRole={composerRole}
-                      item={item}
-                      onBeginEdit={onBeginEdit}
-                      onDetailFailure={onDetailFailure}
-                      onDelete={onDelete}
-                      onMove={onMove}
-                      registerItemFocusTarget={registerItemFocusTarget}
-                      revision={revision}
-                    />
-                  </li>
-                ))}
-              </ul>
-              {!nextCursorAvailable ? null : (
-                <Button
-                  aria-label={
-                    lane === "steer" ? t`Show more guiding messages` : t`Show more queued messages`
-                  }
-                  className="justify-self-center"
-                  onPress={() => {
-                    onShowMore(lane);
-                  }}
-                  variant="secondary"
-                >
-                  <Trans>Show more</Trans>
-                </Button>
-              )}
-            </Disclosure.Body>
+          <Disclosure.Content role="region" aria-labelledby={headingId}>
+            <Disclosure.Body className="grid min-w-0 gap-3">{children}</Disclosure.Body>
           </Disclosure.Content>
         </>
       )}

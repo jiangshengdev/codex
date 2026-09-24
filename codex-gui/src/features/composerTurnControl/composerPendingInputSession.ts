@@ -82,8 +82,10 @@ export type ComposerPendingInputEditView =
       text: string;
     }>;
 
+export type ComposerPendingInputGroup = ComposerPendingInputLane | "priority";
+
 export type ComposerPendingInputView = Readonly<{
-  initialLane: ComposerPendingInputLane | null;
+  initialLane: ComposerPendingInputGroup | null;
   pages: ComposerPendingInputPrefixes | null;
   guidingCount: number;
   ordinaryQueuedCount: number;
@@ -123,7 +125,7 @@ export type ComposerPendingInputSession = Readonly<{
   project(facts: ComposerPendingInputCurrentFacts): ComposerPendingInputSessionSnapshot;
   open(
     facts: ComposerPendingInputCurrentFacts,
-    lane?: ComposerPendingInputLane,
+    lane?: ComposerPendingInputGroup,
   ): ComposerPendingInputCommandOutcome;
   requestClose(facts: ComposerPendingInputCurrentFacts): ComposerPendingInputCommandOutcome;
   disconnect(facts: ComposerPendingInputCurrentFacts): void;
@@ -215,7 +217,7 @@ const applied = { type: "applied" } as const;
 class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
   private readonly listeners = createListenerSet();
   private phase: ComposerPendingInputSessionSnapshot["phase"] = "closed";
-  private initialLane: ComposerPendingInputLane | null = null;
+  private initialLane: ComposerPendingInputGroup | null = null;
   private owner: ActiveThreadComposerRole | null = null;
   private ownerGeneration = 0;
   private pages: PendingInputPages | null = null;
@@ -251,7 +253,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
 
   open = (
     facts: ComposerPendingInputCurrentFacts,
-    lane?: ComposerPendingInputLane,
+    lane?: ComposerPendingInputGroup,
   ): ComposerPendingInputCommandOutcome => {
     if (this.disposed || this.phase !== "closed" || !hasPendingInputs(facts.snapshot))
       return ignored;
@@ -926,8 +928,12 @@ export function createComposerPendingInputSession(): ComposerPendingInputSession
   return new ComposerPendingInputSessionImpl();
 }
 
-function hasPendingInputs(snapshot: ComposerInputQueueCoordinatorSnapshot): boolean {
-  return snapshot.guidingCount > 0 || snapshot.ordinaryQueuedCount > 0;
+export function hasPendingInputs(snapshot: ComposerInputQueueCoordinatorSnapshot): boolean {
+  return (
+    snapshot.guidingCount > 0 ||
+    snapshot.ordinaryQueuedCount > 0 ||
+    snapshot.rejectedSteers.length > 0
+  );
 }
 
 function pagesAreEmpty(pages: ComposerPendingInputPrefixes): boolean {

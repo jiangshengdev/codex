@@ -19,6 +19,7 @@ import {
 import type {
   ComposerPendingInputAlert,
   ComposerPendingInputCurrentFacts,
+  ComposerPendingInputGroup,
   ComposerPendingInputSession,
   ComposerPendingInputSessionSnapshot,
 } from "./composerPendingInputSession";
@@ -82,7 +83,26 @@ export function ComposerPendingInputDrawer({
     controller: ComposerEditorController;
   }> | null>(null);
   const itemFocusTargetsRef = useRef(new Map<string, HTMLElement>());
-  const laneHeadingRefs = useRef(new Map<ComposerPendingInputLane, HTMLHeadingElement>());
+  const laneHeadingRefs = useRef(new Map<ComposerPendingInputGroup, HTMLHeadingElement>());
+  const registerLaneHeading = useCallback(
+    (lane: ComposerPendingInputGroup, element: HTMLHeadingElement | null) => {
+      const previous = laneHeadingRefs.current.get(lane);
+      if (element == null) {
+        const current = pendingInputSession.getSnapshot();
+        if (
+          current.phase === "open" &&
+          current.view?.edit == null &&
+          previous?.closest('[data-slot="disclosure"]')?.contains(document.activeElement)
+        ) {
+          headingRef.current?.focus();
+        }
+        laneHeadingRefs.current.delete(lane);
+      } else {
+        laneHeadingRefs.current.set(lane, element);
+      }
+    },
+    [pendingInputSession],
+  );
   const scheduledEffectIdsRef = useRef(new Set<number>());
   const adapterMountedRef = useRef(false);
   const presenceGenerationRef = useRef(pendingInputSnapshot.ownerGeneration);
@@ -248,15 +268,13 @@ export function ComposerPendingInputDrawer({
                   onMove={moveItem}
                   onShowMore={showMore}
                   ordinaryQueuedCount={ordinaryQueuedCount}
+                  rejectedSteers={snapshot.rejectedSteers}
                   pages={visiblePages}
                   registerItemFocusTarget={(key, element) => {
                     if (element == null) itemFocusTargetsRef.current.delete(key);
                     else itemFocusTargetsRef.current.set(key, element);
                   }}
-                  registerLaneHeading={(lane, element) => {
-                    if (element == null) laneHeadingRefs.current.delete(lane);
-                    else laneHeadingRefs.current.set(lane, element);
-                  }}
+                  registerLaneHeading={registerLaneHeading}
                 />
               ) : null}
               {edit?.phase === "retained" ? (
@@ -395,26 +413,49 @@ export function ComposerPendingInputTrigger({
 }>) {
   const { t } = useLingui();
   const { guidingCount, ordinaryQueuedCount } = facts.snapshot;
-  const [lastLane, setLastLane] = useState<ComposerPendingInputLane>("steer");
+  const priorityCount = facts.snapshot.rejectedSteers.length;
+  const [lastLane, setLastLane] = useState<ComposerPendingInputGroup>("priority");
   const focusLane =
-    lastLane === "ordinary" && ordinaryQueuedCount > 0
-      ? "ordinary"
-      : guidingCount > 0
-        ? "steer"
-        : "ordinary";
+    lastLane === "priority" && priorityCount > 0
+      ? "priority"
+      : lastLane === "ordinary" && ordinaryQueuedCount > 0
+        ? "ordinary"
+        : guidingCount > 0
+          ? "steer"
+          : priorityCount > 0
+            ? "priority"
+            : "ordinary";
   const triggerLabel =
-    guidingCount > 0 && ordinaryQueuedCount > 0
-      ? t`Pending: Guide ${guidingCount}, Queued ${ordinaryQueuedCount}`
-      : guidingCount > 0
-        ? t`Pending: Guide ${guidingCount}`
-        : t`Pending: Queued ${ordinaryQueuedCount}`;
+    priorityCount > 0
+      ? t`Pending: Priority ${priorityCount}, Guide ${guidingCount}, Queued ${ordinaryQueuedCount}`
+      : guidingCount > 0 && ordinaryQueuedCount > 0
+        ? t`Pending: Guide ${guidingCount}, Queued ${ordinaryQueuedCount}`
+        : guidingCount > 0
+          ? t`Pending: Guide ${guidingCount}`
+          : t`Pending: Queued ${ordinaryQueuedCount}`;
   return (
     <ButtonGroup
       aria-label={triggerLabel}
-      className="justify-self-start"
+      className="max-w-full flex-wrap justify-self-start"
       size="sm"
       variant="tertiary"
     >
+      {priorityCount > 0 ? (
+        <Button
+          ref={focusLane === "priority" ? triggerRef : undefined}
+          onPress={() => {
+            setLastLane("priority");
+            session.open(facts, "priority");
+          }}
+        >
+          <Trans comment="Read-only queue of rejected guidance that will be sent before ordinary queued messages">
+            Priority
+          </Trans>
+          <Chip color="accent" size="sm" variant="soft">
+            {priorityCount}
+          </Chip>
+        </Button>
+      ) : null}
       {guidingCount > 0 ? (
         <Button
           ref={focusLane === "steer" ? triggerRef : undefined}
@@ -423,6 +464,7 @@ export function ComposerPendingInputTrigger({
             session.open(facts, "steer");
           }}
         >
+          {priorityCount > 0 ? <ButtonGroup.Separator /> : null}
           <Trans>Guide</Trans>
           <Chip color="accent" size="sm" variant="soft">
             {guidingCount}
@@ -437,7 +479,7 @@ export function ComposerPendingInputTrigger({
             session.open(facts, "ordinary");
           }}
         >
-          {guidingCount > 0 ? <ButtonGroup.Separator /> : null}
+          {priorityCount > 0 || guidingCount > 0 ? <ButtonGroup.Separator /> : null}
           <Trans>Queued</Trans>
           <Chip color="accent" size="sm" variant="soft">
             {ordinaryQueuedCount}

@@ -6,12 +6,11 @@ import { FailureLayout } from "@/feedback/FailureLayout";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
-import { ComposerFullMessagePreview } from "./ComposerFullMessagePreview";
-import { ComposerInputPreviewContent } from "./ComposerInputPreviewContent";
 import { ComposerPendingInputTrigger } from "./ComposerPendingInputDrawer";
-import type {
-  ComposerPendingInputSession,
-  ComposerPendingInputSessionSnapshot,
+import {
+  hasPendingInputs,
+  type ComposerPendingInputSession,
+  type ComposerPendingInputSessionSnapshot,
 } from "./composerPendingInputSession";
 
 export type ComposerPendingInputRegionProps = Readonly<{
@@ -45,8 +44,7 @@ export function ComposerPendingInputRegion({
 }: ComposerPendingInputRegionProps) {
   const { t } = useLingui();
   const groups: { key: string; node: ReactNode }[] = [];
-  const hasNormalPending = snapshot.guidingCount > 0 || snapshot.ordinaryQueuedCount > 0;
-  const showPendingTrigger = hasNormalPending || pendingInputSnapshot.phase === "open";
+  const showPendingTrigger = hasPendingInputs(snapshot) || pendingInputSnapshot.phase === "open";
 
   if (showPendingTrigger || snapshot.hasUnknownSteer) {
     groups.push({
@@ -67,40 +65,6 @@ export function ComposerPendingInputRegion({
               </Chip.Label>
             </Chip>
           ) : null}
-        </div>
-      ),
-    });
-  }
-
-  if (snapshot.rejectedSteers.length > 0) {
-    groups.push({
-      key: "rejected",
-      node: (
-        <div className="grid min-w-0 gap-2">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-medium">
-              <Trans>Will send first</Trans>
-            </h3>
-            <Chip color="accent" size="sm" variant="soft">
-              {snapshot.rejectedSteers.length}
-            </Chip>
-          </div>
-          <p className="text-sm text-warning" role="status">
-            <Trans>Currently unable to guide; added to queue</Trans>
-          </p>
-          <ul className="grid max-h-[min(30vh,240px)] min-w-0 gap-2 overflow-y-auto">
-            {snapshot.rejectedSteers.map((item) => (
-              <li className="min-w-0" key={item.key}>
-                <ComposerFullMessagePreview
-                  fullText={item.text}
-                  heading={<Trans>Pending details</Trans>}
-                  showFullMessage={item.preview.type === "text" && item.preview.truncated}
-                >
-                  <ComposerInputPreviewContent preview={item.preview} />
-                </ComposerFullMessagePreview>
-              </li>
-            ))}
-          </ul>
         </div>
       ),
     });

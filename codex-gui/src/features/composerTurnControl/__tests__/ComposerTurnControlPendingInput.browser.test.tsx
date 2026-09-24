@@ -435,7 +435,7 @@ test("routes guide shortcuts by draft presence while ordinary Enter stays ordina
   expect(harness.submitSteer).toHaveBeenCalledTimes(1);
 });
 
-test("renders one bounded pending-input Drawer while keeping exceptional states inline", async () => {
+test("renders all pending queues in one bounded Drawer while keeping unknown delivery inline", async () => {
   const longPreview = `${"Guide detail ".repeat(13)}...`;
   const longDetail = "Guide detail ".repeat(20).trim();
   const steerItems = Array.from({ length: 21 }, (_, index) =>
@@ -505,16 +505,18 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
   const region = screen.getByRole("region", { name: "Pending messages", exact: true });
   const trigger = region
     .getByRole("group", {
-      name: "Pending: Guide 21, Queued 21",
+      name: "Pending: Priority 1, Guide 21, Queued 21",
       exact: true,
     })
     .getByRole("button", { name: "Guide 21", exact: true });
 
   await expect.element(trigger).toBeVisible();
-  await expect.element(region.getByText("Will send first", { exact: true })).toBeVisible();
+  await expect
+    .element(region.getByRole("button", { name: "Priority 1", exact: true }))
+    .toBeVisible();
   await expect
     .element(region.getByText("Currently unable to guide; added to queue", { exact: true }))
-    .toBeVisible();
+    .not.toBeInTheDocument();
   await expect.element(region.getByText("Guide status unknown", { exact: true })).toBeVisible();
   await expect.element(region.getByText("Ordinary A", { exact: true })).not.toBeInTheDocument();
   expect(region.getByRole("button", { name: /retry/i }).query()).toBeNull();
@@ -613,7 +615,7 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
   });
   const currentTrigger = region
     .getByRole("group", {
-      name: "Pending: Guide 1, Queued 1",
+      name: "Pending: Priority 1, Guide 1, Queued 1",
       exact: true,
     })
     .getByRole("button", { name: "Guide 1", exact: true });
@@ -879,7 +881,7 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
   await expect.element(heldDialog).not.toBeInTheDocument();
   await expect.element(composer).toHaveFocus();
   await screen
-    .getByRole("group", { name: "Pending: Guide 1", exact: true })
+    .getByRole("group", { name: /^Pending:/ })
     .getByRole("button", { name: "Guide 1", exact: true })
     .click();
   await expect
@@ -1514,16 +1516,21 @@ test("renders Simplified Chinese guide and pending-input copy", async () => {
   const region = screen.getByRole("region", { name: "待处理消息", exact: true });
   const trigger = region
     .getByRole("group", {
-      name: "待处理：引导 1，排队 2",
+      name: "待处理：优先发送 1，引导 1，排队 2",
       exact: true,
     })
     .getByRole("button", { name: "引导 1", exact: true });
   await expect.element(trigger).toBeVisible();
-  await expect.element(region.getByText("将优先发送", { exact: true })).toBeVisible();
-  await expect.element(region.getByText("当前无法引导，已加入队列", { exact: true })).toBeVisible();
+  await expect
+    .element(region.getByRole("button", { name: "优先发送 1", exact: true }))
+    .toBeVisible();
+  await expect
+    .element(region.getByText("当前无法引导，已加入队列", { exact: true }))
+    .not.toBeInTheDocument();
   await expect.element(region.getByText("引导状态未知", { exact: true })).toBeVisible();
   await trigger.click();
   const dialog = screen.getByRole("dialog", { name: "待处理详情", exact: true });
+  await expect.element(dialog.getByText("当前无法引导，已加入队列", { exact: true })).toBeVisible();
   await expect.element(dialog.getByRole("heading", { name: "引导中" })).toBeVisible();
   await expect.element(dialog.getByRole("heading", { name: "已排队" })).toBeVisible();
   const secondQueuedGroup = dialog.getByRole("group", { name: "普通消息二", exact: true });
@@ -1547,7 +1554,7 @@ test("renders Simplified Chinese guide and pending-input copy", async () => {
     .toBeVisible();
   await moveMenu.getByRole("menuitem", { name: "移至队首", exact: true }).click();
   await expect
-    .element(dialog.getByRole("status"))
+    .element(dialog.getByRole("status").filter({ hasText: "已将已排队消息移到第 1 项，共 2 项。" }))
     .toHaveTextContent("已将已排队消息移到第 1 项，共 2 项。");
 });
 

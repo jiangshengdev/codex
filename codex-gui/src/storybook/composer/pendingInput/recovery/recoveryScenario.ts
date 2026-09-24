@@ -2,12 +2,14 @@ import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import type { CreateComposerInputQueueCoordinatorInput } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import { eventItemStarted } from "@/features/projection/__tests__/projectionFixtures";
 import {
+  baseTurn,
   eventForThreadOwner,
   itemStarted,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createListenerSet } from "@/subscriptions/listenerSet";
 import { createPendingInputScenario, manualRequests } from "../pendingInputScenario";
+import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 
 export type RecoveryPreset =
   | "guiding"
@@ -15,6 +17,8 @@ export type RecoveryPreset =
   | "guideAccepted"
   | "guideUnknown"
   | "priority"
+  | "priorityOnly"
+  | "allQueues"
   | "recoveryDisabled"
   | "recovering"
   | "combined";
@@ -51,7 +55,7 @@ export function createRecoveryScenario(preset: RecoveryPreset, mixedText = false
     recoveryPreset
       ? { ordinaryCount: mixedText ? 23 : 1, startSending: true, mixedText }
       : {
-          ordinaryCount: mixedText ? 23 : 3,
+          ordinaryCount: preset === "priorityOnly" ? 0 : mixedText ? 23 : 3,
           guidingCount: mixedText ? 23 : preset === "combined" ? 2 : 1,
           mixedText,
         },
@@ -114,7 +118,29 @@ export function createRecoveryScenario(preset: RecoveryPreset, mixedText = false
   if (preset === "guideAccepted") acceptGuide();
   if (preset === "guideUnknown")
     scenario.steers.getSnapshot()[0]?.reject(new Error("Simulated delivery unknown"));
-  if (preset === "priority" || preset === "combined")
+  if (preset === "allQueues") {
+    const stop = scenario.coordinator.subscribe(() => {
+      if (scenario.coordinator.getSnapshot().rejectedSteers.length === 0) return;
+      stop();
+      queueMicrotask(() => {
+        // A later runtime turn can receive new guidance while rejected guidance awaits sending.
+        scenario.coordinator.setProjectionUnavailable(true);
+        const result = scenario.coordinator.reconcileProjection(
+          [{ ...baseTurn("preview-next-active"), status: "inProgress" }],
+          [],
+        );
+        if (result.type === "blocked") throw new Error(result.error);
+        scenario.coordinator.setProjectionUnavailable(false);
+        scenario.coordinator.submitSteer(composerDraftCapture("Guidance for the new active turn"));
+      });
+    });
+  }
+  if (
+    preset === "priority" ||
+    preset === "combined" ||
+    preset === "priorityOnly" ||
+    preset === "allQueues"
+  )
     scenario.steers.getSnapshot()[0]?.reject(guideRefusal());
   return {
     ...scenario,

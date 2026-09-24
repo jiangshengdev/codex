@@ -4,6 +4,139 @@ import { expectScrollableContent } from "./storybookTextAssertions";
 
 test.use({ locale: "en" });
 
+for (const width of [375, 1280]) {
+  test(`all three queue entries navigate without clipping at ${String(width)}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 720 });
+    await page.goto(
+      `${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--all-queues`,
+    );
+    const entries = page.getByRole("group", { name: /^Pending:/ });
+    await expect(entries.getByRole("button")).toHaveText(["Priority23", "Guide1", "Queued23"]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    for (const [entryName, headingName] of [
+      ["Queued 23", "Queued 23"],
+      ["Guide 1", "Guiding 1"],
+      ["Priority 23", "Priority 23"],
+    ]) {
+      const entry = entries.getByRole("button", { name: entryName, exact: true });
+      await entry.click();
+      const dialog = page.getByRole("dialog");
+      await expect(
+        dialog.getByRole("heading", { name: headingName, exact: true }),
+      ).toBeInViewport();
+      await expect(dialog.getByRole("heading", { name: headingName, exact: true })).toBeFocused();
+      await expect(dialog.getByRole("heading", { level: 3 })).toHaveText([
+        "Priority23",
+        "Guiding1",
+        "Queued23",
+      ]);
+      await page.keyboard.press("Escape");
+      await expect(dialog).toHaveCount(0);
+      await expect(entry).toBeFocused();
+    }
+  });
+}
+
+test("opens a priority-only queue and returns to the composer when it drains", async ({ page }) => {
+  await page.goto(
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--priority-only`,
+  );
+  const entries = page.getByRole("group", { name: /^Pending:/ });
+  await expect(entries.getByRole("button")).toHaveText(["Priority1"]);
+  await entries.getByRole("button", { name: "Priority 1", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Guide message 1", { exact: true })).toBeVisible();
+  // Advance the external runtime event without moving focus out of the product dialog.
+  await page
+    .getByRole("button", {
+      name: "Simulate current turn completed",
+      exact: true,
+      includeHidden: true,
+    })
+    .evaluate((button: HTMLButtonElement) => {
+      button.click();
+    });
+  await expect(dialog).toHaveCount(0);
+  await expect(entries).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Main draft", exact: true })).toBeFocused();
+});
+
+test("keeps focus inside the drawer when the focused priority group drains", async ({ page }) => {
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--combined`);
+  await page.getByRole("button", { name: "Priority 2", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: "Priority 2", exact: true })).toBeFocused();
+  await page
+    .getByRole("button", {
+      name: "Simulate current turn completed",
+      exact: true,
+      includeHidden: true,
+    })
+    .evaluate((button: HTMLButtonElement) => {
+      button.click();
+    });
+  await expect(dialog.getByRole("heading", { name: "Priority 2", exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole("heading", { name: "Pending details", exact: true })).toBeFocused();
+  await expect(dialog.getByRole("heading", { name: "Queued 3", exact: true })).toBeInViewport();
+});
+
+test("opens the read-only priority queue in the shared drawer", async ({ page }) => {
+  await page.goto(
+    `${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--mixed-text-combined`,
+  );
+  const entries = page.getByRole("group", { name: /^Pending:/ });
+  await expect(entries.getByRole("button")).toHaveText(["Priority23", "Queued23"]);
+  await expect(
+    page.getByText("Currently unable to guide; added to queue", { exact: true }),
+  ).toHaveCount(0);
+  await entries.getByRole("button", { name: "Priority 23", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Pending details", exact: true });
+  const heading = dialog.getByRole("heading", { name: "Priority 23", exact: true });
+  await expect(heading).toBeInViewport();
+  await expect(heading).toBeFocused();
+  await expect(
+    dialog.getByText("Currently unable to guide; added to queue", { exact: true }),
+  ).toBeVisible();
+  const priority = dialog.getByRole("region", { name: "Priority 23", exact: true });
+  await expect(priority.getByRole("listitem")).toHaveCount(23);
+  await expect(priority.getByRole("button", { name: /Edit|Delete|Move/ })).toHaveCount(0);
+});
+
+for (const interaction of ["focus", "click"] as const) {
+  test(`retains drawer focus when a priority preview disappears after ${interaction}`, async ({
+    page,
+  }) => {
+    await page.goto(
+      `${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--mixed-text-combined`,
+    );
+    await page.getByRole("button", { name: "Priority 23", exact: true }).click();
+    const drawer = page.getByRole("dialog", { name: "Pending details", exact: true }).first();
+    const fullText = drawer
+      .getByRole("region", { name: "Priority 23", exact: true })
+      .getByRole("button", { name: "View full message", exact: true })
+      .first();
+    await fullText[interaction]();
+    await page
+      .getByRole("button", {
+        name: "Simulate current turn completed",
+        exact: true,
+        includeHidden: true,
+      })
+      .evaluate((button: HTMLButtonElement) => {
+        button.click();
+      });
+    await expect(page.getByRole("dialog")).toHaveCount(1);
+    await expect(drawer.getByRole("heading", { name: "Priority 23", exact: true })).toHaveCount(0);
+    await expect
+      .poll(() => drawer.evaluate((element) => element.contains(document.activeElement)))
+      .toBe(true);
+  });
+}
+
 async function inspectMixedRecoveryQueue(page: Page, count: number, detailIndex: number) {
   await page
     .getByRole("group", { name: /^Pending:/ })
@@ -32,14 +165,18 @@ async function inspectMixedRecoveryQueue(page: Page, count: number, detailIndex:
 }
 
 async function assertCombinedRecovery(page: Page) {
+  await page
+    .getByRole("group", { name: /^Pending:/ })
+    .getByRole("button", { name: "Priority 23", exact: true })
+    .click();
   await expect(
     page.getByText("Currently unable to guide; added to queue", { exact: true }),
   ).toBeVisible();
-  const pending = page.getByRole("region", { name: "Pending messages", exact: true });
-  await expect(
-    pending.getByRole("heading", { name: "Will send first", exact: true }),
-  ).toBeVisible();
-  const priority = pending.getByRole("listitem");
+  const pending = page.getByRole("dialog", { name: "Pending details", exact: true });
+  await expect(pending.getByRole("heading", { name: "Priority 23", exact: true })).toBeVisible();
+  const priority = pending
+    .getByRole("region", { name: "Priority 23", exact: true })
+    .getByRole("listitem");
   await expect(priority).toHaveCount(23);
   await expect(priority.first()).toContainText("Guide message 1");
   await expect(priority.nth(1)).toHaveText("Guide message 2");
@@ -48,7 +185,7 @@ async function assertCombinedRecovery(page: Page) {
   const viewMore = priority.first().getByRole("button", { name: "View full message", exact: true });
   await expect
     .poll(async () => {
-      const row = await priority.first().boundingBox();
+      const row = await priority.first().locator('[data-slot="card-content"]').boundingBox();
       const button = await viewMore.boundingBox();
       return row != null && button != null
         ? Math.abs(row.x + row.width - button.x - button.width)
@@ -56,13 +193,15 @@ async function assertCombinedRecovery(page: Page) {
     })
     .toBeLessThanOrEqual(1);
   await viewMore.click();
-  const detail = page.getByRole("dialog", { name: "Pending details", exact: true });
+  const detail = page.getByRole("dialog", { name: "Pending details", exact: true }).last();
   await expect(detail).toContainText("END OF Guide message 1");
   await expect(detail).toContainText("end-of-reference");
   await expect(detail).toContainText(/\n\nCheck the narrow-screen/);
   await page.keyboard.press("Escape");
-  await expect(detail).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(1);
   await expect(viewMore).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 }
 
 async function assertUnsentRecovery(page: Page) {
@@ -72,7 +211,7 @@ async function assertUnsentRecovery(page: Page) {
 
 async function assertUnknownRecovery(page: Page) {
   await expect(page.getByText("Guide status unknown", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Priority / })).toHaveCount(0);
 }
 
 async function recoverUnsentMessage(page: Page) {
@@ -135,7 +274,7 @@ test("keeps guide delivery unknown without promoting it to priority", async ({ p
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guiding`);
   await page.getByRole("button", { name: "Simulate guide unknown", exact: true }).click();
   await expect(page.getByText("Guide status unknown", { exact: true })).toBeVisible();
-  await expect(page.getByText("Will send first", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Priority / })).toHaveCount(0);
   await page.clock.install();
   await page.clock.fastForward(60_000);
   await expect(page.getByText("Guide status unknown", { exact: true })).toBeVisible();
@@ -185,16 +324,17 @@ test("keeps accepted guidance pending until runtime confirmation", async ({ page
 test("queues refused guidance with priority", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guiding`);
   await page.getByRole("button", { name: "Simulate guide refusal", exact: true }).click();
+  await page.getByRole("button", { name: "Priority 1", exact: true }).click();
   await expect(
     page.getByText("Currently unable to guide; added to queue", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Priority 1", exact: true })).toBeVisible();
   await expect(page.getByText("Guide message 1", { exact: true })).toBeVisible();
 });
 
 test("renders priority, unknown delivery, and recovery availability", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--priority`);
-  await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Priority 1", exact: true })).toBeVisible();
   await page.goto(
     `${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--guide-unknown`,
   );
@@ -211,21 +351,23 @@ test("renders priority, unknown delivery, and recovery availability", async ({ p
 
 test("keeps failed priority guidance ahead of the ordinary queue", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--combined`);
-  await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Priority 2", exact: true })).toBeVisible();
   await page
-    .getByRole("group", { name: "Pending: Queued 3", exact: true })
+    .getByRole("group", { name: /^Pending:/ })
     .getByRole("button", { name: "Queued 3", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toContainText("Ordinary message 3");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Simulate current turn completed", exact: true }).click();
   await page.getByRole("button", { name: "Simulate send failure", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Priority 2", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Priority 2", exact: true })).toBeVisible();
   await expect(page.getByText("Guide message 1", { exact: true })).toBeVisible();
   await expect(page.getByText("Guide message 2", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(
     page
-      .getByRole("group", { name: "Pending: Queued 3", exact: true })
+      .getByRole("group", { name: /^Pending:/ })
       .getByRole("button", { name: "Queued 3", exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(0);
@@ -233,11 +375,11 @@ test("keeps failed priority guidance ahead of the ordinary queue", async ({ page
 
 test("offers ordinary recovery after priority guidance is delivered", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-recovery--combined`);
-  await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Priority 2", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Simulate current turn completed", exact: true }).click();
   await page.getByRole("button", { name: "Simulate send response", exact: true }).click();
   await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Priority / })).toHaveCount(0);
   await page.getByRole("button", { name: "Simulate current turn completed", exact: true }).click();
   await page.getByRole("button", { name: "Simulate send failure", exact: true }).click();
   await expect(page.getByRole("button", { name: "Continue sending", exact: true })).toBeEnabled();
