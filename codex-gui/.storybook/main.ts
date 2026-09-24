@@ -10,5 +10,19 @@ const config: StorybookConfig = {
     "@storybook/addon-mcp",
   ],
   framework: "@storybook/tanstack-react",
+  viteFinal: (viteConfig) => ({
+    ...viteConfig,
+    // This client-only GUI needs real Link navigation in its memory routers.
+    // The framework interceptor replaces Link with an action-only anchor.
+    plugins: viteConfig.plugins?.filter(
+      (plugin) =>
+        !(
+          plugin != null &&
+          typeof plugin === "object" &&
+          "name" in plugin &&
+          plugin.name === "storybook:tanstack-react:module-interception"
+        ),
+    ),
+  }),
 };
 export default config;
