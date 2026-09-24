@@ -590,9 +590,7 @@ test("hides move actions for owner-projected blockers and while delete confirmat
     pendingSteerGroup.getByRole("button", { name: /Move (up|down) pending message:/ }).all().length,
   ).toBe(0);
   expect(pendingSteerGroup.getByRole("button", { name: /More move options/ }).query()).toBeNull();
-  const readOnlyStatusText = dialog
-    .getByText("This message has entered the sending process.", { exact: true })
-    .first();
+  const readOnlyStatusText = dialog.getByText("Entered sending process", { exact: true }).first();
   await expect.element(readOnlyStatusText).toBeVisible();
 
   await dialog

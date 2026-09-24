@@ -455,6 +455,11 @@ msgstr "Elapsed {duration}"
 msgid "Enter a message before saving."
 msgstr "Enter a message before saving."
 
+#. Status label on a pending message; entered the sending process does not mean delivery succeeded.
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:400
+msgid "Entered sending process"
+msgstr "Entered sending process"
+
 #. Short system-error label for the current task beside the composer QR button
 #. Status of a collaborating agent that failed
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:118
@@ -1417,10 +1422,10 @@ msgid "This message has entered the sending process and can no longer be managed
 msgstr "This message has entered the sending process and can no longer be managed."
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:398
-msgid "This message has entered the sending process."
-msgstr "This message has entered the sending process."
+#~ msgid "This message has entered the sending process."
+#~ msgstr "This message has entered the sending process."
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:396
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:395
 msgid "This message is being edited."
 msgstr "This message is being edited."
 

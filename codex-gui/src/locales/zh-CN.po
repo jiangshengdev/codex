@@ -455,6 +455,11 @@ msgstr "已用时 {duration}"
 msgid "Enter a message before saving."
 msgstr "请先输入消息再保存。"
 
+#. Status label on a pending message; entered the sending process does not mean delivery succeeded.
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:400
+msgid "Entered sending process"
+msgstr "已进入发送流程"
+
 #. Short system-error label for the current task beside the composer QR button
 #. Status of a collaborating agent that failed
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:118
@@ -1417,10 +1422,10 @@ msgid "This message has entered the sending process and can no longer be managed
 msgstr "这条消息已进入发送流程，无法再管理。"
 
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:398
-msgid "This message has entered the sending process."
-msgstr "这条消息已进入发送流程。"
+#~ msgid "This message has entered the sending process."
+#~ msgstr "这条消息已进入发送流程。"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:396
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:395
 msgid "This message is being edited."
 msgstr "这条消息正在编辑。"
 

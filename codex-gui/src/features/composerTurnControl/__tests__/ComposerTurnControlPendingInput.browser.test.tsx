@@ -541,9 +541,7 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
   await expect.element(dialog).not.toHaveTextContent("steer-long");
   await expect.element(dialog).not.toHaveTextContent("ordinary-a");
   await expect.element(dialog).toHaveTextContent(/2 images.*1 audio item.*1 skill.*1 mention/);
-  await expect
-    .element(dialog.getByText("This message has entered the sending process.", { exact: true }))
-    .toBeVisible();
+  await expect.element(dialog.getByText("Entered sending process", { exact: true })).toBeVisible();
   const dialogText = dialog.element().textContent;
   expect(dialogText.indexOf(longPreview)).toBeLessThan(dialogText.indexOf("Steer 2"));
   expect(dialogText.indexOf("Ordinary A")).toBeLessThan(dialogText.indexOf("Ordinary B"));
@@ -838,9 +836,7 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
     .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
 
-  await expect
-    .element(dialog.getByText("This message has entered the sending process.", { exact: true }))
-    .toBeVisible();
+  await expect.element(dialog.getByText("Entered sending process", { exact: true })).toBeVisible();
   expect(dialog.getByRole("button", { name: "Edit", exact: true }).all().length).toBe(1);
   expect(dialog.getByRole("button", { name: "Delete", exact: true }).all().length).toBe(1);
 

@@ -390,14 +390,18 @@ function PendingInputItem({
             </Button>
           </Card.Footer>
         )
-      ) : (
+      ) : item.management.type === "editing" ? (
         <p className="text-sm text-muted">
-          {item.management.type === "editing" ? (
-            <Trans>This message is being edited.</Trans>
-          ) : (
-            <Trans>This message has entered the sending process.</Trans>
-          )}
+          <Trans>This message is being edited.</Trans>
         </p>
+      ) : (
+        <Chip className="self-start text-muted" color="default" size="sm" variant="soft">
+          <Chip.Label>
+            <Trans comment="Status label on a pending message; entered the sending process does not mean delivery succeeded.">
+              Entered sending process
+            </Trans>
+          </Chip.Label>
+        </Chip>
       )}
     </Card>
   );

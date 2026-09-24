@@ -81,9 +81,7 @@ test("App edits only an unsent steer and preserves its place behind the issuing 
     .getByRole("button", { name: "Guide 2", exact: true })
     .click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
-  await expect
-    .element(dialog.getByText("This message has entered the sending process.", { exact: true }))
-    .toBeVisible();
+  await expect.element(dialog.getByText("Entered sending process", { exact: true })).toBeVisible();
   expect(dialog.getByRole("button", { name: "Edit", exact: true }).all().length).toBe(1);
   expect(dialog.getByRole("button", { name: "Delete", exact: true }).all().length).toBe(1);
 
