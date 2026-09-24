@@ -83,6 +83,7 @@ export type ComposerPendingInputEditView =
     }>;
 
 export type ComposerPendingInputView = Readonly<{
+  initialLane: ComposerPendingInputLane | null;
   pages: ComposerPendingInputPrefixes | null;
   guidingCount: number;
   ordinaryQueuedCount: number;
@@ -120,7 +121,10 @@ export type ComposerPendingInputSession = Readonly<{
   getSnapshot(): ComposerPendingInputSessionSnapshot;
   subscribe(listener: () => void): () => void;
   project(facts: ComposerPendingInputCurrentFacts): ComposerPendingInputSessionSnapshot;
-  open(facts: ComposerPendingInputCurrentFacts): ComposerPendingInputCommandOutcome;
+  open(
+    facts: ComposerPendingInputCurrentFacts,
+    lane?: ComposerPendingInputLane,
+  ): ComposerPendingInputCommandOutcome;
   requestClose(facts: ComposerPendingInputCurrentFacts): ComposerPendingInputCommandOutcome;
   disconnect(facts: ComposerPendingInputCurrentFacts): void;
   returnToEdit(facts: ComposerPendingInputCurrentFacts): void;
@@ -211,6 +215,7 @@ const applied = { type: "applied" } as const;
 class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
   private readonly listeners = createListenerSet();
   private phase: ComposerPendingInputSessionSnapshot["phase"] = "closed";
+  private initialLane: ComposerPendingInputLane | null = null;
   private owner: ActiveThreadComposerRole | null = null;
   private ownerGeneration = 0;
   private pages: PendingInputPages | null = null;
@@ -244,7 +249,10 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     return this.snapshot;
   };
 
-  open = (facts: ComposerPendingInputCurrentFacts): ComposerPendingInputCommandOutcome => {
+  open = (
+    facts: ComposerPendingInputCurrentFacts,
+    lane?: ComposerPendingInputLane,
+  ): ComposerPendingInputCommandOutcome => {
     if (this.disposed || this.phase !== "closed" || !hasPendingInputs(facts.snapshot))
       return ignored;
     const result = readInitialComposerPendingInputPrefixes(
@@ -254,6 +262,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     if (result.type !== "ready") return ignored;
 
     this.ownerGeneration += 1;
+    this.initialLane = lane ?? null;
     this.phase = "open";
     this.owner = facts.composerRole;
     this.pages = { composerRole: facts.composerRole, ...result.prefixes };
@@ -889,6 +898,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     const view =
       open && counts != null
         ? {
+            initialLane: this.initialLane,
             pages: this.pages == null ? null : stripPageOwner(this.pages),
             guidingCount: counts.guidingCount,
             ordinaryQueuedCount: counts.ordinaryQueuedCount,

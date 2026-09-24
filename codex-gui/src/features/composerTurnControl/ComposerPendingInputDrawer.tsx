@@ -60,12 +60,23 @@ export function ComposerPendingInputDrawer({
     result: "copied" | "failed";
   } | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
-  const onHeadingMount = useCallback((heading: HTMLHeadingElement | null): void => {
-    headingRef.current = heading;
-    // Set initial focus before useDialog's effect so its delayed fallback cannot
-    // steal focus while a nested menu is restoring its trigger (CNB #17).
-    heading?.focus();
-  }, []);
+  const initialLane = pendingInputSnapshot.view?.initialLane;
+  const onHeadingMount = useCallback(
+    (heading: HTMLHeadingElement | null): void => {
+      headingRef.current = heading;
+      // Set initial focus before useDialog's effect so its delayed fallback cannot
+      // steal focus while a nested menu is restoring its trigger (CNB #17).
+      heading?.focus();
+      if (heading == null || initialLane == null) return;
+      queueMicrotask(() => {
+        if (headingRef.current !== heading || !heading.isConnected) return;
+        const target = laneHeadingRefs.current.get(initialLane);
+        target?.focus({ preventScroll: true });
+        target?.scrollIntoView({ block: "start", behavior: "instant" });
+      });
+    },
+    [initialLane],
+  );
   const editorControllerRef = useRef<Readonly<{
     preparationToken: number;
     controller: ComposerEditorController;
@@ -384,6 +395,13 @@ export function ComposerPendingInputTrigger({
 }>) {
   const { t } = useLingui();
   const { guidingCount, ordinaryQueuedCount } = facts.snapshot;
+  const [lastLane, setLastLane] = useState<ComposerPendingInputLane>("steer");
+  const focusLane =
+    lastLane === "ordinary" && ordinaryQueuedCount > 0
+      ? "ordinary"
+      : guidingCount > 0
+        ? "steer"
+        : "ordinary";
   const triggerLabel =
     guidingCount > 0 && ordinaryQueuedCount > 0
       ? t`Pending: Guide ${guidingCount}, Queued ${ordinaryQueuedCount}`
@@ -399,9 +417,10 @@ export function ComposerPendingInputTrigger({
     >
       {guidingCount > 0 ? (
         <Button
-          ref={triggerRef}
+          ref={focusLane === "steer" ? triggerRef : undefined}
           onPress={() => {
-            session.open(facts);
+            setLastLane("steer");
+            session.open(facts, "steer");
           }}
         >
           <Trans>Guide</Trans>
@@ -412,9 +431,10 @@ export function ComposerPendingInputTrigger({
       ) : null}
       {ordinaryQueuedCount > 0 ? (
         <Button
-          ref={guidingCount > 0 ? undefined : triggerRef}
+          ref={focusLane === "ordinary" ? triggerRef : undefined}
           onPress={() => {
-            session.open(facts);
+            setLastLane("ordinary");
+            session.open(facts, "ordinary");
           }}
         >
           {guidingCount > 0 ? <ButtonGroup.Separator /> : null}

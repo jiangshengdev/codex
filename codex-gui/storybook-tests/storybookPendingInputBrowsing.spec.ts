@@ -6,6 +6,37 @@ import { isPendingDrawerReady } from "../src/__tests__/pendingDrawerReady";
 test.use({ locale: "en" });
 
 for (const width of [375, 1280]) {
+  test(`queue entries navigate to their expanded group at ${String(width)}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 720 });
+    await page.goto(
+      `${storybookOrigin}/iframe.html?id=composer-pending-input-browsing--both-lanes`,
+    );
+    for (const [entryName, headingName] of [
+      ["Queued 23", "Queued 23"],
+      ["Guide 23", "Guiding 23"],
+    ]) {
+      const entry = page.getByRole("group", { name: /^Pending:/ }).getByRole("button", {
+        name: entryName,
+        exact: true,
+      });
+      for (let visit = 0; visit < 2; visit += 1) {
+        await entry.click();
+        const dialog = page.getByRole("dialog");
+        const heading = dialog.getByRole("heading", { name: headingName, exact: true });
+        await expect(heading).toBeInViewport();
+        await expect(heading.getByRole("button")).toHaveAttribute("aria-expanded", "true");
+        await expect(heading).toBeFocused();
+        await heading.getByRole("button").click();
+        await expect(heading.getByRole("button")).toHaveAttribute("aria-expanded", "false");
+        await page.keyboard.press("Escape");
+        await expect(dialog).toHaveCount(0);
+        await expect(entry).toBeFocused();
+      }
+    }
+  });
+}
+
+for (const width of [375, 1280]) {
   test(`directly previews mixed lists and long details at ${String(width)}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 720 });
     for (const [story, label] of [
