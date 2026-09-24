@@ -209,7 +209,7 @@ export function ComposerPendingInputDrawer({
                 )}
               </Drawer.Heading>
             </Drawer.Header>
-            <Drawer.Body className="grid content-start gap-3">
+            <Drawer.Body className="-mx-1 grid content-start gap-3 p-1">
               {recoveryNotice}
               {pendingInputSnapshot.alert == null ? null : (
                 <PendingManagementAlert alert={pendingInputSnapshot.alert} />

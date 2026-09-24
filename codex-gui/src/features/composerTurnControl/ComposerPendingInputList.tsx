@@ -198,7 +198,7 @@ function PendingInputGroup({
                   onPress={() => {
                     onShowMore(lane);
                   }}
-                  variant="tertiary"
+                  variant="secondary"
                 >
                   <Trans>Show more</Trans>
                 </Button>
