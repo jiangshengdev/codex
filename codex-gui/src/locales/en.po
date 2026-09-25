@@ -102,7 +102,7 @@ msgstr "A message update is missing its associated turn, so it cannot be fully d
 msgid "A working directory is required to start a session."
 msgstr "A working directory is required to start a session."
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:271
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:276
 msgid "Active"
 msgstr "Active"
 
@@ -397,12 +397,12 @@ msgstr "Currently unable to guide; added to queue"
 msgid "Dark theme"
 msgstr "Dark theme"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:374
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:452
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:385
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:463
 msgid "Delete"
 msgstr "Delete"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:355
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:366
 msgid "Delete this pending message?"
 msgstr "Delete this pending message?"
 
@@ -436,7 +436,7 @@ msgstr "Dismiss"
 msgid "Duration {duration}"
 msgstr "Duration {duration}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:440
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:451
 msgid "Edit"
 msgstr "Edit"
 
@@ -456,7 +456,7 @@ msgid "Enter a message before saving."
 msgstr "Enter a message before saving."
 
 #. Status label on a pending message; entered the sending process does not mean delivery succeeded.
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:472
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:334
 msgid "Entered sending process"
 msgstr "Entered sending process"
 
@@ -566,19 +566,19 @@ msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 msgid "History"
 msgstr "History"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:70
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:71
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
 #: src/features/appShell/AppShellTopBar.tsx:60
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:42
 msgid "History detail"
 msgstr "History detail"
 
 #. Short idle-state label for the current task beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:31
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:270
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:275
 msgid "Idle"
 msgstr "Idle"
 
@@ -627,7 +627,7 @@ msgstr "Interrupted."
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:364
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:375
 msgid "Keep"
 msgstr "Keep"
 
@@ -637,36 +637,36 @@ msgid "Light theme"
 msgstr "Light theme"
 
 #. Button to load the historical task list
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:317
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:318
 msgid "Load history"
 msgstr "Load history"
 
 #. Button to request another page of historical tasks
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:178
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:313
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:183
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:314
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:265
-#: src/features/currentTask/CurrentTaskPage.tsx:338
-#: src/features/currentTask/CurrentTaskPage.tsx:405
+#: src/features/currentTask/CurrentTaskPage.tsx:266
+#: src/features/currentTask/CurrentTaskPage.tsx:343
+#: src/features/currentTask/CurrentTaskPage.tsx:410
 msgid "Load task"
 msgstr "Load task"
 
 #. Button to read the selected task's historical messages
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:109
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:111
 msgid "Load task history"
 msgstr "Load task history"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:189
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:308
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:194
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:309
 msgid "Loading history…"
 msgstr "Loading history…"
 
 #. Progress while requesting another history page
 #. Progress while requesting another history page
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:173
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:304
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:178
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:305
 msgid "Loading more…"
 msgstr "Loading more…"
 
@@ -684,15 +684,16 @@ msgstr "Loading preview…"
 msgid "Loading skills…"
 msgstr "Loading skills…"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:107
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:52
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:109
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:258
-#: src/features/currentTask/CurrentTaskPage.tsx:324
-#: src/features/currentTask/CurrentTaskPage.tsx:385
-#: src/features/currentTask/CurrentTaskPage.tsx:554
+#: src/features/currentTask/CurrentTaskPage.tsx:259
+#: src/features/currentTask/CurrentTaskPage.tsx:304
+#: src/features/currentTask/CurrentTaskPage.tsx:314
+#: src/features/currentTask/CurrentTaskPage.tsx:329
+#: src/features/currentTask/CurrentTaskPage.tsx:390
 msgid "Loading task…"
 msgstr "Loading task…"
 
@@ -730,7 +731,7 @@ msgstr "Message updates arrived out of order, so the conversation may be incompl
 msgid "Message updates have piled up, so synchronization has paused."
 msgstr "Message updates have piled up, so synchronization has paused."
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:407
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:418
 msgid "More move options for pending message: {previewText}"
 msgstr "More move options for pending message: {previewText}"
 
@@ -739,27 +740,27 @@ msgstr "More move options for pending message: {previewText}"
 msgid "More options for {title}"
 msgstr "More options for {title}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:394
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:405
 msgid "Move down pending message: {previewText}"
 msgstr "Move down pending message: {previewText}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:424
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:435
 msgid "Move pending message to first"
 msgstr "Move pending message to first"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:429
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:440
 msgid "Move pending message to last"
 msgstr "Move pending message to last"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:426
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:437
 msgid "Move to first"
 msgstr "Move to first"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:431
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:442
 msgid "Move to last"
 msgstr "Move to last"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:382
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:393
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
@@ -791,7 +792,7 @@ msgstr "No agents completed yet"
 msgid "No committed messages yet."
 msgstr "No committed messages yet."
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:126
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:129
 msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
 
@@ -810,11 +811,11 @@ msgstr "Not found"
 
 #. Short label for a current task that is not loaded beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:23
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:269
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:274
 msgid "Not loaded"
 msgstr "Not loaded"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:73
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:74
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
@@ -832,11 +833,11 @@ msgstr "Open fork"
 msgid "Open session"
 msgstr "Open session"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:222
+#: src/features/currentTask/CurrentTaskPage.tsx:223
 msgid "Open task"
 msgstr "Open task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:208
+#: src/features/currentTask/CurrentTaskPage.tsx:209
 msgid "Opening task…"
 msgstr "Opening task…"
 
@@ -851,7 +852,7 @@ msgstr "Page not found"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:237
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:102
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:331
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:342
 msgid "Pending details"
 msgstr "Pending details"
 
@@ -959,7 +960,7 @@ msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
 
 #. Reload the current task's runtime status
-#: src/features/currentTask/CurrentTaskPage.tsx:407
+#: src/features/currentTask/CurrentTaskPage.tsx:412
 msgid "Refresh status"
 msgstr "Refresh status"
 
@@ -967,7 +968,7 @@ msgstr "Refresh status"
 msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:387
+#: src/features/currentTask/CurrentTaskPage.tsx:392
 msgid "Refreshing status…"
 msgstr "Refreshing status…"
 
@@ -1004,18 +1005,18 @@ msgstr "Remove or replace invalid skills before saving."
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
-#: src/features/currentTask/CurrentTaskPage.tsx:218
-#: src/features/currentTask/CurrentTaskPage.tsx:334
-#: src/features/currentTask/CurrentTaskPage.tsx:401
+#: src/features/currentTask/CurrentTaskPage.tsx:219
+#: src/features/currentTask/CurrentTaskPage.tsx:339
+#: src/features/currentTask/CurrentTaskPage.tsx:406
 msgid "Remove task"
 msgstr "Remove task"
 
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
-#: src/features/currentTask/CurrentTaskPage.tsx:204
-#: src/features/currentTask/CurrentTaskPage.tsx:320
-#: src/features/currentTask/CurrentTaskPage.tsx:381
+#: src/features/currentTask/CurrentTaskPage.tsx:205
+#: src/features/currentTask/CurrentTaskPage.tsx:325
+#: src/features/currentTask/CurrentTaskPage.tsx:386
 msgid "Removing task…"
 msgstr "Removing task…"
 
@@ -1232,7 +1233,7 @@ msgstr "Synchronization could not be restored. You can try again."
 msgid "System"
 msgstr "System"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:272
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:277
 msgid "System error"
 msgstr "System error"
 
@@ -1246,8 +1247,8 @@ msgstr "System theme"
 msgid "Table copied"
 msgstr "Table copied"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:229
-#: src/features/currentTask/CurrentTaskPage.tsx:448
+#: src/features/currentTask/CurrentTaskPage.tsx:230
+#: src/features/currentTask/CurrentTaskPage.tsx:453
 msgid "Task action failed"
 msgstr "Task action failed"
 
@@ -1316,8 +1317,8 @@ msgstr "The conversation shown here may be out of date. Restore sync to get the 
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "The creation result is unknown. Retrying may leave an extra empty session."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:279
-#: src/features/currentTask/CurrentTaskPage.tsx:353
+#: src/features/currentTask/CurrentTaskPage.tsx:280
+#: src/features/currentTask/CurrentTaskPage.tsx:358
 msgid "The current task could not be loaded."
 msgstr "The current task could not be loaded."
 
@@ -1367,7 +1368,7 @@ msgstr "The specified turn was not found."
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:451
+#: src/features/currentTask/CurrentTaskPage.tsx:456
 msgid "The task action could not be completed."
 msgstr "The task action could not be completed."
 
@@ -1387,11 +1388,11 @@ msgstr "The task connection could not be prepared."
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:233
+#: src/features/currentTask/CurrentTaskPage.tsx:234
 msgid "The task could not be opened."
 msgstr "The task could not be opened."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:235
+#: src/features/currentTask/CurrentTaskPage.tsx:236
 msgid "The task could not be removed."
 msgstr "The task could not be removed."
 
@@ -1407,7 +1408,7 @@ msgstr "The task list could not be updated."
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:473
+#: src/features/currentTask/CurrentTaskPage.tsx:478
 msgid "The task recovery could not be completed."
 msgstr "The task recovery could not be completed."
 
@@ -1432,7 +1433,7 @@ msgstr "This editing session is no longer available."
 msgid "This message has entered the sending process and can no longer be managed."
 msgstr "This message has entered the sending process and can no longer be managed."
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:467
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:478
 msgid "This message is being edited."
 msgstr "This message is being edited."
 
@@ -1445,7 +1446,7 @@ msgstr "This pending message cannot be edited."
 msgid "This task could not be restored. You can try again."
 msgstr "This task could not be restored. You can try again."
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:64
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:66
 msgid "This task has no messages."
 msgstr "This task has no messages."
 
@@ -1466,7 +1467,7 @@ msgid "This task still has queued messages."
 msgstr "This task still has queued messages."
 
 #. History date group: tasks last active on the current local day
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:130
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:135
 msgid "Today"
 msgstr "Today"
 
@@ -1498,24 +1499,24 @@ msgstr "Unable to continue this task"
 msgid "Unable to create fork"
 msgstr "Unable to create fork"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:325
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:326
 msgid "Unable to load history"
 msgstr "Unable to load history"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:118
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:120
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:276
-#: src/features/currentTask/CurrentTaskPage.tsx:350
+#: src/features/currentTask/CurrentTaskPage.tsx:277
+#: src/features/currentTask/CurrentTaskPage.tsx:355
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:470
+#: src/features/currentTask/CurrentTaskPage.tsx:475
 msgid "Unable to recover the current task"
 msgstr "Unable to recover the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:142
+#: src/features/currentTask/CurrentTaskPage.tsx:143
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "Unable to retry this task. Review its current state and try again."
 
@@ -1546,8 +1547,8 @@ msgstr "Unknown"
 msgid "Unsaved pending message"
 msgstr "Unsaved pending message"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:41
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:215
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:43
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:220
 msgid "Untitled task"
 msgstr "Untitled task"
 
@@ -1594,7 +1595,7 @@ msgstr "Uploading"
 msgid "User"
 msgstr "User"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:259
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:264
 msgid "View"
 msgstr "View"
 
@@ -1604,7 +1605,7 @@ msgid "View diagnostic information"
 msgstr "View diagnostic information"
 
 #. Open a dialog containing the complete message shown in a truncated composer preview
-#: src/features/composerTurnControl/ComposerFullMessagePreview.tsx:38
+#: src/features/composerTurnControl/ComposerFullMessagePreview.tsx:43
 msgid "View full message"
 msgstr "View full message"
 
@@ -1693,7 +1694,7 @@ msgid "Working directory: {directoryName}"
 msgstr "Working directory: {directoryName}"
 
 #. History date group: tasks last active on the previous local day
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:134
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:139
 msgid "Yesterday"
 msgstr "Yesterday"
 
