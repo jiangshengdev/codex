@@ -15,6 +15,7 @@ import { ThreadHistoryEmptyState } from "./ThreadHistoryEmptyState";
 import type { ThreadHistoryDetailState } from "./threadHistoryDetailOwner";
 import { resolveThreadHistoryPresentation } from "./threadHistoryPresentation";
 import { ThreadForkSourceContext } from "@/features/threadFork/ThreadForkContext";
+import { TaskDetailBody } from "@/features/taskLayout/TaskDetailPage";
 
 type ThreadHistoryDetailContentProps = Readonly<{
   turnPosition?: TurnPositionRequest | null;
@@ -53,7 +54,7 @@ export function ThreadHistoryDetailContent({
         </TaskLoading>
       ) : null}
       {state.type === "error" || state.type === "retrying" ? (
-        <div className="pt-3">
+        <div>
           <HistoryDetailError
             error={state.error}
             retry={retry}
@@ -67,7 +68,7 @@ export function ThreadHistoryDetailContent({
         </ThreadHistoryEmptyState>
       ) : null}
       {state.type === "ready" && (state.thread.turns.length > 0 || turnPosition != null) ? (
-        <div className="pt-3">
+        <TaskDetailBody>
           <ThreadForkSourceContext value={state.thread.id}>
             <ReadOnlyCommittedTranscriptSurface
               surfaceKey={state.thread.id}
@@ -75,7 +76,7 @@ export function ThreadHistoryDetailContent({
               turnPosition={turnPosition}
             />
           </ThreadForkSourceContext>
-        </div>
+        </TaskDetailBody>
       ) : null}
       {state.type === "ready" ? (
         <ContinueTaskAction

@@ -1,4 +1,5 @@
-import { Alert, Surface } from "@heroui/react";
+import { Alert } from "@heroui/react";
+import { TaskDetailBody, TaskDetailPage } from "@/features/taskLayout/TaskDetailPage";
 import { TaskLoading } from "@/feedback/TaskLoading";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useRouter } from "@tanstack/react-router";
@@ -268,7 +269,7 @@ export function CurrentTaskPage() {
         </RetryActionButton>
       ) : null;
     return (
-      <main className="task-page" data-gui-host-status={status.label}>
+      <TaskDetailPage data-gui-host-status={status.label}>
         {retryError != null ? (
           <Alert role="alert" status="danger">
             <Alert.Indicator />
@@ -290,31 +291,31 @@ export function CurrentTaskPage() {
           </Alert>
         ) : null}
         {retryError == null ? retryAction : null}
-      </main>
+      </TaskDetailPage>
     );
   }
 
   if (activeThreadSession == null || sessionPhase === "empty" || sessionPhase === "disposed") {
-    return <main className="task-page" data-gui-host-status={status.label} />;
+    return <TaskDetailPage data-gui-host-status={status.label} />;
   }
 
   if (routeTarget.type !== "currentTask" || snapshot.threadId !== routeTarget.threadId) {
     return (
-      <main className="task-page" data-gui-host-status={status.label}>
+      <TaskDetailPage data-gui-host-status={status.label}>
         <TaskLoading>
           <Trans>Loading task…</Trans>
         </TaskLoading>
-      </main>
+      </TaskDetailPage>
     );
   }
   if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") {
     if (snapshot.phase === "loading" && snapshot.error == null && retryError == null) {
       return (
-        <main className="task-page" data-gui-host-status={status.label}>
+        <TaskDetailPage data-gui-host-status={status.label}>
           <TaskLoading>
             <Trans>Loading task…</Trans>
           </TaskLoading>
-        </main>
+        </TaskDetailPage>
       );
     }
     const retryAction = (
@@ -346,7 +347,7 @@ export function CurrentTaskPage() {
       </RetryActionButton>
     );
     return (
-      <main className="task-page" data-gui-host-status={status.label}>
+      <TaskDetailPage data-gui-host-status={status.label}>
         {snapshot.error != null || retryError != null ? (
           <Alert role="alert" status="danger">
             <Alert.Indicator />
@@ -369,7 +370,7 @@ export function CurrentTaskPage() {
         ) : null}
         {operationNotices}
         {snapshot.error == null && retryError == null ? retryAction : null}
-      </main>
+      </TaskDetailPage>
     );
   }
 
@@ -525,16 +526,16 @@ function CurrentTaskReady({
   );
 
   return (
-    <main className="task-page" data-gui-host-status={status.label}>
+    <TaskDetailPage data-gui-host-status={status.label}>
       <AppShellNotice>{notices}</AppShellNotice>
-      <Surface className="grid min-w-0 flex-1 content-start" variant="transparent">
+      <TaskDetailBody>
         <CommittedTranscriptSurface
           identity={identity}
           turnPosition={turnPosition}
           positionCompleted={positionCompleted}
           onPositionComplete={onPositionComplete}
         />
-      </Surface>
+      </TaskDetailBody>
       <div
         aria-hidden="true"
         className="committed-transcript-bottom-sentinel h-px w-full"
@@ -545,7 +546,7 @@ function CurrentTaskReady({
         guardCompositionEndEnter={guardCompositionEndEnter}
         routeTarget={routeTarget}
       />
-    </main>
+    </TaskDetailPage>
   );
 }
 

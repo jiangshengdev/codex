@@ -49,6 +49,7 @@ export function AppShell({ children }: AppShellProps) {
   const collection = useActiveThreadCollectionSnapshot();
   const snapshot = useActiveThreadSessionSnapshot();
   const isCurrentTask = routeTarget.type === "currentTask";
+  const isDetail = isCurrentTask || routeTarget.type === "historyDetail";
   const floating = isCurrentTask
     ? (snapshot.phase === "active" || snapshot.phase === "projectionUnavailable") &&
       snapshot.threadId === routeTarget.threadId
@@ -62,9 +63,9 @@ export function AppShell({ children }: AppShellProps) {
       <Toast.Provider placement="top" />
       <AppShellTopBar />
       <div aria-hidden="true" className="h-14 shrink-0" />
-      <div className={isCurrentTask ? "app-shell-content-boundary task-page-layout" : "contents"}>
+      <div className={isDetail ? "app-shell-content-boundary task-page-layout" : "contents"}>
         <AppShellNotices
-          contained={isCurrentTask}
+          contained={isDetail}
           floating={floating}
           notices={
             <>

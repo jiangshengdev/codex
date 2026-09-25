@@ -17,6 +17,8 @@
 
 .task-page-layout > .app-shell-notices {
   margin-block: calc(var(--spacing) * -3);
+  margin-inline: calc(-1 * var(--app-shell-content-gutter));
+  padding-inline: var(--app-shell-content-gutter);
 }
 
 .app-shell-notices.app-shell-content-boundary {
