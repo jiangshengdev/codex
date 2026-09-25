@@ -5,7 +5,7 @@ import { NewSessionPreview } from "./NewSessionPreview";
 const meta = {
   ...inputs,
   id: "new-session-mixed-recovery",
-  title: "New session/Mixed input recovery (local simulation)",
+  title: "New session/Mixed input recovery/States (local simulation)",
   component: NewSessionPreview,
   args: { preset: "failed", input: "mixed" },
 } satisfies Meta<typeof NewSessionPreview>;

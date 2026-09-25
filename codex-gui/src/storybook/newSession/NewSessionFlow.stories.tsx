@@ -4,7 +4,7 @@ import { NewSessionPreview } from "./NewSessionPreview";
 
 const meta = {
   id: "new-session-flow",
-  title: "New session/Flow (local simulation)",
+  title: "New session/Flow/States (local simulation)",
   component: NewSessionPreview,
   parameters: { layout: "fullscreen", hasFixedHeader: true },
   decorators: [

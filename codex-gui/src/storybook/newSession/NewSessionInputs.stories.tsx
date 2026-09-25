@@ -4,7 +4,7 @@ import { NewSessionPreview } from "./NewSessionPreview";
 
 const meta = {
   id: "new-session-inputs",
-  title: "New session/Inputs (local simulation)",
+  title: "New session/Inputs/Variants (local simulation)",
   component: NewSessionPreview,
   parameters: { layout: "fullscreen", hasFixedHeader: true },
   args: { preset: "initialInput" },
