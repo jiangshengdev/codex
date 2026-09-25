@@ -25,7 +25,6 @@ import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
 import { ProjectionRecoveryNotice } from "./ProjectionRecoveryNotice";
-import { ConnectionTaskRecoveryNotice } from "./ConnectionTaskRecoveryNotice";
 import {
   useTurnPositionRequest,
   type TurnPositionRequest,
@@ -37,8 +36,7 @@ export function CurrentTaskPage() {
   const { t } = useLingui();
   const navigate = useNavigate();
   const router = useRouter();
-  const { activeThreadSession, authorizationToken, routeTarget, status, connectionRecovery } =
-    useAppCapabilities();
+  const { activeThreadSession, authorizationToken, routeTarget, status } = useAppCapabilities();
   const routeThreadId = routeTarget.type === "currentTask" ? routeTarget.threadId : null;
   const turnPosition = useTurnPositionRequest(routeTarget);
   const [completedPosition, setCompletedPosition] = useState<TurnPositionRequest | null>(null);
@@ -427,15 +425,6 @@ export function CurrentTaskPage() {
       status={status}
       notices={
         <>
-          {snapshot.connection.phase === "unavailable" ? (
-            <ConnectionTaskRecoveryNotice
-              connection={snapshot.connection}
-              canRecover={status.label === "initialized" && connectionRecovery == null}
-              onRecover={() => {
-                void activeThreadSession.recoverConnection(snapshot.threadId, snapshot.identity);
-              }}
-            />
-          ) : null}
           {snapshot.phase === "projectionUnavailable" ? (
             <ProjectionRecoveryNotice
               snapshot={snapshot}

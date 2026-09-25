@@ -13,7 +13,7 @@ for (const width of [375, 1280]) {
     );
     const issues = page.getByRole("region", { name: "Active issues", exact: true });
     await expect(issues).toContainText("Connection closed");
-    await expect(issues.getByText("1 active issue", { exact: true })).toBeVisible();
+    await expect(issues.getByText("2 active issues", { exact: true })).toBeVisible();
     for (const fraction of [0, 0.5, 1]) {
       await page.evaluate((value) => {
         window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) * value);

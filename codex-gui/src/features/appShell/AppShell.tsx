@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import { ErrorNoticeStack, type ErrorNotice } from "@/feedback/ErrorNoticeStack";
+import { useCurrentTaskRecoveryNotices } from "@/features/currentTask/useCurrentTaskRecoveryNotices";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { aggregateErrorText } from "@/text/aggregateErrorText";
@@ -43,6 +44,7 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
 export function AppShell({ children }: AppShellProps) {
   const { routeTarget, status, connectionRecovery, activeThreadSession } = useAppCapabilities();
   const collection = useActiveThreadCollectionSnapshot();
+  const taskNotices = useCurrentTaskRecoveryNotices();
   const isCurrentTask = routeTarget.type === "currentTask";
   const notices: ErrorNotice[] = [];
   if (connectionRecovery == null && status.label === "error") {
@@ -59,6 +61,7 @@ export function AppShell({ children }: AppShellProps) {
       ),
     });
   }
+  notices.push(...taskNotices);
   for (const { operation, threadId, error } of collection.errors) {
     const diagnostic = aggregateErrorText(error);
     notices.push({
