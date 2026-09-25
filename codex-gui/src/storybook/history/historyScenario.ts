@@ -185,7 +185,16 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
       (start ??=
         options.list === "contextUnavailable"
           ? Promise.resolve()
-          : controller.session.activate(historyCurrentId)),
+          : controller.session.activate(historyCurrentId).then((outcome) => {
+              if (options.fork === "pageCoexistence") {
+                controller.session.setOperationError(
+                  historySelectedId,
+                  "navigation",
+                  new Error("STORYBOOK_OPEN_TASK_FAILED: The history task could not be opened."),
+                );
+              }
+              return outcome;
+            })),
     getActivationCount: () => activationCount,
     getForkCount: () => forkCount,
     subscribe: (listener: () => void) => listeners.subscribe(listener),

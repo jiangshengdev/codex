@@ -1,7 +1,114 @@
 import { expect, test } from "@playwright/test";
 import { installPausedClock } from "./pausedClock";
+import {
+  DEV_VISIBILITY_CHANGED,
+  type DevVisibility,
+} from "../src/storybook/environment/devVisibility";
 
 test.use({ locale: "en" });
+
+for (const width of [375, 1280]) {
+  test(`fork and global notices stay reachable across long pages at ${String(width)}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/iframe.html?id=history-fork--page-coexistence&viewMode=story");
+    const notices = page.getByRole("region", { name: "Page notices", exact: true });
+    await expect(notices.getByRole("alert")).toHaveCount(4);
+    await page.evaluate(
+      ({ event, visibility }) => {
+        const preview = window as typeof window & {
+          __STORYBOOK_ADDONS_CHANNEL__: { emit: (name: string, value: DevVisibility) => void };
+        };
+        preview.__STORYBOOK_ADDONS_CHANNEL__.emit(event, visibility);
+      },
+      { event: DEV_VISIBILITY_CHANGED, visibility: { visible: false } },
+    );
+    await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+    const lastFork = notices
+      .getByRole("alert")
+      .filter({ hasText: "00000000-0000-0000-0000-000000000104" });
+    const open = lastFork.getByRole("button", { name: "Open fork", exact: true });
+    const bounds = (element: HTMLElement | SVGElement) => {
+      const { x, width } = element.getBoundingClientRect();
+      return { x, width };
+    };
+    const main = await page.getByRole("main").evaluate(bounds);
+    const region = await notices.evaluate(bounds);
+    expect(region.x).toBeCloseTo(main.x, 0);
+    expect(region.width).toBeCloseTo(main.width, 0);
+    for (const fraction of [0, 0.5, 1]) {
+      await page.evaluate((position) => {
+        window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) * position);
+      }, fraction);
+      await notices.focus();
+      await notices.press("End");
+      await expect(open).toBeInViewport({ ratio: 1 });
+      await expect.poll(() => page.evaluate(() => window.scrollY > 800)).toBe(fraction > 0);
+    }
+    await expect
+      .poll(() =>
+        notices.evaluate(
+          (element) =>
+            element.scrollHeight > element.clientHeight &&
+            element.getBoundingClientRect().bottom < innerHeight / 2 &&
+            document.documentElement.scrollWidth <= innerWidth,
+        ),
+      )
+      .toBe(true);
+    const failed = notices.getByRole("alert").filter({ hasText: "Unable to create fork" });
+    const diagnostic = failed.getByRole("button", {
+      name: "View diagnostic information",
+      exact: true,
+    });
+    await diagnostic.click();
+    await expect(page.getByRole("dialog")).toContainText("STORYBOOK_FORK_FAILED");
+    await page.keyboard.press("Escape");
+    await expect(diagnostic).toBeFocused();
+    await failed.getByRole("button", { name: "Dismiss", exact: true }).click();
+    await expect(notices.getByRole("alert")).toHaveCount(3);
+    await page.getByRole("button", { name: "Menu", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "History", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "History", exact: true })).toBeVisible();
+    await expect(notices.getByRole("alert")).toHaveCount(3);
+    const list = await page.getByRole("main").evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      const left = parseFloat(style.paddingLeft);
+      const right = parseFloat(style.paddingRight);
+      return { x: rect.x + left, width: rect.width - left - right };
+    });
+    const listRegion = await notices.evaluate(bounds);
+    expect(listRegion.x).toBeCloseTo(list.x, 0);
+    expect(listRegion.width).toBeCloseTo(list.width, 0);
+    await open.click();
+    await expect(page.getByRole("combobox", { name: "Message Codex", exact: true })).toBeVisible();
+    await expect(lastFork).toHaveCount(0);
+    await expect(notices.getByRole("button", { name: "Open fork", exact: true })).toHaveCount(1);
+    await expect(page.locator("[data-history-forks]")).toHaveAttribute("data-history-forks", "0");
+  });
+}
+
+test("native toast remains operable alongside unresolved fork notices after continuation", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto("/iframe.html?id=history-fork--page-coexistence&viewMode=story");
+  const notices = page.getByRole("region", { name: "Page notices", exact: true });
+  await expect(notices.getByRole("alert")).toHaveCount(4);
+  await installPausedClock(page);
+  await page.getByRole("button", { name: "Continue this task", exact: true }).click();
+  await page.clock.runFor(1000);
+  await expect(page.getByRole("combobox", { name: "Message Codex", exact: true })).toBeVisible();
+  const toast = page.getByRole("alertdialog").filter({ hasText: "Task opened" });
+  await expect(toast).toContainText("The previous task connection could not be fully cleaned up.");
+  await expect(notices.getByRole("button", { name: "Open fork", exact: true })).toHaveCount(2);
+  await toast.hover();
+  await toast.getByRole("button", { name: "Close", exact: true }).click();
+  await page.clock.runFor(500);
+  await expect(toast).toHaveCount(0);
+  await expect(notices.getByRole("button", { name: "Open fork", exact: true })).toHaveCount(2);
+});
 
 test("fork creation failure provides keyboard diagnostics and can be dismissed on a narrow screen", async ({
   page,

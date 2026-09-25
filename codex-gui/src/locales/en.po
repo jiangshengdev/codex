@@ -427,7 +427,7 @@ msgid "Discard unsaved changes?"
 msgstr "Discard unsaved changes?"
 
 #. Dismiss the fork creation error notice
-#: src/features/threadFork/ThreadForkNotice.tsx:31
+#: src/features/threadFork/ThreadForkNotice.tsx:36
 msgid "Dismiss"
 msgstr "Dismiss"
 
@@ -530,7 +530,7 @@ msgstr "File upload is not authorized. Open the current GUI launch link."
 msgid "Finished waiting"
 msgstr "Finished waiting"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:73
+#: src/features/threadFork/ThreadForkNotice.tsx:78
 msgid "Fork created"
 msgstr "Fork created"
 
@@ -825,7 +825,7 @@ msgid "Open current task"
 msgstr "Open current task"
 
 #. Resume opening an already created fork without creating it again
-#: src/features/threadFork/ThreadForkNotice.tsx:65
+#: src/features/threadFork/ThreadForkNotice.tsx:70
 msgid "Open fork"
 msgstr "Open fork"
 
@@ -1344,7 +1344,7 @@ msgstr "The file may already have been saved. Retrying uploads the entire file a
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "The message was moved, but repeated queue changes prevented the updated order from loading."
 
-#: src/features/threadFork/ThreadForkNotice.tsx:76
+#: src/features/threadFork/ThreadForkNotice.tsx:81
 msgid "The new conversation is saved. Continue opening it without creating another fork."
 msgstr "The new conversation is saved. Continue opening it without creating another fork."
 
@@ -1360,7 +1360,7 @@ msgstr "The pending-message order did not change. Refresh complete; try again."
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "The previous task connection could not be fully cleaned up. Later state may be affected."
 
-#: src/features/threadFork/ThreadForkNotice.tsx:41
+#: src/features/threadFork/ThreadForkNotice.tsx:46
 msgid "The result is unknown. Check history before forking again; another click may create an additional conversation."
 msgstr "The result is unknown. Check history before forking again; another click may create an additional conversation."
 
@@ -1500,7 +1500,7 @@ msgstr "Turn {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:37
+#: src/features/threadFork/ThreadForkNotice.tsx:42
 msgid "Unable to create fork"
 msgstr "Unable to create fork"
 

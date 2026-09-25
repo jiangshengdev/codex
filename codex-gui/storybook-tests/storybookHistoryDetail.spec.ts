@@ -18,7 +18,10 @@ test("history detail read failure exposes diagnostics and recovers with keyboard
   page,
 }) => {
   await page.goto("/iframe.html?id=history-detail--read-error&viewMode=story");
-  const error = page.getByRole("alert");
+  const error = page.getByRole("main").getByRole("alert");
+  await expect(
+    page.getByRole("region", { name: "Page notices", exact: true }).getByRole("alert"),
+  ).toHaveCount(0);
   await expect(error).toContainText("Unable to load task history");
   await expect(page.getByRole("button", { name: "Continue this task", exact: true })).toHaveCount(
     0,

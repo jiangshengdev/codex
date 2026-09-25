@@ -427,7 +427,7 @@ msgid "Discard unsaved changes?"
 msgstr "丢弃尚未保存的修改？"
 
 #. Dismiss the fork creation error notice
-#: src/features/threadFork/ThreadForkNotice.tsx:31
+#: src/features/threadFork/ThreadForkNotice.tsx:36
 msgid "Dismiss"
 msgstr "关闭提示"
 
@@ -530,7 +530,7 @@ msgstr "文件上传未获授权。请打开当前 GUI 启动链接。"
 msgid "Finished waiting"
 msgstr "等待结束"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:73
+#: src/features/threadFork/ThreadForkNotice.tsx:78
 msgid "Fork created"
 msgstr "分叉会话已创建"
 
@@ -825,7 +825,7 @@ msgid "Open current task"
 msgstr "打开当前任务"
 
 #. Resume opening an already created fork without creating it again
-#: src/features/threadFork/ThreadForkNotice.tsx:65
+#: src/features/threadFork/ThreadForkNotice.tsx:70
 msgid "Open fork"
 msgstr "打开分叉会话"
 
@@ -1344,7 +1344,7 @@ msgstr "文件可能已经保存。重试会重新上传整个文件，可能生
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "消息已移动，但队列反复变化，无法加载更新后的顺序。"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:76
+#: src/features/threadFork/ThreadForkNotice.tsx:81
 msgid "The new conversation is saved. Continue opening it without creating another fork."
 msgstr "新会话已保存。继续打开该会话，不会重复创建分叉。"
 
@@ -1360,7 +1360,7 @@ msgstr "待处理消息的顺序没有改变。已刷新，请重试。"
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "上一个任务连接未能完全清理，后续状态可能受到影响。"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:41
+#: src/features/threadFork/ThreadForkNotice.tsx:46
 msgid "The result is unknown. Check history before forking again; another click may create an additional conversation."
 msgstr "创建结果未知。请先检查历史记录；再次点击分叉可能会额外创建一个会话。"
 
@@ -1500,7 +1500,7 @@ msgstr "轮次 {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:37
+#: src/features/threadFork/ThreadForkNotice.tsx:42
 msgid "Unable to create fork"
 msgstr "无法创建分叉会话"
 

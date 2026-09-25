@@ -1,5 +1,5 @@
 import type { ThreadForkSnapshot } from "@/features/threadFork/threadForkOwner";
-import { historyReturnedId, historySelectedId } from "./historyFixtures";
+import { historyEarlierId, historyReturnedId, historySelectedId } from "./historyFixtures";
 
 const initialSnapshot: ThreadForkSnapshot = {
   pending: false,
@@ -62,5 +62,12 @@ export const forkSnapshots = {
   unavailable,
   navigationFailed: createdUnopened,
   completed: createdUnopened,
+  pageCoexistence: {
+    ...resultUnknown,
+    recoveries: [
+      ...openFailed.recoveries,
+      { threadId: historyEarlierId, needsActivation: true, failure: null },
+    ],
+  },
 };
 export type ForkScenario = keyof typeof forkSnapshots;

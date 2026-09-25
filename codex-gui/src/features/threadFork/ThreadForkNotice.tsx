@@ -3,6 +3,7 @@ import { Trans } from "@lingui/react/macro";
 import { use, useSyncExternalStore } from "react";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
+import { AppShellNotice } from "@/features/appShell/AppShellNotices";
 import { errorText } from "@/text/errorText";
 import { ThreadForkContext } from "./ThreadForkContext";
 import type { ThreadForkOwner } from "./threadForkOwner";
@@ -10,7 +11,11 @@ import type { ThreadForkOwner } from "./threadForkOwner";
 export function ThreadForkNotice() {
   const context = use(ThreadForkContext);
   if (context == null) return null;
-  return <ForkNotice owner={context.owner} available={context.available} />;
+  return (
+    <AppShellNotice>
+      <ForkNotice owner={context.owner} available={context.available} />
+    </AppShellNotice>
+  );
 }
 
 function ForkNotice({

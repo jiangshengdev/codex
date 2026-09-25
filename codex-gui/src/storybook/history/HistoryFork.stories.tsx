@@ -24,3 +24,6 @@ export const NavigationFailed: Story = { args: { fork: "navigationFailed" }, pla
 export const Pending: Story = { args: { fork: "pending" } };
 export const Unavailable: Story = { args: { fork: "unavailable" } };
 export const Completed: Story = { args: { fork: "completed" }, play: openFork };
+export const PageCoexistence: Story = {
+  args: { fork: "pageCoexistence", detail: "longContent", warning: "cleanup" },
+};

@@ -6,7 +6,10 @@ test("history initial failure exposes diagnostics and retries from the keyboard"
   page,
 }) => {
   await page.goto("/iframe.html?id=history-list--initial-error&viewMode=story");
-  const error = page.getByRole("alert");
+  const error = page.getByRole("main").getByRole("alert");
+  await expect(
+    page.getByRole("region", { name: "Page notices", exact: true }).getByRole("alert"),
+  ).toHaveCount(0);
   await expect(error).toContainText("Unable to load history");
   const diagnostic = error.getByRole("button", {
     name: "View diagnostic information",
@@ -88,7 +91,10 @@ test("empty history explains the current directory scope without pagination", as
 
 test("missing history context explains how to recover the directory scope", async ({ page }) => {
   await page.goto("/iframe.html?id=history-list--context-unavailable&viewMode=story");
-  const error = page.getByRole("alert");
+  const error = page.getByRole("main").getByRole("alert");
+  await expect(
+    page.getByRole("region", { name: "Page notices", exact: true }).getByRole("alert"),
+  ).toHaveCount(0);
   await expect(error).toContainText("History context unavailable");
   await expect(error).toContainText(
     "Open an active task in this browser tab before viewing its history.",
