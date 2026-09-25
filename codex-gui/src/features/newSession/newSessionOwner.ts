@@ -149,7 +149,11 @@ export class NewSessionOwner {
       stage = "handoff";
       const result = target.composerRole.submit(target.revision, input);
       if (result.type !== "accepted") {
-        this.fail(stage, result, "definitelyNotAccepted");
+        this.fail(
+          stage,
+          new Error(`Input handoff ${result.type}: ${result.reason}`, { cause: result }),
+          "definitelyNotAccepted",
+        );
         return { type: "retained" };
       }
       this.capture = null;
