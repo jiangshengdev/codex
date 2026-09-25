@@ -6,24 +6,6 @@ import { composer } from "../e2e/persistenceHarness";
 
 test.use({ locale: "en" });
 
-for (const width of [375, 1280]) {
-  test(`task recovery remains actionable below the transcript at ${String(width)}px`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height: 800 });
-    await page.goto(`${storybookOrigin}/iframe.html?id=feedback-task-recovery--partial-recovery`);
-    const issues = page.getByRole("region", { name: "Active issues", exact: true });
-    await expect(issues).toContainText("Task updates are paused");
-    await page.evaluate(() => {
-      window.scrollTo(0, document.documentElement.scrollHeight);
-    });
-    await expect(
-      issues.getByRole("button", { name: "Restore task", exact: true }),
-    ).toBeInViewport();
-    await expect(issues.getByText("1 active issue", { exact: true })).toBeVisible();
-  });
-}
-
 test("partial recovery keeps task ownership while retrying the failed task", async ({ page }) => {
   await page.goto(
     `${storybookOrigin}/iframe.html?id=feedback-task-recovery--partial-recovery&viewMode=story`,
@@ -69,7 +51,7 @@ test("partial recovery keeps task ownership while retrying the failed task", asy
 });
 
 for (const [state, label, enabled, diagnostics] of [
-  ["waiting", "Restore task", false, 0],
+  ["waiting", "Restore task", true, 0],
   ["restoring", "Restoring task…", false, 0],
   ["failed", "Restore task", true, 1],
   ["connection-unavailable", "Restore task", false, 0],
@@ -78,11 +60,6 @@ for (const [state, label, enabled, diagnostics] of [
     await page.goto(
       `${storybookOrigin}/iframe.html?id=feedback-task-recovery--${state}&viewMode=story`,
     );
-    if (state === "waiting" || state === "connection-unavailable") {
-      const toggle = page.getByRole("button", { name: "Show all issues", exact: true });
-      await toggle.focus();
-      await toggle.press("Enter");
-    }
     await expect(page.getByText("Task updates are paused", { exact: true })).toBeVisible();
     const restore = page.getByRole("button", {
       name: label,

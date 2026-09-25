@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/tanstack-react";
+import { fn } from "storybook/test";
+import { ConnectionTaskRecoveryNotice } from "@/features/currentTask/ConnectionTaskRecoveryNotice";
 import { RecoveryPagePreview } from "./RecoveryPagePreview";
 import { recoveryFirstId } from "./recoveryCommands";
 import type { RecoveryPageSetup } from "./recoveryPageScenario";
@@ -20,7 +22,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "Recovery pages use real product components and local results. Partial Recovery starts with a healthy shared connection: task one has failed to restore while task two is available. Restore task fails once and then succeeds. Restoring keeps the task attachment pending; Failed retries successfully. Waiting and Connection Unavailable retain the task while waiting for the shared connection to recover. Use the real Menu to switch tasks on recovery pages. Recovered opens the successful page directly.",
+          "Fixed notices use real product components. Partial Recovery starts with a healthy shared connection: task one has failed to restore while task two is available. Restore task fails once and then succeeds. Use the real Menu to switch tasks while waiting. Recovered opens the successful page directly. All external results are local.",
       },
     },
     tanstack: { router: { route: statefulPreviewRouteTree, path: `/task/${recoveryFirstId}` } },
@@ -44,28 +46,44 @@ export const Recovered: Story = {
   parameters: { layout: "fullscreen", hasFixedHeader: true },
 };
 export const Waiting: Story = {
-  parameters: { layout: "fullscreen", hasFixedHeader: true },
+  render: () => (
+    <ConnectionTaskRecoveryNotice
+      connection={{ phase: "unavailable", recovery: { pending: false, error: null } }}
+      canRecover
+      onRecover={fn()}
+    />
+  ),
 };
 export const Restoring: Story = {
-  args: {
-    setup: (controller, host) => {
-      controller.connectionUnavailable();
-      host.setAttachOutcome(recoveryFirstId, "pending");
-      void controller.restoreConnection(host.commands, () => recoveryFirstId);
-      return Promise.resolve();
-    },
-  },
-  parameters: { layout: "fullscreen", hasFixedHeader: true },
+  render: () => (
+    <ConnectionTaskRecoveryNotice
+      connection={{ phase: "unavailable", recovery: { pending: true, error: null } }}
+      canRecover
+      onRecover={fn()}
+    />
+  ),
 };
 export const Failed: Story = {
-  args: {
-    setup: async (controller, host) => {
-      await partialRecovery(controller, host);
-      host.setAttachOutcome(recoveryFirstId, "success", 1_500);
-    },
-  },
-  parameters: { layout: "fullscreen", hasFixedHeader: true },
+  render: () => (
+    <ConnectionTaskRecoveryNotice
+      connection={{
+        phase: "unavailable",
+        recovery: {
+          pending: false,
+          error: "STORYBOOK_TASK_RESTORE_FAILED: local retained task could not attach.",
+        },
+      }}
+      canRecover
+      onRecover={fn()}
+    />
+  ),
 };
 export const ConnectionUnavailable: Story = {
-  parameters: { layout: "fullscreen", hasFixedHeader: true },
+  render: () => (
+    <ConnectionTaskRecoveryNotice
+      connection={{ phase: "unavailable", recovery: { pending: false, error: null } }}
+      canRecover={false}
+      onRecover={fn()}
+    />
+  ),
 };
