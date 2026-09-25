@@ -46,6 +46,36 @@
   gap: inherit;
 }
 
+/* Keep the collapsed footprint stable while the expanded panel overlays the page. */
+.error-notice-stack {
+  position: sticky;
+  top: 3.5rem;
+  z-index: 20;
+  flex-shrink: 0;
+  width: 100%;
+  height: min(var(--error-notice-collapsed-height, 0px), calc(100dvh - 4.25rem));
+}
+
+.error-notice-stack-panel {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 4.25rem);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+}
+
+.error-notice-stack-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.error-notice-stack-list > div + div:not([hidden]) {
+  margin-top: calc(var(--spacing) * 2);
+}
+
 .task-reading-boundary {
   margin-inline: auto;
   width: calc(100% - var(--app-shell-content-gutter) * 2);
