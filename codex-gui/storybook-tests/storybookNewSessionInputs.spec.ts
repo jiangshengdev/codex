@@ -132,12 +132,35 @@ async function expectMixedInput(page: Page) {
   }
 }
 
-for (const failure of [
-  "creation-failed",
-  "creation-unknown",
-  "activation-failed",
-  "handoff-rejected",
-]) {
+async function expectRetainedMixedInput(page: Page) {
+  const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
+  await expect(editor).toContainText("review-notes.txt");
+  await expect(editor).toContainText("sample.png");
+  await expect(editor).toContainText("preview-review");
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+  await expect(page.locator("[data-new-session-sends]")).toHaveAttribute(
+    "data-new-session-sends",
+    "0",
+  );
+}
+
+async function expectMixedRetryResult(page: Page, starts: string) {
+  await expect(page.locator("[data-new-session-route]")).toHaveAttribute(
+    "data-new-session-route",
+    "/task/00000000-0000-0000-0000-000000000138",
+  );
+  await expect(page.locator("[data-new-session-starts]")).toHaveAttribute(
+    "data-new-session-starts",
+    starts,
+  );
+  await expect(page.locator("[data-new-session-sends]")).toHaveAttribute(
+    "data-new-session-sends",
+    "1",
+  );
+  await expectMixedInput(page);
+}
+
+for (const failure of ["creation-failed", "creation-unknown", "activation-failed"]) {
   test(`mixed ${failure} retains all input through explicit retry`, async ({ page }) => {
     await page.goto(`/iframe.html?id=new-session-mixed-recovery--${failure}&viewMode=story`);
     await expect(page.getByRole("alert")).toContainText(
@@ -145,33 +168,20 @@ for (const failure of [
         ? "The creation result is unknown. Retrying may leave an extra empty session."
         : "Your input is retained. Retry to continue.",
     );
-    const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
-    await expect(editor).toContainText("review-notes.txt");
-    await expect(editor).toContainText("sample.png");
-    await expect(editor).toContainText("preview-review");
-    await expect(editor).toHaveAttribute("contenteditable", "false");
-    await expect(page.locator("[data-new-session-sends]")).toHaveAttribute(
-      "data-new-session-sends",
-      "0",
-    );
-    if (failure === "handoff-rejected")
-      await page.getByRole("button", { name: "Simulate storage recovery", exact: true }).click();
+    await expectRetainedMixedInput(page);
     await page.getByRole("button", { name: "Send", exact: true }).press("Enter");
-    await expect(page.locator("[data-new-session-route]")).toHaveAttribute(
-      "data-new-session-route",
-      "/task/00000000-0000-0000-0000-000000000138",
-    );
-    await expect(page.locator("[data-new-session-starts]")).toHaveAttribute(
-      "data-new-session-starts",
-      failure.startsWith("creation") ? "2" : "1",
-    );
-    await expect(page.locator("[data-new-session-sends]")).toHaveAttribute(
-      "data-new-session-sends",
-      "1",
-    );
-    await expectMixedInput(page);
+    await expectMixedRetryResult(page, failure.startsWith("creation") ? "2" : "1");
   });
 }
+
+test("mixed handoff-rejected retains all input through explicit retry", async ({ page }) => {
+  await page.goto("/iframe.html?id=new-session-mixed-recovery--handoff-rejected&viewMode=story");
+  await expect(page.getByRole("alert")).toContainText("Your input is retained. Retry to continue.");
+  await expectRetainedMixedInput(page);
+  await page.getByRole("button", { name: "Simulate storage recovery", exact: true }).click();
+  await page.getByRole("button", { name: "Send", exact: true }).press("Enter");
+  await expectMixedRetryResult(page, "1");
+});
 
 test("mixed unknown handoff blocks another send and opens the existing task", async ({ page }) => {
   await page.goto("/iframe.html?id=new-session-mixed-recovery--handoff-unknown&viewMode=story");
