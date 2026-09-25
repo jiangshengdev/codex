@@ -101,7 +101,7 @@ for (const width of [375, 1280]) {
       return { x, width };
     };
     const main = await page.getByRole("main").evaluate(readBounds);
-    const noticeBounds = await notices.evaluate(readBounds);
+    const noticeBounds = await notices.getByRole("status").first().evaluate(readBounds);
     expect(noticeBounds.x).toBeCloseTo(main.x, 0);
     expect(noticeBounds.width).toBeCloseTo(main.width, 0);
     for (const position of [0, 0.5, 1]) {

@@ -37,7 +37,10 @@ export type HistoryScenarioOptions = Readonly<{
 
 export function createHistoryScenario(dispatch: AppDispatch, options: HistoryScenarioOptions = {}) {
   const fallback = createRecoveryCommands();
-  const tasks = createHistoryFixtures(options.list === "longContent");
+  const tasks = createHistoryFixtures(
+    options.list === "longContent",
+    options.fork != null && options.detail === "longContent",
+  );
   const cancellations = new Set<() => void>();
   const wait = (pending = false): Promise<void> =>
     new Promise((resolve, reject) => {

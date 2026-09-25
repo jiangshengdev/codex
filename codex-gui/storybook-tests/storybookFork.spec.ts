@@ -34,9 +34,15 @@ for (const width of [375, 1280]) {
       return { x, width };
     };
     const main = await page.getByRole("main").evaluate(bounds);
-    const region = await notices.evaluate(bounds);
+    const region = await notices.getByRole("alert").first().evaluate(bounds);
     expect(region.x).toBeCloseTo(main.x, 0);
     expect(region.width).toBeCloseTo(main.width, 0);
+    const viewport = await notices.evaluate(bounds);
+    const shadowSpace = Math.min(
+      region.x - viewport.x,
+      viewport.x + viewport.width - region.x - region.width,
+    );
+    expect(shadowSpace).toBeGreaterThanOrEqual(8);
     for (const fraction of [0, 0.5, 1]) {
       await page.evaluate((position) => {
         window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) * position);
@@ -78,7 +84,7 @@ for (const width of [375, 1280]) {
       const right = parseFloat(style.paddingRight);
       return { x: rect.x + left, width: rect.width - left - right };
     });
-    const listRegion = await notices.evaluate(bounds);
+    const listRegion = await notices.getByRole("alert").first().evaluate(bounds);
     expect(listRegion.x).toBeCloseTo(list.x, 0);
     expect(listRegion.width).toBeCloseTo(list.width, 0);
     await open.click();

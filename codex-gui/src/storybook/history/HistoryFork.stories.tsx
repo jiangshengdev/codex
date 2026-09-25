@@ -8,6 +8,7 @@ const meta = {
   id: "history-fork",
   title: "History/Fork/Recovery",
   component: HistoryPreview,
+  args: { detail: "longContent" },
 } satisfies Meta<typeof HistoryPreview>;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -25,5 +26,5 @@ export const Pending: Story = { args: { fork: "pending" } };
 export const Unavailable: Story = { args: { fork: "unavailable" } };
 export const Completed: Story = { args: { fork: "completed" }, play: openFork };
 export const PageCoexistence: Story = {
-  args: { fork: "pageCoexistence", detail: "longContent", warning: "cleanup" },
+  args: { fork: "pageCoexistence", warning: "cleanup" },
 };
