@@ -21,6 +21,69 @@ const fullPageStories = [
 ];
 
 for (const width of [375, 1280]) {
+  test(`task operation failures share the floating region and retain independent recovery at ${String(width)}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(
+      `${storybookOrigin}/iframe.html?id=feedback-message-synchronization--task-operations&viewMode=story`,
+    );
+    const notices = page.getByRole("region", { name: "Page notices", exact: true });
+    await expect(notices.getByRole("alert")).toHaveCount(3);
+    await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+    const remove = notices.getByRole("button", { name: "Remove task", exact: true });
+    for (const fraction of [0, 0.5, 1]) {
+      await page.evaluate((position) => {
+        window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) * position);
+      }, fraction);
+      await notices.focus();
+      await notices.press("End");
+      await expect(remove).toBeInViewport({ ratio: 1 });
+      await expect.poll(() => page.evaluate(() => window.scrollY > 800)).toBe(fraction > 0);
+    }
+    await notices.getByRole("button", { name: "Open task", exact: true }).click();
+    await expect(notices.getByText("The task could not be opened.", { exact: true })).toHaveCount(
+      0,
+    );
+    await expect(remove).toBeEnabled();
+    const diagnostic = notices
+      .getByRole("alert")
+      .filter({ hasText: "The task could not be removed." })
+      .getByRole("button", { name: "View diagnostic information", exact: true });
+    await diagnostic.click();
+    await expect(page.getByRole("dialog")).toContainText("STORYBOOK_REMOVE_TASK_FAILED");
+    await page.keyboard.press("Escape");
+    await expect(diagnostic).toBeFocused();
+  });
+
+  test(`synchronization recovery stays reachable with task recovery at ${String(width)}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(
+      `${storybookOrigin}/iframe.html?id=feedback-message-synchronization--connection-unavailable&viewMode=story`,
+    );
+    const notices = page.getByRole("region", { name: "Page notices", exact: true });
+    const sync = notices.getByRole("button", { name: "Restore sync", exact: true });
+    await expect(sync).toBeDisabled();
+    await page.evaluate(() => {
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    });
+    await notices.focus();
+    await notices.press("End");
+    await expect(sync).toBeInViewport({ ratio: 1 });
+    await expect.poll(() => page.evaluate(() => window.scrollY > 800)).toBe(true);
+    const diagnostics = notices
+      .getByRole("alert")
+      .filter({ hasText: "Message synchronization paused" })
+      .getByRole("button", { name: "View diagnostic information", exact: true });
+    await diagnostics.focus();
+    await diagnostics.press("Enter");
+    await expect(page.getByRole("dialog")).toContainText("backpressure");
+    await page.keyboard.press("Escape");
+    await expect(diagnostics).toBeFocused();
+  });
+
   test(`retained page keeps both recovery notices reachable while reading at ${String(width)}px`, async ({
     page,
   }) => {

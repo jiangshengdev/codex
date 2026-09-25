@@ -429,15 +429,13 @@ export function CurrentTaskPage() {
       notices={
         <>
           {snapshot.connection.phase === "unavailable" ? (
-            <AppShellNotice>
-              <ConnectionTaskRecoveryNotice
-                connection={snapshot.connection}
-                canRecover={status.label === "initialized" && connectionRecovery == null}
-                onRecover={() => {
-                  void activeThreadSession.recoverConnection(snapshot.threadId, snapshot.identity);
-                }}
-              />
-            </AppShellNotice>
+            <ConnectionTaskRecoveryNotice
+              connection={snapshot.connection}
+              canRecover={status.label === "initialized" && connectionRecovery == null}
+              onRecover={() => {
+                void activeThreadSession.recoverConnection(snapshot.threadId, snapshot.identity);
+              }}
+            />
           ) : null}
           {snapshot.phase === "projectionUnavailable" ? (
             <ProjectionRecoveryNotice
@@ -528,7 +526,7 @@ function CurrentTaskReady({
 
   return (
     <main className="task-page" data-gui-host-status={status.label}>
-      {notices}
+      <AppShellNotice>{notices}</AppShellNotice>
       <Surface className="grid min-w-0 flex-1 content-start" variant="transparent">
         <CommittedTranscriptSurface
           identity={identity}

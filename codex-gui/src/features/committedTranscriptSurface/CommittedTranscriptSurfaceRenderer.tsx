@@ -15,6 +15,7 @@ import { useTranscriptSelector } from "./TranscriptReadContext";
 import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
 import { useTurnPositionScroll } from "./useTurnPositionScroll";
 import { hasTranscriptFragmentContent } from "@/features/transcriptState/transcriptFragmentVisibility";
+import { AppShellNotice } from "@/features/appShell/AppShellNotices";
 
 export type CommittedTranscriptTurnFragmentRendererProps = Readonly<{
   fragmentId: string;
@@ -151,7 +152,7 @@ export const CommittedTranscriptSurfaceRenderer = ({
         <div aria-hidden="true" className="h-0" ref={targetRef} />
       ) : null}
       {visibleGlobalStatus.length > 0 ? (
-        <div className="committed-transcript-status-list grid min-w-0 gap-2">
+        <AppShellNotice>
           {visibleGlobalStatus.map((status) => (
             <Alert
               className="committed-transcript-status"
@@ -167,7 +168,7 @@ export const CommittedTranscriptSurfaceRenderer = ({
               </Alert.Content>
             </Alert>
           ))}
-        </div>
+        </AppShellNotice>
       ) : null}
       {currentPage?.leadingBoundaryId == null ? null : <TranscriptContextBoundary />}
       {!hasSurfaceContent && targetFragmentId == null ? (

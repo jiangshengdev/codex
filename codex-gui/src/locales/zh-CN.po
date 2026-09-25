@@ -208,7 +208,7 @@ msgid "Codex GUI could not be started."
 msgstr "Codex GUI 未能启动。"
 
 #. Accessible name for the region containing committed transcript turns
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:144
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:145
 msgid "Committed transcript"
 msgstr "已提交的对话记录"
 
@@ -249,7 +249,7 @@ msgstr "压缩请求结果不明"
 msgid "Connection closed"
 msgstr "连接已关闭"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:165
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:166
 msgid "Connection interrupted. Reconnect required."
 msgstr "连接已中断，需要重新连接。"
 
@@ -788,7 +788,7 @@ msgstr "下一上下文页"
 msgid "No agents completed yet"
 msgstr "尚无智能体完成任务"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:177
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:178
 msgid "No committed messages yet."
 msgstr "暂无已提交的消息。"
 
@@ -1253,7 +1253,7 @@ msgid "Table copied"
 msgstr "表格已复制"
 
 #: src/features/currentTask/CurrentTaskPage.tsx:231
-#: src/features/currentTask/CurrentTaskPage.tsx:456
+#: src/features/currentTask/CurrentTaskPage.tsx:454
 msgid "Task action failed"
 msgstr "任务操作失败"
 
@@ -1373,7 +1373,7 @@ msgstr "未找到指定对话轮次。"
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:459
+#: src/features/currentTask/CurrentTaskPage.tsx:457
 msgid "The task action could not be completed."
 msgstr "任务操作未能完成。"
 
@@ -1413,7 +1413,7 @@ msgstr "任务列表未能更新。"
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "任务已打开，但部分状态同步未完成。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:481
+#: src/features/currentTask/CurrentTaskPage.tsx:479
 msgid "The task recovery could not be completed."
 msgstr "任务恢复未能完成。"
 
@@ -1517,7 +1517,7 @@ msgstr "无法加载任务历史"
 msgid "Unable to load the current task"
 msgstr "无法加载当前任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:478
+#: src/features/currentTask/CurrentTaskPage.tsx:476
 msgid "Unable to recover the current task"
 msgstr "无法恢复当前任务"
 
