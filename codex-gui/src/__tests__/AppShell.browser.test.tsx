@@ -599,8 +599,17 @@ test("App aligns history startup errors with their responsive shell owners", asy
     ] as const) {
       await page.viewport(width, height);
 
-      expectHorizontalAlignment(bannerContent, topNoticeContent);
-      expectHorizontalAlignment(topNoticeContent, historyMain);
+      for (const owner of [bannerContent, historyMain]) {
+        const bounds = owner.getBoundingClientRect();
+        const padding = getComputedStyle(owner);
+        const alertBounds = topNoticeAlert.getBoundingClientRect();
+        expect(
+          Math.abs(alertBounds.left - bounds.left - Number.parseFloat(padding.paddingLeft)),
+        ).toBeLessThanOrEqual(1);
+        expect(
+          Math.abs(bounds.right - alertBounds.right - Number.parseFloat(padding.paddingRight)),
+        ).toBeLessThanOrEqual(1);
+      }
       expectHorizontalAlignment(topNoticeAlert, historyAlert);
       expect(topNoticeAlert.getBoundingClientRect().top).toBeGreaterThanOrEqual(
         screen.getByRole("banner").element().getBoundingClientRect().bottom - 1,

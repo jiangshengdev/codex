@@ -6,6 +6,7 @@ import { AppShell } from "@/features/appShell/AppShell";
 import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
 import { PendingInputPreview } from "../composer/pendingInput/PendingInputScenarioView";
 import { createRecoveryPageScenario, type RecoveryPageSetup } from "./recoveryPageScenario";
+import { ErrorStackPreviewControls } from "./ErrorStackPreviewControls";
 
 function RecoveryPage({
   scenario,
@@ -36,16 +37,30 @@ function RecoveryPage({
 export function RecoveryPagePreview({
   setup,
   startup = false,
-}: Readonly<{ setup?: RecoveryPageSetup; startup?: boolean }>) {
+  disconnectAfterSetup = false,
+  stackControls = false,
+}: Readonly<{
+  setup?: RecoveryPageSetup;
+  startup?: boolean;
+  disconnectAfterSetup?: boolean;
+  stackControls?: boolean;
+}>) {
   const dispatch = useAppDispatch();
   return (
     <StrictMode>
       <PendingInputPreview
         className=""
         key={String(startup)}
-        createScenario={() => createRecoveryPageScenario(dispatch, setup, startup)}
+        createScenario={() =>
+          createRecoveryPageScenario(dispatch, setup, startup, disconnectAfterSetup)
+        }
       >
-        {(scenario) => <RecoveryPage scenario={scenario} />}
+        {(scenario) => (
+          <>
+            {stackControls ? <ErrorStackPreviewControls scenario={scenario} /> : null}
+            <RecoveryPage scenario={scenario} />
+          </>
+        )}
       </PendingInputPreview>
     </StrictMode>
   );

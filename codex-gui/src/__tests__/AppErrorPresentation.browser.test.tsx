@@ -203,8 +203,9 @@ test.each([`/task/${launchThreadId}`, "/history", `/history/${launchThreadId}`])
       .element()
       .closest('[data-slot="alert-root"]');
     if (globalAlert == null) throw new Error("Expected the global error alert");
+    const stack = screen.getByRole("region", { name: "Active issues", exact: true }).element();
     expect(
-      globalAlert.getBoundingClientRect().top -
+      stack.getBoundingClientRect().top -
         screen.getByRole("banner").element().getBoundingClientRect().bottom,
     ).toBeCloseTo(12, 0);
     await expect
@@ -491,6 +492,8 @@ test("consecutive global errors remain 12px apart", async () => {
       message: "Connection failed",
     });
     await expect.element(screen.getByText("Connection closed", { exact: true })).toBeVisible();
+    await screen.getByRole("banner").hover();
+    await screen.getByText("Connection closed", { exact: true }).hover();
     const alerts = screen.container.querySelectorAll(
       '[data-app-shell-top-notices] [data-slot="alert-root"]',
     );

@@ -268,6 +268,11 @@ test.each([
       const connectionTitle = screen.getByText("Connection closed", { exact: true });
       const taskTitle = screen.getByText("Task updates are paused", { exact: true });
       await expect.element(connectionTitle).toBeVisible();
+      await expect.element(taskTitle).not.toBeVisible();
+      const transcript = screen.getByRole("region", { name: "Committed transcript" }).element();
+      const collapsedTop = transcript.getBoundingClientRect().top;
+      await screen.getByRole("banner").hover();
+      await connectionTitle.hover();
       await expect.element(taskTitle).toBeVisible();
       const connection = connectionTitle.element().closest('[role="status"], [role="alert"]');
       const task = taskTitle.element().closest('[role="status"], [role="alert"]');
@@ -278,7 +283,6 @@ test.each([
       if (connection == null || task == null || panel == null) {
         throw new Error("Expected both recovery notices and the composer frame");
       }
-      const transcript = screen.getByRole("region", { name: "Committed transcript" }).element();
       const boundary = transcript.getBoundingClientRect();
       for (const element of [connection, task, panel]) {
         const rect = element.getBoundingClientRect();
@@ -288,12 +292,10 @@ test.each([
       expect(
         task.getBoundingClientRect().top - connection.getBoundingClientRect().bottom,
       ).toBeCloseTo(12, 0);
-      expect(boundary.top - task.getBoundingClientRect().bottom).toBeCloseTo(12, 0);
+      expect(boundary.top).toBeCloseTo(collapsedTop, 0);
       const firstContent = transcript.firstElementChild;
       if (firstContent == null) throw new Error("Expected visible transcript content");
-      expect(
-        firstContent.getBoundingClientRect().top - task.getBoundingClientRect().bottom,
-      ).toBeCloseTo(12, 0);
+      expect(firstContent.getBoundingClientRect().top).toBeCloseTo(collapsedTop, 0);
       expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width);
       await expect
         .element(screen.getByRole("button", { name: "Restore task", exact: true }))
@@ -314,6 +316,8 @@ test("App retains projection failure diagnostics when the host connection closes
   options.onStatus?.({ label: "closed" });
 
   await expect.element(screen.getByText("Connection closed", { exact: true })).toBeVisible();
+  await screen.getByRole("banner").hover();
+  await screen.getByText("Connection closed", { exact: true }).hover();
   await expect
     .element(screen.getByText("Message synchronization paused", { exact: true }))
     .toBeVisible();

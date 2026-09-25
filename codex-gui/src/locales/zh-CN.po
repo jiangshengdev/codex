@@ -17,6 +17,12 @@ msgstr ""
 msgid "... and {count} more"
 msgstr "…另有 {count} 项"
 
+#. Number of unresolved errors in the persistent notice stack
+#. placeholder {0}: notices.length
+#: src/feedback/ErrorNoticeStack.tsx:87
+msgid "{0, plural, one {# active issue} other {# active issues}}"
+msgstr "{0, plural, other {# 项待处理异常}}"
+
 #. placeholder {0}: preview.audioCount
 #: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:23
 msgid "{0, plural, one {# audio item} other {# audio items}}"
@@ -105,6 +111,11 @@ msgstr "需要工作目录才能新建会话。"
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:276
 msgid "Active"
 msgstr "活动中"
+
+#. Persistent unresolved errors and recovery notices above the conversation
+#: src/feedback/ErrorNoticeStack.tsx:49
+msgid "Active issues"
+msgstr "待处理异常"
 
 #. Tasks kept open in this GUI, including idle tasks; not only running turns
 #: src/features/appShell/ActiveThreadCollectionMenu.tsx:28
@@ -202,10 +213,15 @@ msgstr "已关闭 {receiver}"
 msgid "Code copied"
 msgstr "代码已复制"
 
-#: src/features/appShell/AppShell.tsx:29
+#: src/features/appShell/AppShell.tsx:31
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:54
 msgid "Codex GUI could not be started."
 msgstr "Codex GUI 未能启动。"
+
+#. Collapse the error list, leaving its first notice visible
+#: src/feedback/ErrorNoticeStack.tsx:106
+msgid "Collapse issues"
+msgstr "收起异常"
 
 #. Accessible name for the region containing committed transcript turns
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:144
@@ -647,9 +663,9 @@ msgstr "加载历史记录"
 msgid "Load more"
 msgstr "加载更多"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:266
-#: src/features/currentTask/CurrentTaskPage.tsx:343
-#: src/features/currentTask/CurrentTaskPage.tsx:410
+#: src/features/currentTask/CurrentTaskPage.tsx:263
+#: src/features/currentTask/CurrentTaskPage.tsx:340
+#: src/features/currentTask/CurrentTaskPage.tsx:407
 msgid "Load task"
 msgstr "加载任务"
 
@@ -689,11 +705,11 @@ msgstr "正在加载技能…"
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:259
-#: src/features/currentTask/CurrentTaskPage.tsx:304
-#: src/features/currentTask/CurrentTaskPage.tsx:314
-#: src/features/currentTask/CurrentTaskPage.tsx:329
-#: src/features/currentTask/CurrentTaskPage.tsx:390
+#: src/features/currentTask/CurrentTaskPage.tsx:256
+#: src/features/currentTask/CurrentTaskPage.tsx:301
+#: src/features/currentTask/CurrentTaskPage.tsx:311
+#: src/features/currentTask/CurrentTaskPage.tsx:326
+#: src/features/currentTask/CurrentTaskPage.tsx:387
 msgid "Loading task…"
 msgstr "正在加载任务…"
 
@@ -833,11 +849,11 @@ msgstr "打开分叉会话"
 msgid "Open session"
 msgstr "打开会话"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:223
+#: src/features/currentTask/CurrentTaskPage.tsx:220
 msgid "Open task"
 msgstr "打开任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:209
+#: src/features/currentTask/CurrentTaskPage.tsx:206
 msgid "Opening task…"
 msgstr "正在打开任务…"
 
@@ -960,7 +976,7 @@ msgid "Refresh complete. Try the action again."
 msgstr "已刷新，请重试此操作。"
 
 #. Reload the current task's runtime status
-#: src/features/currentTask/CurrentTaskPage.tsx:412
+#: src/features/currentTask/CurrentTaskPage.tsx:409
 msgid "Refresh status"
 msgstr "刷新状态"
 
@@ -968,7 +984,7 @@ msgstr "刷新状态"
 msgid "Refreshing skills…"
 msgstr "正在刷新技能…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:392
+#: src/features/currentTask/CurrentTaskPage.tsx:389
 msgid "Refreshing status…"
 msgstr "正在刷新状态…"
 
@@ -1005,18 +1021,18 @@ msgstr "保存前请移除或替换无效技能。"
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
-#: src/features/currentTask/CurrentTaskPage.tsx:219
-#: src/features/currentTask/CurrentTaskPage.tsx:339
-#: src/features/currentTask/CurrentTaskPage.tsx:406
+#: src/features/currentTask/CurrentTaskPage.tsx:216
+#: src/features/currentTask/CurrentTaskPage.tsx:336
+#: src/features/currentTask/CurrentTaskPage.tsx:403
 msgid "Remove task"
 msgstr "移出任务列表"
 
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
-#: src/features/currentTask/CurrentTaskPage.tsx:205
-#: src/features/currentTask/CurrentTaskPage.tsx:325
-#: src/features/currentTask/CurrentTaskPage.tsx:386
+#: src/features/currentTask/CurrentTaskPage.tsx:202
+#: src/features/currentTask/CurrentTaskPage.tsx:322
+#: src/features/currentTask/CurrentTaskPage.tsx:383
 msgid "Removing task…"
 msgstr "正在移出任务列表…"
 
@@ -1152,6 +1168,11 @@ msgstr "发送结果未知"
 msgid "Sent input to {receiver}"
 msgstr "已向 {receiver} 发送输入"
 
+#. Expand the persistent error list
+#: src/feedback/ErrorNoticeStack.tsx:110
+msgid "Show all issues"
+msgstr "展开全部异常"
+
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:229
 msgid "Show more"
 msgstr "显示更多"
@@ -1247,8 +1268,8 @@ msgstr "跟随系统主题"
 msgid "Table copied"
 msgstr "表格已复制"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:230
-#: src/features/currentTask/CurrentTaskPage.tsx:453
+#: src/features/currentTask/CurrentTaskPage.tsx:227
+#: src/features/currentTask/CurrentTaskPage.tsx:433
 msgid "Task action failed"
 msgstr "任务操作失败"
 
@@ -1317,8 +1338,8 @@ msgstr "当前显示的对话可能不是最新内容。恢复同步可获取最
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "创建结果未知。重试可能留下额外的空会话。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:280
-#: src/features/currentTask/CurrentTaskPage.tsx:358
+#: src/features/currentTask/CurrentTaskPage.tsx:277
+#: src/features/currentTask/CurrentTaskPage.tsx:355
 msgid "The current task could not be loaded."
 msgstr "当前任务未能加载。"
 
@@ -1368,7 +1389,7 @@ msgstr "未找到指定对话轮次。"
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:456
+#: src/features/currentTask/CurrentTaskPage.tsx:436
 msgid "The task action could not be completed."
 msgstr "任务操作未能完成。"
 
@@ -1388,11 +1409,11 @@ msgstr "无法准备任务连接。"
 msgid "The task could not be activated."
 msgstr "无法激活任务。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:234
+#: src/features/currentTask/CurrentTaskPage.tsx:231
 msgid "The task could not be opened."
 msgstr "任务未能打开。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:236
+#: src/features/currentTask/CurrentTaskPage.tsx:233
 msgid "The task could not be removed."
 msgstr "任务未能移出列表。"
 
@@ -1400,7 +1421,7 @@ msgstr "任务未能移出列表。"
 msgid "The task could not be resumed."
 msgstr "无法恢复任务。"
 
-#: src/features/appShell/AppShell.tsx:92
+#: src/features/appShell/AppShell.tsx:78
 msgid "The task list could not be updated."
 msgstr "任务列表未能更新。"
 
@@ -1408,7 +1429,7 @@ msgstr "任务列表未能更新。"
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "任务已打开，但部分状态同步未完成。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:478
+#: src/features/currentTask/CurrentTaskPage.tsx:458
 msgid "The task recovery could not be completed."
 msgstr "任务恢复未能完成。"
 
@@ -1507,20 +1528,20 @@ msgstr "无法加载历史记录"
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:277
-#: src/features/currentTask/CurrentTaskPage.tsx:355
+#: src/features/currentTask/CurrentTaskPage.tsx:274
+#: src/features/currentTask/CurrentTaskPage.tsx:352
 msgid "Unable to load the current task"
 msgstr "无法加载当前任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:475
+#: src/features/currentTask/CurrentTaskPage.tsx:455
 msgid "Unable to recover the current task"
 msgstr "无法恢复当前任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:143
+#: src/features/currentTask/CurrentTaskPage.tsx:140
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "无法重试此任务。请检查当前状态后再试。"
 
-#: src/features/appShell/AppShell.tsx:26
+#: src/features/appShell/AppShell.tsx:28
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:45
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
@@ -1534,7 +1555,7 @@ msgstr "无法开始对话"
 msgid "Unable to switch tasks yet"
 msgstr "暂时无法切换任务"
 
-#: src/features/appShell/AppShell.tsx:89
+#: src/features/appShell/AppShell.tsx:75
 msgid "Unable to update the task list"
 msgstr "无法更新任务列表"
 

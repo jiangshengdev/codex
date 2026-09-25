@@ -3,6 +3,7 @@ import { RecoveryPagePreview } from "./RecoveryPagePreview";
 import { recoveryFirstId } from "./recoveryCommands";
 import { StorybookStatefulEnvironment } from "../environment/StorybookStatefulEnvironment";
 import { statefulPreviewRouteTree } from "../environment/statefulPreviewRouter";
+import { pauseProjection } from "./pauseProjection";
 
 const meta = {
   id: "feedback-connection-recovery-pages",
@@ -31,3 +32,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const RetainedDisconnection: Story = {};
 export const StartupFailure: Story = { args: { startup: true } };
+export const StackedIssues: Story = {
+  args: {
+    stackControls: true,
+    disconnectAfterSetup: true,
+    setup: (controller, host) => {
+      pauseProjection(controller, "backpressure", recoveryFirstId);
+      host.setAttachOutcomes(recoveryFirstId, ["failure", "success"], 1_500);
+      return Promise.resolve();
+    },
+  },
+};

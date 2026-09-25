@@ -24,18 +24,23 @@ function ActiveErrorNoticeStack({ notices }: Readonly<{ notices: readonly ErrorN
   const firstId = notices[0]?.id;
 
   useLayoutEffect(() => {
+    let frame = 0;
     const measure = () => {
       region.current?.style.setProperty(
         "--error-notice-collapsed-height",
         `${String((header.current?.offsetHeight ?? 0) + (firstCard.current?.offsetHeight ?? 0))}px`,
       );
     };
-    const observer = new ResizeObserver(measure);
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    });
     if (header.current) observer.observe(header.current);
     if (firstCard.current) observer.observe(firstCard.current);
     measure();
     return () => {
       observer.disconnect();
+      cancelAnimationFrame(frame);
     };
   }, [firstId]);
 
@@ -53,14 +58,18 @@ function ActiveErrorNoticeStack({ notices }: Readonly<{ notices: readonly ErrorN
         className="error-notice-stack-panel"
         variant="default"
         onPointerEnter={(event) => {
-          if (notices.length > 1 && event.pointerType !== "touch") setHovered(true);
+          if (notices.length > 1 && event.pointerType !== "touch") {
+            setHovered(true);
+            if (mode === "closed") setMode("auto");
+          }
         }}
         onPointerLeave={() => {
           setHovered(false);
-          if (mode === "closed") setMode("auto");
         }}
         onFocusCapture={(event) => {
-          if (notices.length > 1 && !toggle.current?.contains(event.target)) setFocused(true);
+          const inCard = notices.length > 1 && !toggle.current?.contains(event.target);
+          setFocused(inCard);
+          if (inCard && mode === "closed") setMode("auto");
         }}
         onBlurCapture={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);

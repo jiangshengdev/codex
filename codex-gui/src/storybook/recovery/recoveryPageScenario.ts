@@ -21,6 +21,7 @@ export function createRecoveryPageScenario(
   dispatch: AppDispatch,
   setup?: RecoveryPageSetup,
   startup = false,
+  disconnectAfterSetup = false,
 ) {
   const host = createRecoveryCommands();
   const records = new Map<string, string>();
@@ -74,7 +75,7 @@ export function createRecoveryPageScenario(
     await controller.session.view(recoveryFirstId);
     if (isDisposed()) return;
     if (setup != null) await setup(controller, host);
-    else if (!startup) close();
+    if (disconnectAfterSetup || (setup == null && !startup)) close();
     if (!isDisposed()) {
       ready = true;
       listeners.notify();
@@ -165,6 +166,16 @@ export function createRecoveryPageScenario(
     view(threadId: string) {
       patch({ routeTarget: { type: "currentTask", threadId } });
       void capabilities.activeThreadSession?.view(threadId);
+    },
+    addIssue(id: string) {
+      capabilities.activeThreadSession?.setOperationError(
+        id,
+        "navigation",
+        new Error(`Simulated issue ${id}`),
+      );
+    },
+    clearIssue(id: string) {
+      capabilities.activeThreadSession?.setOperationError(id, "navigation", null);
     },
     dispose() {
       disposed = true;

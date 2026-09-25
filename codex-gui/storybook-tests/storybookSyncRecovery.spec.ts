@@ -25,6 +25,10 @@ for (const width of [375, 1280]) {
         issues.getByRole("button", { name: "Restore sync", exact: true }),
       ).toBeInViewport();
     }
+    await issues.getByRole("button", { name: "Restore sync", exact: true }).click();
+    await expect(
+      issues.getByRole("button", { name: "Restoring sync…", exact: true }),
+    ).toHaveAttribute("aria-disabled", "true");
   });
 }
 
@@ -60,6 +64,7 @@ test("sync retry preserves the paused conversation and other tasks", async ({ pa
   await expect(composer(page)).toHaveText("Retained draft two");
   await expect(composer(page)).toHaveAttribute("contenteditable", "true");
   await expect(page.getByText("Retained answer two", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Active issues", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.getByRole("button", { name: "Recovery task one", exact: true }).click();
   await page.getByRole("button", { name: "Restore sync", exact: true }).click();
