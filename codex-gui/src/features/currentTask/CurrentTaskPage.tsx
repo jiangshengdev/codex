@@ -24,7 +24,6 @@ import { aggregateErrorText } from "@/text/aggregateErrorText";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
-import { ProjectionRecoveryNotice } from "./ProjectionRecoveryNotice";
 import {
   useTurnPositionRequest,
   type TurnPositionRequest,
@@ -425,14 +424,6 @@ export function CurrentTaskPage() {
       status={status}
       notices={
         <>
-          {snapshot.phase === "projectionUnavailable" ? (
-            <ProjectionRecoveryNotice
-              snapshot={snapshot}
-              onRecover={() => {
-                void activeThreadSession.recoverProjection(snapshot.threadId, snapshot.identity);
-              }}
-            />
-          ) : null}
           {member?.error != null ? (
             <Alert role="alert" status="danger">
               <Alert.Indicator />

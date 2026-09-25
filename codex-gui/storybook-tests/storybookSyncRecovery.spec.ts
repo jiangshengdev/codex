@@ -7,6 +7,27 @@ import { composer } from "../e2e/persistenceHarness";
 
 test.use({ locale: "en" });
 
+for (const width of [375, 1280]) {
+  test(`synchronization recovery stays visible while reading at ${String(width)}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(
+      `${storybookOrigin}/iframe.html?id=feedback-message-synchronization--backpressure`,
+    );
+    const issues = page.getByRole("region", { name: "Active issues", exact: true });
+    await expect(issues).toContainText("Message synchronization paused");
+    for (const fraction of [0, 0.5, 1]) {
+      await page.evaluate((value) => {
+        window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) * value);
+      }, fraction);
+      await expect(
+        issues.getByRole("button", { name: "Restore sync", exact: true }),
+      ).toBeInViewport();
+    }
+  });
+}
+
 test("sync retry preserves the paused conversation and other tasks", async ({ page }) => {
   await page.goto(
     `${storybookOrigin}/iframe.html?id=feedback-message-synchronization--backpressure&viewMode=story`,
@@ -104,6 +125,9 @@ test("direct recovery states preserve the conversation and enforce availability"
   await page.goto(
     `${storybookOrigin}/iframe.html?id=feedback-message-synchronization--connection-unavailable&viewMode=story`,
   );
+  const toggle = page.getByRole("button", { name: "Show all issues", exact: true });
+  await toggle.focus();
+  await toggle.press("Enter");
   const restore = page.getByRole("button", { name: "Restore sync", exact: true });
   await expect(restore).toBeDisabled();
   await expect(composer(page)).toHaveText("Retained draft one");

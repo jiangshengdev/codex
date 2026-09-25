@@ -4,6 +4,7 @@ import {
   useAppCapabilities,
 } from "@/features/appShell/AppCapabilities";
 import { ConnectionTaskRecoveryNotice } from "./ConnectionTaskRecoveryNotice";
+import { ProjectionRecoveryNotice } from "./ProjectionRecoveryNotice";
 
 /** Read the current owner's recovery state directly; presentation owns no recovery queue. */
 export function useCurrentTaskRecoveryNotices(): ErrorNotice[] {
@@ -27,6 +28,19 @@ export function useCurrentTaskRecoveryNotices(): ErrorNotice[] {
           canRecover={status.label === "initialized" && connectionRecovery == null}
           onRecover={() => {
             void activeThreadSession.recoverConnection(snapshot.threadId, snapshot.identity);
+          }}
+        />
+      ),
+    });
+  }
+  if (snapshot.phase === "projectionUnavailable") {
+    notices.push({
+      id: `${snapshot.identity.instanceId}:projection`,
+      content: (
+        <ProjectionRecoveryNotice
+          snapshot={snapshot}
+          onRecover={() => {
+            void activeThreadSession.recoverProjection(snapshot.threadId, snapshot.identity);
           }}
         />
       ),
