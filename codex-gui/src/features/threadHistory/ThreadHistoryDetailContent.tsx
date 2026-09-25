@@ -1,4 +1,4 @@
-import { Alert, Typography } from "@heroui/react";
+import { Alert } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
@@ -11,6 +11,7 @@ import { ReadOnlyCommittedTranscriptSurface } from "@/features/committedTranscri
 import { HistoryDetailDocumentTitleFactPublisher } from "@/features/documentTitle/DocumentTitleOwner";
 import { errorText } from "@/text/errorText";
 import { ContinueTaskAction } from "./ContinueTaskAction";
+import { ThreadHistoryEmptyState } from "./ThreadHistoryEmptyState";
 import type { ThreadHistoryDetailState } from "./threadHistoryDetailOwner";
 import { resolveThreadHistoryPresentation } from "./threadHistoryPresentation";
 import { ThreadForkSourceContext } from "@/features/threadFork/ThreadForkContext";
@@ -61,9 +62,9 @@ export function ThreadHistoryDetailContent({
         </div>
       ) : null}
       {state.type === "ready" && state.thread.turns.length === 0 ? (
-        <Typography className="pt-3" color="muted" type="body-sm">
+        <ThreadHistoryEmptyState>
           <Trans>This task has no messages.</Trans>
-        </Typography>
+        </ThreadHistoryEmptyState>
       ) : null}
       {state.type === "ready" && (state.thread.turns.length > 0 || turnPosition != null) ? (
         <div className="pt-3">
