@@ -303,11 +303,11 @@ msgstr "Context usage details, {usedTokensLabel} tokens used, context window cap
 msgid "Continue sending"
 msgstr "Continue sending"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:287
+#: src/features/threadHistory/ContinueTaskAction.tsx:234
 msgid "Continue this task"
 msgstr "Continue this task"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:281
+#: src/features/threadHistory/ContinueTaskAction.tsx:228
 msgid "Continuing this task…"
 msgstr "Continuing this task…"
 
@@ -572,7 +572,7 @@ msgstr "History context unavailable"
 
 #: src/features/appShell/AppShellTopBar.tsx:60
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:42
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:43
 msgid "History detail"
 msgstr "History detail"
 
@@ -647,14 +647,14 @@ msgstr "Load history"
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:267
-#: src/features/currentTask/CurrentTaskPage.tsx:344
-#: src/features/currentTask/CurrentTaskPage.tsx:411
+#: src/features/currentTask/CurrentTaskPage.tsx:268
+#: src/features/currentTask/CurrentTaskPage.tsx:345
+#: src/features/currentTask/CurrentTaskPage.tsx:412
 msgid "Load task"
 msgstr "Load task"
 
 #. Button to read the selected task's historical messages
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:111
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:112
 msgid "Load task history"
 msgstr "Load task history"
 
@@ -684,16 +684,16 @@ msgstr "Loading preview…"
 msgid "Loading skills…"
 msgstr "Loading skills…"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:52
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:109
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:53
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:110
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:260
-#: src/features/currentTask/CurrentTaskPage.tsx:305
-#: src/features/currentTask/CurrentTaskPage.tsx:315
-#: src/features/currentTask/CurrentTaskPage.tsx:330
-#: src/features/currentTask/CurrentTaskPage.tsx:391
+#: src/features/currentTask/CurrentTaskPage.tsx:261
+#: src/features/currentTask/CurrentTaskPage.tsx:306
+#: src/features/currentTask/CurrentTaskPage.tsx:316
+#: src/features/currentTask/CurrentTaskPage.tsx:331
+#: src/features/currentTask/CurrentTaskPage.tsx:392
 msgid "Loading task…"
 msgstr "Loading task…"
 
@@ -709,12 +709,12 @@ msgstr "Menu"
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
-#: src/features/composerTurnControl/ComposerSurface.tsx:59
-#: src/features/composerTurnControl/ComposerSurface.tsx:60
+#: src/features/composerTurnControl/ComposerSurface.tsx:61
+#: src/features/composerTurnControl/ComposerSurface.tsx:62
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerSurface.tsx:41
+#: src/features/composerTurnControl/ComposerSurface.tsx:42
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -833,11 +833,11 @@ msgstr "Open fork"
 msgid "Open session"
 msgstr "Open session"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:224
+#: src/features/currentTask/CurrentTaskPage.tsx:225
 msgid "Open task"
 msgstr "Open task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:210
+#: src/features/currentTask/CurrentTaskPage.tsx:211
 msgid "Opening task…"
 msgstr "Opening task…"
 
@@ -965,7 +965,7 @@ msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
 
 #. Reload the current task's runtime status
-#: src/features/currentTask/CurrentTaskPage.tsx:413
+#: src/features/currentTask/CurrentTaskPage.tsx:414
 msgid "Refresh status"
 msgstr "Refresh status"
 
@@ -973,7 +973,7 @@ msgstr "Refresh status"
 msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:393
+#: src/features/currentTask/CurrentTaskPage.tsx:394
 msgid "Refreshing status…"
 msgstr "Refreshing status…"
 
@@ -1010,18 +1010,18 @@ msgstr "Remove or replace invalid skills before saving."
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
-#: src/features/currentTask/CurrentTaskPage.tsx:220
-#: src/features/currentTask/CurrentTaskPage.tsx:340
-#: src/features/currentTask/CurrentTaskPage.tsx:407
+#: src/features/currentTask/CurrentTaskPage.tsx:221
+#: src/features/currentTask/CurrentTaskPage.tsx:341
+#: src/features/currentTask/CurrentTaskPage.tsx:408
 msgid "Remove task"
 msgstr "Remove task"
 
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
-#: src/features/currentTask/CurrentTaskPage.tsx:206
-#: src/features/currentTask/CurrentTaskPage.tsx:326
-#: src/features/currentTask/CurrentTaskPage.tsx:387
+#: src/features/currentTask/CurrentTaskPage.tsx:207
+#: src/features/currentTask/CurrentTaskPage.tsx:327
+#: src/features/currentTask/CurrentTaskPage.tsx:388
 msgid "Removing task…"
 msgstr "Removing task…"
 
@@ -1252,8 +1252,8 @@ msgstr "System theme"
 msgid "Table copied"
 msgstr "Table copied"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:231
-#: src/features/currentTask/CurrentTaskPage.tsx:454
+#: src/features/currentTask/CurrentTaskPage.tsx:232
+#: src/features/currentTask/CurrentTaskPage.tsx:455
 msgid "Task action failed"
 msgstr "Task action failed"
 
@@ -1262,12 +1262,12 @@ msgstr "Task action failed"
 msgid "Task actions"
 msgstr "Task actions"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:31
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:32
 msgid "Task history is unavailable until the connection is restored."
 msgstr "Task history is unavailable until the connection is restored."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:57
-#: src/features/threadHistory/ContinueTaskAction.tsx:61
+#: src/features/threadHistory/ContinueTaskAction.tsx:58
+#: src/features/threadHistory/ContinueTaskAction.tsx:62
 msgid "Task opened"
 msgstr "Task opened"
 
@@ -1322,8 +1322,8 @@ msgstr "The conversation shown here may be out of date. Restore sync to get the 
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "The creation result is unknown. Retrying may leave an extra empty session."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:281
-#: src/features/currentTask/CurrentTaskPage.tsx:359
+#: src/features/currentTask/CurrentTaskPage.tsx:282
+#: src/features/currentTask/CurrentTaskPage.tsx:360
 msgid "The current task could not be loaded."
 msgstr "The current task could not be loaded."
 
@@ -1356,7 +1356,7 @@ msgstr "The pending-message order did not change, and the refreshed order could 
 msgid "The pending-message order did not change. Refresh complete; try again."
 msgstr "The pending-message order did not change. Refresh complete; try again."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:62
+#: src/features/threadHistory/ContinueTaskAction.tsx:63
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "The previous task connection could not be fully cleaned up. Later state may be affected."
 
@@ -1365,7 +1365,7 @@ msgid "The result is unknown. Check history before forking again; another click 
 msgstr "The result is unknown. Check history before forking again; another click may create an additional conversation."
 
 #. Temporary notification when a URL targets a turn absent from the complete conversation history
-#: src/features/committedTranscriptSurface/useTurnPositionScroll.ts:63
+#: src/features/committedTranscriptSurface/useTurnPositionScroll.ts:53
 msgid "The specified turn was not found."
 msgstr "The specified turn was not found."
 
@@ -1373,7 +1373,7 @@ msgstr "The specified turn was not found."
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:457
+#: src/features/currentTask/CurrentTaskPage.tsx:458
 msgid "The task action could not be completed."
 msgstr "The task action could not be completed."
 
@@ -1393,11 +1393,11 @@ msgstr "The task connection could not be prepared."
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:235
+#: src/features/currentTask/CurrentTaskPage.tsx:236
 msgid "The task could not be opened."
 msgstr "The task could not be opened."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:237
+#: src/features/currentTask/CurrentTaskPage.tsx:238
 msgid "The task could not be removed."
 msgstr "The task could not be removed."
 
@@ -1405,15 +1405,15 @@ msgstr "The task could not be removed."
 msgid "The task could not be resumed."
 msgstr "The task could not be resumed."
 
-#: src/features/appShell/AppShell.tsx:90
+#: src/features/appShell/AppShell.tsx:91
 msgid "The task list could not be updated."
 msgstr "The task list could not be updated."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:58
+#: src/features/threadHistory/ContinueTaskAction.tsx:59
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:479
+#: src/features/currentTask/CurrentTaskPage.tsx:480
 msgid "The task recovery could not be completed."
 msgstr "The task recovery could not be completed."
 
@@ -1451,7 +1451,7 @@ msgstr "This pending message cannot be edited."
 msgid "This task could not be restored. You can try again."
 msgstr "This task could not be restored. You can try again."
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:66
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:67
 msgid "This task has no messages."
 msgstr "This task has no messages."
 
@@ -1508,20 +1508,20 @@ msgstr "Unable to create fork"
 msgid "Unable to load history"
 msgstr "Unable to load history"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:120
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:121
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:278
-#: src/features/currentTask/CurrentTaskPage.tsx:356
+#: src/features/currentTask/CurrentTaskPage.tsx:279
+#: src/features/currentTask/CurrentTaskPage.tsx:357
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:476
+#: src/features/currentTask/CurrentTaskPage.tsx:477
 msgid "Unable to recover the current task"
 msgstr "Unable to recover the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:144
+#: src/features/currentTask/CurrentTaskPage.tsx:145
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "Unable to retry this task. Review its current state and try again."
 
@@ -1539,7 +1539,7 @@ msgstr "Unable to start the conversation"
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
-#: src/features/appShell/AppShell.tsx:87
+#: src/features/appShell/AppShell.tsx:88
 msgid "Unable to update the task list"
 msgstr "Unable to update the task list"
 
@@ -1552,7 +1552,7 @@ msgstr "Unknown"
 msgid "Unsaved pending message"
 msgstr "Unsaved pending message"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:43
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:44
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:220
 msgid "Untitled task"
 msgstr "Untitled task"
