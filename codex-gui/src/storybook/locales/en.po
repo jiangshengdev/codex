@@ -28,10 +28,6 @@ msgstr "Add sample file"
 msgid "Add sample image"
 msgstr "Add sample image"
 
-#: src/storybook/recovery/ErrorStackPreviewControls.tsx:29
-msgid "Add simulated issue"
-msgstr "Add simulated issue"
-
 #. Return the selected image bytes to the real preview component
 #: src/storybook/composer/ComposerAttachmentsPreview.tsx:215
 msgid "Complete preview {name}"
@@ -148,10 +144,6 @@ msgstr "Removed; a late result must not restore this attachment."
 msgid "Reset replay"
 msgstr "Reset replay"
 
-#: src/storybook/recovery/ErrorStackPreviewControls.tsx:38
-msgid "Resolve simulated issues"
-msgstr "Resolve simulated issues"
-
 #. The request succeeded but the simulated runtime acceptance event has not been injected
 #: src/storybook/composer/ComposerPreview.tsx:182
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:244
@@ -179,10 +171,6 @@ msgstr "Restore simulated storage"
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:248
 msgid "Runtime confirmation received"
 msgstr "Runtime confirmation received"
-
-#: src/storybook/recovery/ErrorStackPreviewControls.tsx:50
-msgid "Show native toast"
-msgstr "Show native toast"
 
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
@@ -322,10 +310,6 @@ msgstr "Simulation is idle"
 msgid "Step {step} / {lastStep}"
 msgstr "Step {step} / {lastStep}"
 
-#: src/storybook/recovery/ErrorStackPreviewControls.tsx:44
-msgid "Temporary feedback"
-msgstr "Temporary feedback"
-
 #: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:118
 msgid "This control injects a lost editing-session result for previewing content protection."
 msgstr "This control injects a lost editing-session result for previewing content protection."
@@ -333,10 +317,6 @@ msgstr "This control injects a lost editing-session result for previewing conten
 #: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:113
 msgid "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
 msgstr "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
-
-#: src/storybook/recovery/ErrorStackPreviewControls.tsx:45
-msgid "This notification uses the existing Toast provider. It can temporarily cover the persistent recovery notices below it."
-msgstr "This notification uses the existing Toast provider. It can temporarily cover the persistent recovery notices below it."
 
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:78
 msgid "This preview freezes the brief recovery notification. Release it to inspect the pending send request."

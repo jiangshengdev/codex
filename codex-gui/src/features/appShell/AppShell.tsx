@@ -97,13 +97,7 @@ export function AppShell({ children }: AppShellProps) {
       <Toast.Provider placement="top" />
       <AppShellTopBar />
       <div aria-hidden="true" className="h-14 shrink-0" />
-      <div
-        className={
-          isCurrentTask
-            ? "app-shell-content-boundary task-page-layout"
-            : "contents app-shell-uncontained"
-        }
-      >
+      <div className={isCurrentTask ? "app-shell-content-boundary task-page-layout" : "contents"}>
         <ErrorNoticeStack notices={notices} />
         {children}
       </div>

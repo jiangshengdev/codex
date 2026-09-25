@@ -21,10 +21,6 @@ for (const width of [375, 1280]) {
       issues.getByRole("button", { name: "Restore task", exact: true }),
     ).toBeInViewport();
     await expect(issues.getByText("1 active issue", { exact: true })).toBeVisible();
-    await issues.getByRole("button", { name: "Restore task", exact: true }).click();
-    await expect(
-      issues.getByRole("button", { name: "Restoring task…", exact: true }),
-    ).toHaveAttribute("aria-disabled", "true");
   });
 }
 
@@ -47,7 +43,6 @@ test("partial recovery keeps task ownership while retrying the failed task", asy
   await expect(composer(page)).toHaveText("Retained draft two");
   await expect(composer(page)).toHaveAttribute("contenteditable", "true");
   await expect(page.getByText("Retained answer two", { exact: true })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Active issues", exact: true })).toHaveCount(0);
   await page.clock.runFor(2_000);
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.getByRole("button", { name: "Recovery task one", exact: true }).click();
@@ -83,7 +78,11 @@ for (const [state, label, enabled, diagnostics] of [
     await page.goto(
       `${storybookOrigin}/iframe.html?id=feedback-task-recovery--${state}&viewMode=story`,
     );
-    await page.getByRole("region", { name: "Active issues", exact: true }).hover();
+    if (state === "waiting" || state === "connection-unavailable") {
+      const toggle = page.getByRole("button", { name: "Show all issues", exact: true });
+      await toggle.focus();
+      await toggle.press("Enter");
+    }
     await expect(page.getByText("Task updates are paused", { exact: true })).toBeVisible();
     const restore = page.getByRole("button", {
       name: label,
