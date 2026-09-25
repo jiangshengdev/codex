@@ -68,11 +68,15 @@ test("an existing empty turn is not reported as missing", async () => {
     .not.toBeInTheDocument();
 });
 
-test.each(["history", "task"] as const)(
-  "%s URL selects the target context page and aligns the turn end",
-  async (route) => {
+test.each(
+  (["history", "task"] as const).flatMap((route) =>
+    [375, 390, 1280].map((width) => ({ route, width })),
+  ),
+)(
+  "$route URL selects the target context page and aligns the turn end at $width px",
+  async ({ route, width }) => {
     const viewport = { width: window.innerWidth, height: window.innerHeight };
-    await page.viewport(390, 720);
+    await page.viewport(width, 720);
     try {
       const url = `/${route}/${launchThreadId}?turnId=target&position=end`;
       window.history.replaceState({}, "", url);

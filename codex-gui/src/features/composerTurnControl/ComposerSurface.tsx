@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ComposerEditor, type ComposerEditorProps } from "@/features/composerEditor/ComposerEditor";
 import { ComposerSkillMenuLayer } from "./ComposerSkillMenuLayer";
 import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
+import { TaskBottomRegion } from "@/features/taskLayout/TaskBottomRegion";
 
 type ComposerSurfaceProps = Readonly<{
   editor: Omit<
@@ -37,10 +38,11 @@ export function ComposerSurface({
   );
 
   return (
-    <section
-      aria-label={t`Message composer`}
-      className="composer-shell task-bottom-shell sticky bottom-0 z-10"
-      ref={shellRef}
+    <TaskBottomRegion
+      label={t`Message composer`}
+      className="composer-shell"
+      placement="sticky"
+      regionRef={shellRef}
     >
       <Surface className="composer-frame flex flex-col gap-1" variant="secondary">
         {header}
@@ -71,7 +73,7 @@ export function ComposerSurface({
           </div>
         </Surface>
       </Surface>
-    </section>
+    </TaskBottomRegion>
   );
 }
 

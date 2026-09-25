@@ -15,3 +15,6 @@ export const ReadError: Story = { args: { detail: "readError" } };
 export const Empty: Story = { args: { detail: "empty" } };
 export const Content: Story = { args: { detail: "content" } };
 export const LongContent: Story = { args: { detail: "longContent" } };
+export const LongContentContinuationFailure: Story = {
+  args: { detail: "longContent", continuation: "resumeFailed" },
+};
