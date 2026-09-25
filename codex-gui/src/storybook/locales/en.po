@@ -14,27 +14,29 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. Insert fictional files and a PNG together through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:198
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:193
 msgid "Add mixed sample"
 msgstr "Add mixed sample"
 
 #. Insert a fictional local file through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:206
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:201
 msgid "Add sample file"
 msgstr "Add sample file"
 
 #. Insert a fictional PNG through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:202
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:197
 msgid "Add sample image"
 msgstr "Add sample image"
 
 #. Return the selected image bytes to the real preview component
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:215
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:210
 msgid "Complete preview {name}"
 msgstr "Complete preview {name}"
 
 #. Resolve the simulated upload for the named file, including a response arriving after removal
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:219
+#. Resolve the simulated upload for the named file, including a response arriving after removal
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:214
+#: src/storybook/newSession/NewSessionAttachments.tsx:114
 msgid "Complete upload {name}"
 msgstr "Complete upload {name}"
 
@@ -50,21 +52,21 @@ msgid "Current turn is running"
 msgstr "Current turn is running"
 
 #. Return invalid bytes so the browser cannot decode the uploaded image
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:242
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:237
 msgid "Fail preview decode {name}"
 msgstr "Fail preview decode {name}"
 
 #. Simulate a failure reading the uploaded image without changing upload status
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:231
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:226
 msgid "Fail preview read {name}"
 msgstr "Fail preview read {name}"
 
 #. Return a simulated upload failure for the named file
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:235
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:230
 msgid "Fail upload {name}"
 msgstr "Fail upload {name}"
 
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:176
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:171
 msgid "Files stay in this browser. Uploads are simulated; sending leaves the draft unchanged and never contacts a model."
 msgstr "Files stay in this browser. Uploads are simulated; sending leaves the draft unchanged and never contacts a model."
 
@@ -81,6 +83,10 @@ msgstr "Injected feedback: the first move is rejected without changing the queue
 #: src/storybook/composer/ComposerDraftPreview.tsx:74
 msgid "Leaving keeps the saved draft. Restarting resets it. Finish simulated sending and save changes before leaving."
 msgstr "Leaving keeps the saved draft. Restarting resets it. Finish simulated sending and save changes before leaving."
+
+#: src/storybook/newSession/NewSessionPreview.tsx:100
+msgid "Local simulation. No real sessions, uploads or model responses."
+msgstr "Local simulation. No real sessions, uploads or model responses."
 
 #: src/storybook/composer/ComposerPreview.tsx:86
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:81
@@ -115,6 +121,10 @@ msgstr "Navigate to details"
 msgid "Next step"
 msgstr "Next step"
 
+#: src/storybook/newSession/NewSessionPreview.tsx:105
+msgid "Only for scenario preparation, not a product recovery entry point."
+msgstr "Only for scenario preparation, not a product recovery entry point."
+
 #. Pauses the Storybook transcript timeline
 #: src/storybook/transcript/TranscriptReplayPreview.tsx:90
 msgid "Pause replay"
@@ -135,7 +145,7 @@ msgstr "Redux slots: {count}; route: {pathname}"
 msgid "Release recovery display"
 msgstr "Release recovery display"
 
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:249
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:244
 msgid "Removed; a late result must not restore this attachment."
 msgstr "Removed; a late result must not restore this attachment."
 
@@ -293,6 +303,11 @@ msgstr "Simulate stop response"
 #: src/storybook/composer/ComposerStopPreview.tsx:41
 msgid "Simulate stop unknown"
 msgstr "Simulate stop unknown"
+
+#. Clear the simulated storage fault and invoke existing persistence recovery before retrying on the new-session page
+#: src/storybook/newSession/NewSessionPreview.tsx:113
+msgid "Simulate storage recovery"
+msgstr "Simulate storage recovery"
 
 #. Complete the simulated target turn while its guiding message is being edited
 #: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:145
