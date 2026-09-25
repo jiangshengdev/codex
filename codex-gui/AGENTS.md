@@ -62,6 +62,13 @@ Use `$codex-gui-toolchain` to select and run frontend formatters, package script
 - Prefer chunk-level selectors and chunk-level React components for transcript hot paths. Unchanged chunks should keep stable selector results and avoid re-rendering old entries when new entries append to later chunks.
 - Performance verification must target a measurable risk. Regression coverage should encode a stable constraint; the existence of a test or issue note does not by itself establish that the rendering path is performant.
 
+## Storybook Organization
+
+- Organize Storybook sidebar titles as `Module/Feature folder/Story set`, for example `History/List/States`. Keep a feature folder between the top-level module and its story sets; do not place story sets directly under the module. Use existing module and folder names when they fit the capability.
+- When adding, renaming, or moving sidebar groups, update `parameters.options.storySort.order` in `.storybook/preview.tsx` in the same change. Explicitly order the affected top-level modules, feature folders, and story sets using their exact title segments; do not rely on discovery order or default sorting. Preserve unrelated ordering.
+- For organization-only changes, preserve existing story IDs, exported story names, direct links, scenario behavior, and product behavior. If a title change would alter generated IDs, retain the previous IDs through explicit metadata before reorganizing.
+- Verify the resulting Storybook index and sidebar hierarchy/order, and check that existing story IDs and scenario coverage are retained. Use verification scoped to the affected organization; do not introduce a full-suite requirement for title or ordering changes.
+
 ## Filtered Test Execution
 
 - Do not write or run tests for debugging support code, including DEV controls, debug panels, and control logic for scenario switching or simulation restarts. Storybook may still be used to test product behavior; debugging operations may serve as test setup, but must not be assertion targets themselves. This restriction takes precedence over general test execution requirements.
