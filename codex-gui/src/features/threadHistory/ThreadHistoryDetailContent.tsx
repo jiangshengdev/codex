@@ -3,6 +3,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
+import { TaskLoading } from "@/feedback/TaskLoading";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
@@ -46,9 +47,9 @@ export function ThreadHistoryDetailContent({
         <HistoryDetailDocumentTitleFactPublisher threadId={state.thread.id} title={title} />
       ) : null}
       {state.type === "loading" ? (
-        <Typography className="pt-3" color="muted" role="status" type="body-sm">
+        <TaskLoading>
           <Trans>Loading task history…</Trans>
-        </Typography>
+        </TaskLoading>
       ) : null}
       {state.type === "error" || state.type === "retrying" ? (
         <div className="pt-3">

@@ -1,4 +1,5 @@
-import { Alert, Spinner, Surface } from "@heroui/react";
+import { Alert, Surface } from "@heroui/react";
+import { TaskLoading } from "@/feedback/TaskLoading";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -299,7 +300,9 @@ export function CurrentTaskPage() {
   if (routeTarget.type !== "currentTask" || snapshot.threadId !== routeTarget.threadId) {
     return (
       <main className="task-page" data-gui-host-status={status.label}>
-        <CurrentTaskLoading />
+        <TaskLoading>
+          <Trans>Loading task…</Trans>
+        </TaskLoading>
       </main>
     );
   }
@@ -307,7 +310,9 @@ export function CurrentTaskPage() {
     if (snapshot.phase === "loading" && snapshot.error == null && retryError == null) {
       return (
         <main className="task-page" data-gui-host-status={status.label}>
-          <CurrentTaskLoading />
+          <TaskLoading>
+            <Trans>Loading task…</Trans>
+          </TaskLoading>
         </main>
       );
     }
@@ -540,20 +545,6 @@ function CurrentTaskReady({
         routeTarget={routeTarget}
       />
     </main>
-  );
-}
-
-function CurrentTaskLoading() {
-  return (
-    <div
-      className="mx-auto flex w-fit max-w-full items-center gap-2 py-6 text-sm text-muted"
-      role="status"
-    >
-      <Spinner aria-hidden="true" size="sm" />
-      <span>
-        <Trans>Loading task…</Trans>
-      </span>
-    </div>
   );
 }
 
