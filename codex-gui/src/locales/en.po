@@ -202,7 +202,7 @@ msgstr "Closed {receiver}"
 msgid "Code copied"
 msgstr "Code copied"
 
-#: src/features/appShell/AppShell.tsx:29
+#: src/features/appShell/AppShell.tsx:34
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:54
 msgid "Codex GUI could not be started."
 msgstr "Codex GUI could not be started."
@@ -647,9 +647,9 @@ msgstr "Load history"
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:266
-#: src/features/currentTask/CurrentTaskPage.tsx:343
-#: src/features/currentTask/CurrentTaskPage.tsx:410
+#: src/features/currentTask/CurrentTaskPage.tsx:267
+#: src/features/currentTask/CurrentTaskPage.tsx:344
+#: src/features/currentTask/CurrentTaskPage.tsx:411
 msgid "Load task"
 msgstr "Load task"
 
@@ -689,11 +689,11 @@ msgstr "Loading skills…"
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:259
-#: src/features/currentTask/CurrentTaskPage.tsx:304
-#: src/features/currentTask/CurrentTaskPage.tsx:314
-#: src/features/currentTask/CurrentTaskPage.tsx:329
-#: src/features/currentTask/CurrentTaskPage.tsx:390
+#: src/features/currentTask/CurrentTaskPage.tsx:260
+#: src/features/currentTask/CurrentTaskPage.tsx:305
+#: src/features/currentTask/CurrentTaskPage.tsx:315
+#: src/features/currentTask/CurrentTaskPage.tsx:330
+#: src/features/currentTask/CurrentTaskPage.tsx:391
 msgid "Loading task…"
 msgstr "Loading task…"
 
@@ -833,11 +833,11 @@ msgstr "Open fork"
 msgid "Open session"
 msgstr "Open session"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:223
+#: src/features/currentTask/CurrentTaskPage.tsx:224
 msgid "Open task"
 msgstr "Open task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:209
+#: src/features/currentTask/CurrentTaskPage.tsx:210
 msgid "Opening task…"
 msgstr "Opening task…"
 
@@ -849,6 +849,11 @@ msgstr "Operation diagnostic:"
 #: src/NotFoundPage.tsx:20
 msgid "Page not found"
 msgstr "Page not found"
+
+#. Accessible name of the scrollable area for page-wide status and recovery actions
+#: src/features/appShell/AppShellNotices.tsx:32
+msgid "Page notices"
+msgstr "Page notices"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:237
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:102
@@ -960,7 +965,7 @@ msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
 
 #. Reload the current task's runtime status
-#: src/features/currentTask/CurrentTaskPage.tsx:412
+#: src/features/currentTask/CurrentTaskPage.tsx:413
 msgid "Refresh status"
 msgstr "Refresh status"
 
@@ -968,7 +973,7 @@ msgstr "Refresh status"
 msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:392
+#: src/features/currentTask/CurrentTaskPage.tsx:393
 msgid "Refreshing status…"
 msgstr "Refreshing status…"
 
@@ -1005,18 +1010,18 @@ msgstr "Remove or replace invalid skills before saving."
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
-#: src/features/currentTask/CurrentTaskPage.tsx:219
-#: src/features/currentTask/CurrentTaskPage.tsx:339
-#: src/features/currentTask/CurrentTaskPage.tsx:406
+#: src/features/currentTask/CurrentTaskPage.tsx:220
+#: src/features/currentTask/CurrentTaskPage.tsx:340
+#: src/features/currentTask/CurrentTaskPage.tsx:407
 msgid "Remove task"
 msgstr "Remove task"
 
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
-#: src/features/currentTask/CurrentTaskPage.tsx:205
-#: src/features/currentTask/CurrentTaskPage.tsx:325
-#: src/features/currentTask/CurrentTaskPage.tsx:386
+#: src/features/currentTask/CurrentTaskPage.tsx:206
+#: src/features/currentTask/CurrentTaskPage.tsx:326
+#: src/features/currentTask/CurrentTaskPage.tsx:387
 msgid "Removing task…"
 msgstr "Removing task…"
 
@@ -1247,8 +1252,8 @@ msgstr "System theme"
 msgid "Table copied"
 msgstr "Table copied"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:230
-#: src/features/currentTask/CurrentTaskPage.tsx:453
+#: src/features/currentTask/CurrentTaskPage.tsx:231
+#: src/features/currentTask/CurrentTaskPage.tsx:456
 msgid "Task action failed"
 msgstr "Task action failed"
 
@@ -1317,8 +1322,8 @@ msgstr "The conversation shown here may be out of date. Restore sync to get the 
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "The creation result is unknown. Retrying may leave an extra empty session."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:280
-#: src/features/currentTask/CurrentTaskPage.tsx:358
+#: src/features/currentTask/CurrentTaskPage.tsx:281
+#: src/features/currentTask/CurrentTaskPage.tsx:359
 msgid "The current task could not be loaded."
 msgstr "The current task could not be loaded."
 
@@ -1368,7 +1373,7 @@ msgstr "The specified turn was not found."
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:456
+#: src/features/currentTask/CurrentTaskPage.tsx:459
 msgid "The task action could not be completed."
 msgstr "The task action could not be completed."
 
@@ -1388,11 +1393,11 @@ msgstr "The task connection could not be prepared."
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:234
+#: src/features/currentTask/CurrentTaskPage.tsx:235
 msgid "The task could not be opened."
 msgstr "The task could not be opened."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:236
+#: src/features/currentTask/CurrentTaskPage.tsx:237
 msgid "The task could not be removed."
 msgstr "The task could not be removed."
 
@@ -1400,7 +1405,7 @@ msgstr "The task could not be removed."
 msgid "The task could not be resumed."
 msgstr "The task could not be resumed."
 
-#: src/features/appShell/AppShell.tsx:92
+#: src/features/appShell/AppShell.tsx:90
 msgid "The task list could not be updated."
 msgstr "The task list could not be updated."
 
@@ -1408,7 +1413,7 @@ msgstr "The task list could not be updated."
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
-#: src/features/currentTask/CurrentTaskPage.tsx:478
+#: src/features/currentTask/CurrentTaskPage.tsx:481
 msgid "The task recovery could not be completed."
 msgstr "The task recovery could not be completed."
 
@@ -1507,20 +1512,20 @@ msgstr "Unable to load history"
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:277
-#: src/features/currentTask/CurrentTaskPage.tsx:355
+#: src/features/currentTask/CurrentTaskPage.tsx:278
+#: src/features/currentTask/CurrentTaskPage.tsx:356
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:475
+#: src/features/currentTask/CurrentTaskPage.tsx:478
 msgid "Unable to recover the current task"
 msgstr "Unable to recover the current task"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:143
+#: src/features/currentTask/CurrentTaskPage.tsx:144
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "Unable to retry this task. Review its current state and try again."
 
-#: src/features/appShell/AppShell.tsx:26
+#: src/features/appShell/AppShell.tsx:31
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:45
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
@@ -1534,7 +1539,7 @@ msgstr "Unable to start the conversation"
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
-#: src/features/appShell/AppShell.tsx:89
+#: src/features/appShell/AppShell.tsx:87
 msgid "Unable to update the task list"
 msgstr "Unable to update the task list"
 

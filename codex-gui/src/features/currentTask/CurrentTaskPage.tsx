@@ -26,6 +26,7 @@ import { FailureLayout } from "@/feedback/FailureLayout";
 import { RetryActionButton } from "@/feedback/RetryActionButton";
 import { ProjectionRecoveryNotice } from "./ProjectionRecoveryNotice";
 import { ConnectionTaskRecoveryNotice } from "./ConnectionTaskRecoveryNotice";
+import { AppShellNotice } from "@/features/appShell/AppShellNotices";
 import {
   useTurnPositionRequest,
   type TurnPositionRequest,
@@ -428,13 +429,15 @@ export function CurrentTaskPage() {
       notices={
         <>
           {snapshot.connection.phase === "unavailable" ? (
-            <ConnectionTaskRecoveryNotice
-              connection={snapshot.connection}
-              canRecover={status.label === "initialized" && connectionRecovery == null}
-              onRecover={() => {
-                void activeThreadSession.recoverConnection(snapshot.threadId, snapshot.identity);
-              }}
-            />
+            <AppShellNotice>
+              <ConnectionTaskRecoveryNotice
+                connection={snapshot.connection}
+                canRecover={status.label === "initialized" && connectionRecovery == null}
+                onRecover={() => {
+                  void activeThreadSession.recoverConnection(snapshot.threadId, snapshot.identity);
+                }}
+              />
+            </AppShellNotice>
           ) : null}
           {snapshot.phase === "projectionUnavailable" ? (
             <ProjectionRecoveryNotice

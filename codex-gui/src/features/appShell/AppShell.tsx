@@ -6,9 +6,14 @@ import { FailureLayout } from "@/feedback/FailureLayout";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { aggregateErrorText } from "@/text/aggregateErrorText";
-import { useActiveThreadCollectionSnapshot, useAppCapabilities } from "./AppCapabilities";
+import {
+  useActiveThreadCollectionSnapshot,
+  useActiveThreadSessionSnapshot,
+  useAppCapabilities,
+} from "./AppCapabilities";
 import { AppShellTopBar } from "./AppShellTopBar";
 import { ConnectionRecoveryNotice } from "./ConnectionRecoveryNotice";
+import { AppShellNotices } from "./AppShellNotices";
 
 export type AppShellProps = { children: ReactNode };
 
@@ -39,25 +44,15 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
   );
 }
 
-function AppShellTopNotices({ children, contained }: { children: ReactNode; contained: boolean }) {
-  return (
-    <div className="sticky top-14 z-20" data-app-shell-top-notices="">
-      <div className={contained ? "grid gap-3" : "app-shell-content-boundary grid gap-3 pt-3"}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 export function AppShell({ children }: AppShellProps) {
   const { routeTarget, status, connectionRecovery, activeThreadSession } = useAppCapabilities();
   const collection = useActiveThreadCollectionSnapshot();
+  const snapshot = useActiveThreadSessionSnapshot();
   const isCurrentTask = routeTarget.type === "currentTask";
-  const hasTopNotice =
-    status.label === "error" ||
-    status.label === "closed" ||
-    connectionRecovery != null ||
-    collection.errors.length > 0;
+  const floating = isCurrentTask
+    ? (snapshot.phase === "active" || snapshot.phase === "projectionUnavailable") &&
+      snapshot.threadId === routeTarget.threadId
+    : status.label === "initialized" || activeThreadSession != null;
 
   return (
     <div
@@ -68,42 +63,47 @@ export function AppShell({ children }: AppShellProps) {
       <AppShellTopBar />
       <div aria-hidden="true" className="h-14 shrink-0" />
       <div className={isCurrentTask ? "app-shell-content-boundary task-page-layout" : "contents"}>
-        {hasTopNotice ? (
-          <AppShellTopNotices contained={isCurrentTask}>
-            {connectionRecovery == null ? <GuiHostErrorAlert status={status} /> : null}
-            {status.label === "closed" || connectionRecovery != null ? (
-              <ConnectionRecoveryNotice
-                recovery={connectionRecovery}
-                hasRetainedSession={activeThreadSession != null}
-              />
-            ) : null}
-            {collection.errors.map(({ operation, threadId, error }) => {
-              const diagnostic = aggregateErrorText(error);
+        <AppShellNotices
+          contained={isCurrentTask}
+          floating={floating}
+          notices={
+            <>
+              {connectionRecovery == null ? <GuiHostErrorAlert status={status} /> : null}
+              {status.label === "closed" || connectionRecovery != null ? (
+                <ConnectionRecoveryNotice
+                  recovery={connectionRecovery}
+                  hasRetainedSession={activeThreadSession != null}
+                />
+              ) : null}
+              {collection.errors.map(({ operation, threadId, error }) => {
+                const diagnostic = aggregateErrorText(error);
 
-              return (
-                <Alert key={`${operation}:${threadId ?? ""}`} role="alert" status="danger">
-                  <Alert.Indicator />
-                  <FailureLayout>
-                    <Alert.Content>
-                      <Alert.Title>
-                        <Trans>Unable to update the task list</Trans>
-                      </Alert.Title>
-                      <Alert.Description>
-                        <Trans>The task list could not be updated.</Trans>
-                      </Alert.Description>
-                      {diagnostic ? (
-                        <FailureDiagnosticModal triggerClassName="mt-2 self-start">
-                          {diagnostic}
-                        </FailureDiagnosticModal>
-                      ) : null}
-                    </Alert.Content>
-                  </FailureLayout>
-                </Alert>
-              );
-            })}
-          </AppShellTopNotices>
-        ) : null}
-        {children}
+                return (
+                  <Alert key={`${operation}:${threadId ?? ""}`} role="alert" status="danger">
+                    <Alert.Indicator />
+                    <FailureLayout>
+                      <Alert.Content>
+                        <Alert.Title>
+                          <Trans>Unable to update the task list</Trans>
+                        </Alert.Title>
+                        <Alert.Description>
+                          <Trans>The task list could not be updated.</Trans>
+                        </Alert.Description>
+                        {diagnostic ? (
+                          <FailureDiagnosticModal triggerClassName="mt-2 self-start">
+                            {diagnostic}
+                          </FailureDiagnosticModal>
+                        ) : null}
+                      </Alert.Content>
+                    </FailureLayout>
+                  </Alert>
+                );
+              })}
+            </>
+          }
+        >
+          {children}
+        </AppShellNotices>
       </div>
     </div>
   );

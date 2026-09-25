@@ -21,6 +21,66 @@ const fullPageStories = [
 ];
 
 for (const width of [375, 1280]) {
+  test(`retained page keeps both recovery notices reachable while reading at ${String(width)}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(
+      `${storybookOrigin}/iframe.html?id=feedback-connection-recovery-pages--retained-disconnection&viewMode=story`,
+    );
+    const reconnect = page.getByRole("button", { name: "Reconnect", exact: true });
+    const restore = page.getByRole("button", { name: "Restore task", exact: true });
+    const notices = page.getByRole("region", { name: "Page notices", exact: true });
+    await expect(restore).toBeVisible();
+    await expect(notices.getByRole("status")).toHaveCount(2);
+    const readBounds = (element: HTMLElement | SVGElement) => {
+      const { x, width } = element.getBoundingClientRect();
+      return { x, width };
+    };
+    const main = await page.getByRole("main").evaluate(readBounds);
+    const noticeBounds = await notices.evaluate(readBounds);
+    expect(noticeBounds.x).toBeCloseTo(main.x, 0);
+    expect(noticeBounds.width).toBeCloseTo(main.width, 0);
+    for (const position of [0, 0.5, 1]) {
+      await page.evaluate((fraction) => {
+        window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) * fraction);
+      }, position);
+      await expect(reconnect).toBeInViewport();
+      await restore.scrollIntoViewIfNeeded();
+      await expect(restore).toBeInViewport({ ratio: 1 });
+      // Reaching a notice must scroll its region, not send the reader back to the page top.
+      await expect.poll(() => page.evaluate(() => window.scrollY > 800)).toBe(position > 0);
+    }
+    await reconnect.click();
+    const diagnostic = notices.getByRole("button", {
+      name: "View diagnostic information",
+      exact: true,
+    });
+    await expect(diagnostic).toBeVisible();
+    await notices.focus();
+    await notices.press("End");
+    await expect(restore).toBeInViewport({ ratio: 1 });
+    await expect.poll(() => page.evaluate(() => window.scrollY > 800)).toBe(true);
+    await expect
+      .poll(() =>
+        notices.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          return (
+            bounds.bottom < innerHeight / 2 && document.documentElement.scrollWidth <= innerWidth
+          );
+        }),
+      )
+      .toBe(true);
+    await diagnostic.focus();
+    await diagnostic.press("Enter");
+    await expect(page.getByRole("dialog")).toContainText("STORYBOOK_RECONNECT_FAILED");
+    await page.keyboard.press("Escape");
+    await expect(diagnostic).toBeFocused();
+    await page.getByRole("button", { name: "Menu", exact: true }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+  });
+
   test(`startup page has no preview-created scroll or inset at ${String(width)}px`, async ({
     page,
   }) => {
