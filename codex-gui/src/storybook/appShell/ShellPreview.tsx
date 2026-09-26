@@ -98,11 +98,25 @@ function ShellRouter({ scenario }: Readonly<{ scenario: Scenario }>) {
           : scenario.options.route === "newTask"
             ? NEW_TASK_ROUTE_PATH
             : CURRENT_TASK_ROUTE_PATH.replace("$threadId", shellThreadId);
-    return createRouter({
+    const router = createRouter({
       InnerWrap: DocumentTitleOwner,
       routeTree: root.addChildren(routes),
       history: createMemoryHistory({ initialEntries: [initialPath] }),
     });
+    if (scenario.options.collection === "navigationFailure") {
+      const navigate = router.navigate;
+      let failurePending = true;
+      // Simulate one rejected navigation at the router boundary. The real menu
+      // and session owner retain and clear the resulting operation error.
+      router.navigate = (navigation) => {
+        if (failurePending && navigation.to === CURRENT_TASK_ROUTE_PATH) {
+          failurePending = false;
+          return Promise.reject(new Error("STORYBOOK_NAVIGATION_FAILED: local router rejection"));
+        }
+        return navigate(navigation);
+      };
+    }
+    return router;
   });
   useEffect(() => {
     let active = true;

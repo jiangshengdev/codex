@@ -2,6 +2,7 @@ import type { AppDispatch } from "@/app/store";
 import { createActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import { BrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
+import type { GuiHostCommands } from "@/features/guiHost/guiHostCommandGateway";
 import { createThreadResumeResponse } from "@/features/guiHost/__tests__/threadResumeTestBuilders";
 import { NewSessionOwner } from "@/features/newSession/newSessionOwner";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
@@ -13,6 +14,7 @@ import {
 import { createRecoveryCommands } from "../recovery/recoveryCommands";
 
 export const shellThreadId = "00000000-0000-0000-0000-000000000201";
+export const shellSecondThreadId = "00000000-0000-0000-0000-000000000202";
 export const shellCwd = "/storybook/shell";
 export type ShellScenarioOptions = Readonly<{
   route?: GuiRouteTarget["type"];
@@ -20,6 +22,7 @@ export type ShellScenarioOptions = Readonly<{
   empty?: boolean;
   missingCwd?: boolean;
   error?: "task" | "connection";
+  collection?: "multiple" | "long" | "missing" | "running" | "navigationFailure" | "removalFailure";
 }>;
 
 export function createShellScenario(dispatch: AppDispatch, options: ShellScenarioOptions) {
@@ -37,6 +40,37 @@ export function createShellScenario(dispatch: AppDispatch, options: ShellScenari
     cwd: shellCwd,
     status: { type: "idle" },
   });
+  const tasks = new Map([[shellThreadId, task]]);
+  if (options.collection != null) {
+    const count = options.collection === "long" ? 24 : 3;
+    for (let index = 2; index <= count; index += 1) {
+      const id = `00000000-0000-0000-0000-${String(200 + index).padStart(12, "0")}`;
+      const attach = attachWithThreadId(baseline, id);
+      tasks.set(
+        id,
+        attachWithSnapshotThread(attach, {
+          ...attach.snapshot.thread,
+          name:
+            options.collection === "missing" && index === 2
+              ? null
+              : options.collection === "long"
+                ? `Shell task ${String(index)} ${"long task name ".repeat(20)}`
+                : `Shell task ${String(index)}`,
+          preview: "",
+          cwd: shellCwd,
+          status:
+            options.collection === "running" && index === 2
+              ? { type: "active", activeFlags: [] }
+              : { type: "idle" },
+        }),
+      );
+    }
+  }
+  const getTask = (threadId: string) => {
+    const result = tasks.get(threadId);
+    if (result == null) throw new Error(`Unknown local shell task: ${threadId}`);
+    return result;
+  };
   const records = new Map<string, string>();
   const storage = {
     getItem: (key: string) => records.get(key) ?? null,
@@ -53,20 +87,36 @@ export function createShellScenario(dispatch: AppDispatch, options: ShellScenari
     },
     crypto.randomUUID(),
   );
-  const commands = {
+  let removalFailurePending = options.collection === "removalFailure";
+  const commands: GuiHostCommands = {
     ...fallback.commands,
     listLoadedThreads: () => Promise.resolve({ data: [], nextCursor: null }),
-    readThread: () => Promise.resolve({ thread: task.snapshot.thread }),
-    resumeThread: () =>
+    listThreads: () =>
+      Promise.resolve({
+        data: options.empty ? [] : [...tasks.values()].map((entry) => entry.snapshot.thread),
+        nextCursor: null,
+        backwardsCursor: null,
+      }),
+    readThread: ({ threadId }) => Promise.resolve({ thread: getTask(threadId).snapshot.thread }),
+    resumeThread: ({ threadId }) =>
       Promise.resolve(
-        createThreadResumeResponse(task.snapshot.thread, {
+        createThreadResumeResponse(getTask(threadId).snapshot.thread, {
           cwd: shellCwd,
           model: "storybook-model",
           modelProvider: "storybook",
           approvalPolicy: "on-request",
         }),
       ),
-    attachThreadProjection: () => Promise.resolve(task),
+    attachThreadProjection: ({ threadId }) => Promise.resolve(getTask(threadId)),
+    detachThreadProjection: ({ threadId }) => {
+      if (removalFailurePending && threadId === shellSecondThreadId) {
+        removalFailurePending = false;
+        return Promise.reject(
+          new Error("STORYBOOK_REMOVAL_FAILED: simulated local detach failure"),
+        );
+      }
+      return Promise.resolve({ status: "detached" });
+    },
   };
   const controller = createActiveThreadSession({
     dispatch,
@@ -85,7 +135,10 @@ export function createShellScenario(dispatch: AppDispatch, options: ShellScenari
     title: task.snapshot.thread.name,
     start: () =>
       (start ??= (async () => {
-        if (!options.empty) await controller.session.activate(shellThreadId);
+        if (!options.empty) {
+          for (const id of tasks.keys()) await controller.session.activate(id);
+          await controller.session.view(shellThreadId);
+        }
         if (options.route === "newTask") newSessionOwner.open(options.missingCwd ? null : shellCwd);
         if (options.error === "task")
           controller.session.setOperationError(
