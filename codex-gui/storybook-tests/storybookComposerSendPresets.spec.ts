@@ -105,12 +105,24 @@ for (const width of [375, 1280]) {
       const style = getComputedStyle(element);
       return {
         height: element.getBoundingClientRect().height,
-        padding: style.padding,
+        paddingLeft: style.paddingLeft,
+        paddingRight: style.paddingRight,
         fontSize: style.fontSize,
         lineHeight: style.lineHeight,
       };
     };
     expect(await remove.evaluate(measureButton)).toEqual(await reconnect.evaluate(measureButton));
+    for (const button of [remove, reconnect]) {
+      await expect
+        .poll(() =>
+          button.evaluate(
+            (element) =>
+              element.scrollWidth <= element.clientWidth &&
+              element.scrollHeight <= element.clientHeight,
+          ),
+        )
+        .toBe(true);
+    }
     const panel = page.getByRole("status").filter({ has: remove });
     await expect(panel).toContainText("Sending result unknown");
     await expect(panel.getByRole("button")).toHaveCount(1);
