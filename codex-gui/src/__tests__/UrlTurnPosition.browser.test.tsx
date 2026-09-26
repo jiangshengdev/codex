@@ -28,6 +28,7 @@ import {
   resetAppBrowserTestSupport,
   seedBrowserAuthorizationSession,
 } from "./appBrowserTestSupport";
+import { expectRouteErrorConsole } from "./routeErrorConsole";
 
 const guiHostClientMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -200,12 +201,18 @@ test.each([
   "turnId=target&turnId=target&position=end",
   "turnId=target&position=end&position=end",
 ])("invalid positioning query uses the existing error page: %s", async (query) => {
-  const url = `/history/${launchThreadId}?${query}`;
-  const router = createAppRouter(createMemoryHistory({ initialEntries: [url] }));
-  const screen = await renderWithProviders(<RouterProvider router={router} />);
-  await expect
-    .element(screen.getByRole("heading", { name: "Page not found", exact: true }))
-    .toBeVisible();
+  await expectRouteErrorConsole(
+    ["Invalid turn positioning parameters"],
+    ["Warning: Error in route match: __root__/"],
+    async () => {
+      const url = `/history/${launchThreadId}?${query}`;
+      const router = createAppRouter(createMemoryHistory({ initialEntries: [url] }));
+      const screen = await renderWithProviders(<RouterProvider router={router} />);
+      await expect
+        .element(screen.getByRole("heading", { name: "Page not found", exact: true }))
+        .toBeVisible();
+    },
+  );
 });
 
 test("current task output does not repeat a completed URL positioning request", async () => {
