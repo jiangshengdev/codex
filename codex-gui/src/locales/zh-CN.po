@@ -752,10 +752,12 @@ msgstr "将待处理消息移至队首"
 msgid "Move pending message to last"
 msgstr "将待处理消息移至队尾"
 
+#: src/features/composerTurnControl/__tests__/ComposerPendingInputInitialFocus.browser.test.tsx:44
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:437
 msgid "Move to first"
 msgstr "移至队首"
 
+#: src/features/composerTurnControl/__tests__/ComposerPendingInputInitialFocus.browser.test.tsx:45
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:442
 msgid "Move to last"
 msgstr "移至队尾"
