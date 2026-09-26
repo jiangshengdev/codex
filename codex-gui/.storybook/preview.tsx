@@ -15,6 +15,8 @@ const preview: Preview = {
     options: {
       storySort: {
         order: [
+          "App shell",
+          ["Navigation", ["States"]],
           "Composer",
           [
             "Input and drafts",
