@@ -36,7 +36,7 @@ msgstr "Complete preview {name}"
 #. Resolve the simulated upload for the named file, including a response arriving after removal
 #. Resolve the simulated upload for the named file, including a response arriving after removal
 #: src/storybook/composer/ComposerAttachmentsPreview.tsx:214
-#: src/storybook/newSession/NewSessionAttachments.tsx:114
+#: src/storybook/newSession/NewSessionAttachments.tsx:101
 msgid "Complete upload {name}"
 msgstr "Complete upload {name}"
 
@@ -196,7 +196,7 @@ msgid "Simulate current turn interrupted"
 msgstr "Simulate current turn interrupted"
 
 #. Inject a failed save in the local pending-message editor simulation
-#: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:133
+#: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:132
 msgid "Simulate editing session lost"
 msgstr "Simulate editing session lost"
 
@@ -310,7 +310,7 @@ msgid "Simulate storage recovery"
 msgstr "Simulate storage recovery"
 
 #. Complete the simulated target turn while its guiding message is being edited
-#: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:145
+#: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:144
 msgid "Simulate target turn closed"
 msgstr "Simulate target turn closed"
 
@@ -325,11 +325,11 @@ msgstr "Simulation is idle"
 msgid "Step {step} / {lastStep}"
 msgstr "Step {step} / {lastStep}"
 
-#: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:118
+#: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:117
 msgid "This control injects a lost editing-session result for previewing content protection."
 msgstr "This control injects a lost editing-session result for previewing content protection."
 
-#: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:113
+#: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:112
 msgid "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
 msgstr "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
 
