@@ -71,8 +71,10 @@ for (const width of [375, 1280]) {
       await expect
         .poll(async () => {
           const notice = await description.boundingBox();
-          const messages = await list.boundingBox();
-          return notice != null && messages != null ? messages.y - notice.y - notice.height : 0;
+          const firstMessage = await list.getByRole("listitem").first().boundingBox();
+          return notice != null && firstMessage != null
+            ? firstMessage.y - notice.y - notice.height
+            : 0;
         })
         .toBeGreaterThanOrEqual(16);
       await expect
