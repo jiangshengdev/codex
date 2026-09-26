@@ -422,7 +422,7 @@ function PendingInputItem({
                   >
                     <Ellipsis aria-hidden="true" className="size-4" />
                   </Button>
-                  <Dropdown.Popover>
+                  <Dropdown.Popover className="w-max">
                     <Dropdown.Menu
                       disabledKeys={[
                         ...(item.movement.canMoveEarlier ? [] : ["first"]),
