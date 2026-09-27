@@ -1,26 +1,4 @@
 import { expect, type Page } from "@playwright/test";
-import type { Renderer } from "storybook/internal/types";
-import type { PreviewWeb } from "storybook/preview-api";
-
-export async function loadFocusStory(page: Page, storyId: string, containerWidth: number | null) {
-  await page.goto(`/iframe.html?id=${encodeURIComponent(storyId)}&viewMode=story`);
-  await expect(page.locator("#storybook-root")).not.toBeEmpty();
-  await expect(page.locator(".sb-errordisplay")).toBeHidden();
-  // Observe the preset only after the story's own play function finishes.
-  await expect(page.locator("body")).toHaveClass(/sb-show-main/);
-  await page.waitForFunction((id) => {
-    const preview = (window as Window & { __STORYBOOK_PREVIEW__?: PreviewWeb<Renderer> })
-      .__STORYBOOK_PREVIEW__;
-    return preview?.storyRenders.some((render) => render.id === id && render.phase === "finished");
-  }, storyId);
-  if (containerWidth != null) {
-    await page.locator("#storybook-root").evaluate((root, width) => {
-      root.style.width = `${String(width)}px`;
-      root.style.maxWidth = "100%";
-    }, containerWidth);
-  }
-  await waitForFocusStoryReady(page, storyId);
-}
 
 /** Wait for product state after the existing click-only History play functions. */
 export async function waitForFocusStoryReady(page: Page, storyId: string): Promise<void> {
