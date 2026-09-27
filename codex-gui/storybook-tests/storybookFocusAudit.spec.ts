@@ -1,14 +1,19 @@
-import { expect, test } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Page,
+  type PlaywrightWorkerOptions,
+  type TestInfo,
+} from "@playwright/test";
 import { beginFocusEvidenceReplay, finishFocusEvidenceReplay } from "./focusEvidenceReplay";
-import type { Renderer, StoryIndex } from "storybook/internal/types";
-import type { PreviewWeb } from "storybook/preview-api";
+import type { StoryIndex } from "storybook/internal/types";
 import { observeKeyboardFocus, observeScrollBoundaryFocus } from "./focusObservation";
 import { observeProductOverlays } from "./focusProductStates";
 import { readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { observePendingStates } from "./focusPendingStates";
 import { observeReadingStates, parseReadingEntryCapture } from "./focusReadingStates";
 import { observeRecoveryStates, parseRecoverySupplementSelection } from "./focusRecoveryStates";
-import { waitForFocusStoryReady } from "./focusStoryReady";
+import { loadFocusStory } from "./focusStoryReady";
 import { observeFocusSupplements } from "./focusSupplements";
 import type { observeComposerPopovers } from "./focusComposerPopovers";
 import type { observeUnknownDetails } from "./focusUnknownDetails";
@@ -118,12 +123,48 @@ const composerSkillScrollCapture =
       );
 const selections =
   requestedStories == null
-    ? groups.map((group) => ({ group, storyId: null as string | null, title: group }))
+    ? groups.map((group) => ({
+        group,
+        storyId: null as string | null,
+        storyIds: [] as string[],
+        title: group,
+      }))
     : [...new Set(requestedStories.split(","))].map((storyId) => ({
         group: null as string | null,
         storyId,
+        storyIds: [storyId],
         title: storyId || "invalid-empty-story-id",
       }));
+
+// Selection constraints are input data, not optional assertions in the test body.
+function requiredCaptureEnvironments() {
+  const environments: { browser: string; layout: string }[] = [];
+  if (recoverySupplementSelection?.kind === "restore-sync-failed-initial") {
+    environments.push({ browser: "chromium", layout: "narrow-container" });
+  } else if (
+    recoverySupplementSelection?.kind === "history-missing-states" &&
+    !recoverySupplementSelection.collectContext
+  ) {
+    environments.push({ browser: "firefox", layout: "desktop" });
+  }
+  if (composerSkillScrollCapture != null) {
+    environments.push(composerSkillScrollCapture);
+  }
+  return environments;
+}
+
+function exactRecoveryCapture(browserName: string, layout: (typeof layouts)[number]) {
+  const capture: Parameters<typeof observeRecoveryStates>[4] =
+    requestedLongFailure == null
+      ? undefined
+      : {
+          kind: "history-long-failure",
+          documentEndpoints:
+            (browserName === "chromium" || browserName === "webkit") &&
+            (layout.name === "narrow" || layout.name === "narrow-container"),
+        };
+  return capture;
+}
 
 for (const layout of layouts) {
   for (const selection of selections) {
@@ -134,49 +175,24 @@ for (const layout of layouts) {
     }, testInfo) => {
       test.setTimeout((selection.storyId == null ? 1 : 2) * 60 * 60 * 1000);
       const startedAt = Date.now();
-      const exactCapture: Parameters<typeof observeRecoveryStates>[4] =
-        requestedLongFailure == null
-          ? undefined
-          : {
-              kind: "history-long-failure",
-              documentEndpoints:
-                (browserName === "chromium" || browserName === "webkit") &&
-                (layout.name === "narrow" || layout.name === "narrow-container"),
-            };
-      if (recoverySupplementSelection?.kind === "restore-sync-failed-initial") {
-        expect(browserName).toBe("chromium");
-        expect(layout.name).toBe("narrow-container");
-      } else if (
-        recoverySupplementSelection?.kind === "history-missing-states" &&
-        !recoverySupplementSelection.collectContext
-      ) {
-        expect(browserName).toBe("firefox");
-        expect(layout.name).toBe("desktop");
-      }
-      if (composerSkillScrollCapture != null) {
-        expect(browserName).toBe(composerSkillScrollCapture.browser);
-        expect(layout.name).toBe(composerSkillScrollCapture.layout);
+      const exactCapture = exactRecoveryCapture(browserName, layout);
+      for (const environment of requiredCaptureEnvironments()) {
+        expect(browserName).toBe(environment.browser);
+        expect(layout.name).toBe(environment.layout);
       }
       page.setDefaultTimeout(10_000);
       await page.setViewportSize({ width: layout.width, height: layout.height });
       const response = await request.get("/index.json");
       expect(response.ok()).toBe(true);
       const index = (await response.json()) as StoryIndex;
-      if (selection.storyId != null) {
-        const entry = index.entries[selection.storyId];
-        expect(
-          entry,
-          `Requested story ID is absent from runtime index: ${selection.storyId}`,
-        ).toBeDefined();
-        expect(entry?.type, `Requested ID is not a story: ${selection.storyId}`).toBe("story");
-        expect(
-          excluded.has(selection.storyId),
-          `Requested story is excluded: ${selection.storyId}`,
-        ).toBe(false);
-        expect(
-          groups,
-          `Requested story is outside product audit groups: ${selection.storyId}`,
-        ).toContain(entry?.title.split("/")[0]);
+      for (const storyId of selection.storyIds) {
+        const entry = index.entries[storyId];
+        expect(entry, `Requested story ID is absent from runtime index: ${storyId}`).toBeDefined();
+        expect(entry?.type, `Requested ID is not a story: ${storyId}`).toBe("story");
+        expect(excluded.has(storyId), `Requested story is excluded: ${storyId}`).toBe(false);
+        expect(groups, `Requested story is outside product audit groups: ${storyId}`).toContain(
+          entry?.title.split("/")[0],
+        );
       }
       const stories = Object.values(index.entries).filter(
         (entry) =>
@@ -212,268 +228,274 @@ for (const layout of layouts) {
           2,
         ),
       );
-      const coverage: {
-        story: string;
-        layout: (typeof layouts)[number];
-        state: string;
-        status: string;
-        observations?: number;
-        error?: string;
-        reason?: string;
-      }[] = [];
-      const persistCoverage = async () => {
-        const artifact = testInfo.outputPath("coverage.json");
-        const pending = `${artifact}.tmp`;
-        await writeFile(pending, JSON.stringify(coverage, null, 2));
-        await rename(pending, artifact);
-      };
-      try {
-        for (const story of stories) {
+      const coverage = await collectFocusAudit({
+        page,
+        testInfo,
+        browserName,
+        layout,
+        stories,
+        exactCapture,
+        startedAt,
+      });
+      expect(coverage.filter((row) => row.status === "blocked")).toEqual([]);
+    });
+  }
+}
+
+// The collector owns route dispatch and evidence persistence. The test above
+// always checks its blocked results, including failures retained before cleanup.
+async function collectFocusAudit({
+  page,
+  testInfo,
+  browserName,
+  layout,
+  stories,
+  exactCapture,
+  startedAt,
+}: {
+  page: Page;
+  testInfo: TestInfo;
+  browserName: PlaywrightWorkerOptions["browserName"];
+  layout: (typeof layouts)[number];
+  stories: StoryIndex["entries"][string][];
+  exactCapture: Parameters<typeof observeRecoveryStates>[4];
+  startedAt: number;
+}) {
+  const coverage: {
+    story: string;
+    layout: (typeof layouts)[number];
+    state: string;
+    status: string;
+    observations?: number;
+    error?: string;
+    reason?: string;
+  }[] = [];
+  const persistCoverage = async () => {
+    const artifact = testInfo.outputPath("coverage.json");
+    const pending = `${artifact}.tmp`;
+    await writeFile(pending, JSON.stringify(coverage, null, 2));
+    await rename(pending, artifact);
+  };
+  try {
+    for (const story of stories) {
+      if (
+        page.isClosed() ||
+        testInfo.status === "timedOut" ||
+        Date.now() - startedAt >= testInfo.timeout
+      )
+        throw new Error("Focus audit stopped before the next story because its test or page ended");
+
+      const collectStoryEvidence = async () => {
+        let phase = "loading";
+        let routeCompleted = false;
+        const priorFiles = new Set(await readdir(testInfo.outputPath()));
+        const loadStory = () => loadFocusStory(page, story.id, layout.container);
+        try {
+          await beginFocusEvidenceReplay(testInfo, {
+            story: story.id,
+            browser: browserName,
+            layout: layout.name,
+            route: "all",
+          });
+          await loadStory();
+          if (route === "all") {
+            phase = "initial";
+            await observeKeyboardFocus(page, testInfo, `${story.id}-initial`);
+            phase = "scroll-boundaries";
+            const unknownLists = page
+              .getByRole("status")
+              .filter({ hasText: "Sending result unknown" })
+              .getByRole("list");
+            for (let list = 0; list < (await unknownLists.count()); list += 1) {
+              await observeScrollBoundaryFocus(
+                page,
+                testInfo,
+                `${story.id}-unknown-${String(list)}`,
+                unknownLists.nth(list),
+              );
+            }
+            phase = "overlays";
+            await observeProductOverlays(page, testInfo, story.id);
+            phase = "pending";
+            await observePendingStates(page, testInfo, `${story.id}-pending`);
+          }
+          if (route === "all" || route === "reading") {
+            phase = "reading";
+            const reading = await observeReadingStates(
+              page,
+              testInfo,
+              story.id,
+              readingEntryCapture,
+            );
+            if (reading.length === 0)
+              coverage.push({
+                story: story.id,
+                layout,
+                state: "reading-route",
+                status: "not-applicable",
+                reason: "This fixture exposes no matching product reading route",
+              });
+          }
+          if (
+            route === "all" ||
+            route === "recovery" ||
+            (route === "supplements" && story.id.startsWith("history-"))
+          ) {
+            phase = "recovery";
+            const recovery = await observeRecoveryStates(
+              page,
+              testInfo,
+              story.id,
+              loadStory,
+              exactCapture,
+              recoverySupplementSelection,
+            );
+            if (
+              exactCapture == null &&
+              recoverySupplementSelection == null &&
+              recovery.length === 0
+            )
+              coverage.push({
+                story: story.id,
+                layout,
+                state: "recovery-route",
+                status: "not-applicable",
+                reason: "This fixture exposes no matching product recovery route",
+              });
+          }
+          if (route === "all" || route === "supplements") {
+            phase = "supplements";
+            await observeFocusSupplements(
+              page,
+              testInfo,
+              story.id,
+              loadStory,
+              browserName,
+              layout,
+              exactCapture,
+              recoverySupplementSelection,
+              composerSkillScrollCapture,
+            );
+          }
+          await finishFocusEvidenceReplay(testInfo);
+          routeCompleted = true;
+        } catch (error) {
+          coverage.push({
+            story: story.id,
+            layout,
+            state: phase,
+            status: "blocked",
+            error: error instanceof Error ? (error.stack ?? error.message) : String(error),
+          });
+          // A timed-out test cannot safely reuse its page for later stories.
+          // The finally blocks persist evidence before the failure propagates.
           if (
             page.isClosed() ||
             testInfo.status === "timedOut" ||
             Date.now() - startedAt >= testInfo.timeout
           )
-            throw new Error(
-              "Focus audit stopped before the next story because its test or page ended",
-            );
-
-          await test.step(story.id, async () => {
-            let phase = "loading";
-            let routeCompleted = false;
-            const priorFiles = new Set(await readdir(testInfo.outputPath()));
-            const loadStory = async () => {
-              await page.goto(`/iframe.html?id=${encodeURIComponent(story.id)}&viewMode=story`);
-              await expect(page.locator("#storybook-root")).not.toBeEmpty();
-              await expect(page.locator(".sb-errordisplay")).toBeHidden();
-              // Wait for the story's own play function before observing its preset state.
-              await expect(page.locator("body")).toHaveClass(/sb-show-main/);
-              await page.waitForFunction((id) => {
-                const preview = (
-                  window as Window & { __STORYBOOK_PREVIEW__?: PreviewWeb<Renderer> }
-                ).__STORYBOOK_PREVIEW__;
-                return preview?.storyRenders.some(
-                  (render) => render.id === id && render.phase === "finished",
-                );
-              }, story.id);
-              if (layout.container != null) {
-                await page.locator("#storybook-root").evaluate((root, width) => {
-                  root.style.width = `${String(width)}px`;
-                  root.style.maxWidth = "100%";
-                }, layout.container);
-              }
-              await waitForFocusStoryReady(page, story.id);
-            };
-            try {
-              await beginFocusEvidenceReplay(testInfo, {
-                story: story.id,
-                browser: browserName,
-                layout: layout.name,
-                route: "all",
-              });
-              await loadStory();
-              if (route === "all") {
-                phase = "initial";
-                await observeKeyboardFocus(page, testInfo, `${story.id}-initial`);
-                phase = "scroll-boundaries";
-                const unknownLists = page
-                  .getByRole("status")
-                  .filter({ hasText: "Sending result unknown" })
-                  .getByRole("list");
-                for (let list = 0; list < (await unknownLists.count()); list += 1) {
-                  await observeScrollBoundaryFocus(
-                    page,
-                    testInfo,
-                    `${story.id}-unknown-${String(list)}`,
-                    unknownLists.nth(list),
-                  );
-                }
-                phase = "overlays";
-                await observeProductOverlays(page, testInfo, story.id);
-                phase = "pending";
-                await observePendingStates(page, testInfo, `${story.id}-pending`);
-              }
-              if (route === "all" || route === "reading") {
-                phase = "reading";
-                const reading = await observeReadingStates(
-                  page,
-                  testInfo,
-                  story.id,
-                  readingEntryCapture,
-                );
-                if (reading.length === 0)
-                  coverage.push({
-                    story: story.id,
-                    layout,
-                    state: "reading-route",
-                    status: "not-applicable",
-                    reason: "This fixture exposes no matching product reading route",
-                  });
-              }
-              if (
-                route === "all" ||
-                route === "recovery" ||
-                (route === "supplements" && story.id.startsWith("history-"))
-              ) {
-                phase = "recovery";
-                const recovery = await observeRecoveryStates(
-                  page,
-                  testInfo,
-                  story.id,
-                  loadStory,
-                  exactCapture,
-                  recoverySupplementSelection,
-                );
-                if (
-                  exactCapture == null &&
-                  recoverySupplementSelection == null &&
-                  recovery.length === 0
-                )
-                  coverage.push({
-                    story: story.id,
-                    layout,
-                    state: "recovery-route",
-                    status: "not-applicable",
-                    reason: "This fixture exposes no matching product recovery route",
-                  });
-              }
-              if (route === "all" || route === "supplements") {
-                phase = "supplements";
-                await observeFocusSupplements(
-                  page,
-                  testInfo,
-                  story.id,
-                  loadStory,
-                  browserName,
-                  layout,
-                  exactCapture,
-                  recoverySupplementSelection,
-                  composerSkillScrollCapture,
-                );
-              }
-              await finishFocusEvidenceReplay(testInfo);
-              routeCompleted = true;
-            } catch (error) {
+            throw error;
+        } finally {
+          // Individual observations survive a later route failure. Persist progress
+          // after each story rather than dropping successful states on exceptions.
+          const files = await readdir(testInfo.outputPath());
+          for (const file of files.filter(
+            (name) =>
+              !priorFiles.has(name) &&
+              (name.endsWith("-composer-popovers.json") ||
+                name.endsWith("-unknown-details.json") ||
+                name.endsWith("-history-list-states.json") ||
+                name.endsWith("-continuation-states.json") ||
+                name.endsWith("-history-fork-states.json") ||
+                name.endsWith("-app-shell-states.json") ||
+                name.endsWith("-composer-document-boundaries.json")),
+          )) {
+            const results = JSON.parse(
+              await readFile(testInfo.outputPath(file), "utf8"),
+            ) as Awaited<
+              ReturnType<
+                | typeof observeComposerPopovers
+                | typeof observeUnknownDetails
+                | typeof observeHistoryListStates
+                | typeof observeHistoryContinuationStates
+                | typeof observeHistoryForkStates
+                | typeof observeAppShellStates
+                | typeof observeComposerDocumentBoundaries
+              >
+            >;
+            for (const result of results) {
               coverage.push({
                 story: story.id,
                 layout,
-                state: phase,
-                status: "blocked",
-                error: error instanceof Error ? (error.stack ?? error.message) : String(error),
+                state: `${file}#${result.state}`,
+                status: result.status,
+                observations: result.observations,
+                reason: result.reason,
               });
-              // A timed-out test cannot safely reuse its page for later stories.
-              // The finally blocks persist evidence before the failure propagates.
-              if (
-                page.isClosed() ||
-                testInfo.status === "timedOut" ||
-                Date.now() - startedAt >= testInfo.timeout
-              )
-                throw error;
-            } finally {
-              // Individual observations survive a later route failure. Persist progress
-              // after each story rather than dropping successful states on exceptions.
-              const files = await readdir(testInfo.outputPath());
-              for (const file of files.filter(
-                (name) =>
-                  !priorFiles.has(name) &&
-                  (name.endsWith("-composer-popovers.json") ||
-                    name.endsWith("-unknown-details.json") ||
-                    name.endsWith("-history-list-states.json") ||
-                    name.endsWith("-continuation-states.json") ||
-                    name.endsWith("-history-fork-states.json") ||
-                    name.endsWith("-app-shell-states.json") ||
-                    name.endsWith("-composer-document-boundaries.json")),
-              )) {
-                const results = JSON.parse(
-                  await readFile(testInfo.outputPath(file), "utf8"),
-                ) as Awaited<
-                  ReturnType<
-                    | typeof observeComposerPopovers
-                    | typeof observeUnknownDetails
-                    | typeof observeHistoryListStates
-                    | typeof observeHistoryContinuationStates
-                    | typeof observeHistoryForkStates
-                    | typeof observeAppShellStates
-                    | typeof observeComposerDocumentBoundaries
-                  >
-                >;
-                for (const result of results) {
-                  coverage.push({
-                    story: story.id,
-                    layout,
-                    state: `${file}#${result.state}`,
-                    status: result.status,
-                    observations: result.observations,
-                    reason: result.reason,
-                  });
-                }
-              }
-              for (const file of files.filter(
-                (name) => !priorFiles.has(name) && name.endsWith("-scroll-boundaries.json"),
-              )) {
-                const boundaries = JSON.parse(
-                  await readFile(testInfo.outputPath(file), "utf8"),
-                ) as ((
-                  | Awaited<ReturnType<typeof observeScrollBoundaryFocus>>[number]
-                  | DocumentBoundary
-                ) &
-                  Partial<Pick<DocumentBoundary, "state">>)[];
-                for (const boundary of boundaries)
-                  coverage.push({
-                    story: story.id,
-                    layout,
-                    state: `${file}#${boundary.state == null ? "" : `${boundary.state}#`}${boundary.axis}-${boundary.endpoint ?? "none"}`,
-                    status: boundary.status,
-                    reason: boundary.reason,
-                    observations: boundary.observations,
-                  });
-              }
-              for (const file of files.filter(
-                (name) => !priorFiles.has(name) && name.endsWith("-focus.json"),
-              )) {
-                const rows = JSON.parse(
-                  await readFile(testInfo.outputPath(file), "utf8"),
-                ) as Awaited<ReturnType<typeof observeKeyboardFocus>>;
-                coverage.push({
-                  story: story.id,
-                  layout,
-                  state: file,
-                  observations: rows.length,
-                  status: rows.some((row) => !row.traversalCompleted)
-                    ? "partial-observations-before-failure"
-                    : rows.some((row) => row.evidenceOrigin === "inherited-image-live-replay")
-                      ? "inherited-images-replayed-awaiting-state-and-prior-visual-review"
-                      : rows.length > 0
-                        ? "observed-awaiting-visual-and-state-review"
-                        : "no-product-focus-observed",
-                  reason:
-                    rows.length === 0
-                      ? "This traversal captured no product focus target"
-                      : undefined,
-                });
-              }
-              if (routeCompleted) {
-                coverage.push({
-                  story: story.id,
-                  layout,
-                  state: `route:${route}`,
-                  status: "route-collected-awaiting-visual-and-state-review",
-                  reason: "Only the selected route completed; this is not a visual verdict",
-                });
-              }
-              await persistCoverage();
             }
-          });
+          }
+          for (const file of files.filter(
+            (name) => !priorFiles.has(name) && name.endsWith("-scroll-boundaries.json"),
+          )) {
+            const boundaries = JSON.parse(await readFile(testInfo.outputPath(file), "utf8")) as ((
+              | Awaited<ReturnType<typeof observeScrollBoundaryFocus>>[number]
+              | DocumentBoundary
+            ) &
+              Partial<Pick<DocumentBoundary, "state">>)[];
+            for (const boundary of boundaries)
+              coverage.push({
+                story: story.id,
+                layout,
+                state: `${file}#${boundary.state == null ? "" : `${boundary.state}#`}${boundary.axis}-${boundary.endpoint ?? "none"}`,
+                status: boundary.status,
+                reason: boundary.reason,
+                observations: boundary.observations,
+              });
+          }
+          for (const file of files.filter(
+            (name) => !priorFiles.has(name) && name.endsWith("-focus.json"),
+          )) {
+            const rows = JSON.parse(await readFile(testInfo.outputPath(file), "utf8")) as Awaited<
+              ReturnType<typeof observeKeyboardFocus>
+            >;
+            coverage.push({
+              story: story.id,
+              layout,
+              state: file,
+              observations: rows.length,
+              status: rows.some((row) => !row.traversalCompleted)
+                ? "partial-observations-before-failure"
+                : rows.some((row) => row.evidenceOrigin === "inherited-image-live-replay")
+                  ? "inherited-images-replayed-awaiting-state-and-prior-visual-review"
+                  : rows.length > 0
+                    ? "observed-awaiting-visual-and-state-review"
+                    : "no-product-focus-observed",
+              reason:
+                rows.length === 0 ? "This traversal captured no product focus target" : undefined,
+            });
+          }
+          if (routeCompleted) {
+            coverage.push({
+              story: story.id,
+              layout,
+              state: `route:${route}`,
+              status: "route-collected-awaiting-visual-and-state-review",
+              reason: "Only the selected route completed; this is not a visual verdict",
+            });
+          }
+          await persistCoverage();
         }
-      } finally {
-        const artifact = testInfo.outputPath("coverage.json");
-        await persistCoverage();
-        await testInfo.attach("coverage", {
-          path: artifact,
-          contentType: "application/json",
-        });
-      }
-      expect(coverage.filter((row) => row.status === "blocked")).toEqual([]);
+      };
+
+      await test.step(story.id, collectStoryEvidence);
+    }
+  } finally {
+    const artifact = testInfo.outputPath("coverage.json");
+    await persistCoverage();
+    await testInfo.attach("coverage", {
+      path: artifact,
+      contentType: "application/json",
     });
   }
+  return coverage;
 }

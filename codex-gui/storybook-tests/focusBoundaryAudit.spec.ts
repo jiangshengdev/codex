@@ -1,42 +1,21 @@
-import { expect, test, type Page } from "@playwright/test";
-import type { Renderer } from "storybook/internal/types";
-import type { PreviewWeb } from "storybook/preview-api";
+import { expect, test } from "@playwright/test";
 import { activateProductControl, focusProductControl } from "./focusKeyboardActions";
 import {
   observeCurrentFocus,
   observeKeyboardFocus,
   observeScrollBoundaryFocus,
 } from "./focusObservation";
-import { waitForFocusStoryReady } from "./focusStoryReady";
+import { loadFocusStory } from "./focusStoryReady";
 
 // CNB #157: only missing boundaries; existing drawer/state reviews stay authoritative.
 test.use({ locale: "en", viewport: { width: 1280, height: 900 } });
-
-async function loadBoundaryStory(page: Page, story: string, narrowContainer: boolean) {
-  await page.goto(`/iframe.html?id=${encodeURIComponent(story)}&viewMode=story`);
-  await expect(page.locator("#storybook-root")).not.toBeEmpty();
-  await expect(page.locator(".sb-errordisplay")).toBeHidden();
-  await expect(page.locator("body")).toHaveClass(/sb-show-main/);
-  await page.waitForFunction((id) => {
-    const preview = (window as Window & { __STORYBOOK_PREVIEW__?: PreviewWeb<Renderer> })
-      .__STORYBOOK_PREVIEW__;
-    return preview?.storyRenders.some((render) => render.id === id && render.phase === "finished");
-  }, story);
-  if (narrowContainer) {
-    await page.locator("#storybook-root").evaluate((root) => {
-      root.style.width = "240px";
-      root.style.maxWidth = "100%";
-    });
-  }
-  await waitForFocusStoryReady(page, story);
-}
 
 for (const suffix of ["short-text", "mixed-text", "priority-detail"]) {
   const story = `composer-pending-input-three-queues--${suffix}`;
   const dialogCount = suffix === "priority-detail" ? 2 : 1;
 
   test(`${story} narrow root focus boundary`, async ({ page }, testInfo) => {
-    await loadBoundaryStory(page, story, true);
+    await loadFocusStory(page, story, 240);
     const drawer = page.getByRole("dialog");
     await expect(drawer).toHaveCount(dialogCount);
     for (let remaining = dialogCount; remaining > 0; remaining -= 1) {
@@ -104,8 +83,10 @@ const newSessionMenuStories = [
 ];
 
 for (const story of [...recoveryMenuStories, ...newSessionMenuStories]) {
+  const containerWidth = recoveryMenuStories.includes(story) ? 240 : null;
+
   test(`${story} Menu scroll metadata`, async ({ page }, testInfo) => {
-    await loadBoundaryStory(page, story, recoveryMenuStories.includes(story));
+    await loadFocusStory(page, story, containerWidth);
     await activateProductControl(page, page.getByRole("button", { name: "Menu", exact: true }));
     const body = page.getByRole("dialog").locator(".drawer__body");
     await expect(body).toBeVisible();
@@ -120,7 +101,7 @@ test("new-session-flow--creation-failed narrow root failed page and diagnostic",
   page,
 }, testInfo) => {
   const story = "new-session-flow--creation-failed";
-  await loadBoundaryStory(page, story, true);
+  await loadFocusStory(page, story, 240);
   const diagnostic = page.getByRole("button", { name: "View diagnostic information", exact: true });
   await expect(diagnostic).toBeVisible();
   await observeKeyboardFocus(page, testInfo, `${story}-failed-root`);
@@ -138,7 +119,7 @@ test("composer-pending-input-reordering--reject-first-move desktop rejection", a
   page,
 }, testInfo) => {
   const story = "composer-pending-input-reordering--reject-first-move";
-  await loadBoundaryStory(page, story, false);
+  await loadFocusStory(page, story, null);
   await activateProductControl(page, page.getByRole("button", { name: "Queued 3", exact: true }));
   const dialog = page.getByRole("dialog");
   await activateProductControl(
