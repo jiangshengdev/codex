@@ -1,10 +1,16 @@
 import { Surface } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ComposerEditor, type ComposerEditorProps } from "@/features/composerEditor/ComposerEditor";
+import { use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  ComposerEditor,
+  type ComposerEditorController,
+  type ComposerEditorProps,
+} from "@/features/composerEditor/ComposerEditor";
+import { ComposerFocusContext } from "@/features/composerEditor/composerFocusContext";
 import { ComposerSkillMenuLayer } from "./ComposerSkillMenuLayer";
 import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
 import { TaskBottomRegion } from "@/features/taskLayout/TaskBottomRegion";
+import { appShortcut } from "@/features/appShell/appShortcuts";
 
 type ComposerSurfaceProps = Readonly<{
   editor: Omit<
@@ -29,6 +35,28 @@ export function ComposerSurface({
   disabled = false,
 }: ComposerSurfaceProps) {
   const { t } = useLingui();
+  const composerFocusRef = use(ComposerFocusContext);
+  const controllerRef = useRef<ComposerEditorController | null>(null);
+  const onControllerChange = editor.onControllerChange;
+  const captureController = useCallback(
+    (controller: ComposerEditorController | null) => {
+      controllerRef.current = controller;
+      onControllerChange?.(controller);
+    },
+    [onControllerChange],
+  );
+  useEffect(() => {
+    if (composerFocusRef == null || editor.disabled) return;
+    const focus = () => {
+      if (controllerRef.current == null) return false;
+      controllerRef.current.focus();
+      return true;
+    };
+    composerFocusRef.current = focus;
+    return () => {
+      if (composerFocusRef.current === focus) composerFocusRef.current = null;
+    };
+  }, [composerFocusRef, editor.disabled]);
   const shellRef = useRef<HTMLElement | null>(null);
   const focusVisible = useComposerFocusVisible(shellRef);
   useRevealComposerOnViewportResize(shellRef);
@@ -48,6 +76,8 @@ export function ComposerSurface({
         {header}
         {feedback}
         <Surface
+          title={appShortcut("focus")?.visible}
+          aria-keyshortcuts={appShortcut("focus")?.aria}
           aria-disabled={disabled}
           className="composer-panel task-bottom-panel composer-field grid grid-cols-1 gap-2"
           data-disabled={disabled}
@@ -58,6 +88,7 @@ export function ComposerSurface({
           <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
           <ComposerEditor
             {...editor}
+            onControllerChange={captureController}
             ariaLabel={t`Message Codex`}
             placeholder={t`Message Codex`}
             attachmentControlsParent={attachmentControlsParent}

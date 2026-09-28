@@ -9,6 +9,13 @@ export const appShortcutDefinitions = {
     }),
     mac: "Meta+B",
   },
+  focus: {
+    label: msg({
+      message: "Focus message input",
+      comment: "Keyboard shortcut to focus the current message composer",
+    }),
+    mac: "Meta+Shift+E",
+  },
 } as const;
 
 export type AppShortcutAction = keyof typeof appShortcutDefinitions;

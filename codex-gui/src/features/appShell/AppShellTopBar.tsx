@@ -2,7 +2,8 @@ import { Badge, Button, Drawer } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
-import { useState } from "react";
+import { use, useState } from "react";
+import { ComposerFocusContext } from "@/features/composerEditor/composerFocusContext";
 import { useAppSelector } from "@/app/hooks";
 import {
   CURRENT_TASK_ROUTE_PATH,
@@ -28,6 +29,7 @@ export function AppShellTopBar() {
   const { t } = useLingui();
   const navigate = useNavigate();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const composerFocus = use(ComposerFocusContext);
   const { routeTarget, status, newSessionOwner, connectionRecovery } = useAppCapabilities();
   const newSession = useNewSessionSnapshot();
   const newSessionCwd = useNewSessionCwd();
@@ -89,6 +91,13 @@ export function AppShellTopBar() {
   useAppShortcuts({
     menu: () => {
       setIsDrawerOpen((open) => !open);
+      return true;
+    },
+    focus: () => {
+      const focus = composerFocus?.current;
+      if (focus == null) return false;
+      setIsDrawerOpen(false);
+      requestAnimationFrame(focus);
       return true;
     },
   });

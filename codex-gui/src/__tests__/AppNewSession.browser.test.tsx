@@ -125,6 +125,19 @@ test("menu shortcut toggles navigation from the editor and restores focus", asyn
   expect(commands.startTurn).not.toHaveBeenCalled();
 });
 
+test("focus shortcut returns to the current message without sending or changing its draft", async () => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+  const { commands } = await mount();
+  const editor = page.getByRole("combobox", { name: "Message Codex" });
+  await editor.fill("focus retained draft");
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await userEvent.keyboard("{Escape}");
+  await userEvent.keyboard("{Meta>}{Shift>}E{/Shift}{/Meta}");
+  await expect.element(editor).toHaveFocus();
+  await expect.element(editor).toHaveTextContent("focus retained draft");
+  expect(commands.startTurn).not.toHaveBeenCalled();
+});
+
 async function expectWorkingDirectory(path: string) {
   await page.getByRole("button", { name: /^Working directory:/ }).click();
   const dialog = page.getByRole("dialog", { name: "Working directory", exact: true });
