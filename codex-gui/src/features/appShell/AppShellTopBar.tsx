@@ -108,7 +108,9 @@ export function AppShellTopBar() {
       const focus = composerFocus?.current;
       if (focus == null) return false;
       setIsDrawerOpen(false);
-      requestAnimationFrame(focus);
+      requestAnimationFrame(() => {
+        if (composerFocus?.current === focus) focus();
+      });
       return true;
     },
   });

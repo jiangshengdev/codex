@@ -8,6 +8,7 @@ export const appShortcutDefinitions = {
       comment: "Keyboard shortcut that opens or closes the navigation drawer",
     }),
     mac: "Meta+B",
+    windows: "Control+B",
   },
   focus: {
     label: msg({
@@ -15,10 +16,12 @@ export const appShortcutDefinitions = {
       comment: "Keyboard shortcut to focus the current message composer",
     }),
     mac: "Meta+Shift+E",
+    windows: "Control+Alt+E",
   },
   newSession: {
     label: msg({ message: "New session", comment: "Open the unsent new conversation draft" }),
     mac: "Meta+Shift+O",
+    windows: "Control+Alt+N",
   },
   previousTask: {
     label: msg({
@@ -26,6 +29,7 @@ export const appShortcutDefinitions = {
       comment: "Previous task in displayed active-task order, wrapping at the beginning",
     }),
     mac: "Control+Meta+K",
+    windows: "Control+Alt+K",
   },
   nextTask: {
     label: msg({
@@ -33,15 +37,25 @@ export const appShortcutDefinitions = {
       comment: "Next task in displayed active-task order, wrapping at the end",
     }),
     mac: "Control+Meta+J",
+    windows: "Control+Alt+J",
   },
 } as const;
 
 export type AppShortcutAction = keyof typeof appShortcutDefinitions;
 
 export function appShortcut(action: AppShortcutAction, platform = navigator.platform) {
-  if (!platform.startsWith("Mac")) return null;
-  const aria = appShortcutDefinitions[action].mac;
-  return { aria, visible: aria.replace("Meta", "Command") };
+  const platformKey = platform.startsWith("Mac")
+    ? "mac"
+    : platform.startsWith("Win")
+      ? "windows"
+      : null;
+  if (platformKey == null) return null;
+  const aria = appShortcutDefinitions[action][platformKey];
+  return {
+    aria,
+    visible:
+      platformKey === "mac" ? aria.replace("Meta", "Command") : aria.replace("Control", "Ctrl"),
+  };
 }
 
 export function useAppShortcuts(actions: Partial<Record<AppShortcutAction, () => boolean>>) {

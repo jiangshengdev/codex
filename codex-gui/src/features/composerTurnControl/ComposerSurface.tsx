@@ -48,8 +48,16 @@ export function ComposerSurface({
   useEffect(() => {
     if (composerFocusRef == null || editor.disabled) return;
     const focus = () => {
-      if (controllerRef.current == null) return false;
-      controllerRef.current.focus();
+      const controller = controllerRef.current;
+      const root = controller?.getRootElement();
+      if (
+        controller == null ||
+        composerFocusRef.current !== focus ||
+        !root?.isConnected ||
+        !root.isContentEditable
+      )
+        return false;
+      controller.focus();
       return true;
     };
     composerFocusRef.current = focus;
