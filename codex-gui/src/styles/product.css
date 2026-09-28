@@ -57,6 +57,38 @@
 }
 
 @layer components {
+  .button:not(.button--icon-only) {
+    min-width: 0;
+    max-width: 100%;
+    height: auto;
+    min-height: 2.5rem;
+    padding-block: 0.25rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .button--sm:not(.button--icon-only) {
+    min-height: 2.25rem;
+  }
+
+  .button--lg:not(.button--icon-only) {
+    min-height: 2.75rem;
+  }
+
+  @media (min-width: 48rem) {
+    .button:not(.button--icon-only) {
+      min-height: 2.25rem;
+    }
+
+    .button--sm:not(.button--icon-only) {
+      min-height: 2rem;
+    }
+
+    .button--lg:not(.button--icon-only) {
+      min-height: 2.5rem;
+    }
+  }
+
   .composer-frame {
     @apply min-w-0 rounded-3xl p-1;
   }
