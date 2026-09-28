@@ -846,11 +846,6 @@ msgstr "暂无已提交的消息。"
 msgid "No history for the current working directory."
 msgstr "当前工作目录没有历史记录。"
 
-#. The stop action has no keyboard binding
-#: src/features/appShell/ShortcutHelp.tsx:63
-#~ msgid "No keyboard shortcut"
-#~ msgstr "未绑定快捷键"
-
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:277
 msgid "No matching skills"
 msgstr "没有匹配的技能"

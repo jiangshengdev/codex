@@ -846,11 +846,6 @@ msgstr "No committed messages yet."
 msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
 
-#. The stop action has no keyboard binding
-#: src/features/appShell/ShortcutHelp.tsx:63
-#~ msgid "No keyboard shortcut"
-#~ msgstr "No keyboard shortcut"
-
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:277
 msgid "No matching skills"
 msgstr "No matching skills"
