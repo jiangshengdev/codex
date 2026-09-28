@@ -223,22 +223,40 @@ test.each(shortcutPlatforms)(
   },
 );
 
-test("shortcut help describes the active bindings and leaves stop unbound", async () => {
-  vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
-  await mount();
-  await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await page.getByRole("button", { name: "Keyboard shortcuts" }).click();
-  const dialog = page.getByRole("dialog", { name: "Navigation" });
-  await expect.element(dialog.getByText("Command+B", { exact: true })).toBeVisible();
-  await expect.element(dialog.getByText("Control+Command+K", { exact: true })).toBeVisible();
-  await expect.element(dialog.getByText("No keyboard shortcut")).toBeVisible();
-  await expect
-    .element(page.getByRole("button", { name: "New session", exact: true }))
-    .toHaveAttribute("aria-keyshortcuts", "Meta+Shift+O");
-  await userEvent.keyboard("{Meta>}{Shift>}E{/Shift}{/Meta}");
-  await expect.element(dialog).not.toBeInTheDocument();
-  await expect.element(page.getByRole("combobox", { name: "Message Codex" })).toHaveFocus();
-});
+test.each(shortcutPlatforms)(
+  "shortcut page supports navigation while focus remains a no-op on $platform",
+  async ({ platform, menu, focus, newSession, nextTask }) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    const { router, commands } = await mount();
+    const editor = page.getByRole("combobox", { name: "Message Codex" });
+    await editor.fill("draft kept across shortcut help");
+    await page.getByRole("button", { name: "Menu", exact: true }).click();
+    await page.getByRole("button", { name: "Keyboard shortcuts", exact: true }).click();
+    await expect.poll(() => router.state.location.pathname).toBe("/shortcuts");
+    await userEvent.keyboard(focus);
+    expect(router.state.location.pathname).toBe("/shortcuts");
+    await expect.element(editor).not.toBeInTheDocument();
+    await userEvent.keyboard(menu);
+    const dialog = page.getByRole("dialog", { name: "Navigation" });
+    await expect.element(dialog).toBeVisible();
+    await userEvent.keyboard(focus);
+    await expect.element(dialog).toBeVisible();
+    await userEvent.keyboard(menu);
+    await expect.element(dialog).not.toBeInTheDocument();
+    await userEvent.keyboard(newSession);
+    await expect.poll(() => router.state.location.pathname).toBe("/new");
+    await editor.fill("new draft kept across shortcut help");
+    await router.navigate({ to: "/shortcuts" });
+    await userEvent.keyboard(nextTask);
+    await expect.poll(() => router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+    await expect.element(editor).toHaveTextContent("draft kept across shortcut help");
+    await router.navigate({ to: "/shortcuts" });
+    await userEvent.keyboard(newSession);
+    await expect.element(editor).toHaveTextContent("new draft kept across shortcut help");
+    expect(commands.startThread).not.toHaveBeenCalled();
+    expect(commands.startTurn).not.toHaveBeenCalled();
+  },
+);
 
 test.each(shortcutPlatforms)(
   "composition and repeated keydown do not trigger application shortcuts on $platform",

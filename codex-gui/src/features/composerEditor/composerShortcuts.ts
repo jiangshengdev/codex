@@ -5,6 +5,8 @@ function createComposerShortcuts(modifier: "Meta" | "Control") {
   const otherKey = modifier === "Meta" ? "ctrlKey" : "metaKey";
 
   return {
+    send: { aria: "Enter" },
+    newline: { aria: "Shift+Enter" },
     guide: {
       aria: `${modifier}+Enter`,
       visible: modifier === "Meta" ? "⌘ Enter" : "Ctrl+Enter",

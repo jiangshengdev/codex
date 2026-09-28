@@ -9,6 +9,7 @@ export const CURRENT_TASK_ROUTE_PATH = `/${CURRENT_TASK_PATH_SEGMENT}/$threadId`
 export const HISTORY_LIST_ROUTE_PATH = `/${HISTORY_PATH_SEGMENT}` as const;
 export const HISTORY_DETAIL_ROUTE_PATH = `${HISTORY_LIST_ROUTE_PATH}/$threadId` as const;
 export const NEW_TASK_ROUTE_PATH = `/${NEW_TASK_PATH_SEGMENT}` as const;
+export const SHORTCUTS_ROUTE_PATH = "/shortcuts";
 
 const threadIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -18,6 +19,7 @@ export type GuiRouteTarget =
   | Readonly<{ type: "currentTask"; threadId: string; turnPosition?: TurnPosition }>
   | Readonly<{ type: "historyList" }>
   | Readonly<{ type: "newTask" }>
+  | Readonly<{ type: "shortcuts" }>
   | Readonly<{ type: "historyDetail"; threadId: string; turnPosition?: TurnPosition }>;
 
 type GuiRouteMatch = MakeRouteMatchUnion;
@@ -57,6 +59,8 @@ export function selectGuiRouteTarget(matches: readonly GuiRouteMatch[]): GuiRout
       return { type: "historyList" };
     case NEW_TASK_ROUTE_PATH:
       return { type: "newTask" };
+    case SHORTCUTS_ROUTE_PATH:
+      return { type: "shortcuts" };
     case HISTORY_DETAIL_ROUTE_PATH: {
       const threadId = threadIdFromParams(match.params);
       const search = match.search;

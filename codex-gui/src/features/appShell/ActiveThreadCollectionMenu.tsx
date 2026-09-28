@@ -16,11 +16,9 @@ import { useActiveThreadCollectionSnapshot, useAppCapabilities } from "./AppCapa
 import { activeThreadRemovalBlockerMessage } from "./activeThreadCollectionMessages";
 import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation";
 import { useActiveTaskNavigation } from "./useActiveTaskNavigation";
-import { appShortcut } from "./appShortcuts";
 
 export function ActiveThreadCollectionMenu({ close }: Readonly<{ close(): void }>) {
   const collection = useActiveThreadCollectionSnapshot();
-  const navigation = useActiveTaskNavigation(close);
   return (
     <section
       className="mt-3 min-w-0 border-t border-separator pt-3"
@@ -31,38 +29,6 @@ export function ActiveThreadCollectionMenu({ close }: Readonly<{ close(): void }
           Active tasks
         </Trans>
       </h2>
-      <div className="mb-2 flex flex-wrap gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          isDisabled={!navigation.canCycle}
-          render={(props) => (
-            <button {...props} aria-keyshortcuts={appShortcut("previousTask")?.aria} />
-          )}
-          onPress={() => {
-            navigation.cycle(-1);
-          }}
-        >
-          <span title={appShortcut("previousTask")?.visible}>
-            <Trans>Previous task</Trans>
-          </span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          isDisabled={!navigation.canCycle}
-          render={(props) => (
-            <button {...props} aria-keyshortcuts={appShortcut("nextTask")?.aria} />
-          )}
-          onPress={() => {
-            navigation.cycle(1);
-          }}
-        >
-          <span title={appShortcut("nextTask")?.visible}>
-            <Trans>Next task</Trans>
-          </span>
-        </Button>
-      </div>
       <ul className="flex min-w-0 flex-col gap-1">
         {collection.members.map((member) => (
           <ActiveThreadCollectionRow

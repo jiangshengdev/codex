@@ -1,5 +1,6 @@
 import { Button } from "@heroui/react";
 import type { ReactNode } from "react";
+import { ShortcutKey } from "./ShortcutKey";
 
 type TopBarNavigationItemProps = {
   id: string;
@@ -58,11 +59,7 @@ export function TopBarNavigationItem({
           {description}
         </span>
       </span>
-      {shortcut ? (
-        <span aria-hidden="true" className="text-xs text-muted">
-          {shortcut.visible}
-        </span>
-      ) : null}
+      {shortcut ? <ShortcutKey aria={shortcut.aria} /> : null}
     </Button>
   );
 }

@@ -9,6 +9,7 @@ import {
   CURRENT_TASK_ROUTE_PATH,
   HISTORY_LIST_ROUTE_PATH,
   NEW_TASK_ROUTE_PATH,
+  SHORTCUTS_ROUTE_PATH,
 } from "@/features/browserLaunch/guiRouteTarget";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import { useHistoryDetailTitle } from "@/features/documentTitle/historyDetailTitleContext";
@@ -23,13 +24,14 @@ import { ActiveThreadCollectionMenu } from "./ActiveThreadCollectionMenu";
 import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation";
 import { TopBarNavigationItem } from "./TopBarNavigationItem";
 import { appShortcut, useAppShortcuts } from "./appShortcuts";
-import { ShortcutHelp } from "./ShortcutHelp";
+import { ShortcutKey } from "./ShortcutKey";
 import { useActiveTaskNavigation } from "./useActiveTaskNavigation";
 
 export function AppShellTopBar() {
   const { t } = useLingui();
   const navigate = useNavigate();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const menuShortcut = appShortcut("menu");
   const composerFocus = use(ComposerFocusContext);
   const taskNavigation = useActiveTaskNavigation(() => {
     setIsDrawerOpen(false);
@@ -54,6 +56,7 @@ export function AppShellTopBar() {
   const isCurrentTask = routeTarget.type === "currentTask";
   const isHistoryDetail = routeTarget.type === "historyDetail";
   const isNewTask = routeTarget.type === "newTask";
+  const isShortcuts = routeTarget.type === "shortcuts";
   const isHistory = routeTarget.type === "historyList" || isHistoryDetail;
   const historyDetailTitle = useHistoryDetailTitle();
   const currentTaskTitle =
@@ -68,7 +71,9 @@ export function AppShellTopBar() {
       ? (historyDetailTitle ?? t`History detail`)
       : isNewTask
         ? t`New session`
-        : t`History`;
+        : isShortcuts
+          ? t`Keyboard shortcuts`
+          : t`History`;
 
   const navigateToCurrentTask = (): void => {
     if (activeThreadId == null) {
@@ -120,8 +125,9 @@ export function AppShellTopBar() {
       <div className="app-shell-content-boundary flex h-full items-center gap-2 sm:gap-3">
         <Badge.Anchor className="shrink-0">
           <Button
-            render={(props) => <button {...props} aria-keyshortcuts={appShortcut("menu")?.aria} />}
+            render={(props) => <button {...props} aria-keyshortcuts={menuShortcut?.aria} />}
             className="shrink-0"
+            aria-label={t`Menu`}
             aria-describedby={hasError ? "active-tasks-error" : undefined}
             variant="secondary"
             onPress={() => {
@@ -129,9 +135,10 @@ export function AppShellTopBar() {
             }}
           >
             <Menu aria-hidden="true" className="size-5" />
-            <span title={appShortcut("menu")?.visible}>
+            <span>
               <Trans>Menu</Trans>
             </span>
+            {menuShortcut ? <ShortcutKey aria={menuShortcut.aria} /> : null}
           </Button>
           {hasError ? (
             <Badge color="danger" size="sm" aria-hidden="true" data-menu-error-indicator="true" />
@@ -199,13 +206,26 @@ export function AppShellTopBar() {
                     </Trans>
                   }
                 />
+                <TopBarNavigationItem
+                  id="shortcuts-navigation"
+                  isCurrent={isShortcuts}
+                  onPress={() => {
+                    setIsDrawerOpen(false);
+                    void navigate({ to: SHORTCUTS_ROUTE_PATH });
+                  }}
+                  label={
+                    <Trans comment="Navigation entry and page title for the keyboard shortcut reference">
+                      Keyboard shortcuts
+                    </Trans>
+                  }
+                  description={<Trans>View keyboard shortcuts</Trans>}
+                />
               </nav>
               <ActiveThreadCollectionMenu
                 close={() => {
                   setIsDrawerOpen(false);
                 }}
               />
-              <ShortcutHelp />
             </Drawer.Body>
           </Drawer.Dialog>
         </Drawer.Content>

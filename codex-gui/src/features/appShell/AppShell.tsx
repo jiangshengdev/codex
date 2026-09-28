@@ -119,6 +119,7 @@ function contentLayoutForRouteTarget(routeTarget: GuiRouteTarget): "reading" | "
     case "currentTask":
     case "historyDetail":
     case "newTask":
+    case "shortcuts":
       return "reading";
     case "historyList":
       return "wide";
