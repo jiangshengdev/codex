@@ -21,6 +21,8 @@ import {
 import { ActiveThreadCollectionMenu } from "./ActiveThreadCollectionMenu";
 import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation";
 import { TopBarNavigationItem } from "./TopBarNavigationItem";
+import { appShortcut, useAppShortcuts } from "./appShortcuts";
+import { ShortcutHelp } from "./ShortcutHelp";
 
 export function AppShellTopBar() {
   const { t } = useLingui();
@@ -84,11 +86,19 @@ export function AppShellTopBar() {
     void navigate({ to: NEW_TASK_ROUTE_PATH });
   };
 
+  useAppShortcuts({
+    menu: () => {
+      setIsDrawerOpen((open) => !open);
+      return true;
+    },
+  });
+
   return (
     <header className="fixed inset-x-0 top-0 z-30 h-14 border-b border-separator bg-surface text-foreground">
       <div className="app-shell-content-boundary flex h-full items-center gap-2 sm:gap-3">
         <Badge.Anchor className="shrink-0">
           <Button
+            render={(props) => <button {...props} aria-keyshortcuts={appShortcut("menu")?.aria} />}
             className="shrink-0"
             aria-describedby={hasError ? "active-tasks-error" : undefined}
             variant="secondary"
@@ -97,7 +107,9 @@ export function AppShellTopBar() {
             }}
           >
             <Menu aria-hidden="true" className="size-5" />
-            <Trans>Menu</Trans>
+            <span title={appShortcut("menu")?.visible}>
+              <Trans>Menu</Trans>
+            </span>
           </Button>
           {hasError ? (
             <Badge color="danger" size="sm" aria-hidden="true" data-menu-error-indicator="true" />
@@ -170,6 +182,7 @@ export function AppShellTopBar() {
                   setIsDrawerOpen(false);
                 }}
               />
+              <ShortcutHelp />
             </Drawer.Body>
           </Drawer.Dialog>
         </Drawer.Content>
