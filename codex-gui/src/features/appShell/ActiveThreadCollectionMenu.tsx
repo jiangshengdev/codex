@@ -8,7 +8,6 @@ import type {
   ActiveThreadRemovalOutcome,
 } from "@/features/activeThreadSession/activeThreadSessionCollectionContracts";
 import {
-  CURRENT_TASK_ROUTE_PATH,
   HISTORY_LIST_ROUTE_PATH,
   selectGuiRouteTarget,
 } from "@/features/browserLaunch/guiRouteTarget";
@@ -16,9 +15,12 @@ import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntim
 import { useActiveThreadCollectionSnapshot, useAppCapabilities } from "./AppCapabilities";
 import { activeThreadRemovalBlockerMessage } from "./activeThreadCollectionMessages";
 import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation";
+import { useActiveTaskNavigation } from "./useActiveTaskNavigation";
+import { appShortcut } from "./appShortcuts";
 
 export function ActiveThreadCollectionMenu({ close }: Readonly<{ close(): void }>) {
   const collection = useActiveThreadCollectionSnapshot();
+  const navigation = useActiveTaskNavigation(close);
   return (
     <section
       className="mt-3 min-w-0 border-t border-separator pt-3"
@@ -29,6 +31,38 @@ export function ActiveThreadCollectionMenu({ close }: Readonly<{ close(): void }
           Active tasks
         </Trans>
       </h2>
+      <div className="mb-2 flex flex-wrap gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          isDisabled={!navigation.canCycle}
+          render={(props) => (
+            <button {...props} aria-keyshortcuts={appShortcut("previousTask")?.aria} />
+          )}
+          onPress={() => {
+            navigation.cycle(-1);
+          }}
+        >
+          <span title={appShortcut("previousTask")?.visible}>
+            <Trans>Previous task</Trans>
+          </span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          isDisabled={!navigation.canCycle}
+          render={(props) => (
+            <button {...props} aria-keyshortcuts={appShortcut("nextTask")?.aria} />
+          )}
+          onPress={() => {
+            navigation.cycle(1);
+          }}
+        >
+          <span title={appShortcut("nextTask")?.visible}>
+            <Trans>Next task</Trans>
+          </span>
+        </Button>
+      </div>
       <ul className="flex min-w-0 flex-col gap-1">
         {collection.members.map((member) => (
           <ActiveThreadCollectionRow
@@ -52,19 +86,14 @@ function ActiveThreadCollectionRow({
   const navigate = useNavigate();
   const router = useRouter();
   const { activeThreadSession } = useAppCapabilities();
+  const navigation = useActiveTaskNavigation(close);
   const runtime = useAppSelector((state) => selectThreadRuntimeRecord(state, member.threadId));
   const title = runtime?.thread.name?.trim() ? runtime.thread.name : member.threadId;
   const hasError = activeThreadMemberHasError(member);
   const errorId = `active-task-error-${member.threadId}`;
   const blockerId = `active-task-removal-${member.threadId}`;
   const select = (): void => {
-    close();
-    void navigate({ to: CURRENT_TASK_ROUTE_PATH, params: { threadId: member.threadId } }).then(
-      () => activeThreadSession?.setOperationError(member.threadId, "navigation", null),
-      (error: unknown) => {
-        activeThreadSession?.setOperationError(member.threadId, "navigation", error);
-      },
-    );
+    navigation.select(member.threadId);
   };
   const removed = async (
     outcome: Extract<ActiveThreadRemovalOutcome, { type: "removed" }>,

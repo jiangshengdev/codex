@@ -20,6 +20,20 @@ export const appShortcutDefinitions = {
     label: msg({ message: "New session", comment: "Open the unsent new conversation draft" }),
     mac: "Meta+Shift+O",
   },
+  previousTask: {
+    label: msg({
+      message: "Previous task",
+      comment: "Previous task in displayed active-task order, wrapping at the beginning",
+    }),
+    mac: "Control+Meta+K",
+  },
+  nextTask: {
+    label: msg({
+      message: "Next task",
+      comment: "Next task in displayed active-task order, wrapping at the end",
+    }),
+    mac: "Control+Meta+J",
+  },
 } as const;
 
 export type AppShortcutAction = keyof typeof appShortcutDefinitions;

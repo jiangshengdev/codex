@@ -164,6 +164,107 @@ test("new session shortcut reuses the unsent draft and preserves the original ta
   expect(commands.startTurn).not.toHaveBeenCalled();
 });
 
+test("task shortcuts follow active list order, wrap and retain each task draft", async () => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+  const { router, commands } = await mount();
+  const editor = page.getByRole("combobox", { name: "Message Codex" });
+  await editor.fill("first draft");
+  await router.navigate({ to: "/task/$threadId", params: { threadId: otherThreadId } });
+  await editor.fill("second draft");
+  await router.navigate({ to: "/task/$threadId", params: { threadId: createdThreadId } });
+  await editor.fill("third draft");
+  await userEvent.keyboard("{Control>}{Meta>}j{/Meta}{/Control}");
+  await expect.poll(() => router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+  await expect.element(editor).toHaveTextContent("first draft");
+  await editor.click();
+  await userEvent.keyboard("{Control>}{Meta>}k{/Meta}{/Control}");
+  await expect.poll(() => router.state.location.pathname).toBe(`/task/${createdThreadId}`);
+  await expect.element(editor).toHaveTextContent("third draft");
+  await editor.click();
+  await userEvent.keyboard("{Control>}{Meta>}k{/Meta}{/Control}");
+  await expect.poll(() => router.state.location.pathname).toBe(`/task/${otherThreadId}`);
+  await expect.element(editor).toHaveTextContent("second draft");
+  expect(commands.startTurn).not.toHaveBeenCalled();
+});
+
+test("shortcut help describes the active bindings and leaves stop unbound", async () => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+  await mount();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.getByRole("button", { name: "Keyboard shortcuts" }).click();
+  const dialog = page.getByRole("dialog", { name: "Navigation" });
+  await expect.element(dialog.getByText("Command+B", { exact: true })).toBeVisible();
+  await expect.element(dialog.getByText("Control+Command+K", { exact: true })).toBeVisible();
+  await expect.element(dialog.getByText("No keyboard shortcut")).toBeVisible();
+  await expect
+    .element(page.getByRole("button", { name: "New session", exact: true }))
+    .toHaveAttribute("aria-keyshortcuts", "Meta+Shift+O");
+  await userEvent.keyboard("{Meta>}{Shift>}E{/Shift}{/Meta}");
+  await expect.element(dialog).not.toBeInTheDocument();
+  await expect.element(page.getByRole("combobox", { name: "Message Codex" })).toHaveFocus();
+});
+
+test("composition and repeated keydown do not trigger application shortcuts", async () => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+  const { router, commands } = await mount();
+  const editor = page.getByRole("combobox", { name: "Message Codex" });
+  await editor.fill("unchanged");
+  editor.element().dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+  await userEvent.keyboard("{Meta>}b{/Meta}");
+  await userEvent.keyboard("{Meta>}{Shift>}O{/Shift}{/Meta}");
+  await expect.element(page.getByRole("dialog", { name: "Navigation" })).not.toBeInTheDocument();
+  expect(router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+  editor.element().dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+  editor.element().dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "b",
+      metaKey: true,
+      repeat: true,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+  await expect.element(page.getByRole("dialog", { name: "Navigation" })).not.toBeInTheDocument();
+  await expect.element(editor).toHaveTextContent("unchanged");
+  expect(commands.startTurn).not.toHaveBeenCalled();
+});
+
+test("unavailable new session and empty task list ignore shortcuts", async () => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+  const { router, commands } = await mount("/new", false);
+  await expect
+    .element(page.getByText("A working directory is required to start a session.", { exact: true }))
+    .toBeVisible();
+  await userEvent.keyboard("{Meta>}{Shift>}O{/Shift}{/Meta}");
+  await userEvent.keyboard("{Control>}{Meta>}j{/Meta}{/Control}");
+  await userEvent.keyboard("{Control>}{Meta>}k{/Meta}{/Control}");
+  await userEvent.keyboard("{Meta>}{Shift>}E{/Shift}{/Meta}");
+  expect(router.state.location.pathname).toBe("/new");
+  expect(commands.startThread).not.toHaveBeenCalled();
+  expect(commands.startTurn).not.toHaveBeenCalled();
+});
+
+test("single task cycling retains its draft and disabled input cannot be focused", async () => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+  const { router, commands } = await mount();
+  const editor = page.getByRole("combobox", { name: "Message Codex" });
+  await editor.fill("only task draft");
+  await userEvent.keyboard("{Control>}{Meta>}j{/Meta}{/Control}");
+  await userEvent.keyboard("{Control>}{Meta>}k{/Meta}{/Control}");
+  expect(router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+  await expect.element(editor).toHaveTextContent("only task draft");
+  await openNewSession();
+  const connection = getHostOptions(host.startGuiHostConnection);
+  connection.onCommandsUnavailable?.();
+  connection.onStatus?.({ label: "closed" });
+  await expect.element(editor).toHaveAttribute("contenteditable", "false");
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await userEvent.keyboard("{Escape}");
+  await userEvent.keyboard("{Meta>}{Shift>}E{/Shift}{/Meta}");
+  await expect.element(page.getByRole("button", { name: "Menu", exact: true })).toHaveFocus();
+  expect(commands.startTurn).not.toHaveBeenCalled();
+});
+
 test.each(["/new", `/task/${launchThreadId}`])(
   "uses consistent message field geometry on %s",
   async (route) => {

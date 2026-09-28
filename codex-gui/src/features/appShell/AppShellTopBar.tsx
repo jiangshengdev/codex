@@ -24,12 +24,16 @@ import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation
 import { TopBarNavigationItem } from "./TopBarNavigationItem";
 import { appShortcut, useAppShortcuts } from "./appShortcuts";
 import { ShortcutHelp } from "./ShortcutHelp";
+import { useActiveTaskNavigation } from "./useActiveTaskNavigation";
 
 export function AppShellTopBar() {
   const { t } = useLingui();
   const navigate = useNavigate();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const composerFocus = use(ComposerFocusContext);
+  const taskNavigation = useActiveTaskNavigation(() => {
+    setIsDrawerOpen(false);
+  });
   const { routeTarget, status, newSessionOwner, connectionRecovery } = useAppCapabilities();
   const newSession = useNewSessionSnapshot();
   const newSessionCwd = useNewSessionCwd();
@@ -89,6 +93,8 @@ export function AppShellTopBar() {
   };
 
   useAppShortcuts({
+    previousTask: () => taskNavigation.cycle(-1),
+    nextTask: () => taskNavigation.cycle(1),
     newSession: () => {
       if (!canOpenNewSession) return false;
       navigateToNewSession();

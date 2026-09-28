@@ -97,7 +97,7 @@ msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 msgid "A message update is missing its associated turn, so it cannot be fully displayed."
 msgstr "A message update is missing its associated turn, so it cannot be fully displayed."
 
-#: src/features/appShell/AppShellTopBar.tsx:140
+#: src/features/appShell/AppShellTopBar.tsx:173
 #: src/features/newSession/NewSessionPage.tsx:37
 msgid "A working directory is required to start a session."
 msgstr "A working directory is required to start a session."
@@ -107,7 +107,7 @@ msgid "Active"
 msgstr "Active"
 
 #. Tasks kept open in this GUI, including idle tasks; not only running turns
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:28
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:30
 msgid "Active tasks"
 msgstr "Active tasks"
 
@@ -140,7 +140,7 @@ msgid "Attachments are not ready"
 msgstr "Attachments are not ready"
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:162
+#: src/features/appShell/AppShellTopBar.tsx:195
 msgid "Browse task history"
 msgstr "Browse task history"
 
@@ -202,7 +202,7 @@ msgstr "Closed {receiver}"
 msgid "Code copied"
 msgstr "Code copied"
 
-#: src/features/appShell/AppShell.tsx:34
+#: src/features/appShell/AppShell.tsx:35
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:54
 msgid "Codex GUI could not be started."
 msgstr "Codex GUI could not be started."
@@ -350,8 +350,8 @@ msgstr "Could not load the preview of {name}. The file may no longer be availabl
 msgid "Could not read the image preview. Check the connection and access permissions."
 msgstr "Could not read the image preview. Check the connection and access permissions."
 
-#: src/features/appShell/AppShellTopBar.tsx:58
-#: src/features/appShell/AppShellTopBar.tsx:149
+#: src/features/appShell/AppShellTopBar.tsx:66
+#: src/features/appShell/AppShellTopBar.tsx:182
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "Current task"
@@ -530,6 +530,11 @@ msgstr "File upload is not authorized. Open the current GUI launch link."
 msgid "Finished waiting"
 msgstr "Finished waiting"
 
+#. Keyboard shortcut to focus the current message composer
+#: src/features/appShell/appShortcuts.ts:13
+msgid "Focus message input"
+msgstr "Focus message input"
+
 #: src/features/threadFork/ThreadForkNotice.tsx:78
 msgid "Fork created"
 msgstr "Fork created"
@@ -548,6 +553,11 @@ msgstr "Go back home"
 msgid "Guide"
 msgstr "Guide"
 
+#. Steer the current running task with a message
+#: src/features/appShell/ShortcutHelp.tsx:50
+msgid "Guide current task"
+msgstr "Guide current task"
+
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:64
 msgid "Guide status unknown"
 msgstr "Guide status unknown"
@@ -560,8 +570,8 @@ msgstr "Guiding"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 
-#: src/features/appShell/AppShellTopBar.tsx:63
-#: src/features/appShell/AppShellTopBar.tsx:160
+#: src/features/appShell/AppShellTopBar.tsx:71
+#: src/features/appShell/AppShellTopBar.tsx:193
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "History"
@@ -570,7 +580,7 @@ msgstr "History"
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
-#: src/features/appShell/AppShellTopBar.tsx:60
+#: src/features/appShell/AppShellTopBar.tsx:68
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:43
 msgid "History detail"
@@ -630,6 +640,11 @@ msgstr "Invalid skill"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:375
 msgid "Keep"
 msgstr "Keep"
+
+#. Navigation drawer entry for the keyboard shortcut reference
+#: src/features/appShell/ShortcutHelp.tsx:13
+msgid "Keyboard shortcuts"
+msgstr "Keyboard shortcuts"
 
 #. Accessible name of the explicit light appearance option
 #: src/app/ThemePreferenceControl.tsx:13
@@ -697,11 +712,11 @@ msgstr "Loading task history…"
 msgid "Loading task…"
 msgstr "Loading task…"
 
-#: src/features/appShell/AppShellTopBar.tsx:129
+#: src/features/appShell/AppShellTopBar.tsx:161
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:100
+#: src/features/appShell/AppShellTopBar.tsx:131
 msgid "Menu"
 msgstr "Menu"
 
@@ -709,12 +724,12 @@ msgstr "Menu"
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
-#: src/features/composerTurnControl/ComposerSurface.tsx:61
-#: src/features/composerTurnControl/ComposerSurface.tsx:62
+#: src/features/composerTurnControl/ComposerSurface.tsx:92
+#: src/features/composerTurnControl/ComposerSurface.tsx:93
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerSurface.tsx:42
+#: src/features/composerTurnControl/ComposerSurface.tsx:70
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -736,7 +751,7 @@ msgid "More move options for pending message: {previewText}"
 msgstr "More move options for pending message: {previewText}"
 
 #. Accessible name of the active task row actions button; title is the task name or UUID
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:134
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:163
 msgid "More options for {title}"
 msgstr "More options for {title}"
 
@@ -766,12 +781,19 @@ msgstr "Move to last"
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:125
+#: src/features/appShell/AppShellTopBar.tsx:157
 msgid "Navigation"
 msgstr "Navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:62
-#: src/features/appShell/AppShellTopBar.tsx:135
+#. Insert a newline in the message editor
+#: src/features/appShell/ShortcutHelp.tsx:42
+msgid "New line"
+msgstr "New line"
+
+#. Open the unsent new conversation draft
+#: src/features/appShell/AppShellTopBar.tsx:70
+#: src/features/appShell/AppShellTopBar.tsx:168
+#: src/features/appShell/appShortcuts.ts:20
 #: src/features/documentTitle/DocumentTitleOwner.tsx:52
 msgid "New session"
 msgstr "New session"
@@ -785,6 +807,12 @@ msgstr "Next"
 msgid "Next context page"
 msgstr "Next context page"
 
+#. Next task in displayed active-task order, wrapping at the end
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:62
+#: src/features/appShell/appShortcuts.ts:31
+msgid "Next task"
+msgstr "Next task"
+
 #. Status shown when waiting finishes before any collaborating agent completes
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:253
 msgid "No agents completed yet"
@@ -797,6 +825,11 @@ msgstr "No committed messages yet."
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:129
 msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
+
+#. The stop action has no keyboard binding
+#: src/features/appShell/ShortcutHelp.tsx:63
+msgid "No keyboard shortcut"
+msgstr "No keyboard shortcut"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:277
 msgid "No matching skills"
@@ -822,7 +855,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:151
+#: src/features/appShell/AppShellTopBar.tsx:184
 msgid "Open current task"
 msgstr "Open current task"
 
@@ -919,6 +952,12 @@ msgstr "Previous"
 msgid "Previous context page"
 msgstr "Previous context page"
 
+#. Previous task in displayed active-task order, wrapping at the beginning
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:47
+#: src/features/appShell/appShortcuts.ts:24
+msgid "Previous task"
+msgstr "Previous task"
+
 #. Read-only queue of rejected guidance that will be sent before ordinary queued messages
 #. Read-only queue of rejected guidance that will be sent before ordinary queued messages
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:451
@@ -995,8 +1034,8 @@ msgid "Remove {name}"
 msgstr "Remove {name}"
 
 #. Remove only from the active GUI task list; history and draft are kept
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:156
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:160
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:185
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:189
 msgid "Remove from list"
 msgstr "Remove from list"
 
@@ -1139,6 +1178,7 @@ msgstr "Save a file on the machine running Codex. Maximum size: 50 MiB. Uploadin
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
+#: src/features/appShell/ShortcutHelp.tsx:34
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:276
 #: src/features/newSession/NewSessionPage.tsx:167
 msgid "Send"
@@ -1209,7 +1249,7 @@ msgstr "Spawned {receiver} ({model} {reasoningEffort})"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "Spawned {receiver} ({reasoningEffort})"
 
-#: src/features/appShell/AppShellTopBar.tsx:138
+#: src/features/appShell/AppShellTopBar.tsx:171
 msgid "Start a conversation"
 msgstr "Start a conversation"
 
@@ -1218,6 +1258,7 @@ msgstr "Start a conversation"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
+#: src/features/appShell/ShortcutHelp.tsx:60
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:250
 msgid "Stop"
 msgstr "Stop"
@@ -1260,7 +1301,7 @@ msgid "Task action failed"
 msgstr "Task action failed"
 
 #. Accessible label for the active task row dropdown containing Remove from list
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:144
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:173
 msgid "Task actions"
 msgstr "Task actions"
 
@@ -1283,7 +1324,7 @@ msgid "Task updates are paused"
 msgstr "Task updates are paused"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:108
+#: src/features/appShell/AppShellTopBar.tsx:140
 msgid "Tasks or the connection need attention."
 msgstr "Tasks or the connection need attention."
 
@@ -1407,7 +1448,7 @@ msgstr "The task could not be removed."
 msgid "The task could not be resumed."
 msgstr "The task could not be resumed."
 
-#: src/features/appShell/AppShell.tsx:91
+#: src/features/appShell/AppShell.tsx:94
 msgid "The task list could not be updated."
 msgstr "The task list could not be updated."
 
@@ -1465,7 +1506,7 @@ msgstr "This task is no longer connected."
 msgid "This task is still running."
 msgstr "This task is still running."
 
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:171
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:200
 msgid "This task needs attention."
 msgstr "This task needs attention."
 
@@ -1482,6 +1523,11 @@ msgstr "Today"
 #: src/features/committedTranscriptSurface/TranscriptTimeLabel.tsx:35
 msgid "Today {time}"
 msgstr "Today {time}"
+
+#. Keyboard shortcut that opens or closes the navigation drawer
+#: src/features/appShell/appShortcuts.ts:6
+msgid "Toggle main menu"
+msgstr "Toggle main menu"
 
 #. Accessible name for pagination between transcript context generations
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:47
@@ -1527,7 +1573,7 @@ msgstr "Unable to recover the current task"
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "Unable to retry this task. Review its current state and try again."
 
-#: src/features/appShell/AppShell.tsx:31
+#: src/features/appShell/AppShell.tsx:32
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:45
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
@@ -1541,7 +1587,7 @@ msgstr "Unable to start the conversation"
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
-#: src/features/appShell/AppShell.tsx:88
+#: src/features/appShell/AppShell.tsx:91
 msgid "Unable to update the task list"
 msgstr "Unable to update the task list"
 
