@@ -16,6 +16,10 @@ export const appShortcutDefinitions = {
     }),
     mac: "Meta+Shift+E",
   },
+  newSession: {
+    label: msg({ message: "New session", comment: "Open the unsent new conversation draft" }),
+    mac: "Meta+Shift+O",
+  },
 } as const;
 
 export type AppShortcutAction = keyof typeof appShortcutDefinitions;

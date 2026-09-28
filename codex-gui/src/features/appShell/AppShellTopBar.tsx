@@ -89,6 +89,11 @@ export function AppShellTopBar() {
   };
 
   useAppShortcuts({
+    newSession: () => {
+      if (!canOpenNewSession) return false;
+      navigateToNewSession();
+      return true;
+    },
     menu: () => {
       setIsDrawerOpen((open) => !open);
       return true;
@@ -150,6 +155,7 @@ export function AppShellTopBar() {
               <nav aria-label={t`Main navigation`} className="flex flex-col gap-1">
                 <TopBarNavigationItem
                   id="new-session-navigation"
+                  shortcut={appShortcut("newSession")}
                   isCurrent={isNewTask}
                   isDisabled={!canOpenNewSession}
                   onPress={navigateToNewSession}

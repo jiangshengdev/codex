@@ -146,6 +146,24 @@ async function expectWorkingDirectory(path: string) {
   await expect.element(dialog).not.toBeInTheDocument();
 }
 
+test("new session shortcut reuses the unsent draft and preserves the original task draft", async () => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+  const { router, commands } = await mount();
+  const editor = page.getByRole("combobox", { name: "Message Codex" });
+  await editor.fill("original task draft");
+  await userEvent.keyboard("{Meta>}{Shift>}O{/Shift}{/Meta}");
+  await expect.poll(() => router.state.location.pathname).toBe("/new");
+  await editor.fill("unsent new draft");
+  await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
+  await expect.element(editor).toHaveTextContent("original task draft");
+  await editor.click();
+  await userEvent.keyboard("{Meta>}{Shift>}O{/Shift}{/Meta}");
+  await expect.poll(() => router.state.location.pathname).toBe("/new");
+  await expect.element(editor).toHaveTextContent("unsent new draft");
+  expect(commands.startThread).not.toHaveBeenCalled();
+  expect(commands.startTurn).not.toHaveBeenCalled();
+});
+
 test.each(["/new", `/task/${launchThreadId}`])(
   "uses consistent message field geometry on %s",
   async (route) => {

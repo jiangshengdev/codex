@@ -8,6 +8,7 @@ type TopBarNavigationItemProps = {
   label: ReactNode;
   description: ReactNode;
   onPress: () => void;
+  shortcut?: { aria: string; visible: string } | null;
 };
 
 export function TopBarNavigationItem({
@@ -17,12 +18,14 @@ export function TopBarNavigationItem({
   label,
   description,
   onPress,
+  shortcut,
 }: TopBarNavigationItemProps) {
   const labelId = `${id}-label`;
   const descriptionId = `${id}-description`;
 
   return (
     <Button
+      render={(props) => <button {...props} aria-keyshortcuts={shortcut?.aria} />}
       aria-describedby={descriptionId}
       aria-current={isCurrent ? "page" : undefined}
       aria-labelledby={labelId}
@@ -55,6 +58,11 @@ export function TopBarNavigationItem({
           {description}
         </span>
       </span>
+      {shortcut ? (
+        <span aria-hidden="true" className="text-xs text-muted">
+          {shortcut.visible}
+        </span>
+      ) : null}
     </Button>
   );
 }
