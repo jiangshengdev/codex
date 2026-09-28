@@ -49,7 +49,7 @@ export function ComposerSurface({
         {feedback}
         <Surface
           aria-disabled={disabled}
-          className="composer-panel task-bottom-panel composer-field grid gap-2"
+          className="composer-panel task-bottom-panel composer-field grid grid-cols-1 gap-2"
           data-disabled={disabled}
           data-readonly={editor.disabled && !disabled}
           data-focus-visible={focusVisible}
@@ -64,8 +64,8 @@ export function ComposerSurface({
             skillMenuParent={skillMenuParent}
           />
           {afterEditor}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="composer-footer-left flex shrink-0 items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <div className="composer-footer-left flex min-w-0 max-w-full flex-wrap items-center gap-2">
               <div className="flex items-center" ref={setAttachmentControlsParent} />
               {toolbarLeading}
             </div>

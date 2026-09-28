@@ -232,7 +232,7 @@ export function ComposerTurnControl({
             onRequestCompaction={requestCompaction}
             usage={contextUsage}
           />
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
             {controlView.stop.failed ? (
               <Chip color="danger" size="md" variant="secondary" role="status">
                 <CircleAlert aria-hidden="true" className="size-3" />
@@ -250,7 +250,7 @@ export function ComposerTurnControl({
               <Trans>Stop</Trans>
             </Button>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
             {controlView.guide.visible ? (
               <Tooltip>
                 <Button
