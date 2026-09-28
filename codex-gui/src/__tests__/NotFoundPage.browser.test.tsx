@@ -60,6 +60,7 @@ beforeEach(() => {
 
 test.each([
   { initialEntry: "/", expectedErrors: [], expectedWarnings: [] },
+  { initialEntry: "/unknown", expectedErrors: [], expectedWarnings: [] },
   { initialEntry: "/task", expectedErrors: [], expectedWarnings: [] },
   { initialEntry: `/task/${validThreadId}/extra`, expectedErrors: [], expectedWarnings: [] },
   { initialEntry: `/history/${validThreadId}/extra`, expectedErrors: [], expectedWarnings: [] },

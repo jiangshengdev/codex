@@ -1,14 +1,10 @@
 import type { MakeRouteMatchUnion } from "@tanstack/react-router";
-import {
-  CURRENT_TASK_PATH_SEGMENT,
-  HISTORY_PATH_SEGMENT,
-  NEW_TASK_PATH_SEGMENT,
-} from "@codex-gui-host-contract";
+import { CURRENT_TASK_PATH_SEGMENT } from "@codex-gui-host-contract";
 
 export const CURRENT_TASK_ROUTE_PATH = `/${CURRENT_TASK_PATH_SEGMENT}/$threadId` as const;
-export const HISTORY_LIST_ROUTE_PATH = `/${HISTORY_PATH_SEGMENT}` as const;
+export const HISTORY_LIST_ROUTE_PATH = "/history";
 export const HISTORY_DETAIL_ROUTE_PATH = `${HISTORY_LIST_ROUTE_PATH}/$threadId` as const;
-export const NEW_TASK_ROUTE_PATH = `/${NEW_TASK_PATH_SEGMENT}` as const;
+export const NEW_TASK_ROUTE_PATH = "/new";
 export const SHORTCUTS_ROUTE_PATH = "/shortcuts";
 
 const threadIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

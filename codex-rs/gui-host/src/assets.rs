@@ -7,14 +7,19 @@ use axum::http::HeaderName;
 use axum::http::HeaderValue;
 use axum::http::Request;
 use axum::http::StatusCode;
+use axum::http::header::ACCEPT;
 use axum::http::header::CONTENT_TYPE;
 use axum::http::header::HOST;
 use axum::response::IntoResponse;
 use axum::response::Response;
+use axum::routing::MethodRouter;
+use axum::routing::get;
 use tower_http::services::ServeDir;
 
 use crate::DevAssetProxyConfig;
 use crate::ProdAssetConfig;
+use crate::browser_contract::UPLOAD_PATH;
+use crate::browser_contract::WEBSOCKET_PATH;
 
 const X_FRAME_OPTIONS: &str = "x-frame-options";
 const CONTENT_SECURITY_POLICY: &str = "content-security-policy";
@@ -29,11 +34,63 @@ pub fn prod_dist_dir(config: &ProdAssetConfig) -> anyhow::Result<PathBuf> {
     Ok(dist_dir)
 }
 
-pub fn prod_assets_service(config: &ProdAssetConfig) -> ServeDir {
-    ServeDir::new(config.dist_dir()).append_index_html_on_directories(true)
+pub fn prod_assets_service(config: &ProdAssetConfig) -> ServeDir<MethodRouter> {
+    let page_config = config.clone();
+    ServeDir::new(config.dist_dir())
+        .append_index_html_on_directories(true)
+        .fallback(get(move |request: Request<Body>| {
+            let config = page_config.clone();
+            async move { serve_prod_index(config, request).await }
+        }))
 }
 
-pub async fn serve_prod_index(config: ProdAssetConfig) -> Response {
+async fn serve_prod_index(config: ProdAssetConfig, request: Request<Body>) -> Response {
+    let Ok(path) = urlencoding::decode(request.uri().path()) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    // Resource and service namespaces never become application pages.
+    let reserved = ["/assets", UPLOAD_PATH, WEBSOCKET_PATH]
+        .iter()
+        .any(|prefix| {
+            path.as_ref() == *prefix
+                || path
+                    .strip_prefix(prefix)
+                    .is_some_and(|tail| tail.starts_with('/'))
+        });
+    let destination = request.headers().get("sec-fetch-dest");
+    let page_destination = match destination {
+        Some(value) => value == "document" || value == "iframe",
+        None => !path
+            .rsplit('/')
+            .next()
+            .is_some_and(|segment| segment.contains('.')),
+    };
+    let accepts_html = request
+        .headers()
+        .get_all(ACCEPT)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .any(|value| {
+            value.split(',').any(|range| {
+                let mut parts = range.split(';');
+                parts
+                    .next()
+                    .is_some_and(|mime| mime.trim().eq_ignore_ascii_case("text/html"))
+                    && parts.all(|parameter| {
+                        let Some((name, value)) = parameter.trim().split_once('=') else {
+                            return true;
+                        };
+                        !name.trim().eq_ignore_ascii_case("q")
+                            || value
+                                .trim()
+                                .parse::<f32>()
+                                .is_ok_and(|quality| quality > 0.0 && quality <= 1.0)
+                    })
+            })
+        });
+    if reserved || !page_destination || !accepts_html {
+        return StatusCode::NOT_FOUND.into_response();
+    }
     let index_path = config.dist_dir().join("index.html");
     match tokio::fs::read_to_string(&index_path).await {
         Ok(html) => with_security_headers(
@@ -47,23 +104,6 @@ pub async fn serve_prod_index(config: ProdAssetConfig) -> Response {
                 .into_response(),
         ),
     }
-}
-
-pub async fn serve_prod_thread_index(config: ProdAssetConfig, thread_id: String) -> Response {
-    if !is_canonical_thread_id(&thread_id) {
-        return with_security_headers(StatusCode::NOT_FOUND.into_response());
-    }
-
-    serve_prod_index(config).await
-}
-
-fn is_canonical_thread_id(thread_id: &str) -> bool {
-    let bytes = thread_id.as_bytes();
-    bytes.len() == 36
-        && bytes.iter().enumerate().all(|(index, byte)| match index {
-            8 | 13 | 18 | 23 => *byte == b'-',
-            _ => byte.is_ascii_hexdigit(),
-        })
 }
 
 pub async fn proxy_vite(config: DevAssetProxyConfig, request: Request<Body>) -> Response {
