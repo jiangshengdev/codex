@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useRevealTaskFocus } from "./useRevealTaskFocus";
 import "./taskBottomRegion.css";
 
 export function TaskBottomRegion({
@@ -19,6 +20,7 @@ export function TaskBottomRegion({
   const localRef = useRef<HTMLElement | null>(null);
   const shellRef = regionRef ?? localRef;
   const [height, setHeight] = useState(0);
+  useRevealTaskFocus(shellRef);
 
   useLayoutEffect(() => {
     const shell = shellRef.current;
