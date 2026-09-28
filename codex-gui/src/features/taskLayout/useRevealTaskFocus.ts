@@ -9,6 +9,11 @@ export function useRevealTaskFocus(regionRef: RefObject<HTMLElement | null>): vo
     const main = region?.closest("main");
     if (region == null || main == null) return;
 
+    const shell = main.closest("[data-app-shell-content-layout]");
+    const topRegions = Array.from(
+      shell?.querySelectorAll<HTMLElement>(":scope > header, [data-app-shell-top-notices]") ?? [],
+    );
+
     let frame: number | null = null;
     const reveal = () => {
       const target = document.activeElement;
@@ -25,18 +30,34 @@ export function useRevealTaskFocus(regionRef: RefObject<HTMLElement | null>): vo
       if (!ready) return;
       const bounds = target.getBoundingClientRect();
       const obstruction = region.getBoundingClientRect();
-      if (
-        bounds.bottom <= 0 ||
-        bounds.top >= window.innerHeight ||
-        bounds.right <= obstruction.left ||
-        bounds.left >= obstruction.right
-      ) {
-        return;
-      }
+      if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) return;
 
-      const overlap = bounds.bottom + FOCUS_CLEARANCE_PX - bottom;
-      if (overlap > 0) {
-        window.scrollBy({ top: overlap, behavior: "instant" });
+      const top = topRegions.reduce((boundary, element) => {
+        const rect = element.getBoundingClientRect();
+        const { position } = getComputedStyle(element);
+        if (
+          (position !== "fixed" && position !== "sticky") ||
+          rect.height === 0 ||
+          rect.top >= window.innerHeight ||
+          rect.right <= bounds.left ||
+          rect.left >= bounds.right
+        ) {
+          return boundary;
+        }
+        return Math.max(boundary, rect.bottom);
+      }, 0);
+      const visibleBottom =
+        bounds.right > obstruction.left && bounds.left < obstruction.right
+          ? bottom
+          : window.innerHeight;
+
+      const above = bounds.top - top - FOCUS_CLEARANCE_PX;
+      const below = bounds.bottom + FOCUS_CLEARANCE_PX - visibleBottom;
+      // If the focused surface cannot fit, reveal its start instead of
+      // alternating between the two occluded edges on successive frames.
+      const distance = above < 0 ? above : Math.min(Math.max(0, below), above);
+      if (distance !== 0) {
+        window.scrollBy({ top: distance, behavior: "instant" });
       }
     };
     const schedule = () => {
@@ -53,6 +74,7 @@ export function useRevealTaskFocus(regionRef: RefObject<HTMLElement | null>): vo
     };
     const observer = new ResizeObserver(schedule);
     observer.observe(region);
+    for (const topRegion of topRegions) observer.observe(topRegion);
     main.addEventListener("focusin", schedule);
     window.addEventListener("resize", schedule);
     return () => {

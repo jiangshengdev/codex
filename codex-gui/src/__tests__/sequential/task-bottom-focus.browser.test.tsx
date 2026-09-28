@@ -106,3 +106,50 @@ test.each(["sticky", "fixed"] as const)(
     expect(window.scrollY).toBe(before);
   },
 );
+
+function TopFixture({ noticeHeight = 180 }: { noticeHeight?: number }) {
+  return (
+    <div data-app-shell-content-layout="reading">
+      <header style={{ position: "fixed", top: 0, height: 56, width: "100%", zIndex: 30 }} />
+      <div
+        data-app-shell-top-notices=""
+        data-floating="true"
+        style={{ position: "sticky", top: 56, height: noticeHeight, zIndex: 20 }}
+      />
+      <Fixture placement="sticky" />
+    </div>
+  );
+}
+
+test.each([0, 180])(
+  "reverse tab reveals history focus below the header and %s px of notices",
+  async (noticeHeight) => {
+    await page.viewport(1000, 720);
+    const screen = await render(<TopFixture noticeHeight={noticeHeight} />);
+    await settleLayout();
+    const target = screen.getByRole("button", { name: "History action" }).element();
+    window.scrollBy({ top: target.getBoundingClientRect().top - 40, behavior: "instant" });
+    screen.getByRole("button", { name: "Bottom action" }).element().focus({ preventScroll: true });
+    await userEvent.tab({ shift: true });
+    await expect.element(target).toHaveFocus();
+    await expect
+      .poll(() => target.getBoundingClientRect().top)
+      .toBeGreaterThanOrEqual(56 + noticeHeight + 8);
+  },
+);
+
+test("growing top notices keep retained history focus visible without fighting manual scroll", async () => {
+  await page.viewport(1000, 720);
+  const screen = await render(<TopFixture noticeHeight={100} />);
+  await settleLayout();
+  const target = screen.getByRole("button", { name: "History action" }).element();
+  window.scrollBy({ top: target.getBoundingClientRect().top - 200, behavior: "instant" });
+  target.focus({ preventScroll: true });
+  await settleLayout();
+  await screen.rerender(<TopFixture noticeHeight={240} />);
+  await expect.poll(() => target.getBoundingClientRect().top).toBeGreaterThanOrEqual(304);
+  const corrected = window.scrollY;
+  window.scrollBy({ top: 100, behavior: "instant" });
+  await settleLayout();
+  expect(window.scrollY).toBe(corrected + 100);
+});
