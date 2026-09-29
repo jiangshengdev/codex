@@ -16,9 +16,7 @@ const meta = {
       <StorybookStatefulEnvironment storyId={context.id}>
         <ShortcutInstructions
           hasFixedHeader
-          keys={appShortcutDefinitions[
-            context.name === "Toggle Menu" ? "menu" : "focus"
-          ].mac.replace("Meta", "Command")}
+          keys={appShortcutDefinitions[context.name === "Toggle Menu" ? "menu" : "focus"].mac}
         >
           {context.name === "Toggle Menu" ? (
             <Trans>

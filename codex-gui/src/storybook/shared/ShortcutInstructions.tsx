@@ -1,11 +1,12 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
+import { ShortcutKey } from "@/features/appShell/ShortcutKey";
 
 export function ShortcutInstructions({
   keys,
   children,
   hasFixedHeader = false,
-}: Readonly<{ keys: string; children: ReactNode; hasFixedHeader?: boolean }>) {
+}: Readonly<{ keys: string | string[]; children: ReactNode; hasFixedHeader?: boolean }>) {
   const { t } = useLingui();
   return (
     <section
@@ -15,7 +16,12 @@ export function ShortcutInstructions({
       })}
       className={`grid gap-2 px-4 pb-4 text-sm text-muted ${hasFixedHeader ? "pt-18" : "pt-4"}`}
     >
-      <p>macOS · {keys}</p>
+      <p className="flex flex-wrap items-center gap-2">
+        macOS ·
+        {(typeof keys === "string" ? [keys] : keys).map((aria) => (
+          <ShortcutKey key={aria} aria={aria} platform="MacIntel" />
+        ))}
+      </p>
       <p>{children}</p>
       <p>
         <Trans>

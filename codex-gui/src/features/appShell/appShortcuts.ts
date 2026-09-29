@@ -53,8 +53,6 @@ export function appShortcut(action: AppShortcutAction, platform = navigator.plat
   const aria = appShortcutDefinitions[action][platformKey];
   return {
     aria,
-    visible:
-      platformKey === "mac" ? aria.replace("Meta", "Command") : aria.replace("Control", "Ctrl"),
   };
 }
 

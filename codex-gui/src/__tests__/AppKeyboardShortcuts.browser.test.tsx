@@ -75,7 +75,7 @@ test("a queued focus shortcut cannot focus an input disabled before the next fra
 test.each([
   {
     platform: "MacIntel",
-    keys: ["⌘B", "⇧⌘O", "⌃⌘K", "⌃⌘J", "⇧⌘E", "Enter", "⇧Enter", "⌘Enter"] as const,
+    keys: ["⌘B", "⇧⌘O", "⌃⌘K", "⌃⌘J", "⇧⌘E", "↵", "⇧↵", "⌘↵"] as const,
     newAria: "Meta+Shift+O",
   },
   {
@@ -104,6 +104,26 @@ test.each([
     const commands = createGuiHostCommands();
     initializeHost(getHostOptions(host.startGuiHostConnection), commands);
     await expect.element(page.getByRole("combobox", { name: "Message Codex" })).toBeVisible();
+    await page.getByRole("combobox", { name: "Message Codex" }).fill("Shortcut preview");
+    const send = page.getByRole("button", { name: "Send", exact: true });
+    await expect.element(send).toBeEnabled();
+    await userEvent.unhover(document.body);
+    await userEvent.hover(send);
+    const tooltip = page.getByRole("tooltip");
+    await expect.element(tooltip).toHaveTextContent(keys[5]);
+    await expect
+      .element(tooltip.element().querySelector("kbd"))
+      .toHaveAttribute("aria-label", "Enter");
+    await userEvent.unhover(send);
+    await expect.element(tooltip).not.toBeInTheDocument();
+    const menu = page.getByRole("button", { name: "Menu", exact: true });
+    await userEvent.hover(menu);
+    await expect.element(tooltip).toHaveTextContent(keys[0]);
+    await expect
+      .element(tooltip.element().querySelector("kbd"))
+      .toHaveAttribute("aria-label", platform === "MacIntel" ? "Command+B" : "Ctrl+B");
+    await userEvent.unhover(menu);
+    await expect.element(tooltip).not.toBeInTheDocument();
     await page.getByRole("button", { name: "Menu", exact: true }).click();
     const navigation = page.getByRole("navigation", { name: "Main navigation" });
     const destinations = navigation.getByRole("button");
@@ -137,6 +157,11 @@ test.each([
     expect(Array.from(main.element().querySelectorAll("kbd"), (key) => key.textContent)).toEqual(
       keys,
     );
+    expect(
+      Array.from(main.element().querySelectorAll("kbd"), (key) =>
+        key.getAttribute("aria-label"),
+      ).slice(-3),
+    ).toEqual(["Enter", "Shift+Enter", platform === "MacIntel" ? "Command+Enter" : "Ctrl+Enter"]);
     await expect.element(main.getByText("Stop", { exact: true })).not.toBeInTheDocument();
     await expect.element(main.getByRole("button")).not.toBeInTheDocument();
     expect(document.title).toContain("Keyboard shortcuts");

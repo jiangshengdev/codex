@@ -17,7 +17,7 @@ const meta = {
   decorators: [
     (Story, context) => (
       <StorybookStatefulEnvironment storyId={context.id}>
-        <ShortcutInstructions keys={composerShortcutsForPlatform("MacIntel").guide.visible}>
+        <ShortcutInstructions keys={composerShortcutsForPlatform("MacIntel").guide.aria}>
           <Trans>
             Focus the input and press Command+Enter. During a running turn, the draft becomes a
             Guide message. Use the simulated guide response and runtime confirmation to observe

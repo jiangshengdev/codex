@@ -14,10 +14,7 @@ const meta = {
   decorators: [
     (Story, context) => (
       <StorybookStatefulEnvironment storyId={context.id}>
-        <ShortcutInstructions
-          hasFixedHeader
-          keys={appShortcutDefinitions.newSession.mac.replace("Meta", "Command")}
-        >
+        <ShortcutInstructions hasFixedHeader keys={appShortcutDefinitions.newSession.mac}>
           <Trans>
             Open the unsent new-session draft. Repeating the shortcut retains its text without
             sending. With no current task, the configured directory still permits a new draft. With

@@ -25,6 +25,7 @@ import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation
 import { TopBarNavigationItem } from "./TopBarNavigationItem";
 import { appShortcut, useAppShortcuts } from "./appShortcuts";
 import { useActiveTaskNavigation } from "./useActiveTaskNavigation";
+import { ShortcutKey } from "./ShortcutKey";
 
 export function AppShellTopBar() {
   const { t } = useLingui();
@@ -152,7 +153,11 @@ export function AppShellTopBar() {
                 <Trans>Menu</Trans>
               </span>
             </Button>
-            {menuShortcut ? <Tooltip.Content>{menuShortcut.visible}</Tooltip.Content> : null}
+            {menuShortcut ? (
+              <Tooltip.Content>
+                <ShortcutKey aria={menuShortcut.aria} variant="light" />
+              </Tooltip.Content>
+            ) : null}
           </Tooltip>
           {hasError ? (
             <Badge color="danger" size="sm" aria-hidden="true" data-menu-error-indicator="true" />

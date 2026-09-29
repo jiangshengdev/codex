@@ -16,9 +16,7 @@ const meta = {
       <StorybookStatefulEnvironment storyId={context.id}>
         <ShortcutInstructions
           hasFixedHeader
-          keys={[appShortcutDefinitions.previousTask.mac, appShortcutDefinitions.nextTask.mac]
-            .map((key) => key.replace("Meta", "Command"))
-            .join(" / ")}
+          keys={[appShortcutDefinitions.previousTask.mac, appShortcutDefinitions.nextTask.mac]}
         >
           <Trans>
             K selects the previous task; J selects the next. The displayed order is Shell task one,

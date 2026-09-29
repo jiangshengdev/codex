@@ -1,6 +1,7 @@
 import { Button } from "@heroui/react";
 import type { ReactNode } from "react";
 import { ShortcutKey } from "./ShortcutKey";
+import type { appShortcut } from "./appShortcuts";
 
 type TopBarNavigationItemProps = {
   id: string;
@@ -9,7 +10,7 @@ type TopBarNavigationItemProps = {
   label: ReactNode;
   description: ReactNode;
   onPress: () => void;
-  shortcut?: { aria: string; visible: string } | null;
+  shortcut?: ReturnType<typeof appShortcut>;
 };
 
 export function TopBarNavigationItem({

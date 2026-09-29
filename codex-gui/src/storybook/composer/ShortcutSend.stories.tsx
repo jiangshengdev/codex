@@ -13,7 +13,7 @@ const meta = {
   decorators: [
     (Story, context) => (
       <StorybookStatefulEnvironment storyId={context.id}>
-        <ShortcutInstructions keys={`${shortcuts.send.visible} / ${shortcuts.newline.aria}`}>
+        <ShortcutInstructions keys={[shortcuts.send.aria, shortcuts.newline.aria]}>
           <Trans>
             Focus the input. Enter sends the prepared text once and clears the draft; Shift+Enter
             inserts a newline at the caret without sending. Empty or whitespace-only input does not
