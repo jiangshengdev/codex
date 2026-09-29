@@ -1,6 +1,7 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig, mergeConfig, type TestUserConfig } from "vitest/config";
 import viteConfig from "./vite.config.ts";
+import { sharedTestConfig } from "./vitest.shared.config.ts";
 
 type BrowserOptions = NonNullable<TestUserConfig["browser"]>;
 
@@ -17,6 +18,7 @@ export function defineBrowserConfig({ browser, ...test }: BrowserTestConfig) {
     browserViteConfig,
     defineConfig({
       test: {
+        ...sharedTestConfig,
         root: import.meta.dirname,
         ...test,
         setupFiles: [

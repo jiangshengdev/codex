@@ -4,12 +4,14 @@ import packageJson from "./package.json" with { type: "json" };
 import viteConfig from "./vite.config.ts";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
+import { sharedTestConfig } from "./vitest.shared.config.ts";
 
 // More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 export default mergeConfig(
   viteConfig,
   defineConfig({
     test: {
+      ...sharedTestConfig,
       watch: false,
       projects: [
         {
