@@ -28,7 +28,7 @@ msgstr "Add sample file"
 msgid "Add sample image"
 msgstr "Add sample image"
 
-#: src/storybook/shared/ShortcutInstructions.tsx:21
+#: src/storybook/shared/ShortcutInstructions.tsx:27
 msgid "Click inside the preview before pressing keys. This story waits for manual input. Local simulation only; reload or restart to restore the preset. Safari system shortcuts, native focus and real IME behavior require separate manual acceptance."
 msgstr "Click inside the preview before pressing keys. This story waits for manual input. Local simulation only; reload or restart to restore the preset. Safari system shortcuts, native focus and real IME behavior require separate manual acceptance."
 
@@ -74,7 +74,7 @@ msgstr "Fail upload {name}"
 msgid "Files stay in this browser. Uploads are simulated; sending leaves the draft unchanged and never contacts a model."
 msgstr "Files stay in this browser. Uploads are simulated; sending leaves the draft unchanged and never contacts a model."
 
-#: src/storybook/appShell/ShortcutFocus.stories.tsx:30
+#: src/storybook/appShell/ShortcutFocus.stories.tsx:28
 msgid "Focus Menu, then press the shortcut. Focus moves into the editable Composer with a visible focus frame. When the input is unavailable or this page has no Composer, focus stays on Menu."
 msgstr "Focus Menu, then press the shortcut. Focus moves into the editable Composer with a visible focus frame. When the input is unavailable or this page has no Composer, focus stays on Menu."
 
@@ -86,7 +86,7 @@ msgstr "Focus the input and press Command+Enter. During a running turn, the draf
 msgid "Focus the input. Enter sends the prepared text once and clears the draft; Shift+Enter inserts a newline at the caret without sending. Empty or whitespace-only input does not send. Unavailable input cannot be edited or sent. During a running turn, Enter adds an ordinary queued message. Hover or Tab to Send to inspect its Tooltip. Simulation controls can advance the response and runtime confirmation. On Safari, confirm real IME candidates: composing Enter and the immediate post-composition Enter must not send."
 msgstr "Focus the input. Enter sends the prepared text once and clears the draft; Shift+Enter inserts a newline at the caret without sending. Empty or whitespace-only input does not send. Unavailable input cannot be edited or sent. During a running turn, Enter adds an ordinary queued message. Hover or Tab to Send to inspect its Tooltip. Simulation controls can advance the response and runtime confirmation. On Safari, confirm real IME candidates: composing Enter and the immediate post-composition Enter must not send."
 
-#: src/storybook/appShell/ShortcutFocus.stories.tsx:24
+#: src/storybook/appShell/ShortcutFocus.stories.tsx:22
 msgid "Focus the message input or Menu button, then toggle the menu. Keyboard opening shows one themed close-button ring; mouse opening is the comparison. Escape or the shortcut closes the menu and restores focus. Hover or Tab to Menu to inspect its Tooltip."
 msgstr "Focus the message input or Menu button, then toggle the menu. Keyboard opening shows one themed close-button ring; mouse opening is the comparison. Escape or the shortcut closes the menu and restores focus. Hover or Tab to Menu to inspect its Tooltip."
 
@@ -100,7 +100,7 @@ msgstr "Injected feedback: the first move changes the real queue, then its refre
 msgid "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
 msgstr "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
 
-#: src/storybook/appShell/ShortcutTasks.stories.tsx:23
+#: src/storybook/appShell/ShortcutTasks.stories.tsx:21
 msgid "K selects the previous task; J selects the next. The displayed order is Shell task one, Shell task 2, Shell task 3. Initially task one is selected: previous wraps to task 3; next selects task 2. Keep typing separate drafts to check retention. With one task, navigation stays on that task; with none, it does nothing. From History, cycling starts from the last viewed task (task one), not from the page route. Held keys and composition do not switch."
 msgstr "K selects the previous task; J selects the next. The displayed order is Shell task one, Shell task 2, Shell task 3. Initially task one is selected: previous wraps to task 3; next selects task 2. Keep typing separate drafts to check retention. With one task, navigation stays on that task; with none, it does nothing. From History, cycling starts from the last viewed task (task one), not from the page route. Held keys and composition do not switch."
 
@@ -149,7 +149,7 @@ msgstr "Next step"
 msgid "Only for scenario preparation, not a product recovery entry point."
 msgstr "Only for scenario preparation, not a product recovery entry point."
 
-#: src/storybook/newSession/Shortcut.stories.tsx:21
+#: src/storybook/newSession/Shortcut.stories.tsx:18
 msgid "Open the unsent new-session draft. Repeating the shortcut retains its text without sending. With no current task, the configured directory still permits a new draft. With neither a directory nor an existing draft, the shortcut does nothing. An existing draft can reopen even without a directory in the launch context. Holding the keys or composing text must not navigate."
 msgstr "Open the unsent new-session draft. Repeating the shortcut retains its text without sending. With no current task, the configured directory still permits a new draft. With neither a directory nor an existing draft, the shortcut does nothing. An existing draft can reopen even without a directory in the launch context. Holding the keys or composing text must not navigate."
 
@@ -211,7 +211,7 @@ msgid "Runtime confirmation received"
 msgstr "Runtime confirmation received"
 
 #. Accessible name of the Storybook keyboard shortcut instructions section.
-#: src/storybook/shared/ShortcutInstructions.tsx:12
+#: src/storybook/shared/ShortcutInstructions.tsx:13
 msgid "Shortcut instructions"
 msgstr "Shortcut instructions"
 

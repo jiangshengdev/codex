@@ -97,7 +97,7 @@ msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 msgid "A message update is missing its associated turn, so it cannot be fully displayed."
 msgstr "A message update is missing its associated turn, so it cannot be fully displayed."
 
-#: src/features/appShell/AppShellTopBar.tsx:204
+#: src/features/appShell/AppShellTopBar.tsx:209
 #: src/features/newSession/NewSessionPage.tsx:37
 msgid "A working directory is required to start a session."
 msgstr "A working directory is required to start a session."
@@ -140,7 +140,7 @@ msgid "Attachments are not ready"
 msgstr "Attachments are not ready"
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:226
+#: src/features/appShell/AppShellTopBar.tsx:231
 msgid "Browse task history"
 msgstr "Browse task history"
 
@@ -350,8 +350,8 @@ msgstr "Could not load the preview of {name}. The file may no longer be availabl
 msgid "Could not read the image preview. Check the connection and access permissions."
 msgstr "Could not read the image preview. Check the connection and access permissions."
 
-#: src/features/appShell/AppShellTopBar.tsx:68
-#: src/features/appShell/AppShellTopBar.tsx:213
+#: src/features/appShell/AppShellTopBar.tsx:69
+#: src/features/appShell/AppShellTopBar.tsx:218
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "Current task"
@@ -442,7 +442,7 @@ msgstr "Edit"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:239
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:71
-#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:79
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:80
 msgid "Edit pending message"
 msgstr "Edit pending message"
 
@@ -553,7 +553,7 @@ msgid "Go back home"
 msgstr "Go back home"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:468
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:266
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:267
 msgid "Guide"
 msgstr "Guide"
 
@@ -574,8 +574,8 @@ msgstr "Guiding"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 
-#: src/features/appShell/AppShellTopBar.tsx:75
-#: src/features/appShell/AppShellTopBar.tsx:224
+#: src/features/appShell/AppShellTopBar.tsx:76
+#: src/features/appShell/AppShellTopBar.tsx:229
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "History"
@@ -584,7 +584,7 @@ msgstr "History"
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
-#: src/features/appShell/AppShellTopBar.tsx:70
+#: src/features/appShell/AppShellTopBar.tsx:71
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:43
 msgid "History detail"
@@ -636,8 +636,8 @@ msgid "Interrupted."
 msgstr "Interrupted."
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:43
-#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:92
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:106
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:93
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:108
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
@@ -646,8 +646,8 @@ msgid "Keep"
 msgstr "Keep"
 
 #. Navigation entry and page title for the keyboard shortcut reference
-#: src/features/appShell/AppShellTopBar.tsx:74
-#: src/features/appShell/AppShellTopBar.tsx:239
+#: src/features/appShell/AppShellTopBar.tsx:75
+#: src/features/appShell/AppShellTopBar.tsx:244
 #: src/features/documentTitle/DocumentTitleOwner.tsx:62
 msgid "Keyboard shortcuts"
 msgstr "Keyboard shortcuts"
@@ -718,12 +718,12 @@ msgstr "Loading task history…"
 msgid "Loading task…"
 msgstr "Loading task…"
 
-#: src/features/appShell/AppShellTopBar.tsx:192
+#: src/features/appShell/AppShellTopBar.tsx:197
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:140
-#: src/features/appShell/AppShellTopBar.tsx:152
+#: src/features/appShell/AppShellTopBar.tsx:141
+#: src/features/appShell/AppShellTopBar.tsx:153
 msgid "Menu"
 msgstr "Menu"
 
@@ -801,7 +801,7 @@ msgstr "Move to last"
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:188
+#: src/features/appShell/AppShellTopBar.tsx:193
 #: src/features/appShell/ShortcutHelp.tsx:14
 msgid "Navigation"
 msgstr "Navigation"
@@ -812,8 +812,8 @@ msgid "New line"
 msgstr "New line"
 
 #. Open the unsent new conversation draft
-#: src/features/appShell/AppShellTopBar.tsx:72
-#: src/features/appShell/AppShellTopBar.tsx:199
+#: src/features/appShell/AppShellTopBar.tsx:73
+#: src/features/appShell/AppShellTopBar.tsx:204
 #: src/features/appShell/appShortcuts.ts:22
 #: src/features/documentTitle/DocumentTitleOwner.tsx:52
 msgid "New session"
@@ -870,7 +870,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:215
+#: src/features/appShell/AppShellTopBar.tsx:220
 msgid "Open current task"
 msgstr "Open current task"
 
@@ -1066,7 +1066,7 @@ msgstr "Remove from list"
 msgid "Remove local record"
 msgstr "Remove local record"
 
-#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:95
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:96
 msgid "Remove or replace invalid skills before saving."
 msgstr "Remove or replace invalid skills before saving."
 
@@ -1201,13 +1201,12 @@ msgid "Scan with phone"
 msgstr "Scan with phone"
 
 #: src/features/appShell/ShortcutHelp.tsx:63
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:280
-#: src/features/newSession/NewSessionPage.tsx:167
+#: src/features/composerTurnControl/ComposerSendButton.tsx:31
 msgid "Send"
 msgstr "Send"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:159
+#: src/features/composerTurnControl/ComposerSendButton.tsx:25
 msgid "Sending"
 msgstr "Sending"
 
@@ -1271,7 +1270,7 @@ msgstr "Spawned {receiver} ({model} {reasoningEffort})"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "Spawned {receiver} ({reasoningEffort})"
 
-#: src/features/appShell/AppShellTopBar.tsx:202
+#: src/features/appShell/AppShellTopBar.tsx:207
 msgid "Start a conversation"
 msgstr "Start a conversation"
 
@@ -1280,11 +1279,11 @@ msgstr "Start a conversation"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:252
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:253
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:242
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:243
 msgid "Stop failed"
 msgstr "Stop failed"
 
@@ -1345,7 +1344,7 @@ msgid "Task updates are paused"
 msgstr "Task updates are paused"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:163
+#: src/features/appShell/AppShellTopBar.tsx:168
 msgid "Tasks or the connection need attention."
 msgstr "Tasks or the connection need attention."
 
@@ -1692,7 +1691,7 @@ msgstr "View full message"
 msgid "View fullscreen"
 msgstr "View fullscreen"
 
-#: src/features/appShell/AppShellTopBar.tsx:243
+#: src/features/appShell/AppShellTopBar.tsx:248
 msgid "View keyboard shortcuts"
 msgstr "View keyboard shortcuts"
 
@@ -1774,7 +1773,7 @@ msgid "When the message input is focused and sending is available."
 msgstr "When the message input is focused and sending is available."
 
 #. Accessible name of the popover showing the new-session draft's full path
-#: src/features/newSession/NewSessionWorkingDirectory.tsx:29
+#: src/features/newSession/NewSessionWorkingDirectory.tsx:30
 msgid "Working directory"
 msgstr "Working directory"
 

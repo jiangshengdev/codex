@@ -28,7 +28,7 @@ msgstr "添加示例文件"
 msgid "Add sample image"
 msgstr "添加示例图片"
 
-#: src/storybook/shared/ShortcutInstructions.tsx:21
+#: src/storybook/shared/ShortcutInstructions.tsx:27
 msgid "Click inside the preview before pressing keys. This story waits for manual input. Local simulation only; reload or restart to restore the preset. Safari system shortcuts, native focus and real IME behavior require separate manual acceptance."
 msgstr "按键前请先点击预览区域。本场景等待手动操作，仅进行本地模拟；刷新页面或重新开始演示可恢复预设状态。Safari 系统快捷键、原生焦点和真实输入法行为需要另行手动验收。"
 
@@ -74,7 +74,7 @@ msgstr "模拟 {name} 上传失败"
 msgid "Files stay in this browser. Uploads are simulated; sending leaves the draft unchanged and never contacts a model."
 msgstr "文件仅保留在此浏览器中。上传为本地模拟；发送操作保留草稿，不会联系模型。"
 
-#: src/storybook/appShell/ShortcutFocus.stories.tsx:30
+#: src/storybook/appShell/ShortcutFocus.stories.tsx:28
 msgid "Focus Menu, then press the shortcut. Focus moves into the editable Composer with a visible focus frame. When the input is unavailable or this page has no Composer, focus stays on Menu."
 msgstr "先将焦点移到“菜单”，再按快捷键。焦点会移入可编辑的消息输入框，并显示焦点边框。当输入不可用或页面没有消息输入框时，焦点保留在“菜单”上。"
 
@@ -86,7 +86,7 @@ msgstr "将焦点移入输入框并按 Command+Enter。轮次运行时，草稿�
 msgid "Focus the input. Enter sends the prepared text once and clears the draft; Shift+Enter inserts a newline at the caret without sending. Empty or whitespace-only input does not send. Unavailable input cannot be edited or sent. During a running turn, Enter adds an ordinary queued message. Hover or Tab to Send to inspect its Tooltip. Simulation controls can advance the response and runtime confirmation. On Safari, confirm real IME candidates: composing Enter and the immediate post-composition Enter must not send."
 msgstr "将焦点移入输入框。Enter 将准备好的文本发送一次并清空草稿；Shift+Enter 在光标处换行，不会发送。空输入或仅有空白字符时不会发送。输入不可用时不能编辑或发送。轮次运行时，Enter 会添加一条普通队列消息。悬停在“发送”上或用 Tab 聚焦它可查看提示。模拟控件可推进响应和运行时确认。在 Safari 中，请通过真实输入法确认候选词：组合输入期间及组合输入刚结束后的 Enter 均不得触发发送。"
 
-#: src/storybook/appShell/ShortcutFocus.stories.tsx:24
+#: src/storybook/appShell/ShortcutFocus.stories.tsx:22
 msgid "Focus the message input or Menu button, then toggle the menu. Keyboard opening shows one themed close-button ring; mouse opening is the comparison. Escape or the shortcut closes the menu and restores focus. Hover or Tab to Menu to inspect its Tooltip."
 msgstr "将焦点移到消息输入框或“菜单”按钮，再切换菜单。使用键盘打开时，关闭按钮应显示一圈符合主题的焦点提示；可用鼠标打开进行对照。Escape 或同一快捷键可关闭菜单并恢复焦点。悬停在“菜单”上或用 Tab 聚焦它可查看提示。"
 
@@ -100,7 +100,7 @@ msgstr "注入反馈：首次移动会改变真实队列，但刷新后的列表
 msgid "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
 msgstr "注入反馈：首次移动被拒绝，队列保持不变。后续移动使用真实队列。"
 
-#: src/storybook/appShell/ShortcutTasks.stories.tsx:23
+#: src/storybook/appShell/ShortcutTasks.stories.tsx:21
 msgid "K selects the previous task; J selects the next. The displayed order is Shell task one, Shell task 2, Shell task 3. Initially task one is selected: previous wraps to task 3; next selects task 2. Keep typing separate drafts to check retention. With one task, navigation stays on that task; with none, it does nothing. From History, cycling starts from the last viewed task (task one), not from the page route. Held keys and composition do not switch."
 msgstr "使用带 K 的快捷键选择上一个任务，带 J 的快捷键选择下一个任务。显示顺序为 Shell task one、Shell task 2、Shell task 3。初始选中第一个任务：上一个会循环到任务 3，下一个会选择任务 2。分别输入草稿以检查切换后的保留情况。仅有一个任务时仍停留在该任务；没有任务时不执行操作。在“历史”页面中，切换从上次查看的任务（第一个任务）开始，而非当前页面路由。长按按键或进行输入法组合输入时不会切换。"
 
@@ -149,7 +149,7 @@ msgstr "下一步"
 msgid "Only for scenario preparation, not a product recovery entry point."
 msgstr "仅用于场景准备，不是产品恢复入口。"
 
-#: src/storybook/newSession/Shortcut.stories.tsx:21
+#: src/storybook/newSession/Shortcut.stories.tsx:18
 msgid "Open the unsent new-session draft. Repeating the shortcut retains its text without sending. With no current task, the configured directory still permits a new draft. With neither a directory nor an existing draft, the shortcut does nothing. An existing draft can reopen even without a directory in the launch context. Holding the keys or composing text must not navigate."
 msgstr "打开尚未发送的新会话草稿。重复按快捷键会保留文本，不会发送。没有当前任务时，只要已配置工作目录，仍可新建草稿。如果既没有工作目录也没有已有草稿，快捷键不执行操作。即使启动上下文中没有工作目录，仍可重新打开已有草稿。长按按键或进行输入法组合输入时不得触发导航。"
 
@@ -211,7 +211,7 @@ msgid "Runtime confirmation received"
 msgstr "已收到运行时确认"
 
 #. Accessible name of the Storybook keyboard shortcut instructions section.
-#: src/storybook/shared/ShortcutInstructions.tsx:12
+#: src/storybook/shared/ShortcutInstructions.tsx:13
 msgid "Shortcut instructions"
 msgstr "快捷键操作说明"
 
