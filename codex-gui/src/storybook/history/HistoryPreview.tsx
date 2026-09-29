@@ -67,9 +67,7 @@ function HistoryShell({
           }
         >
           <AppShell>
-            <div className="app-shell-content-boundary">
-              <ThreadForkNotice />
-            </div>
+            <ThreadForkNotice />
             <Outlet />
           </AppShell>
         </ThreadForkContext>

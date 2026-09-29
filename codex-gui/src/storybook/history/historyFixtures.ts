@@ -36,7 +36,7 @@ export function historyTask(threadId: string, name: string, answer: string) {
   });
 }
 
-export function createHistoryFixtures(longContent: boolean) {
+export function createHistoryFixtures(longContent: boolean, longRecoveredContent = false) {
   const earlier = historyTask(
     historyEarlierId,
     "Earlier investigation",
@@ -51,7 +51,16 @@ export function createHistoryFixtures(longContent: boolean) {
         ? "Long summary without losing the selected task context. ".repeat(40)
         : "Read-only history evidence",
     ),
-    historyTask(historyReturnedId, "Continued investigation", "Recovered authoritative task"),
+    historyTask(
+      historyReturnedId,
+      "Continued investigation",
+      "Recovered authoritative task" +
+        (longRecoveredContent
+          ? "\n\nRecovered investigation paragraph with enough context to continue reviewing the task.".repeat(
+              60,
+            )
+          : ""),
+    ),
     longContent
       ? attachWithSnapshotThread(earlier, {
           ...earlier.snapshot.thread,

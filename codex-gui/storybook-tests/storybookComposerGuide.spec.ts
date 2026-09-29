@@ -38,7 +38,8 @@ test("guide rejection recovers separately from unsteerable priority delivery", a
   await guide.click();
   await page.getByRole("button", { name: "Simulate guide failure", exact: true }).click();
   await expect(page.getByText("1 message has not been sent", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toHaveCount(0);
+  const priority = page.getByRole("button", { name: "Priority 1", exact: true });
+  await expect(priority).toHaveCount(0);
   await editor.fill("Separate draft");
   await expect(guide).toBeDisabled();
   await expect(send).toBeDisabled();
@@ -54,15 +55,19 @@ test("guide rejection recovers separately from unsteerable priority delivery", a
   await editor.fill("Send this first");
   await guide.click();
   await page.getByRole("button", { name: "Simulate guide refusal", exact: true }).click();
+  await priority.click();
+  const dialog = page.getByRole("dialog", { name: "Pending details", exact: true });
   await expect(
-    page.getByText("Currently unable to guide; added to queue", { exact: true }),
+    dialog.getByText("Currently unable to guide; added to queue", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Send this first", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Send this first", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
   await expect(page.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Simulate current turn completed", exact: true }).click();
   await page.getByRole("button", { name: "Simulate send response", exact: true }).click();
   await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toHaveCount(0);
+  await expect(priority).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Queued 1", exact: true })).toBeVisible();
 });
 

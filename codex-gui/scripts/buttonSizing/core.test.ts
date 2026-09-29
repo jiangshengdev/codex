@@ -86,17 +86,45 @@ test("detects global CSS sizing independently of JSX", () => {
   expect(inspectButtonCss("src/styles/extra.css", ".button { color: red; }").errors).toEqual([]);
   expect(
     inspectButtonCss(
-      "src/feedback/failureLayout.css",
-      ".failure-layout .button { height: auto; min-height: 2.5rem; }",
+      "src/styles/product.css",
+      ".button:not(.button--icon-only) { height: auto; min-height: 2.5rem; }",
     ).errors,
   ).toEqual([]);
   expect(
-    inspectButtonCss("src/feedback/failureLayout.css", ".failure-layout .button { height: 12px; }")
+    inspectButtonCss("src/styles/product.css", ".button:not(.button--icon-only) { height: 12px; }")
       .errors,
   ).toHaveLength(1);
   expect(
-    inspectButtonCss("src/feedback/failureLayout.css", ".button { padding: 10px; }").errors,
+    inspectButtonCss("src/styles/product.css", ".button { padding: 10px; }").errors,
   ).toHaveLength(1);
+});
+
+test("accepts the real shared wrapping CSS only at its current owner", () => {
+  const source = readFileSync(new URL("../../src/styles/product.css", import.meta.url), "utf8");
+  expect(inspectButtonCss("src/styles/product.css", source).errors).toEqual([]);
+  expect(inspectButtonCss("src/styles/extra.css", source).errors.length).toBeGreaterThan(0);
+  expect(
+    inspectButtonCss(
+      "src/feedback/failureLayout.css",
+      ".failure-layout .button { height: auto; min-height: 2.5rem; }",
+    ).errors,
+  ).toHaveLength(2);
+});
+
+test.each([
+  ["height: auto;", "height: 12px;"],
+  ["min-height: 2.5rem;", "min-height: 12px;"],
+  ["padding-block: 0.25rem;", "padding-block: 12px;"],
+  [".button:not(.button--icon-only)", ".button"],
+  [".button--sm:not(.button--icon-only)", ".button--sm"],
+  [".button--lg:not(.button--icon-only)", ".button--lg"],
+])("rejects shared wrapping CSS drift from %s to %s", (original, replacement) => {
+  const source = readFileSync(new URL("../../src/styles/product.css", import.meta.url), "utf8");
+  expect(source).toContain(original);
+  expect(
+    inspectButtonCss("src/styles/product.css", source.replaceAll(original, replacement)).errors
+      .length,
+  ).toBeGreaterThan(0);
 });
 
 test("protects the real return-to-task and queue-group scenario boundaries", () => {

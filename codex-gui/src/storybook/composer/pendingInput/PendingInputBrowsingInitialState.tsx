@@ -1,6 +1,7 @@
 import { useLingui } from "@lingui/react/macro";
 import { useEffect, useState } from "react";
 import { within } from "storybook/test";
+import { initializeWhenReady } from "../../environment/initializeWhenReady";
 import { useComposerPendingInput } from "@/features/composerTurnControl/composerPendingInputHost";
 import type { ComposerPendingInputGroup } from "@/features/composerTurnControl/composerPendingInputSession";
 
@@ -22,33 +23,26 @@ export function PendingInputBrowsingInitialState({
     if (detail != null) {
       // Observe the real portal without entering a testing-library act scope
       // from a running React effect.
-      const initialize = () => {
-        const dialog = within(document.body).queryByRole("dialog");
-        if (dialog == null) return;
-        const row =
-          detail === "priority"
-            ? within(dialog).queryAllByRole("region")[0]
-            : within(dialog).queryByRole("group", {
-                name: detail === "ordinary" ? /^Ordinary message 1\s/ : /^Guide message 1\s/,
-              });
-        if (row == null) return;
-        const [button] = within(row).queryAllByRole("button", { name: label });
-        if (button == null) return;
-        observer.disconnect();
-        clearTimeout(timeout);
-        button.click();
-      };
-      const observer = new MutationObserver(initialize);
-      const timeout = setTimeout(() => {
-        observer.disconnect();
-        setFailure({ error: new Error("Pending preview full message button was not mounted") });
-      }, 1000);
-      observer.observe(document.body, { childList: true, subtree: true, attributes: true });
-      initialize();
-      return () => {
-        observer.disconnect();
-        clearTimeout(timeout);
-      };
+      return initializeWhenReady(
+        document.body,
+        () => {
+          const dialog = within(document.body).queryByRole("dialog");
+          if (dialog == null) return false;
+          const row =
+            detail === "priority"
+              ? within(dialog).queryAllByRole("region")[0]
+              : within(dialog).queryByRole("group", {
+                  name: detail === "ordinary" ? /^Ordinary message 1\s/ : /^Guide message 1\s/,
+                });
+          if (row == null) return false;
+          const [button] = within(row).queryAllByRole("button", { name: label });
+          if (button == null) return false;
+          button.click();
+          return true;
+        },
+        setFailure,
+        "Pending preview full message button was not mounted",
+      );
     }
   }, [detail, host, label, targetGroup]);
   if (failure != null) throw failure.error;

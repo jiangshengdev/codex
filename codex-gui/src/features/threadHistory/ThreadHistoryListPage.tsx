@@ -20,6 +20,7 @@ import {
   groupThreadHistoryByDate,
 } from "./threadHistoryDateGroups";
 import { ThreadHistoryListOwner, type ThreadHistoryListState } from "./threadHistoryListOwner";
+import { ThreadHistoryEmptyState } from "./ThreadHistoryEmptyState";
 import { resolveThreadHistoryPresentation } from "./threadHistoryPresentation";
 import { useStrictModeSafeOwner } from "./useStrictModeSafeOwner";
 
@@ -123,7 +124,11 @@ function HistoryListContent({ state, loadMore, retry }: HistoryListContentProps)
   }
 
   if (state.threads.length === 0) {
-    return renderHistoryMessage(<Trans>No history for the current working directory.</Trans>);
+    return (
+      <ThreadHistoryEmptyState>
+        <Trans>No history for the current working directory.</Trans>
+      </ThreadHistoryEmptyState>
+    );
   }
 
   const labels = {
@@ -278,10 +283,6 @@ function ThreadStatusChip({ status }: { status: Thread["status"] }) {
     </Chip>
   );
 }
-
-const renderHistoryMessage = (message: ReactNode) => (
-  <p className="text-sm text-muted">{message}</p>
-);
 
 type HistoryErrorProps =
   | { error: unknown; retry?: () => boolean | undefined; isPending?: boolean; append?: boolean }

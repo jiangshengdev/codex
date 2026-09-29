@@ -163,8 +163,8 @@ test("a failed status refresh restores its action and retains independent operat
   );
   const screen = await renderWithProviders(<App currentTaskComponent={ObservedTaskPage} />);
   initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
-  const main = screen.getByRole("main");
-  const action = main.getByRole("button", { name: "Refresh status", exact: true });
+  const notices = screen.getByRole("region", { name: "Page notices", exact: true });
+  const action = notices.getByRole("button", { name: "Refresh status", exact: true });
   await expect.element(action).toBeEnabled();
   requireSession().setOperationError(
     launchThreadId,
@@ -175,18 +175,18 @@ test("a failed status refresh restores its action and retains independent operat
   vi.mocked(commands.readThread).mockReturnValueOnce(pending.promise);
   await action.click();
   await expect
-    .element(main.getByRole("button", { name: "Refreshing status…", exact: true }))
+    .element(notices.getByRole("button", { name: "Refreshing status…", exact: true }))
     .toHaveAttribute("aria-disabled", "true");
   await expectDiagnostic(
-    main.getByRole("button", { name: "View diagnostic information", exact: true }),
+    notices.getByRole("button", { name: "View diagnostic information", exact: true }),
     "previous navigation error",
   );
   pending.reject(new Error("status refresh failed"));
   await expect.element(action).toBeEnabled();
-  await expect.element(main.getByText("The task could not be opened.")).toBeVisible();
+  await expect.element(notices.getByText("The task could not be opened.")).toBeVisible();
   await action.click();
   await expect.element(action).not.toBeInTheDocument();
-  await expect.element(main.getByText("The task could not be opened.")).toBeVisible();
+  await expect.element(notices.getByText("The task could not be opened.")).toBeVisible();
 });
 
 test.each([`/task/${launchThreadId}`, "/history", `/history/${launchThreadId}`])(
@@ -297,17 +297,19 @@ test("independent global and task operations with identical details remain indep
     name: "View diagnostic information",
     exact: true,
   });
-  const taskDiagnostics = screen
-    .getByRole("main")
+  const notices = screen.getByRole("region", { name: "Page notices", exact: true });
+  const taskDiagnostics = notices
+    .getByRole("alert")
+    .filter({ hasText: "Task action failed" })
     .getByRole("button", { name: "View diagnostic information", exact: true });
   await expect.poll(() => diagnostics.elements().length).toBe(3);
   await expect.poll(() => taskDiagnostics.elements().length).toBe(2);
   const navigationNotice = screen
-    .getByRole("main")
+    .getByRole("region", { name: "Page notices", exact: true })
     .getByRole("alert")
     .filter({ hasText: "The task could not be opened." });
   const removalNotice = screen
-    .getByRole("main")
+    .getByRole("region", { name: "Page notices", exact: true })
     .getByRole("alert")
     .filter({ hasText: "The task could not be removed." });
   await expect
@@ -346,7 +348,7 @@ test.each(["notLoaded", "systemError"] as const)(
     const screen = await renderWithProviders(<App />);
     initializeHost(getHostOptions(startGuiHostConnectionMock), commands);
     const retry = screen
-      .getByRole("main")
+      .getByRole("region", { name: "Page notices", exact: true })
       .getByRole("button", { name: "Refresh status", exact: true });
     await expect.element(retry).toBeEnabled();
     await expect.element(retry).toHaveClass("button--primary");

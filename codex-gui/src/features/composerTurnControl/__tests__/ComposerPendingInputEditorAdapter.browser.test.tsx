@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { render } from "vitest-browser-react";
 import { afterEach, expect, test, vi } from "vitest";
 import { CatchBoundary } from "@tanstack/react-router";
+import { errorText } from "@/text/errorText";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { ComposerEditorController } from "@/features/composerEditor/ComposerEditor";
 import type { ComposerPendingInputEditorProps } from "../ComposerPendingInputEditor";
@@ -217,7 +218,7 @@ test("reports an attachment failure through the React error boundary", async () 
     <CatchBoundary
       getResetKey={() => "pending-editor"}
       onCatch={onCatch}
-      errorComponent={({ error }) => <div role="alert">{error.message}</div>}
+      errorComponent={({ error }) => <div role="alert">{errorText(error)}</div>}
     >
       <ControllerContext value={controller}>
         <ComposerPendingInputEditorAdapter {...props} />

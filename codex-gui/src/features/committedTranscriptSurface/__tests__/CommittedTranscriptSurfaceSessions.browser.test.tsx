@@ -20,6 +20,7 @@ import {
   ReadOnlyCommittedTranscriptSurface,
 } from "../CommittedTranscriptSurface";
 import { makeTranscriptStore } from "./transcriptSurfaceFixtures";
+import { AppShellNotices } from "@/features/appShell/AppShellNotices";
 
 const first: ActiveThreadSessionIdentity = { threadId: "surface-first", instanceId: "first-owner" };
 const second: ActiveThreadSessionIdentity = {
@@ -112,14 +113,28 @@ test("preserves fixed-history interruption details while the live page owns its 
     ],
   };
   const screen = await renderWithProviders(
-    <ReadOnlyCommittedTranscriptSurface
-      surfaceKey={first.threadId}
-      transcriptState={transcriptState}
-    />,
+    <AppShellNotices notices={null} floating contained>
+      <ReadOnlyCommittedTranscriptSurface
+        surfaceKey={first.threadId}
+        transcriptState={transcriptState}
+      />
+    </AppShellNotices>,
     { store },
   );
   const notice = screen.getByText("Connection interrupted. Reconnect required.", { exact: true });
   await expect.element(notice).toBeVisible();
+  await expect
+    .element(
+      screen
+        .getByRole("region", { name: "Page notices", exact: true })
+        .getByText("Connection interrupted. Reconnect required.", { exact: true }),
+    )
+    .toBeVisible();
+  await expect
+    .element(
+      screen.getByRole("region", { name: "Committed transcript", exact: true }).getByRole("status"),
+    )
+    .not.toBeInTheDocument();
   await expect
     .element(screen.getByText("Saved interrupted response", { exact: true }))
     .toBeVisible();
@@ -139,7 +154,11 @@ test("preserves fixed-history interruption details while the live page owns its 
     }),
   );
   await expect.element(notice).toBeVisible();
-  await screen.rerender(<CommittedTranscriptSurface identity={first} />);
+  await screen.rerender(
+    <AppShellNotices notices={null} floating contained>
+      <CommittedTranscriptSurface identity={first} />
+    </AppShellNotices>,
+  );
   await expect
     .element(screen.getByText("Live interrupted response", { exact: true }))
     .toBeVisible();

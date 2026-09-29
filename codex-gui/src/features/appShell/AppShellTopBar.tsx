@@ -1,13 +1,15 @@
-import { Badge, Button, Drawer } from "@heroui/react";
+import { Badge, Button, Drawer, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
-import { useState } from "react";
+import { use, useState } from "react";
+import { ComposerFocusContext } from "@/features/composerEditor/composerFocusContext";
 import { useAppSelector } from "@/app/hooks";
 import {
   CURRENT_TASK_ROUTE_PATH,
   HISTORY_LIST_ROUTE_PATH,
   NEW_TASK_ROUTE_PATH,
+  SHORTCUTS_ROUTE_PATH,
 } from "@/features/browserLaunch/guiRouteTarget";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import { useHistoryDetailTitle } from "@/features/documentTitle/historyDetailTitleContext";
@@ -21,11 +23,19 @@ import {
 import { ActiveThreadCollectionMenu } from "./ActiveThreadCollectionMenu";
 import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation";
 import { TopBarNavigationItem } from "./TopBarNavigationItem";
+import { appShortcut, useAppShortcuts } from "./appShortcuts";
+import { useActiveTaskNavigation } from "./useActiveTaskNavigation";
+import { ShortcutKey } from "./ShortcutKey";
 
 export function AppShellTopBar() {
   const { t } = useLingui();
   const navigate = useNavigate();
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [drawerOpenMode, setDrawerOpenMode] = useState<"pointer" | "keyboard" | null>(null);
+  const menuShortcut = appShortcut("menu");
+  const composerFocus = use(ComposerFocusContext);
+  const taskNavigation = useActiveTaskNavigation(() => {
+    setDrawerOpenMode(null);
+  });
   const { routeTarget, status, newSessionOwner, connectionRecovery } = useAppCapabilities();
   const newSession = useNewSessionSnapshot();
   const newSessionCwd = useNewSessionCwd();
@@ -46,6 +56,7 @@ export function AppShellTopBar() {
   const isCurrentTask = routeTarget.type === "currentTask";
   const isHistoryDetail = routeTarget.type === "historyDetail";
   const isNewTask = routeTarget.type === "newTask";
+  const isShortcuts = routeTarget.type === "shortcuts";
   const isHistory = routeTarget.type === "historyList" || isHistoryDetail;
   const historyDetailTitle = useHistoryDetailTitle();
   const currentTaskTitle =
@@ -60,13 +71,15 @@ export function AppShellTopBar() {
       ? (historyDetailTitle ?? t`History detail`)
       : isNewTask
         ? t`New session`
-        : t`History`;
+        : isShortcuts
+          ? t`Keyboard shortcuts`
+          : t`History`;
 
   const navigateToCurrentTask = (): void => {
     if (activeThreadId == null) {
       return;
     }
-    setIsDrawerOpen(false);
+    setDrawerOpenMode(null);
     void navigate({
       to: CURRENT_TASK_ROUTE_PATH,
       params: { threadId: activeThreadId },
@@ -74,31 +87,78 @@ export function AppShellTopBar() {
   };
 
   const navigateToHistory = (): void => {
-    setIsDrawerOpen(false);
+    setDrawerOpenMode(null);
     void navigate({ to: HISTORY_LIST_ROUTE_PATH });
   };
 
   const navigateToNewSession = (): void => {
     if (!newSessionOwner.open(newSessionCwd)) return;
-    setIsDrawerOpen(false);
+    setDrawerOpenMode(null);
     void navigate({ to: NEW_TASK_ROUTE_PATH });
   };
+
+  useAppShortcuts({
+    previousTask: () => taskNavigation.cycle(-1),
+    nextTask: () => taskNavigation.cycle(1),
+    newSession: () => {
+      if (!canOpenNewSession) return false;
+      navigateToNewSession();
+      return true;
+    },
+    menu: () => {
+      setDrawerOpenMode((mode) => (mode == null ? "keyboard" : null));
+      return true;
+    },
+    focus: () => {
+      const focus = composerFocus?.current;
+      if (focus == null) return false;
+      setDrawerOpenMode(null);
+      requestAnimationFrame(() => {
+        if (composerFocus?.current === focus) focus();
+      });
+      return true;
+    },
+  });
 
   return (
     <header className="fixed inset-x-0 top-0 z-30 h-14 border-b border-separator bg-surface text-foreground">
       <div className="app-shell-content-boundary flex h-full items-center gap-2 sm:gap-3">
         <Badge.Anchor className="shrink-0">
-          <Button
-            className="shrink-0"
-            aria-describedby={hasError ? "active-tasks-error" : undefined}
-            variant="secondary"
-            onPress={() => {
-              setIsDrawerOpen(true);
-            }}
-          >
-            <Menu aria-hidden="true" className="size-5" />
-            <Trans>Menu</Trans>
-          </Button>
+          <Tooltip isDisabled={menuShortcut == null}>
+            <Button
+              render={(props) => (
+                <button
+                  {...props}
+                  aria-describedby={
+                    [props["aria-describedby"], hasError ? "active-tasks-error" : undefined]
+                      .filter(Boolean)
+                      .join(" ") || undefined
+                  }
+                  aria-keyshortcuts={menuShortcut?.aria}
+                />
+              )}
+              className="shrink-0"
+              aria-label={t`Menu`}
+              variant="secondary"
+              onPress={(event) => {
+                setDrawerOpenMode(
+                  event.pointerType === "keyboard" || event.pointerType === "virtual"
+                    ? "keyboard"
+                    : "pointer",
+                );
+              }}
+            >
+              <Menu aria-hidden="true" className="size-5" />
+              <span>
+                <Trans>Menu</Trans>
+              </span>
+            </Button>
+            {menuShortcut ? (
+              <Tooltip.Content>
+                <ShortcutKey aria={menuShortcut.aria} variant="light" />
+              </Tooltip.Content>
+            ) : null}
+          </Tooltip>
           {hasError ? (
             <Badge color="danger" size="sm" aria-hidden="true" data-menu-error-indicator="true" />
           ) : null}
@@ -115,11 +175,19 @@ export function AppShellTopBar() {
         </h1>
       </div>
 
-      <Drawer.Backdrop isOpen={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+      <Drawer.Backdrop
+        isOpen={drawerOpenMode != null}
+        onOpenChange={(open) => {
+          if (!open) setDrawerOpenMode(null);
+        }}
+      >
         <Drawer.Content placement="left">
           <Drawer.Dialog>
             {/* An initial child focus avoids the dialog's delayed refocus racing nested menus. */}
-            <Drawer.CloseTrigger autoFocus />
+            <Drawer.CloseTrigger
+              autoFocus
+              className={drawerOpenMode === "keyboard" ? "focus:status-focused" : undefined}
+            />
             <Drawer.Header>
               <Drawer.Heading>
                 <Trans>Navigation</Trans>
@@ -129,6 +197,7 @@ export function AppShellTopBar() {
               <nav aria-label={t`Main navigation`} className="flex flex-col gap-1">
                 <TopBarNavigationItem
                   id="new-session-navigation"
+                  shortcut={appShortcut("newSession")}
                   isCurrent={isNewTask}
                   isDisabled={!canOpenNewSession}
                   onPress={navigateToNewSession}
@@ -164,10 +233,24 @@ export function AppShellTopBar() {
                     </Trans>
                   }
                 />
+                <TopBarNavigationItem
+                  id="shortcuts-navigation"
+                  isCurrent={isShortcuts}
+                  onPress={() => {
+                    setDrawerOpenMode(null);
+                    void navigate({ to: SHORTCUTS_ROUTE_PATH });
+                  }}
+                  label={
+                    <Trans comment="Navigation entry and page title for the keyboard shortcut reference">
+                      Keyboard shortcuts
+                    </Trans>
+                  }
+                  description={<Trans>View keyboard shortcuts</Trans>}
+                />
               </nav>
               <ActiveThreadCollectionMenu
                 close={() => {
-                  setIsDrawerOpen(false);
+                  setDrawerOpenMode(null);
                 }}
               />
             </Drawer.Body>

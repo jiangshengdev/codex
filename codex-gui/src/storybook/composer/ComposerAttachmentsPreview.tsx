@@ -9,6 +9,7 @@ import { ComposerSimulation } from "./ComposerPreview";
 import { createComposerTextScenario } from "./composerTextScenario";
 import { createAttachmentRequests } from "./attachmentRequests";
 import { createSampleImage } from "./sampleImage";
+import { insertSampleFiles } from "./insertSampleFiles";
 
 type Preset =
   | "interactive"
@@ -76,10 +77,7 @@ function AttachmentSimulation({
 
   const addSample = useCallback(
     (imageAsFile = false) => {
-      const input = root.current?.querySelector<HTMLInputElement>('input[type="file"]');
-      if (input == null) return;
-      const transfer = new DataTransfer();
-      transfer.items.add(
+      const files = [
         imageAsFile
           ? new File(['<svg xmlns="http://www.w3.org/2000/svg"/>'], "sample.svg", {
               type: "image/svg+xml",
@@ -87,15 +85,12 @@ function AttachmentSimulation({
           : image
             ? createSampleImage()
             : new File(["Fictional review notes."], "review-notes.txt", { type: "text/plain" }),
-      );
+      ];
       if (mixed) {
-        transfer.items.add(createSampleImage());
-        transfer.items.add(
-          new File(["Fictional checklist."], "checklist.txt", { type: "text/plain" }),
-        );
+        files.push(createSampleImage());
+        files.push(new File(["Fictional checklist."], "checklist.txt", { type: "text/plain" }));
       }
-      input.files = transfer.files;
-      input.dispatchEvent(new Event("change", { bubbles: true }));
+      insertSampleFiles(root.current, files);
     },
     [image, mixed],
   );

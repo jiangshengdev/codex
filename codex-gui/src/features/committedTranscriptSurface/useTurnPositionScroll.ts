@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import { toast } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
+import { readTaskBottomRegionViewport } from "@/features/taskLayout/taskBottomRegionLayout";
 
 export function useTurnPositionScroll({
   request,
@@ -25,11 +26,7 @@ export function useTurnPositionScroll({
       if (targetFound) {
         const target = targetRef.current;
         if (target == null) return;
-        const shell = surface.closest("main")?.querySelector(".task-bottom-shell");
-        const bottom =
-          shell instanceof HTMLElement
-            ? Math.min(window.innerHeight, shell.getBoundingClientRect().top)
-            : window.innerHeight;
+        const { bottom } = readTaskBottomRegionViewport(surface.closest("main"));
         window.scrollBy({
           top: target.getBoundingClientRect().bottom - bottom + 12,
           behavior: "instant",
@@ -40,16 +37,9 @@ export function useTurnPositionScroll({
     };
     let frame: number;
     const positionWhenReady = () => {
-      const main = surface.closest("main");
-      const actionSpace = main?.querySelector("[data-thread-history-continuation-action-space]");
-      const shell = main?.querySelector(".task-bottom-shell");
-      // History's fixed action reserves space asynchronously after measuring its
-      // height. Until that space exists the browser clamps the requested scroll.
-      if (
-        actionSpace instanceof HTMLElement &&
-        shell instanceof HTMLElement &&
-        actionSpace.getBoundingClientRect().height < shell.getBoundingClientRect().height
-      ) {
+      // Wait for the shared bottom layout to reserve its measured space before
+      // positioning; otherwise the browser can clamp the requested scroll.
+      if (!readTaskBottomRegionViewport(surface.closest("main")).ready) {
         frame = requestAnimationFrame(positionWhenReady);
         return;
       }

@@ -164,15 +164,22 @@ test("retains a created ID after leaving the source and opens it without another
     .toBeDisabled();
   await router.navigate({ to: "/history" });
   pending.resolve(forkResponse());
-  await expect.element(page.getByRole("button", { name: "Open fork", exact: true })).toBeEnabled();
+  const notices = page.getByRole("region", { name: "Page notices", exact: true });
+  const open = notices.getByRole("button", { name: "Open fork", exact: true });
+  await expect.element(open).toBeEnabled();
   expect(router.state.location.pathname).toBe("/history");
   expect(
     vi
       .mocked(commands.attachThreadProjection)
       .mock.calls.some(([params]) => params.threadId === forkId),
   ).toBe(false);
-  await page.getByRole("button", { name: "Open fork", exact: true }).click();
+  await router.navigate({ to: "/history/$threadId", params: { threadId: launchThreadId } });
+  await expect.element(open).toBeEnabled();
+  await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
+  await expect.element(open).toBeEnabled();
+  await open.click();
   await expect.poll(() => router.state.location.pathname).toBe(`/task/${forkId}`);
+  await expect.element(open).not.toBeInTheDocument();
   expect(commands.forkThread).toHaveBeenCalledTimes(1);
 });
 

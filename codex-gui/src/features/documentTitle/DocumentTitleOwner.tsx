@@ -58,6 +58,9 @@ export function DocumentTitleOwner({ children }: PropsWithChildren) {
   let title: string;
 
   switch (routeTarget?.type) {
+    case "shortcuts":
+      title = formatDocumentTitle(t`Keyboard shortcuts`);
+      break;
     case "newTask":
       title = formatDocumentTitle(newTaskLabel);
       break;

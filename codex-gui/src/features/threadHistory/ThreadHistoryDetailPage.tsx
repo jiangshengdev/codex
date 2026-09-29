@@ -9,6 +9,7 @@ import {
 } from "./threadHistoryDetailOwner";
 import { useStrictModeSafeOwner } from "./useStrictModeSafeOwner";
 import { useTurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
+import { TaskDetailPage } from "@/features/taskLayout/TaskDetailPage";
 
 export function ThreadHistoryDetailPage() {
   const { threadId } = useParams({ from: "/app/history/$threadId" });
@@ -24,10 +25,10 @@ export function ThreadHistoryDetailPage() {
   const state = useStrictModeSafeOwner(owner);
 
   return (
-    <main className="task-reading-boundary grid min-h-0 flex-1 content-start gap-4">
+    <TaskDetailPage>
       {state.type === "waitingForConnection" ? (
         status.label === "error" || status.label === "closed" ? (
-          <p className="pt-3 text-sm text-muted">
+          <p className="text-sm text-muted">
             <Trans>Task history is unavailable until the connection is restored.</Trans>
           </p>
         ) : (
@@ -51,6 +52,6 @@ export function ThreadHistoryDetailPage() {
           threadId={threadId}
         />
       )}
-    </main>
+    </TaskDetailPage>
   );
 }

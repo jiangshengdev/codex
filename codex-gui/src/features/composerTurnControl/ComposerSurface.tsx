@@ -1,9 +1,16 @@
 import { Surface } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ComposerEditor, type ComposerEditorProps } from "@/features/composerEditor/ComposerEditor";
+import { use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  ComposerEditor,
+  type ComposerEditorController,
+  type ComposerEditorProps,
+} from "@/features/composerEditor/ComposerEditor";
+import { ComposerFocusContext } from "@/features/composerEditor/composerFocusContext";
 import { ComposerSkillMenuLayer } from "./ComposerSkillMenuLayer";
 import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
+import { TaskBottomRegion } from "@/features/taskLayout/TaskBottomRegion";
+import { appShortcut } from "@/features/appShell/appShortcuts";
 
 type ComposerSurfaceProps = Readonly<{
   editor: Omit<
@@ -28,6 +35,36 @@ export function ComposerSurface({
   disabled = false,
 }: ComposerSurfaceProps) {
   const { t } = useLingui();
+  const composerFocusRef = use(ComposerFocusContext);
+  const controllerRef = useRef<ComposerEditorController | null>(null);
+  const onControllerChange = editor.onControllerChange;
+  const captureController = useCallback(
+    (controller: ComposerEditorController | null) => {
+      controllerRef.current = controller;
+      onControllerChange?.(controller);
+    },
+    [onControllerChange],
+  );
+  useEffect(() => {
+    if (composerFocusRef == null || editor.disabled) return;
+    const focus = () => {
+      const controller = controllerRef.current;
+      const root = controller?.getRootElement();
+      if (
+        controller == null ||
+        composerFocusRef.current !== focus ||
+        !root?.isConnected ||
+        !root.isContentEditable
+      )
+        return false;
+      controller.focus();
+      return true;
+    };
+    composerFocusRef.current = focus;
+    return () => {
+      if (composerFocusRef.current === focus) composerFocusRef.current = null;
+    };
+  }, [composerFocusRef, editor.disabled]);
   const shellRef = useRef<HTMLElement | null>(null);
   const focusVisible = useComposerFocusVisible(shellRef);
   useRevealComposerOnViewportResize(shellRef);
@@ -37,17 +74,19 @@ export function ComposerSurface({
   );
 
   return (
-    <section
-      aria-label={t`Message composer`}
-      className="composer-shell task-bottom-shell sticky bottom-0 z-10"
-      ref={shellRef}
+    <TaskBottomRegion
+      label={t`Message composer`}
+      className="composer-shell"
+      placement="sticky"
+      regionRef={shellRef}
     >
       <Surface className="composer-frame flex flex-col gap-1" variant="secondary">
         {header}
         {feedback}
         <Surface
+          aria-keyshortcuts={appShortcut("focus")?.aria}
           aria-disabled={disabled}
-          className="composer-panel task-bottom-panel composer-field grid gap-2"
+          className="composer-panel task-bottom-panel composer-field grid grid-cols-1 gap-2"
           data-disabled={disabled}
           data-readonly={editor.disabled && !disabled}
           data-focus-visible={focusVisible}
@@ -56,14 +95,15 @@ export function ComposerSurface({
           <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
           <ComposerEditor
             {...editor}
+            onControllerChange={captureController}
             ariaLabel={t`Message Codex`}
             placeholder={t`Message Codex`}
             attachmentControlsParent={attachmentControlsParent}
             skillMenuParent={skillMenuParent}
           />
           {afterEditor}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="composer-footer-left flex shrink-0 items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <div className="composer-footer-left flex min-w-0 max-w-full flex-wrap items-center gap-2">
               <div className="flex items-center" ref={setAttachmentControlsParent} />
               {toolbarLeading}
             </div>
@@ -71,7 +111,7 @@ export function ComposerSurface({
           </div>
         </Surface>
       </Surface>
-    </section>
+    </TaskBottomRegion>
   );
 }
 

@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
-import { RetryActionButton } from "@/feedback/RetryActionButton";
+import { ComposerSendButton } from "@/features/composerTurnControl/ComposerSendButton";
 import {
   useAppCapabilities,
   useNewSessionCwd,
@@ -142,11 +142,11 @@ function NewSessionEditor({
         onSubmit: (capture) => {
           void submit(capture);
         },
+        submitIntents: ["ordinary"],
         skillCatalog,
       }}
       actions={
-        <RetryActionButton
-          variant="outline"
+        <ComposerSendButton
           isDisabled={
             commands == null ||
             pending ||
@@ -155,17 +155,10 @@ function NewSessionEditor({
             !attachmentsReady
           }
           isPending={pending}
-          pendingChildren={
-            <Trans comment="Pending state of Send while creating a session and handing off its first message">
-              Sending
-            </Trans>
-          }
           onPress={() => {
             void submit(snapshot.isInputLocked ? undefined : controller?.capture());
           }}
-        >
-          <Trans>Send</Trans>
-        </RetryActionButton>
+        />
       }
     />
   );

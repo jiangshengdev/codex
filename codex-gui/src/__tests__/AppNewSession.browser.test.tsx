@@ -37,6 +37,27 @@ const otherThreadId = "00000000-0000-0000-0000-000000000002";
 const cwd = attachResponse.snapshot.thread.cwd;
 const created = attachWithThreadId(attachResponse, createdThreadId);
 
+const shortcutPlatforms = [
+  {
+    platform: "MacIntel",
+    menu: "{Meta>}b{/Meta}",
+    focus: "{Meta>}{Shift>}E{/Shift}{/Meta}",
+    newSession: "{Meta>}{Shift>}O{/Shift}{/Meta}",
+    previousTask: "{Control>}{Meta>}k{/Meta}{/Control}",
+    nextTask: "{Control>}{Meta>}j{/Meta}{/Control}",
+    menuModifiers: { metaKey: true },
+  },
+  {
+    platform: "Win32",
+    menu: "{Control>}b{/Control}",
+    focus: "{Control>}{Alt>}e{/Alt}{/Control}",
+    newSession: "{Control>}{Alt>}n{/Alt}{/Control}",
+    previousTask: "{Control>}{Alt>}k{/Alt}{/Control}",
+    nextTask: "{Control>}{Alt>}j{/Alt}{/Control}",
+    menuModifiers: { ctrlKey: true },
+  },
+];
+
 beforeEach(() => {
   resetAppBrowserTestSupport(host.startGuiHostConnection);
 });
@@ -110,6 +131,43 @@ async function openNewSession() {
     .toBeVisible();
 }
 
+test.each([
+  ["MacIntel", "{Meta>}b{/Meta}"],
+  ["Win32", "{Control>}b{/Control}"],
+])(
+  "menu shortcut toggles navigation from the editor and restores focus on %s",
+  async (platform, shortcut) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    const { commands } = await mount();
+    const editor = page.getByRole("combobox", { name: "Message Codex" });
+    await editor.fill("keep my draft");
+    await userEvent.keyboard(shortcut);
+    const dialog = page.getByRole("dialog", { name: "Navigation" });
+    await expect.element(dialog).toBeVisible();
+    await userEvent.keyboard(shortcut);
+    await expect.element(dialog).not.toBeInTheDocument();
+    await expect.element(editor).toHaveFocus();
+    await expect.element(editor).toHaveTextContent("keep my draft");
+    expect(commands.startTurn).not.toHaveBeenCalled();
+  },
+);
+
+test.each(shortcutPlatforms)(
+  "focus shortcut returns to the current message without sending or changing its draft on $platform",
+  async ({ platform, focus }) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    const { commands } = await mount();
+    const editor = page.getByRole("combobox", { name: "Message Codex" });
+    await editor.fill("focus retained draft");
+    await page.getByRole("button", { name: "Menu", exact: true }).click();
+    await userEvent.keyboard("{Escape}");
+    await userEvent.keyboard(focus);
+    await expect.element(editor).toHaveFocus();
+    await expect.element(editor).toHaveTextContent("focus retained draft");
+    expect(commands.startTurn).not.toHaveBeenCalled();
+  },
+);
+
 async function expectWorkingDirectory(path: string) {
   await page.getByRole("button", { name: /^Working directory:/ }).click();
   const dialog = page.getByRole("dialog", { name: "Working directory", exact: true });
@@ -117,6 +175,240 @@ async function expectWorkingDirectory(path: string) {
   await userEvent.keyboard("{Escape}");
   await expect.element(dialog).not.toBeInTheDocument();
 }
+
+test.each(shortcutPlatforms)(
+  "new session shortcut reuses the unsent draft and preserves the original task draft on $platform",
+  async ({ platform, newSession }) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    const { router, commands } = await mount();
+    const editor = page.getByRole("combobox", { name: "Message Codex" });
+    await editor.fill("original task draft");
+    await userEvent.keyboard(newSession);
+    await expect.poll(() => router.state.location.pathname).toBe("/new");
+    await editor.fill("unsent new draft");
+    await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
+    await expect.element(editor).toHaveTextContent("original task draft");
+    await editor.click();
+    await userEvent.keyboard(newSession);
+    await expect.poll(() => router.state.location.pathname).toBe("/new");
+    await expect.element(editor).toHaveTextContent("unsent new draft");
+    expect(commands.startThread).not.toHaveBeenCalled();
+    expect(commands.startTurn).not.toHaveBeenCalled();
+  },
+);
+
+test.each(shortcutPlatforms)(
+  "task shortcuts follow active list order, wrap and retain each task draft on $platform",
+  async ({ platform, previousTask, nextTask }) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    const { router, commands } = await mount();
+    const editor = page.getByRole("combobox", { name: "Message Codex" });
+    await editor.fill("first draft");
+    await router.navigate({ to: "/task/$threadId", params: { threadId: otherThreadId } });
+    await editor.fill("second draft");
+    await router.navigate({ to: "/task/$threadId", params: { threadId: createdThreadId } });
+    await editor.fill("third draft");
+    await userEvent.keyboard(nextTask);
+    await expect.poll(() => router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+    await expect.element(editor).toHaveTextContent("first draft");
+    await editor.click();
+    await userEvent.keyboard(previousTask);
+    await expect.poll(() => router.state.location.pathname).toBe(`/task/${createdThreadId}`);
+    await expect.element(editor).toHaveTextContent("third draft");
+    await editor.click();
+    await userEvent.keyboard(previousTask);
+    await expect.poll(() => router.state.location.pathname).toBe(`/task/${otherThreadId}`);
+    await expect.element(editor).toHaveTextContent("second draft");
+    expect(commands.startTurn).not.toHaveBeenCalled();
+  },
+);
+
+test.each(shortcutPlatforms)(
+  "shortcut page supports navigation while focus remains a no-op on $platform",
+  async ({ platform, menu, focus, newSession, nextTask }) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    const { router, commands } = await mount();
+    const editor = page.getByRole("combobox", { name: "Message Codex" });
+    await editor.fill("draft kept across shortcut help");
+    await page.getByRole("button", { name: "Menu", exact: true }).click();
+    await page.getByRole("button", { name: "Keyboard shortcuts", exact: true }).click();
+    await expect.poll(() => router.state.location.pathname).toBe("/shortcuts");
+    await userEvent.keyboard(focus);
+    expect(router.state.location.pathname).toBe("/shortcuts");
+    await expect.element(editor).not.toBeInTheDocument();
+    await userEvent.keyboard(menu);
+    const dialog = page.getByRole("dialog", { name: "Navigation" });
+    await expect.element(dialog).toBeVisible();
+    await userEvent.keyboard(focus);
+    await expect.element(dialog).toBeVisible();
+    await userEvent.keyboard(menu);
+    await expect.element(dialog).not.toBeInTheDocument();
+    await userEvent.keyboard(newSession);
+    await expect.poll(() => router.state.location.pathname).toBe("/new");
+    await editor.fill("new draft kept across shortcut help");
+    await router.navigate({ to: "/shortcuts" });
+    await userEvent.keyboard(nextTask);
+    await expect.poll(() => router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+    await expect.element(editor).toHaveTextContent("draft kept across shortcut help");
+    await router.navigate({ to: "/shortcuts" });
+    await userEvent.keyboard(newSession);
+    await expect.element(editor).toHaveTextContent("new draft kept across shortcut help");
+    expect(commands.startThread).not.toHaveBeenCalled();
+    expect(commands.startTurn).not.toHaveBeenCalled();
+  },
+);
+
+test.each(shortcutPlatforms)(
+  "composition and repeated keydown do not trigger application shortcuts on $platform",
+  async ({ platform, menu, newSession, menuModifiers }) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    const { router, commands } = await mount();
+    const editor = page.getByRole("combobox", { name: "Message Codex" });
+    await editor.fill("unchanged");
+    editor.element().dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+    await userEvent.keyboard(menu);
+    await userEvent.keyboard(newSession);
+    await expect.element(page.getByRole("dialog", { name: "Navigation" })).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+    editor.element().dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+    editor.element().dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "b",
+        ...menuModifiers,
+        repeat: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await expect.element(page.getByRole("dialog", { name: "Navigation" })).not.toBeInTheDocument();
+    await expect.element(editor).toHaveTextContent("unchanged");
+    expect(commands.startTurn).not.toHaveBeenCalled();
+  },
+);
+
+test.each(shortcutPlatforms)(
+  "unavailable new session and empty task list ignore shortcuts on $platform",
+  async ({ platform, newSession, nextTask, previousTask, focus }) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    const { router, commands } = await mount("/new", false);
+    await expect
+      .element(
+        page.getByText("A working directory is required to start a session.", { exact: true }),
+      )
+      .toBeVisible();
+    await userEvent.keyboard(newSession);
+    await userEvent.keyboard(nextTask);
+    await userEvent.keyboard(previousTask);
+    await userEvent.keyboard(focus);
+    expect(router.state.location.pathname).toBe("/new");
+    expect(commands.startThread).not.toHaveBeenCalled();
+    expect(commands.startTurn).not.toHaveBeenCalled();
+  },
+);
+
+test.each(shortcutPlatforms)(
+  "single task cycling retains its draft and disabled input cannot be focused on $platform",
+  async ({ platform, nextTask, previousTask, focus }) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    const { router, commands } = await mount();
+    const editor = page.getByRole("combobox", { name: "Message Codex" });
+    await editor.fill("only task draft");
+    await userEvent.keyboard(nextTask);
+    await userEvent.keyboard(previousTask);
+    expect(router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+    await expect.element(editor).toHaveTextContent("only task draft");
+    await openNewSession();
+    const connection = getHostOptions(host.startGuiHostConnection);
+    connection.onCommandsUnavailable?.();
+    connection.onStatus?.({ label: "closed" });
+    await expect.element(editor).toHaveAttribute("contenteditable", "false");
+    await page.getByRole("button", { name: "Menu", exact: true }).click();
+    await userEvent.keyboard("{Escape}");
+    await userEvent.keyboard(focus);
+    await expect.element(page.getByRole("button", { name: "Menu", exact: true })).toHaveFocus();
+    expect(commands.startTurn).not.toHaveBeenCalled();
+  },
+);
+
+test("Windows leaves Ctrl+Shift+E available without focusing the composer", async () => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32");
+  const { router, commands } = await mount();
+  const editor = page.getByRole("combobox", { name: "Message Codex" });
+  await editor.fill("retained Windows draft");
+  const menu = page.getByRole("button", { name: "Menu", exact: true });
+  menu.element().focus();
+  const event = new KeyboardEvent("keydown", {
+    key: "E",
+    ctrlKey: true,
+    shiftKey: true,
+    bubbles: true,
+    cancelable: true,
+  });
+  menu.element().dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(false);
+  await expect.element(menu).toHaveFocus();
+  await expect.element(editor).toHaveTextContent("retained Windows draft");
+  expect(router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+  expect(commands.startThread).not.toHaveBeenCalled();
+  expect(commands.startTurn).not.toHaveBeenCalled();
+});
+
+test.each([
+  { reason: "AltGraph", modifiers: { modifierAltGraph: true } },
+  { reason: "composition", modifiers: { isComposing: true } },
+  { reason: "extra Shift", modifiers: { shiftKey: true } },
+  { reason: "extra Meta", modifiers: { metaKey: true } },
+])("Windows does not intercept shortcuts with $reason", async ({ modifiers }) => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32");
+  const { router, commands } = await mount();
+  const editor = page.getByRole("combobox", { name: "Message Codex" });
+  await editor.fill("retained modified-key draft");
+  const menu = page.getByRole("button", { name: "Menu", exact: true });
+  menu.element().focus();
+  for (const key of ["n", "e", "j", "k"]) {
+    const event = new KeyboardEvent("keydown", {
+      key,
+      ctrlKey: true,
+      altKey: true,
+      ...modifiers,
+      bubbles: true,
+      cancelable: true,
+    });
+    menu.element().dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+  }
+  await expect.element(menu).toHaveFocus();
+  await expect.element(editor).toHaveTextContent("retained modified-key draft");
+  expect(router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+  expect(commands.startThread).not.toHaveBeenCalled();
+  expect(commands.startTurn).not.toHaveBeenCalled();
+});
+
+test.each(shortcutPlatforms)(
+  "focus shortcut does nothing after the composer unmounts on history pages on $platform",
+  async ({ platform, focus }) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    const { router, commands } = await mount();
+    const editor = page.getByRole("combobox", { name: "Message Codex" });
+    await editor.fill("draft survives history navigation");
+    const expectFocusUnavailable = async (pathname: string) => {
+      await expect.element(editor).not.toBeInTheDocument();
+      await page.getByRole("button", { name: "Menu", exact: true }).click();
+      await userEvent.keyboard(focus);
+      await expect.element(page.getByRole("dialog", { name: "Navigation" })).toBeVisible();
+      expect(router.state.location.pathname).toBe(pathname);
+      expect(commands.startThread).not.toHaveBeenCalled();
+      expect(commands.startTurn).not.toHaveBeenCalled();
+      await userEvent.keyboard("{Escape}");
+    };
+    await router.navigate({ to: "/history" });
+    await expectFocusUnavailable("/history");
+    await router.navigate({ to: "/history/$threadId", params: { threadId: otherThreadId } });
+    await expectFocusUnavailable(`/history/${otherThreadId}`);
+    await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
+    await expect.element(editor).toHaveTextContent("draft survives history navigation");
+  },
+);
 
 test.each(["/new", `/task/${launchThreadId}`])(
   "uses consistent message field geometry on %s",
@@ -228,6 +520,36 @@ test("send follows nonblank draft content without creating an empty session", as
   await expect.element(send).toBeDisabled();
   await userEvent.keyboard("{Enter}");
   expect(commands.startThread).not.toHaveBeenCalled();
+});
+
+test.each([
+  { platform: "MacIntel", shortcut: "{Meta>}{Enter}{/Meta}", visible: "↵" },
+  { platform: "Win32", shortcut: "{Control>}{Enter}{/Control}", visible: "Enter" },
+])("new session only sends with Enter on $platform", async ({ platform, shortcut, visible }) => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+  const { commands } = await mount("/new");
+  const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
+  const send = page.getByRole("button", { name: "Send", exact: true });
+  await editor.fill("Keep the first message");
+  await expect.element(send).toBeEnabled();
+  await expect.element(editor).not.toHaveAttribute("aria-keyshortcuts");
+  await userEvent.keyboard(shortcut);
+  await expect.element(editor).toHaveTextContent("Keep the first message");
+  expect(commands.startThread).not.toHaveBeenCalled();
+  expect(commands.startTurn).not.toHaveBeenCalled();
+  await expect.element(send).toHaveAttribute("aria-keyshortcuts", "Enter");
+  await userEvent.unhover(document.body);
+  await userEvent.hover(send);
+  const tooltip = page.getByRole("tooltip");
+  await expect.element(tooltip).toHaveTextContent(visible);
+  const key = tooltip.element().querySelector("kbd");
+  expect(key).toHaveAttribute("aria-label", "Enter");
+  expect(key).toHaveClass("kbd--light");
+  await userEvent.unhover(send);
+  await editor.click();
+  await userEvent.keyboard("{Enter}");
+  await expect.poll(() => vi.mocked(commands.startThread).mock.calls.length).toBe(1);
+  await expect.poll(() => vi.mocked(commands.startTurn).mock.calls.length).toBe(1);
 });
 
 test("working directory reveals its selectable full path without changing the draft", async () => {

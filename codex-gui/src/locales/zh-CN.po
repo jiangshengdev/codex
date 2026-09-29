@@ -97,12 +97,12 @@ msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 msgid "A message update is missing its associated turn, so it cannot be fully displayed."
 msgstr "收到的消息更新缺少所属轮次，暂时无法完整展示。"
 
-#: src/features/appShell/AppShellTopBar.tsx:140
+#: src/features/appShell/AppShellTopBar.tsx:209
 #: src/features/newSession/NewSessionPage.tsx:37
 msgid "A working directory is required to start a session."
 msgstr "需要工作目录才能新建会话。"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:271
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:276
 msgid "Active"
 msgstr "活动中"
 
@@ -140,7 +140,7 @@ msgid "Attachments are not ready"
 msgstr "附件尚未就绪"
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:162
+#: src/features/appShell/AppShellTopBar.tsx:231
 msgid "Browse task history"
 msgstr "浏览历史任务"
 
@@ -202,13 +202,13 @@ msgstr "已关闭 {receiver}"
 msgid "Code copied"
 msgstr "代码已复制"
 
-#: src/features/appShell/AppShell.tsx:29
+#: src/features/appShell/AppShell.tsx:35
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:54
 msgid "Codex GUI could not be started."
 msgstr "Codex GUI 未能启动。"
 
 #. Accessible name for the region containing committed transcript turns
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:144
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:145
 msgid "Committed transcript"
 msgstr "已提交的对话记录"
 
@@ -249,7 +249,7 @@ msgstr "压缩请求结果不明"
 msgid "Connection closed"
 msgstr "连接已关闭"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:165
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:166
 msgid "Connection interrupted. Reconnect required."
 msgstr "连接已中断，需要重新连接。"
 
@@ -303,11 +303,11 @@ msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗�
 msgid "Continue sending"
 msgstr "继续发送"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:287
+#: src/features/threadHistory/ContinueTaskAction.tsx:234
 msgid "Continue this task"
 msgstr "继续此任务"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:281
+#: src/features/threadHistory/ContinueTaskAction.tsx:228
 msgid "Continuing this task…"
 msgstr "正在继续此任务…"
 
@@ -350,8 +350,8 @@ msgstr "无法加载 {name} 的预览。文件可能已不可用。"
 msgid "Could not read the image preview. Check the connection and access permissions."
 msgstr "无法读取图片预览。请检查网络连接和访问权限。"
 
-#: src/features/appShell/AppShellTopBar.tsx:58
-#: src/features/appShell/AppShellTopBar.tsx:149
+#: src/features/appShell/AppShellTopBar.tsx:69
+#: src/features/appShell/AppShellTopBar.tsx:218
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "当前任务"
@@ -397,12 +397,12 @@ msgstr "当前无法引导，已加入队列"
 msgid "Dark theme"
 msgstr "深色主题"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:374
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:452
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:385
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:463
 msgid "Delete"
 msgstr "删除"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:355
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:366
 msgid "Delete this pending message?"
 msgstr "删除这条待处理消息？"
 
@@ -427,7 +427,7 @@ msgid "Discard unsaved changes?"
 msgstr "丢弃尚未保存的修改？"
 
 #. Dismiss the fork creation error notice
-#: src/features/threadFork/ThreadForkNotice.tsx:31
+#: src/features/threadFork/ThreadForkNotice.tsx:36
 msgid "Dismiss"
 msgstr "关闭提示"
 
@@ -436,13 +436,13 @@ msgstr "关闭提示"
 msgid "Duration {duration}"
 msgstr "用时 {duration}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:440
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:451
 msgid "Edit"
 msgstr "编辑"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:239
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:71
-#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:79
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:80
 msgid "Edit pending message"
 msgstr "编辑待处理消息"
 
@@ -456,7 +456,7 @@ msgid "Enter a message before saving."
 msgstr "请先输入消息再保存。"
 
 #. Status label on a pending message; entered the sending process does not mean delivery succeeded.
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:472
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:334
 msgid "Entered sending process"
 msgstr "已进入发送流程"
 
@@ -530,7 +530,16 @@ msgstr "文件上传未获授权。请打开当前 GUI 启动链接。"
 msgid "Finished waiting"
 msgstr "等待结束"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:73
+#. Keyboard shortcut to focus the current message composer
+#: src/features/appShell/appShortcuts.ts:14
+msgid "Focus message input"
+msgstr "聚焦消息输入框"
+
+#: src/features/appShell/ShortcutHelp.tsx:57
+msgid "Focus the message input only when it is present and editable on the current page."
+msgstr "仅当当前页面存在可编辑的消息输入框时聚焦。"
+
+#: src/features/threadFork/ThreadForkNotice.tsx:78
 msgid "Fork created"
 msgstr "分叉会话已创建"
 
@@ -544,9 +553,14 @@ msgid "Go back home"
 msgstr "返回首页"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:468
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:264
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:267
 msgid "Guide"
 msgstr "引导"
+
+#. Steer the current running task with a message
+#: src/features/appShell/ShortcutHelp.tsx:73
+msgid "Guide current task"
+msgstr "引导当前任务"
 
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:64
 msgid "Guide status unknown"
@@ -560,25 +574,25 @@ msgstr "引导中"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
-#: src/features/appShell/AppShellTopBar.tsx:63
-#: src/features/appShell/AppShellTopBar.tsx:160
+#: src/features/appShell/AppShellTopBar.tsx:76
+#: src/features/appShell/AppShellTopBar.tsx:229
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "历史记录"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:70
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:71
 msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
-#: src/features/appShell/AppShellTopBar.tsx:60
+#: src/features/appShell/AppShellTopBar.tsx:71
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:40
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:43
 msgid "History detail"
 msgstr "历史详情"
 
 #. Short idle-state label for the current task beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:31
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:270
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:275
 msgid "Idle"
 msgstr "空闲"
 
@@ -622,14 +636,21 @@ msgid "Interrupted."
 msgstr "已中断。"
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:43
-#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:92
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:106
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:93
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:108
 msgid "Invalid skill"
 msgstr "无效技能"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:364
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:375
 msgid "Keep"
 msgstr "保留"
+
+#. Navigation entry and page title for the keyboard shortcut reference
+#: src/features/appShell/AppShellTopBar.tsx:75
+#: src/features/appShell/AppShellTopBar.tsx:244
+#: src/features/documentTitle/DocumentTitleOwner.tsx:62
+msgid "Keyboard shortcuts"
+msgstr "快捷键"
 
 #. Accessible name of the explicit light appearance option
 #: src/app/ThemePreferenceControl.tsx:13
@@ -637,36 +658,36 @@ msgid "Light theme"
 msgstr "浅色主题"
 
 #. Button to load the historical task list
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:317
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:318
 msgid "Load history"
 msgstr "加载历史记录"
 
 #. Button to request another page of historical tasks
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:178
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:313
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:183
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:314
 msgid "Load more"
 msgstr "加载更多"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:265
-#: src/features/currentTask/CurrentTaskPage.tsx:338
-#: src/features/currentTask/CurrentTaskPage.tsx:405
+#: src/features/currentTask/CurrentTaskPage.tsx:268
+#: src/features/currentTask/CurrentTaskPage.tsx:345
+#: src/features/currentTask/CurrentTaskPage.tsx:412
 msgid "Load task"
 msgstr "加载任务"
 
 #. Button to read the selected task's historical messages
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:109
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:112
 msgid "Load task history"
 msgstr "加载任务历史"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:189
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:308
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:194
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:309
 msgid "Loading history…"
 msgstr "正在加载历史记录…"
 
 #. Progress while requesting another history page
 #. Progress while requesting another history page
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:173
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:304
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:178
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:305
 msgid "Loading more…"
 msgstr "正在加载更多…"
 
@@ -684,23 +705,25 @@ msgstr "预览加载中…"
 msgid "Loading skills…"
 msgstr "正在加载技能…"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:50
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:107
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:53
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:110
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:258
-#: src/features/currentTask/CurrentTaskPage.tsx:324
-#: src/features/currentTask/CurrentTaskPage.tsx:385
-#: src/features/currentTask/CurrentTaskPage.tsx:554
+#: src/features/currentTask/CurrentTaskPage.tsx:261
+#: src/features/currentTask/CurrentTaskPage.tsx:306
+#: src/features/currentTask/CurrentTaskPage.tsx:316
+#: src/features/currentTask/CurrentTaskPage.tsx:331
+#: src/features/currentTask/CurrentTaskPage.tsx:392
 msgid "Loading task…"
 msgstr "正在加载任务…"
 
-#: src/features/appShell/AppShellTopBar.tsx:129
+#: src/features/appShell/AppShellTopBar.tsx:197
 msgid "Main navigation"
 msgstr "主导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:100
+#: src/features/appShell/AppShellTopBar.tsx:141
+#: src/features/appShell/AppShellTopBar.tsx:153
 msgid "Menu"
 msgstr "菜单"
 
@@ -708,14 +731,19 @@ msgstr "菜单"
 msgid "Message cannot be empty"
 msgstr "消息不能为空"
 
-#: src/features/composerTurnControl/ComposerSurface.tsx:59
-#: src/features/composerTurnControl/ComposerSurface.tsx:60
+#: src/features/composerTurnControl/ComposerSurface.tsx:99
+#: src/features/composerTurnControl/ComposerSurface.tsx:100
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
-#: src/features/composerTurnControl/ComposerSurface.tsx:41
+#: src/features/composerTurnControl/ComposerSurface.tsx:78
 msgid "Message composer"
 msgstr "消息输入区"
+
+#. Shortcut help group for focusing and editing the message composer
+#: src/features/appShell/ShortcutHelp.tsx:49
+msgid "Message input"
+msgstr "消息输入"
 
 #. Current task message updates are paused, not the task itself
 #: src/features/currentTask/ProjectionRecoveryNotice.tsx:55
@@ -730,45 +758,63 @@ msgstr "消息更新顺序不一致，对话内容可能不完整。"
 msgid "Message updates have piled up, so synchronization has paused."
 msgstr "消息更新积压，同步已暂停。"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:407
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:418
 msgid "More move options for pending message: {previewText}"
 msgstr "待处理消息的更多移动选项：{previewText}"
 
 #. Accessible name of the active task row actions button; title is the task name or UUID
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:134
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:129
 msgid "More options for {title}"
 msgstr "{title} 的更多操作"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:394
+#: src/features/appShell/ShortcutHelp.tsx:30
+msgid "Move backward through active tasks in displayed order, wrapping at the beginning. Requires a selected active task."
+msgstr "按已激活任务的显示顺序向前切换，首尾循环。需要已选中的活动任务。"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:405
 msgid "Move down pending message: {previewText}"
 msgstr "下移待处理消息：{previewText}"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:424
+#: src/features/appShell/ShortcutHelp.tsx:39
+msgid "Move forward through active tasks in displayed order, wrapping at the end. Requires a selected active task."
+msgstr "按已激活任务的显示顺序向后切换，首尾循环。需要已选中的活动任务。"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:435
 msgid "Move pending message to first"
 msgstr "将待处理消息移至队首"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:429
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:440
 msgid "Move pending message to last"
 msgstr "将待处理消息移至队尾"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:426
+#: src/features/composerTurnControl/__tests__/ComposerPendingInputInitialFocus.browser.test.tsx:44
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:437
 msgid "Move to first"
 msgstr "移至队首"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:431
+#: src/features/composerTurnControl/__tests__/ComposerPendingInputInitialFocus.browser.test.tsx:45
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:442
 msgid "Move to last"
 msgstr "移至队尾"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:382
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:393
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:125
+#: src/features/appShell/AppShellTopBar.tsx:193
+#: src/features/appShell/ShortcutHelp.tsx:14
 msgid "Navigation"
 msgstr "导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:62
-#: src/features/appShell/AppShellTopBar.tsx:135
+#. Insert a newline in the message editor
+#: src/features/appShell/ShortcutHelp.tsx:68
+msgid "New line"
+msgstr "换行"
+
+#. Open the unsent new conversation draft
+#: src/features/appShell/AppShellTopBar.tsx:73
+#: src/features/appShell/AppShellTopBar.tsx:204
+#: src/features/appShell/appShortcuts.ts:22
 #: src/features/documentTitle/DocumentTitleOwner.tsx:52
 msgid "New session"
 msgstr "新建会话"
@@ -782,16 +828,21 @@ msgstr "下一页"
 msgid "Next context page"
 msgstr "下一上下文页"
 
+#. Next task in displayed active-task order, wrapping at the end
+#: src/features/appShell/appShortcuts.ts:35
+msgid "Next task"
+msgstr "下一个任务"
+
 #. Status shown when waiting finishes before any collaborating agent completes
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:253
 msgid "No agents completed yet"
 msgstr "尚无智能体完成任务"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:177
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:178
 msgid "No committed messages yet."
 msgstr "暂无已提交的消息。"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:126
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:129
 msgid "No history for the current working directory."
 msgstr "当前工作目录没有历史记录。"
 
@@ -810,33 +861,41 @@ msgstr "未找到"
 
 #. Short label for a current task that is not loaded beside the composer QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:23
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:269
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:274
 msgid "Not loaded"
 msgstr "未加载"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:73
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:74
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:151
+#: src/features/appShell/AppShellTopBar.tsx:220
 msgid "Open current task"
 msgstr "打开当前任务"
 
 #. Resume opening an already created fork without creating it again
-#: src/features/threadFork/ThreadForkNotice.tsx:65
+#: src/features/threadFork/ThreadForkNotice.tsx:70
 msgid "Open fork"
 msgstr "打开分叉会话"
+
+#: src/features/appShell/ShortcutHelp.tsx:19
+msgid "Open or close the main menu from any page."
+msgstr "在任意页面打开或关闭主菜单。"
 
 #: src/features/newSession/NewSessionPage.tsx:100
 msgid "Open session"
 msgstr "打开会话"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:222
+#: src/features/currentTask/CurrentTaskPage.tsx:225
 msgid "Open task"
 msgstr "打开任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:208
+#: src/features/appShell/ShortcutHelp.tsx:24
+msgid "Open the unsent draft when a working directory or draft is available."
+msgstr "存在工作目录或未发送草稿时，打开新建会话草稿。"
+
+#: src/features/currentTask/CurrentTaskPage.tsx:211
 msgid "Opening task…"
 msgstr "正在打开任务…"
 
@@ -849,9 +908,14 @@ msgstr "操作诊断信息："
 msgid "Page not found"
 msgstr "找不到页面"
 
+#. Accessible name of the scrollable area for page-wide status and recovery actions
+#: src/features/appShell/AppShellNotices.tsx:32
+msgid "Page notices"
+msgstr "页面提示"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:237
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:102
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:331
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:342
 msgid "Pending details"
 msgstr "待处理详情"
 
@@ -911,6 +975,11 @@ msgstr "上一页"
 msgid "Previous context page"
 msgstr "上一上下文页"
 
+#. Previous task in displayed active-task order, wrapping at the beginning
+#: src/features/appShell/appShortcuts.ts:27
+msgid "Previous task"
+msgstr "上一个任务"
+
 #. Read-only queue of rejected guidance that will be sent before ordinary queued messages
 #. Read-only queue of rejected guidance that will be sent before ordinary queued messages
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:451
@@ -959,7 +1028,7 @@ msgid "Refresh complete. Try the action again."
 msgstr "已刷新，请重试此操作。"
 
 #. Reload the current task's runtime status
-#: src/features/currentTask/CurrentTaskPage.tsx:407
+#: src/features/currentTask/CurrentTaskPage.tsx:414
 msgid "Refresh status"
 msgstr "刷新状态"
 
@@ -967,7 +1036,7 @@ msgstr "刷新状态"
 msgid "Refreshing skills…"
 msgstr "正在刷新技能…"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:387
+#: src/features/currentTask/CurrentTaskPage.tsx:394
 msgid "Refreshing status…"
 msgstr "正在刷新状态…"
 
@@ -987,8 +1056,8 @@ msgid "Remove {name}"
 msgstr "移除 {name}"
 
 #. Remove only from the active GUI task list; history and draft are kept
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:156
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:160
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:151
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:155
 msgid "Remove from list"
 msgstr "移出列表"
 
@@ -997,25 +1066,25 @@ msgstr "移出列表"
 msgid "Remove local record"
 msgstr "移除本地记录"
 
-#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:95
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:96
 msgid "Remove or replace invalid skills before saving."
 msgstr "保存前请移除或替换无效技能。"
 
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
 #. Remove from GUI active task list; keep task history and drafts
-#: src/features/currentTask/CurrentTaskPage.tsx:218
-#: src/features/currentTask/CurrentTaskPage.tsx:334
-#: src/features/currentTask/CurrentTaskPage.tsx:401
+#: src/features/currentTask/CurrentTaskPage.tsx:221
+#: src/features/currentTask/CurrentTaskPage.tsx:341
+#: src/features/currentTask/CurrentTaskPage.tsx:408
 msgid "Remove task"
 msgstr "移出任务列表"
 
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
 #. Leaving GUI active task list; task history and drafts are kept
-#: src/features/currentTask/CurrentTaskPage.tsx:204
-#: src/features/currentTask/CurrentTaskPage.tsx:320
-#: src/features/currentTask/CurrentTaskPage.tsx:381
+#: src/features/currentTask/CurrentTaskPage.tsx:207
+#: src/features/currentTask/CurrentTaskPage.tsx:327
+#: src/features/currentTask/CurrentTaskPage.tsx:388
 msgid "Removing task…"
 msgstr "正在移出任务列表…"
 
@@ -1131,13 +1200,13 @@ msgstr "将文件保存到运行 Codex 的机器，最大支持 50 MiB。上传�
 msgid "Scan with phone"
 msgstr "使用手机扫描"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:276
-#: src/features/newSession/NewSessionPage.tsx:167
+#: src/features/appShell/ShortcutHelp.tsx:63
+#: src/features/composerTurnControl/ComposerSendButton.tsx:31
 msgid "Send"
 msgstr "发送"
 
 #. Pending state of Send while creating a session and handing off its first message
-#: src/features/newSession/NewSessionPage.tsx:159
+#: src/features/composerTurnControl/ComposerSendButton.tsx:25
 msgid "Sending"
 msgstr "正在发送"
 
@@ -1201,7 +1270,7 @@ msgstr "已启动 {receiver}（{model} {reasoningEffort}）"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "已启动 {receiver}（{reasoningEffort}）"
 
-#: src/features/appShell/AppShellTopBar.tsx:138
+#: src/features/appShell/AppShellTopBar.tsx:207
 msgid "Start a conversation"
 msgstr "开始新对话"
 
@@ -1210,11 +1279,11 @@ msgstr "开始新对话"
 msgid "Started <0/> <1/>"
 msgstr "已启动 <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:250
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:253
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:240
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:243
 msgid "Stop failed"
 msgstr "停止失败"
 
@@ -1232,7 +1301,7 @@ msgstr "同步恢复失败，可以再次尝试。"
 msgid "System"
 msgstr "系统"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:272
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:277
 msgid "System error"
 msgstr "系统错误"
 
@@ -1246,22 +1315,22 @@ msgstr "跟随系统主题"
 msgid "Table copied"
 msgstr "表格已复制"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:229
-#: src/features/currentTask/CurrentTaskPage.tsx:448
+#: src/features/currentTask/CurrentTaskPage.tsx:232
+#: src/features/currentTask/CurrentTaskPage.tsx:455
 msgid "Task action failed"
 msgstr "任务操作失败"
 
 #. Accessible label for the active task row dropdown containing Remove from list
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:144
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:139
 msgid "Task actions"
 msgstr "任务操作"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:31
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:32
 msgid "Task history is unavailable until the connection is restored."
 msgstr "连接恢复前无法查看任务历史。"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:57
-#: src/features/threadHistory/ContinueTaskAction.tsx:61
+#: src/features/threadHistory/ContinueTaskAction.tsx:58
+#: src/features/threadHistory/ContinueTaskAction.tsx:62
 msgid "Task opened"
 msgstr "任务已打开"
 
@@ -1275,7 +1344,7 @@ msgid "Task updates are paused"
 msgstr "任务内容更新已暂停"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:108
+#: src/features/appShell/AppShellTopBar.tsx:168
 msgid "Tasks or the connection need attention."
 msgstr "任务或连接存在待处理的异常。"
 
@@ -1316,8 +1385,8 @@ msgstr "当前显示的对话可能不是最新内容。恢复同步可获取最
 msgid "The creation result is unknown. Retrying may leave an extra empty session."
 msgstr "创建结果未知。重试可能留下额外的空会话。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:279
-#: src/features/currentTask/CurrentTaskPage.tsx:353
+#: src/features/currentTask/CurrentTaskPage.tsx:282
+#: src/features/currentTask/CurrentTaskPage.tsx:360
 msgid "The current task could not be loaded."
 msgstr "当前任务未能加载。"
 
@@ -1338,7 +1407,7 @@ msgstr "文件可能已经保存。重试会重新上传整个文件，可能生
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "消息已移动，但队列反复变化，无法加载更新后的顺序。"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:76
+#: src/features/threadFork/ThreadForkNotice.tsx:81
 msgid "The new conversation is saved. Continue opening it without creating another fork."
 msgstr "新会话已保存。继续打开该会话，不会重复创建分叉。"
 
@@ -1350,16 +1419,16 @@ msgstr "待处理消息的顺序没有改变，但由于队列持续变化，无
 msgid "The pending-message order did not change. Refresh complete; try again."
 msgstr "待处理消息的顺序没有改变。已刷新，请重试。"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:62
+#: src/features/threadHistory/ContinueTaskAction.tsx:63
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "上一个任务连接未能完全清理，后续状态可能受到影响。"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:41
+#: src/features/threadFork/ThreadForkNotice.tsx:46
 msgid "The result is unknown. Check history before forking again; another click may create an additional conversation."
 msgstr "创建结果未知。请先检查历史记录；再次点击分叉可能会额外创建一个会话。"
 
 #. Temporary notification when a URL targets a turn absent from the complete conversation history
-#: src/features/committedTranscriptSurface/useTurnPositionScroll.ts:63
+#: src/features/committedTranscriptSurface/useTurnPositionScroll.ts:53
 msgid "The specified turn was not found."
 msgstr "未找到指定对话轮次。"
 
@@ -1367,7 +1436,7 @@ msgstr "未找到指定对话轮次。"
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:451
+#: src/features/currentTask/CurrentTaskPage.tsx:458
 msgid "The task action could not be completed."
 msgstr "任务操作未能完成。"
 
@@ -1387,11 +1456,11 @@ msgstr "无法准备任务连接。"
 msgid "The task could not be activated."
 msgstr "无法激活任务。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:233
+#: src/features/currentTask/CurrentTaskPage.tsx:236
 msgid "The task could not be opened."
 msgstr "任务未能打开。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:235
+#: src/features/currentTask/CurrentTaskPage.tsx:238
 msgid "The task could not be removed."
 msgstr "任务未能移出列表。"
 
@@ -1399,15 +1468,15 @@ msgstr "任务未能移出列表。"
 msgid "The task could not be resumed."
 msgstr "无法恢复任务。"
 
-#: src/features/appShell/AppShell.tsx:92
+#: src/features/appShell/AppShell.tsx:94
 msgid "The task list could not be updated."
 msgstr "任务列表未能更新。"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:58
+#: src/features/threadHistory/ContinueTaskAction.tsx:59
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "任务已打开，但部分状态同步未完成。"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:473
+#: src/features/currentTask/CurrentTaskPage.tsx:480
 msgid "The task recovery could not be completed."
 msgstr "任务恢复未能完成。"
 
@@ -1432,7 +1501,7 @@ msgstr "本次编辑已失效，无法继续保存。"
 msgid "This message has entered the sending process and can no longer be managed."
 msgstr "这条消息已进入发送流程，无法再管理。"
 
-#: src/features/composerTurnControl/ComposerPendingInputList.tsx:467
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:478
 msgid "This message is being edited."
 msgstr "这条消息正在编辑。"
 
@@ -1445,7 +1514,7 @@ msgstr "无法编辑这条待处理消息。"
 msgid "This task could not be restored. You can try again."
 msgstr "此任务恢复失败，可以再次尝试。"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:64
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:67
 msgid "This task has no messages."
 msgstr "此任务没有消息。"
 
@@ -1457,7 +1526,7 @@ msgstr "此任务已断开连接。"
 msgid "This task is still running."
 msgstr "此任务仍在运行。"
 
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:171
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:166
 msgid "This task needs attention."
 msgstr "此任务存在待处理的异常。"
 
@@ -1466,7 +1535,7 @@ msgid "This task still has queued messages."
 msgstr "此任务仍有排队消息。"
 
 #. History date group: tasks last active on the current local day
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:130
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:135
 msgid "Today"
 msgstr "今天"
 
@@ -1474,6 +1543,11 @@ msgstr "今天"
 #: src/features/committedTranscriptSurface/TranscriptTimeLabel.tsx:35
 msgid "Today {time}"
 msgstr "今天 {time}"
+
+#. Keyboard shortcut that opens or closes the navigation drawer
+#: src/features/appShell/appShortcuts.ts:6
+msgid "Toggle main menu"
+msgstr "打开／关闭主菜单"
 
 #. Accessible name for pagination between transcript context generations
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:47
@@ -1494,32 +1568,32 @@ msgstr "轮次 {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
-#: src/features/threadFork/ThreadForkNotice.tsx:37
+#: src/features/threadFork/ThreadForkNotice.tsx:42
 msgid "Unable to create fork"
 msgstr "无法创建分叉会话"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:325
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:326
 msgid "Unable to load history"
 msgstr "无法加载历史记录"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:118
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:121
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:276
-#: src/features/currentTask/CurrentTaskPage.tsx:350
+#: src/features/currentTask/CurrentTaskPage.tsx:279
+#: src/features/currentTask/CurrentTaskPage.tsx:357
 msgid "Unable to load the current task"
 msgstr "无法加载当前任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:470
+#: src/features/currentTask/CurrentTaskPage.tsx:477
 msgid "Unable to recover the current task"
 msgstr "无法恢复当前任务"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:142
+#: src/features/currentTask/CurrentTaskPage.tsx:145
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "无法重试此任务。请检查当前状态后再试。"
 
-#: src/features/appShell/AppShell.tsx:26
+#: src/features/appShell/AppShell.tsx:32
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:45
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
@@ -1533,7 +1607,7 @@ msgstr "无法开始对话"
 msgid "Unable to switch tasks yet"
 msgstr "暂时无法切换任务"
 
-#: src/features/appShell/AppShell.tsx:89
+#: src/features/appShell/AppShell.tsx:91
 msgid "Unable to update the task list"
 msgstr "无法更新任务列表"
 
@@ -1546,8 +1620,8 @@ msgstr "状态未知"
 msgid "Unsaved pending message"
 msgstr "尚未保存的待发送消息"
 
-#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:41
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:215
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:44
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:220
 msgid "Untitled task"
 msgstr "未命名任务"
 
@@ -1594,7 +1668,7 @@ msgstr "上传中"
 msgid "User"
 msgstr "用户"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:259
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:264
 msgid "View"
 msgstr "查看"
 
@@ -1604,7 +1678,7 @@ msgid "View diagnostic information"
 msgstr "查看诊断信息"
 
 #. Open a dialog containing the complete message shown in a truncated composer preview
-#: src/features/composerTurnControl/ComposerFullMessagePreview.tsx:38
+#: src/features/composerTurnControl/ComposerFullMessagePreview.tsx:43
 msgid "View full message"
 msgstr "查看全文"
 
@@ -1616,6 +1690,10 @@ msgstr "查看全文"
 #: src/features/committedTranscriptSurface/MarkdownTable.tsx:54
 msgid "View fullscreen"
 msgstr "全屏查看"
+
+#: src/features/appShell/AppShellTopBar.tsx:248
+msgid "View keyboard shortcuts"
+msgstr "查看快捷键"
 
 #: src/features/appShell/activeThreadCollectionMessages.ts:14
 msgid "Wait for context compaction to finish."
@@ -1682,8 +1760,20 @@ msgstr "等待输入"
 msgid "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
 msgstr "正在等待压缩请求结果。确认结果前，仍无法发送消息。"
 
+#: src/features/appShell/ShortcutHelp.tsx:70
+msgid "When the message input is focused and editable."
+msgstr "消息输入框已聚焦且可编辑时生效。"
+
+#: src/features/appShell/ShortcutHelp.tsx:79
+msgid "When the message input is focused and guiding the running task is available."
+msgstr "消息输入框已聚焦，且正在运行的任务可接受引导时生效。"
+
+#: src/features/appShell/ShortcutHelp.tsx:65
+msgid "When the message input is focused and sending is available."
+msgstr "消息输入框已聚焦且可发送时生效。"
+
 #. Accessible name of the popover showing the new-session draft's full path
-#: src/features/newSession/NewSessionWorkingDirectory.tsx:29
+#: src/features/newSession/NewSessionWorkingDirectory.tsx:30
 msgid "Working directory"
 msgstr "工作目录"
 
@@ -1693,7 +1783,7 @@ msgid "Working directory: {directoryName}"
 msgstr "工作目录：{directoryName}"
 
 #. History date group: tasks last active on the previous local day
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:134
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:139
 msgid "Yesterday"
 msgstr "昨天"
 

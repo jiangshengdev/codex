@@ -1,3 +1,4 @@
+import path from "node:path";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
@@ -6,6 +7,11 @@ import { lingui, linguiTransformerBabelPreset } from "@lingui/vite-plugin";
 import compression from "@polka/compression";
 import babel from "@rolldown/plugin-babel";
 import { storybookIsolationReport } from "./scripts/storybookIsolation/buildReport.ts";
+import { generatedArtifactWatchIgnored } from "./scripts/devServerWatch.ts";
+import {
+  appServerProtocolDirectory,
+  guiHostContractDirectory,
+} from "./scripts/sharedContractPaths.ts";
 
 const viteHost = process.env.CODEX_GUI_VITE_HOST ?? "0.0.0.0";
 const vitePort = Number(process.env.CODEX_GUI_VITE_PORT ?? "5173");
@@ -57,12 +63,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
-      "@codex-gui-host-contract": fileURLToPath(
-        new URL("../codex-rs/gui-host/schema/typescript/browserContract.ts", import.meta.url),
-      ),
-      "@codex-protocol": fileURLToPath(
-        new URL("../codex-rs/app-server-protocol/schema/typescript", import.meta.url),
-      ),
+      "@codex-gui-host-contract": path.join(guiHostContractDirectory, "browserContract.ts"),
+      "@codex-protocol": appServerProtocolDirectory,
     },
   },
   server: {
@@ -70,7 +72,7 @@ export default defineConfig({
     port: vitePort,
     strictPort: true,
     watch: {
-      ignored: ["**/playwright-report/**"],
+      ignored: generatedArtifactWatchIgnored,
     },
     hmr: {
       ...(viteHmrHost ? { host: viteHmrHost } : {}),

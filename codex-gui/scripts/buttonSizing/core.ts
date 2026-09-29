@@ -213,16 +213,16 @@ export function inspectButtonCss(fileName: string, source: string): SizingReport
       if (!/^(?:height|min-height|max-height|padding(?:-[\w-]+)?|font-size)$/.test(property))
         continue;
       const wrappingValues: Partial<Record<string, Partial<Record<string, readonly string[]>>>> = {
-        ".failure-layout .button": {
+        ".button:not(.button--icon-only)": {
           height: ["auto"],
           "min-height": ["2.5rem", "2.25rem"],
           "padding-block": ["0.25rem"],
         },
-        ".failure-layout .button--sm": { "min-height": ["2.25rem", "2rem"] },
-        ".failure-layout .button--lg": { "min-height": ["2.75rem", "2.5rem"] },
+        ".button--sm:not(.button--icon-only)": { "min-height": ["2.25rem", "2rem"] },
+        ".button--lg:not(.button--icon-only)": { "min-height": ["2.75rem", "2.5rem"] },
       };
       const allowed =
-        fileName.endsWith("feedback/failureLayout.css") &&
+        fileName === "src/styles/product.css" &&
         wrappingValues[selector.trim()]?.[property]?.includes(value);
       if (!allowed)
         report.errors.push(

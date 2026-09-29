@@ -11,6 +11,7 @@ import {
   HISTORY_DETAIL_ROUTE_PATH,
   HISTORY_LIST_ROUTE_PATH,
   NEW_TASK_ROUTE_PATH,
+  SHORTCUTS_ROUTE_PATH,
   isValidThreadId,
   validateEmptyRouteSearch,
   validateTurnPositionSearch,
@@ -21,6 +22,7 @@ import { ThreadHistoryDetailPage } from "./features/threadHistory/ThreadHistoryD
 import { ThreadHistoryListPage } from "./features/threadHistory/ThreadHistoryListPage";
 import { NewSessionPage } from "./features/newSession/NewSessionPage";
 import { AppRouteBoundary, RootRouteError } from "./routerComponents";
+import { ShortcutHelp } from "./features/appShell/ShortcutHelp";
 
 const rootRoute = createRootRoute({
   errorComponent: RootRouteError,
@@ -63,6 +65,13 @@ const newTaskRoute = createRoute({
   validateSearch: validateEmptyRouteSearch,
 });
 
+const shortcutsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: SHORTCUTS_ROUTE_PATH,
+  component: ShortcutHelp,
+  validateSearch: validateEmptyRouteSearch,
+});
+
 function parseThreadIdParams(params: Readonly<{ threadId: string }>): { threadId: string } {
   if (!isValidThreadId(params.threadId)) {
     return notFound({ routeId: rootRoute.id, throw: true }) as never;
@@ -71,7 +80,13 @@ function parseThreadIdParams(params: Readonly<{ threadId: string }>): { threadId
 }
 
 const routeTree = rootRoute.addChildren([
-  appRoute.addChildren([currentTaskRoute, historyRoute, historyDetailRoute, newTaskRoute]),
+  appRoute.addChildren([
+    currentTaskRoute,
+    historyRoute,
+    historyDetailRoute,
+    newTaskRoute,
+    shortcutsRoute,
+  ]),
 ]);
 
 export function createAppRouter(history?: RouterHistory) {

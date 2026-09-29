@@ -76,3 +76,21 @@ export const ConnectionUnavailable: Story = {
     },
   },
 };
+
+export const TaskOperations: Story = {
+  args: {
+    setup: async (controller, host) => {
+      await paused("backpressure")(controller, host);
+      controller.session.setOperationError(
+        recoveryFirstId,
+        "navigation",
+        new Error("STORYBOOK_OPEN_TASK_FAILED"),
+      );
+      controller.session.setOperationError(
+        recoveryFirstId,
+        "remove",
+        new Error("STORYBOOK_REMOVE_TASK_FAILED"),
+      );
+    },
+  },
+};
