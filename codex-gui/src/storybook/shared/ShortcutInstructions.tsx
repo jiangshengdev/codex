@@ -3,9 +3,13 @@ import type { ReactNode } from "react";
 export function ShortcutInstructions({
   keys,
   children,
-}: Readonly<{ keys: string; children: ReactNode }>) {
+  hasFixedHeader = false,
+}: Readonly<{ keys: string; children: ReactNode; hasFixedHeader?: boolean }>) {
   return (
-    <section aria-label="Shortcut instructions" className="grid gap-2 p-4 text-sm text-muted">
+    <section
+      aria-label="Shortcut instructions"
+      className={`grid gap-2 px-4 pb-4 text-sm text-muted ${hasFixedHeader ? "pt-18" : "pt-4"}`}
+    >
       <p>macOS · {keys}</p>
       <p>{children}</p>
       <p>

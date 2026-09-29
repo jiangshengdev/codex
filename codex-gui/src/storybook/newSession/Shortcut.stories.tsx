@@ -14,6 +14,7 @@ const meta = {
     (Story, context) => (
       <StorybookStatefulEnvironment storyId={context.id}>
         <ShortcutInstructions
+          hasFixedHeader
           keys={appShortcutDefinitions.newSession.mac.replace("Meta", "Command")}
         >
           Open the unsent new-session draft. Repeating the shortcut retains its text without

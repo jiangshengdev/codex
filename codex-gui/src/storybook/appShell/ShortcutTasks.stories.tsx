@@ -14,6 +14,7 @@ const meta = {
     (Story, context) => (
       <StorybookStatefulEnvironment storyId={context.id}>
         <ShortcutInstructions
+          hasFixedHeader
           keys={[appShortcutDefinitions.previousTask.mac, appShortcutDefinitions.nextTask.mac]
             .map((key) => key.replace("Meta", "Command"))
             .join(" / ")}
