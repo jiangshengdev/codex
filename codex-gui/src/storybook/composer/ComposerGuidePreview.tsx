@@ -103,13 +103,23 @@ function GuideControls({
 
 export function ComposerGuidePreview({
   preset = "empty",
-}: Readonly<{ preset?: ComposerGuidePreset }>) {
+  guardCompositionEndEnter = false,
+  inputUnavailable = false,
+}: Readonly<{
+  preset?: ComposerGuidePreset;
+  guardCompositionEndEnter?: boolean;
+  inputUnavailable?: boolean;
+}>) {
   return (
     <StrictMode>
       <Toast.Provider placement="top" />
       <PendingInputPreview key={preset} createScenario={() => createComposerGuideScenario(preset)}>
         {(scenario) => (
-          <ComposerSimulation scenario={scenario}>
+          <ComposerSimulation
+            scenario={scenario}
+            guardCompositionEndEnter={guardCompositionEndEnter}
+            inputUnavailable={inputUnavailable}
+          >
             {() => (
               <>
                 <GuideControls scenario={scenario} />

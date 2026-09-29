@@ -31,7 +31,7 @@ const preview: Preview = {
           "Composer",
           [
             "Shortcuts",
-            ["Send and newline"],
+            ["Send and newline", "Guide"],
             "Input and drafts",
             ["Input", "Draft"],
             "Send controls",
