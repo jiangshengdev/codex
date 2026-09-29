@@ -5,6 +5,7 @@ import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostCommandGateway";
 import { createThreadResumeResponse } from "@/features/guiHost/__tests__/threadResumeTestBuilders";
 import { NewSessionOwner } from "@/features/newSession/newSessionOwner";
+import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import {
   attachWithSnapshotThread,
@@ -24,6 +25,7 @@ export type ShellScenarioOptions = Readonly<{
   error?: "task" | "connection";
   realPages?: boolean;
   inputUnavailable?: boolean;
+  newDraft?: string;
   collection?: "multiple" | "long" | "missing" | "running" | "navigationFailure" | "removalFailure";
 }>;
 
@@ -143,6 +145,10 @@ export function createShellScenario(dispatch: AppDispatch, options: ShellScenari
           await controller.session.view(shellThreadId);
         }
         if (options.route === "newTask") newSessionOwner.open(options.missingCwd ? null : shellCwd);
+        if (options.newDraft != null) {
+          newSessionOwner.open(shellCwd);
+          newSessionOwner.saveDraft(composerDraftCapture(options.newDraft).draft);
+        }
         if (options.error === "task")
           controller.session.setOperationError(
             shellThreadId,

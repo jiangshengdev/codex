@@ -62,6 +62,8 @@ const preview: Preview = {
           "History",
           "New session",
           [
+            "Shortcuts",
+            ["Open draft"],
             "Flow",
             ["States (local simulation)"],
             "Inputs",
