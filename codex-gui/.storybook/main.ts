@@ -1,4 +1,6 @@
 import type { StorybookConfig } from "@storybook/tanstack-react";
+import { mergeConfig } from "vite";
+import { generatedArtifactWatchIgnored } from "../scripts/devServerWatch.ts";
 
 const config: StorybookConfig = {
   stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
@@ -11,7 +13,10 @@ const config: StorybookConfig = {
   ],
   framework: "@storybook/tanstack-react",
   viteFinal: (viteConfig) => ({
-    ...viteConfig,
+    // The Storybook builder replaces the shared Vite server configuration.
+    ...mergeConfig(viteConfig, {
+      server: { watch: { ignored: generatedArtifactWatchIgnored } },
+    }),
     // This client-only GUI needs real Link navigation in its memory routers.
     // The framework interceptor replaces Link with an action-only anchor.
     plugins: viteConfig.plugins?.filter(
