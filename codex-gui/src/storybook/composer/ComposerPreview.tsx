@@ -25,6 +25,8 @@ export function ComposerSimulation({
   initialResponseTurnId = null,
   authorizationToken = null,
   showSimulationControls = true,
+  guardCompositionEndEnter = false,
+  inputUnavailable = false,
 }: Readonly<{
   scenario: ComposerScenario;
   children?: (isIdle: boolean) => ReactNode;
@@ -34,6 +36,8 @@ export function ComposerSimulation({
   initialResponseTurnId?: string | null;
   authorizationToken?: string | null;
   showSimulationControls?: boolean;
+  guardCompositionEndEnter?: boolean;
+  inputUnavailable?: boolean;
 }>) {
   const composer = useSyncExternalStore(
     scenario.coordinator.subscribe,
@@ -69,7 +73,9 @@ export function ComposerSimulation({
     },
     composer,
     composerRole: scenario.role,
-    connection: { phase: "available" },
+    connection: inputUnavailable
+      ? { phase: "unavailable", recovery: { pending: true, error: null } }
+      : { phase: "available" },
     skills: {
       type: "ready",
       candidates: skillAvailable ? [previewSkill] : [],
@@ -90,7 +96,7 @@ export function ComposerSimulation({
       </p>
       <ComposerTurnControl
         authorizationToken={authorizationToken}
-        guardCompositionEndEnter={false}
+        guardCompositionEndEnter={guardCompositionEndEnter}
         routeTarget={{ type: "currentTask", threadId: "thread-1" }}
         sessionSnapshot={snapshot}
       />
