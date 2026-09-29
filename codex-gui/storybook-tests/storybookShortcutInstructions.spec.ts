@@ -6,6 +6,47 @@ import {
 
 test.use({ locale: "en" });
 
+for (const locale of ["en", "zh-CN"] as const) {
+  test.describe(locale, () => {
+    test.use({ locale });
+
+    for (const [story, english, chinese] of [
+      ["app-shell-shortcuts-focus--toggle-menu", "Focus the message input", "将焦点移到消息输入框"],
+      ["app-shell-shortcuts-focus--focus-composer", "Focus Menu", "先将焦点移到“菜单”"],
+      [
+        "app-shell-shortcuts-tasks--previous-task",
+        "K selects the previous task",
+        "使用带 K 的快捷键",
+      ],
+      [
+        "new-session-shortcuts-open--from-task",
+        "Open the unsent new-session draft",
+        "打开尚未发送的新会话草稿",
+      ],
+      ["composer-shortcuts-send--send", "Focus the input. Enter sends", "将焦点移入输入框。Enter"],
+      [
+        "composer-shortcuts-guide--guide",
+        "Focus the input and press Command+Enter",
+        "将焦点移入输入框并按 Command+Enter",
+      ],
+    ] as const) {
+      test(`${story} localizes its instructions`, async ({ page }) => {
+        await page.goto(`/iframe.html?id=${story}`);
+        const instructions = page.getByRole("region", {
+          name: locale === "en" ? "Shortcut instructions" : "快捷键操作说明",
+        });
+        await expect(instructions).toBeVisible();
+        await expect(instructions).toContainText(locale === "en" ? english : chinese);
+        await expect(instructions).toContainText(
+          locale === "en" ? "This story waits for manual input." : "本场景等待手动操作",
+        );
+        await expect(instructions.locator("p").first()).toContainText("macOS");
+        await expect(page.locator("html")).toHaveAttribute("lang", locale);
+      });
+    }
+  });
+}
+
 for (const width of [375, 1280]) {
   for (const story of [
     "app-shell-shortcuts-focus--toggle-menu",

@@ -1,3 +1,4 @@
+import { Trans } from "@lingui/react/macro";
 import type { Meta, StoryObj } from "@storybook/tanstack-react";
 import { appShortcutDefinitions } from "@/features/appShell/appShortcuts";
 import { StorybookStatefulEnvironment } from "../environment/StorybookStatefulEnvironment";
@@ -17,11 +18,13 @@ const meta = {
           hasFixedHeader
           keys={appShortcutDefinitions.newSession.mac.replace("Meta", "Command")}
         >
-          Open the unsent new-session draft. Repeating the shortcut retains its text without
-          sending. With no current task, the configured directory still permits a new draft. With
-          neither a directory nor an existing draft, the shortcut does nothing. An existing draft
-          can reopen even without a directory in the launch context. Holding the keys or composing
-          text must not navigate.
+          <Trans>
+            Open the unsent new-session draft. Repeating the shortcut retains its text without
+            sending. With no current task, the configured directory still permits a new draft. With
+            neither a directory nor an existing draft, the shortcut does nothing. An existing draft
+            can reopen even without a directory in the launch context. Holding the keys or composing
+            text must not navigate.
+          </Trans>
         </ShortcutInstructions>
         <Story />
       </StorybookStatefulEnvironment>

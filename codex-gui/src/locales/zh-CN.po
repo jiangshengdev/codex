@@ -97,7 +97,7 @@ msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 msgid "A message update is missing its associated turn, so it cannot be fully displayed."
 msgstr "收到的消息更新缺少所属轮次，暂时无法完整展示。"
 
-#: src/features/appShell/AppShellTopBar.tsx:182
+#: src/features/appShell/AppShellTopBar.tsx:204
 #: src/features/newSession/NewSessionPage.tsx:37
 msgid "A working directory is required to start a session."
 msgstr "需要工作目录才能新建会话。"
@@ -140,7 +140,7 @@ msgid "Attachments are not ready"
 msgstr "附件尚未就绪"
 
 #. Description for the task history destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:204
+#: src/features/appShell/AppShellTopBar.tsx:226
 msgid "Browse task history"
 msgstr "浏览历史任务"
 
@@ -350,8 +350,8 @@ msgstr "无法加载 {name} 的预览。文件可能已不可用。"
 msgid "Could not read the image preview. Check the connection and access permissions."
 msgstr "无法读取图片预览。请检查网络连接和访问权限。"
 
-#: src/features/appShell/AppShellTopBar.tsx:69
-#: src/features/appShell/AppShellTopBar.tsx:191
+#: src/features/appShell/AppShellTopBar.tsx:68
+#: src/features/appShell/AppShellTopBar.tsx:213
 #: src/features/documentTitle/DocumentTitleOwner.tsx:48
 msgid "Current task"
 msgstr "当前任务"
@@ -553,7 +553,7 @@ msgid "Go back home"
 msgstr "返回首页"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:468
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:264
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:266
 msgid "Guide"
 msgstr "引导"
 
@@ -574,8 +574,8 @@ msgstr "引导中"
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
-#: src/features/appShell/AppShellTopBar.tsx:76
-#: src/features/appShell/AppShellTopBar.tsx:202
+#: src/features/appShell/AppShellTopBar.tsx:75
+#: src/features/appShell/AppShellTopBar.tsx:224
 #: src/features/documentTitle/DocumentTitleOwner.tsx:49
 msgid "History"
 msgstr "历史记录"
@@ -584,7 +584,7 @@ msgstr "历史记录"
 msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
-#: src/features/appShell/AppShellTopBar.tsx:71
+#: src/features/appShell/AppShellTopBar.tsx:70
 #: src/features/documentTitle/DocumentTitleOwner.tsx:50
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:43
 msgid "History detail"
@@ -646,8 +646,8 @@ msgid "Keep"
 msgstr "保留"
 
 #. Navigation entry and page title for the keyboard shortcut reference
-#: src/features/appShell/AppShellTopBar.tsx:75
-#: src/features/appShell/AppShellTopBar.tsx:217
+#: src/features/appShell/AppShellTopBar.tsx:74
+#: src/features/appShell/AppShellTopBar.tsx:239
 #: src/features/documentTitle/DocumentTitleOwner.tsx:62
 msgid "Keyboard shortcuts"
 msgstr "快捷键"
@@ -718,12 +718,12 @@ msgstr "正在加载任务历史…"
 msgid "Loading task…"
 msgstr "正在加载任务…"
 
-#: src/features/appShell/AppShellTopBar.tsx:170
+#: src/features/appShell/AppShellTopBar.tsx:192
 msgid "Main navigation"
 msgstr "主导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:130
-#: src/features/appShell/AppShellTopBar.tsx:139
+#: src/features/appShell/AppShellTopBar.tsx:140
+#: src/features/appShell/AppShellTopBar.tsx:152
 msgid "Menu"
 msgstr "菜单"
 
@@ -731,8 +731,8 @@ msgstr "菜单"
 msgid "Message cannot be empty"
 msgstr "消息不能为空"
 
+#: src/features/composerTurnControl/ComposerSurface.tsx:99
 #: src/features/composerTurnControl/ComposerSurface.tsx:100
-#: src/features/composerTurnControl/ComposerSurface.tsx:101
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
@@ -801,7 +801,7 @@ msgstr "移至队尾"
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
-#: src/features/appShell/AppShellTopBar.tsx:166
+#: src/features/appShell/AppShellTopBar.tsx:188
 #: src/features/appShell/ShortcutHelp.tsx:14
 msgid "Navigation"
 msgstr "导航"
@@ -812,8 +812,8 @@ msgid "New line"
 msgstr "换行"
 
 #. Open the unsent new conversation draft
-#: src/features/appShell/AppShellTopBar.tsx:73
-#: src/features/appShell/AppShellTopBar.tsx:177
+#: src/features/appShell/AppShellTopBar.tsx:72
+#: src/features/appShell/AppShellTopBar.tsx:199
 #: src/features/appShell/appShortcuts.ts:22
 #: src/features/documentTitle/DocumentTitleOwner.tsx:52
 msgid "New session"
@@ -870,7 +870,7 @@ msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
 #. Description for the current task destination in the navigation drawer
-#: src/features/appShell/AppShellTopBar.tsx:193
+#: src/features/appShell/AppShellTopBar.tsx:215
 msgid "Open current task"
 msgstr "打开当前任务"
 
@@ -1201,7 +1201,7 @@ msgid "Scan with phone"
 msgstr "使用手机扫描"
 
 #: src/features/appShell/ShortcutHelp.tsx:63
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:276
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:280
 #: src/features/newSession/NewSessionPage.tsx:167
 msgid "Send"
 msgstr "发送"
@@ -1271,7 +1271,7 @@ msgstr "已启动 {receiver}（{model} {reasoningEffort}）"
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "已启动 {receiver}（{reasoningEffort}）"
 
-#: src/features/appShell/AppShellTopBar.tsx:180
+#: src/features/appShell/AppShellTopBar.tsx:202
 msgid "Start a conversation"
 msgstr "开始新对话"
 
@@ -1280,11 +1280,11 @@ msgstr "开始新对话"
 msgid "Started <0/> <1/>"
 msgstr "已启动 <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:250
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:252
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:240
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:242
 msgid "Stop failed"
 msgstr "停止失败"
 
@@ -1345,7 +1345,7 @@ msgid "Task updates are paused"
 msgstr "任务内容更新已暂停"
 
 #. Accessible description of the navigation menu error dot; task or global errors remain unresolved
-#: src/features/appShell/AppShellTopBar.tsx:149
+#: src/features/appShell/AppShellTopBar.tsx:163
 msgid "Tasks or the connection need attention."
 msgstr "任务或连接存在待处理的异常。"
 
@@ -1692,7 +1692,7 @@ msgstr "查看全文"
 msgid "View fullscreen"
 msgstr "全屏查看"
 
-#: src/features/appShell/AppShellTopBar.tsx:221
+#: src/features/appShell/AppShellTopBar.tsx:243
 msgid "View keyboard shortcuts"
 msgstr "查看快捷键"
 

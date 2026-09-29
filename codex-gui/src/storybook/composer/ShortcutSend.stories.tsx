@@ -1,3 +1,4 @@
+import { Trans } from "@lingui/react/macro";
 import type { Meta, StoryObj } from "@storybook/tanstack-react";
 import { composerShortcutsForPlatform } from "@/features/composerEditor/composerShortcuts";
 import { StorybookStatefulEnvironment } from "../environment/StorybookStatefulEnvironment";
@@ -13,12 +14,14 @@ const meta = {
     (Story, context) => (
       <StorybookStatefulEnvironment storyId={context.id}>
         <ShortcutInstructions keys={`${shortcuts.send.visible} / ${shortcuts.newline.aria}`}>
-          Focus the input. Enter sends the prepared text once and clears the draft; Shift+Enter
-          inserts a newline at the caret without sending. Empty or whitespace-only input does not
-          send. Unavailable input cannot be edited or sent. During a running turn, Enter adds an
-          ordinary queued message. Hover or Tab to Send to inspect its Tooltip. Simulation controls
-          can advance the response and runtime confirmation. On Safari, confirm real IME candidates:
-          composing Enter and the immediate post-composition Enter must not send.
+          <Trans>
+            Focus the input. Enter sends the prepared text once and clears the draft; Shift+Enter
+            inserts a newline at the caret without sending. Empty or whitespace-only input does not
+            send. Unavailable input cannot be edited or sent. During a running turn, Enter adds an
+            ordinary queued message. Hover or Tab to Send to inspect its Tooltip. Simulation
+            controls can advance the response and runtime confirmation. On Safari, confirm real IME
+            candidates: composing Enter and the immediate post-composition Enter must not send.
+          </Trans>
         </ShortcutInstructions>
         <Story />
       </StorybookStatefulEnvironment>

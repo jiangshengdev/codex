@@ -28,6 +28,10 @@ msgstr "添加示例文件"
 msgid "Add sample image"
 msgstr "添加示例图片"
 
+#: src/storybook/shared/ShortcutInstructions.tsx:21
+msgid "Click inside the preview before pressing keys. This story waits for manual input. Local simulation only; reload or restart to restore the preset. Safari system shortcuts, native focus and real IME behavior require separate manual acceptance."
+msgstr "按键前请先点击预览区域。本场景等待手动操作，仅进行本地模拟；刷新页面或重新开始演示可恢复预设状态。Safari 系统快捷键、原生焦点和真实输入法行为需要另行手动验收。"
+
 #. Return the selected image bytes to the real preview component
 #: src/storybook/composer/ComposerAttachmentsPreview.tsx:210
 msgid "Complete preview {name}"
@@ -46,7 +50,7 @@ msgid "Create read-model slot"
 msgstr "创建读取模型槽位"
 
 #. A simulated assistant turn blocks automatic dispatch of ordinary queued messages
-#: src/storybook/composer/ComposerPreview.tsx:184
+#: src/storybook/composer/ComposerPreview.tsx:190
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:252
 msgid "Current turn is running"
 msgstr "当前轮次正在运行"
@@ -70,6 +74,22 @@ msgstr "模拟 {name} 上传失败"
 msgid "Files stay in this browser. Uploads are simulated; sending leaves the draft unchanged and never contacts a model."
 msgstr "文件仅保留在此浏览器中。上传为本地模拟；发送操作保留草稿，不会联系模型。"
 
+#: src/storybook/appShell/ShortcutFocus.stories.tsx:30
+msgid "Focus Menu, then press the shortcut. Focus moves into the editable Composer with a visible focus frame. When the input is unavailable or this page has no Composer, focus stays on Menu."
+msgstr "先将焦点移到“菜单”，再按快捷键。焦点会移入可编辑的消息输入框，并显示焦点边框。当输入不可用或页面没有消息输入框时，焦点保留在“菜单”上。"
+
+#: src/storybook/composer/ShortcutGuide.stories.tsx:21
+msgid "Focus the input and press Command+Enter. During a running turn, the draft becomes a Guide message. Use the simulated guide response and runtime confirmation to observe completion; a separate later draft is retained. Empty input with an ordinary queue promotes its first message to Guide even though the Guide button is disabled. Empty input without a queue, no active turn, unavailable input, or a recovery blocker does not submit. Hover or Tab to Guide to inspect its Tooltip. On Safari, check real IME composition and the immediate post-composition Enter separately; this story uses the production runtime guard."
+msgstr "将焦点移入输入框并按 Command+Enter。轮次运行时，草稿会成为引导消息。通过模拟引导响应和运行时确认观察完成过程；随后另行输入的草稿会被保留。输入为空且普通队列有消息时，即使“引导”按钮不可用，也会将队首消息提升为引导消息。输入为空且没有队列、没有运行中的轮次、输入不可用或恢复流程阻止提交时，均不会提交。悬停在“引导”上或用 Tab 聚焦它可查看提示。在 Safari 中，请分别验证真实输入法组合输入及组合输入刚结束后的 Enter；本场景使用产品运行时的防护逻辑。"
+
+#: src/storybook/composer/ShortcutSend.stories.tsx:17
+msgid "Focus the input. Enter sends the prepared text once and clears the draft; Shift+Enter inserts a newline at the caret without sending. Empty or whitespace-only input does not send. Unavailable input cannot be edited or sent. During a running turn, Enter adds an ordinary queued message. Hover or Tab to Send to inspect its Tooltip. Simulation controls can advance the response and runtime confirmation. On Safari, confirm real IME candidates: composing Enter and the immediate post-composition Enter must not send."
+msgstr "将焦点移入输入框。Enter 将准备好的文本发送一次并清空草稿；Shift+Enter 在光标处换行，不会发送。空输入或仅有空白字符时不会发送。输入不可用时不能编辑或发送。轮次运行时，Enter 会添加一条普通队列消息。悬停在“发送”上或用 Tab 聚焦它可查看提示。模拟控件可推进响应和运行时确认。在 Safari 中，请通过真实输入法确认候选词：组合输入期间及组合输入刚结束后的 Enter 均不得触发发送。"
+
+#: src/storybook/appShell/ShortcutFocus.stories.tsx:24
+msgid "Focus the message input or Menu button, then toggle the menu. Keyboard opening shows one themed close-button ring; mouse opening is the comparison. Escape or the shortcut closes the menu and restores focus. Hover or Tab to Menu to inspect its Tooltip."
+msgstr "将焦点移到消息输入框或“菜单”按钮，再切换菜单。使用键盘打开时，关闭按钮应显示一圈符合主题的焦点提示；可用鼠标打开进行对照。Escape 或同一快捷键可关闭菜单并恢复焦点。悬停在“菜单”上或用 Tab 聚焦它可查看提示。"
+
 #. Explains that only post-move page reads are injected in this Story
 #: src/storybook/composer/pendingInput/reordering/PendingInputReorderingPreview.tsx:95
 msgid "Injected feedback: the first move changes the real queue, then its refreshed list cannot load. Close and reopen the queue to read the updated order."
@@ -80,6 +100,10 @@ msgstr "注入反馈：首次移动会改变真实队列，但刷新后的列表
 msgid "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
 msgstr "注入反馈：首次移动被拒绝，队列保持不变。后续移动使用真实队列。"
 
+#: src/storybook/appShell/ShortcutTasks.stories.tsx:23
+msgid "K selects the previous task; J selects the next. The displayed order is Shell task one, Shell task 2, Shell task 3. Initially task one is selected: previous wraps to task 3; next selects task 2. Keep typing separate drafts to check retention. With one task, navigation stays on that task; with none, it does nothing. From History, cycling starts from the last viewed task (task one), not from the page route. Held keys and composition do not switch."
+msgstr "使用带 K 的快捷键选择上一个任务，带 J 的快捷键选择下一个任务。显示顺序为 Shell task one、Shell task 2、Shell task 3。初始选中第一个任务：上一个会循环到任务 3，下一个会选择任务 2。分别输入草稿以检查切换后的保留情况。仅有一个任务时仍停留在该任务；没有任务时不执行操作。在“历史”页面中，切换从上次查看的任务（第一个任务）开始，而非当前页面路由。长按按键或进行输入法组合输入时不会切换。"
+
 #: src/storybook/composer/ComposerDraftPreview.tsx:74
 msgid "Leaving keeps the saved draft. Restarting resets it. Finish simulated sending and save changes before leaving."
 msgstr "离开会保留已保存的草稿，重新开始则会重置草稿。离开前，请完成模拟发送并保存修改。"
@@ -88,7 +112,7 @@ msgstr "离开会保留已保存的草稿，重新开始则会重置草稿。离
 msgid "Local simulation. No real sessions, uploads or model responses."
 msgstr "本地模拟，不会创建真实会话、上传文件或生成模型回复。"
 
-#: src/storybook/composer/ComposerPreview.tsx:86
+#: src/storybook/composer/ComposerPreview.tsx:92
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:81
 msgid "Local simulation. Requests and runtime events advance only when you use the simulation controls."
 msgstr "本地演示。只有操作模拟控件时，请求和运行时事件才会推进。"
@@ -125,6 +149,10 @@ msgstr "下一步"
 msgid "Only for scenario preparation, not a product recovery entry point."
 msgstr "仅用于场景准备，不是产品恢复入口。"
 
+#: src/storybook/newSession/Shortcut.stories.tsx:21
+msgid "Open the unsent new-session draft. Repeating the shortcut retains its text without sending. With no current task, the configured directory still permits a new draft. With neither a directory nor an existing draft, the shortcut does nothing. An existing draft can reopen even without a directory in the launch context. Holding the keys or composing text must not navigate."
+msgstr "打开尚未发送的新会话草稿。重复按快捷键会保留文本，不会发送。没有当前任务时，只要已配置工作目录，仍可新建草稿。如果既没有工作目录也没有已有草稿，快捷键不执行操作。即使启动上下文中没有工作目录，仍可重新打开已有草稿。长按按键或进行输入法组合输入时不得触发导航。"
+
 #. Pauses the Storybook transcript timeline
 #: src/storybook/transcript/TranscriptReplayPreview.tsx:90
 msgid "Pause replay"
@@ -155,7 +183,7 @@ msgid "Reset replay"
 msgstr "重置回放"
 
 #. The request succeeded but the simulated runtime acceptance event has not been injected
-#: src/storybook/composer/ComposerPreview.tsx:182
+#: src/storybook/composer/ComposerPreview.tsx:188
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:244
 msgid "Response received; waiting for runtime confirmation"
 msgstr "已收到响应，等待运行时确认"
@@ -168,7 +196,7 @@ msgid "Restart simulation"
 msgstr "重新开始演示"
 
 #. Return the fictional skill to the local catalog
-#: src/storybook/composer/ComposerPreview.tsx:173
+#: src/storybook/composer/ComposerPreview.tsx:179
 msgid "Restore simulated skill"
 msgstr "恢复模拟技能"
 
@@ -182,16 +210,21 @@ msgstr "恢复模拟存储"
 msgid "Runtime confirmation received"
 msgstr "已收到运行时确认"
 
+#. Accessible name of the Storybook keyboard shortcut instructions section.
+#: src/storybook/shared/ShortcutInstructions.tsx:12
+msgid "Shortcut instructions"
+msgstr "快捷键操作说明"
+
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
-#: src/storybook/composer/ComposerPreview.tsx:159
+#: src/storybook/composer/ComposerPreview.tsx:165
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:204
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:105
 msgid "Simulate current turn completed"
 msgstr "模拟当前轮次完成"
 
 #. Inject the interrupted terminal event for the current simulated turn, separately from the stop request response
-#: src/storybook/composer/ComposerPreview.tsx:155
+#: src/storybook/composer/ComposerPreview.tsx:161
 msgid "Simulate current turn interrupted"
 msgstr "模拟当前轮次中断"
 
@@ -248,14 +281,14 @@ msgstr "模拟返回"
 
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
-#: src/storybook/composer/ComposerPreview.tsx:140
+#: src/storybook/composer/ComposerPreview.tsx:146
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:234
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:141
 msgid "Simulate runtime confirmation"
 msgstr "模拟运行时确认"
 
 #. Remount the Composer using its isolated saved queue and current simulated runtime
-#: src/storybook/composer/ComposerPreview.tsx:200
+#: src/storybook/composer/ComposerPreview.tsx:206
 msgid "Simulate saved queue restore"
 msgstr "模拟恢复已保存的队列"
 
@@ -266,26 +299,26 @@ msgstr "模拟保存失败"
 
 #. Reject the simulated ordinary send as definitely not accepted
 #. Reject the simulated sending request with definite non-delivery
-#: src/storybook/composer/ComposerPreview.tsx:117
+#: src/storybook/composer/ComposerPreview.tsx:123
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:127
 msgid "Simulate send failure"
 msgstr "模拟发送失败"
 
 #. Resolve the local start-turn request without injecting a runtime event
 #. Resolve the pending local start-turn request without injecting a runtime event
-#: src/storybook/composer/ComposerPreview.tsx:110
+#: src/storybook/composer/ComposerPreview.tsx:116
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:219
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:118
 msgid "Simulate send response"
 msgstr "模拟发送响应"
 
 #. Settle the simulated ordinary send without knowing whether it was accepted
-#: src/storybook/composer/ComposerPreview.tsx:126
+#: src/storybook/composer/ComposerPreview.tsx:132
 msgid "Simulate send unknown"
 msgstr "模拟发送结果未知"
 
 #. Remove the fictional skill from the local catalog to exercise selected-skill validation
-#: src/storybook/composer/ComposerPreview.tsx:169
+#: src/storybook/composer/ComposerPreview.tsx:175
 msgid "Simulate skill unavailable"
 msgstr "模拟技能不可用"
 
@@ -315,7 +348,7 @@ msgid "Simulate target turn closed"
 msgstr "模拟目标轮次关闭"
 
 #. No simulated assistant turn or start-turn request remains active
-#: src/storybook/composer/ComposerPreview.tsx:186
+#: src/storybook/composer/ComposerPreview.tsx:192
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:256
 msgid "Simulation is idle"
 msgstr "演示处于空闲状态"
@@ -338,7 +371,7 @@ msgid "This preview freezes the brief recovery notification. Release it to inspe
 msgstr "此预览暂停展示短暂的恢复状态。结束展示后，可检查等待中的发送请求。"
 
 #. The local start-turn request remains unresolved until the preview response control is used
-#: src/storybook/composer/ComposerPreview.tsx:180
+#: src/storybook/composer/ComposerPreview.tsx:186
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:240
 msgid "Waiting for send response"
 msgstr "等待发送响应"

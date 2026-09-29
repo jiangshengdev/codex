@@ -1,3 +1,4 @@
+import { Trans } from "@lingui/react/macro";
 import type { Meta, StoryObj } from "@storybook/tanstack-react";
 import { appShortcutDefinitions } from "@/features/appShell/appShortcuts";
 import { StorybookStatefulEnvironment } from "../environment/StorybookStatefulEnvironment";
@@ -19,9 +20,19 @@ const meta = {
             context.name === "Toggle Menu" ? "menu" : "focus"
           ].mac.replace("Meta", "Command")}
         >
-          {context.name === "Toggle Menu"
-            ? "Focus the message input or Menu button, then toggle the menu. Keyboard opening shows one themed close-button ring; mouse opening is the comparison. Escape or the shortcut closes the menu and restores focus. Hover or Tab to Menu to inspect its Tooltip."
-            : "Focus Menu, then press the shortcut. Focus moves into the editable Composer with a visible focus frame. When the input is unavailable or this page has no Composer, focus stays on Menu."}
+          {context.name === "Toggle Menu" ? (
+            <Trans>
+              Focus the message input or Menu button, then toggle the menu. Keyboard opening shows
+              one themed close-button ring; mouse opening is the comparison. Escape or the shortcut
+              closes the menu and restores focus. Hover or Tab to Menu to inspect its Tooltip.
+            </Trans>
+          ) : (
+            <Trans>
+              Focus Menu, then press the shortcut. Focus moves into the editable Composer with a
+              visible focus frame. When the input is unavailable or this page has no Composer, focus
+              stays on Menu.
+            </Trans>
+          )}
         </ShortcutInstructions>
         <Story />
       </StorybookStatefulEnvironment>

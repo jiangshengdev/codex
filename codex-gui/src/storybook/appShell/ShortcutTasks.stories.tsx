@@ -1,3 +1,4 @@
+import { Trans } from "@lingui/react/macro";
 import type { Meta, StoryObj } from "@storybook/tanstack-react";
 import { appShortcutDefinitions } from "@/features/appShell/appShortcuts";
 import { StorybookStatefulEnvironment } from "../environment/StorybookStatefulEnvironment";
@@ -19,11 +20,14 @@ const meta = {
             .map((key) => key.replace("Meta", "Command"))
             .join(" / ")}
         >
-          K selects the previous task; J selects the next. The displayed order is Shell task one,
-          Shell task 2, Shell task 3. Initially task one is selected: previous wraps to task 3; next
-          selects task 2. Keep typing separate drafts to check retention. With one task, navigation
-          stays on that task; with none, it does nothing. From History, cycling starts from the last
-          viewed task (task one), not from the page route. Held keys and composition do not switch.
+          <Trans>
+            K selects the previous task; J selects the next. The displayed order is Shell task one,
+            Shell task 2, Shell task 3. Initially task one is selected: previous wraps to task 3;
+            next selects task 2. Keep typing separate drafts to check retention. With one task,
+            navigation stays on that task; with none, it does nothing. From History, cycling starts
+            from the last viewed task (task one), not from the page route. Held keys and composition
+            do not switch.
+          </Trans>
         </ShortcutInstructions>
         <Story />
       </StorybookStatefulEnvironment>

@@ -1,3 +1,4 @@
+import { Trans } from "@lingui/react/macro";
 import type { Meta, StoryObj } from "@storybook/tanstack-react";
 import { composerShortcutsForPlatform } from "@/features/composerEditor/composerShortcuts";
 import { isMacAppleWebKitRuntime } from "@/features/composerEditor/composerRuntime";
@@ -17,13 +18,16 @@ const meta = {
     (Story, context) => (
       <StorybookStatefulEnvironment storyId={context.id}>
         <ShortcutInstructions keys={composerShortcutsForPlatform("MacIntel").guide.visible}>
-          Focus the input and press Command+Enter. During a running turn, the draft becomes a Guide
-          message. Use the simulated guide response and runtime confirmation to observe completion;
-          a separate later draft is retained. Empty input with an ordinary queue promotes its first
-          message to Guide even though the Guide button is disabled. Empty input without a queue, no
-          active turn, unavailable input, or a recovery blocker does not submit. Hover or Tab to
-          Guide to inspect its Tooltip. On Safari, check real IME composition and the immediate
-          post-composition Enter separately; this story uses the production runtime guard.
+          <Trans>
+            Focus the input and press Command+Enter. During a running turn, the draft becomes a
+            Guide message. Use the simulated guide response and runtime confirmation to observe
+            completion; a separate later draft is retained. Empty input with an ordinary queue
+            promotes its first message to Guide even though the Guide button is disabled. Empty
+            input without a queue, no active turn, unavailable input, or a recovery blocker does not
+            submit. Hover or Tab to Guide to inspect its Tooltip. On Safari, check real IME
+            composition and the immediate post-composition Enter separately; this story uses the
+            production runtime guard.
+          </Trans>
         </ShortcutInstructions>
         <Story />
       </StorybookStatefulEnvironment>
