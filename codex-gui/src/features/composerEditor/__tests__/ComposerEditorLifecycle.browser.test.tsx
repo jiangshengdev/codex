@@ -310,6 +310,41 @@ test("does not clear edits made after a composer capture", async () => {
     .toBe("captured later");
 });
 
+test.each([
+  { platform: "MacIntel", shortcut: "{Meta>}{Enter}{/Meta}" },
+  { platform: "Win32", shortcut: "{Control>}{Enter}{/Control}" },
+])("does not dispatch an unsupported guide intent on $platform", async ({ platform, shortcut }) => {
+  await withNavigatorPlatform(platform, async () => {
+    const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
+    const { controllerRef, screen, setSubmitIntents } = await renderEditor([], {
+      onSubmit,
+      submitIntents: ["ordinary"],
+    });
+    const editor = screen.getByRole("combobox", { name: "Message" });
+    await editor.fill("Keep this draft");
+    const capture = getController(controllerRef).capture();
+    await screen.user.keyboard(shortcut);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(getController(controllerRef).capture()).toEqual(capture);
+    await expect.element(editor).not.toHaveAttribute("aria-keyshortcuts");
+    await setSubmitIntents(["ordinary", "guide"]);
+    await screen.user.keyboard(shortcut);
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith(capture, "guide");
+    onSubmit.mockClear();
+    await setSubmitIntents(["ordinary"]);
+    await screen.user.keyboard(shortcut);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(getController(controllerRef).capture()).toEqual(capture);
+    await expect.element(editor).not.toHaveAttribute("aria-keyshortcuts");
+    await screen.user.keyboard("{Shift>}{Enter}{/Shift}next");
+    expect(onSubmit).not.toHaveBeenCalled();
+    await screen.user.keyboard("{Enter}");
+    expect(onSubmit).toHaveBeenCalledOnce();
+    expect(onSubmit.mock.calls[0]?.[1]).toBe("ordinary");
+    expect(onSubmit.mock.calls[0]?.[0].textContent).toBe("Keep this draft\nnext");
+  });
+});
+
 test("restores a new editor session with the caret at the end and fresh history", async () => {
   const selectedSkill = skill(
     "canonical-restore",
@@ -474,6 +509,7 @@ type RenderEditorOptions = Readonly<{
   guardCompositionEndEnter?: boolean;
   locale?: AppLocale;
   onSubmit?: ComposerEditorProps["onSubmit"];
+  submitIntents?: ComposerEditorProps["submitIntents"];
 }>;
 
 async function renderEditor(
@@ -482,6 +518,7 @@ async function renderEditor(
     guardCompositionEndEnter = false,
     locale = "en",
     onSubmit = () => undefined,
+    submitIntents = ["ordinary", "guide"],
   }: RenderEditorOptions = {},
 ) {
   const controllerRef = createRef<ComposerEditorController>();
@@ -490,20 +527,26 @@ async function renderEditor(
     candidates,
     partialErrorCount: 0,
   };
-  const screen = await renderWithProviders(
+  const renderEditorElement = (intents: ComposerEditorProps["submitIntents"]) => (
     <ComposerEditorFixture
       ariaLabel="Message"
       controllerRef={controllerRef}
       disabled={false}
       guardCompositionEndEnter={guardCompositionEndEnter}
       onSubmit={onSubmit}
+      submitIntents={intents}
       placeholder="Message Codex"
       skillCatalog={skillCatalog}
-    />,
-    { locale },
+    />
   );
+  const screen = await renderWithProviders(renderEditorElement(submitIntents), { locale });
   await expect.poll(() => controllerRef.current).not.toBeNull();
-  return { controllerRef, screen };
+  return {
+    controllerRef,
+    screen,
+    setSubmitIntents: (intents: ComposerEditorProps["submitIntents"]) =>
+      screen.rerender(renderEditorElement(intents)),
+  };
 }
 
 function getController(ref: RefObject<ComposerEditorController | null>): ComposerEditorController {

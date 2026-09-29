@@ -314,7 +314,7 @@ test("shows Guide only for an active turn and submits an accepted draft as steer
   await userEvent.hover(guide);
   await expect
     .element(screen.getByRole("tooltip"))
-    .toHaveTextContent(navigator.platform.startsWith("Mac") ? "⌘ Enter" : "Ctrl+Enter");
+    .toHaveTextContent(navigator.platform.startsWith("Mac") ? "⌘↵" : "Ctrl+Enter");
   await userEvent.unhover(guide);
   await guide.click();
 
@@ -341,40 +341,85 @@ test("shows Guide only for an active turn and submits an accepted draft as steer
     .toBe("Keep the newer draft");
 });
 
-test("keeps Mac Guide hints consistent with the actual keyboard action", async () => {
-  const platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
-  try {
-    const harness = createQueueControllerHarness(queueSnapshot({ canStop: true }));
+test.each([
+  { platform: "MacIntel", shortcut: "{Meta>}{Enter}{/Meta}" },
+  { platform: "Win32", shortcut: "{Control>}{Enter}{/Control}" },
+])(
+  "idle composer retains its draft on the guide chord on $platform",
+  async ({ platform, shortcut }) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    const harness = createQueueControllerHarness(queueSnapshot());
     const screen = await renderComposerTurnControl({
-      scenario: { type: "activeFixture" },
       queue: { type: "provided", controller: harness.controller },
     });
     const composer = screen.composer();
-    const guide = screen.getByRole("button", { name: "Guide", exact: true });
-
-    await composer.fill("Guide from the Mac shortcut");
-    await expect.element(composer).toHaveAttribute("aria-keyshortcuts", "Meta+Enter");
-    await expect.element(guide).toHaveAttribute("aria-keyshortcuts", "Meta+Enter");
-    await expect.element(guide).toBeEnabled();
-    await userEvent.unhover(document.body);
-    await userEvent.hover(guide);
-    await expect.element(screen.getByRole("tooltip")).toHaveTextContent("⌘ Enter");
-    await userEvent.unhover(guide);
-    await composer.click();
-    await screen.user.keyboard("{Meta>}{Enter}{/Meta}");
-
-    expect(harness.submitSteer).toHaveBeenCalledOnce();
-    expect(harness.submitSteer.mock.calls.at(0)?.at(0)).toMatchObject({
-      textContent: "Guide from the Mac shortcut",
-    });
+    await composer.fill("Keep the idle draft");
+    await expect.element(composer).not.toHaveAttribute("aria-keyshortcuts");
+    await screen.user.keyboard(shortcut);
+    await expect.element(composer).toHaveTextContent("Keep the idle draft");
     expect(harness.submit).not.toHaveBeenCalled();
-    await expect
-      .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-      .toBe("");
-  } finally {
-    platform.mockRestore();
-  }
-});
+    expect(harness.submitSteer).not.toHaveBeenCalled();
+    await screen.user.keyboard("{Enter}");
+    expect(harness.submit).toHaveBeenCalledOnce();
+  },
+);
+
+test.each([
+  {
+    platformName: "MacIntel",
+    aria: "Meta+Enter",
+    visible: "⌘↵",
+    readable: "Command+Enter",
+    shortcut: "{Meta>}{Enter}{/Meta}",
+  },
+  {
+    platformName: "Win32",
+    aria: "Control+Enter",
+    visible: "Ctrl+Enter",
+    readable: "Ctrl+Enter",
+    shortcut: "{Control>}{Enter}{/Control}",
+  },
+])(
+  "keeps Guide hints consistent with the actual keyboard action on $platformName",
+  async ({ platformName, aria, visible, readable, shortcut }) => {
+    const platform = vi.spyOn(navigator, "platform", "get").mockReturnValue(platformName);
+    try {
+      const harness = createQueueControllerHarness(queueSnapshot({ canStop: true }));
+      const screen = await renderComposerTurnControl({
+        scenario: { type: "activeFixture" },
+        queue: { type: "provided", controller: harness.controller },
+      });
+      const composer = screen.composer();
+      const guide = screen.getByRole("button", { name: "Guide", exact: true });
+
+      await composer.fill("Guide from the platform shortcut");
+      await expect.element(composer).toHaveAttribute("aria-keyshortcuts", aria);
+      await expect.element(guide).toHaveAttribute("aria-keyshortcuts", aria);
+      await expect.element(guide).toBeEnabled();
+      await userEvent.unhover(document.body);
+      await userEvent.hover(guide);
+      const tooltip = screen.getByRole("tooltip");
+      await expect.element(tooltip).toHaveTextContent(visible);
+      await expect
+        .element(tooltip.element().querySelector("kbd"))
+        .toHaveAttribute("aria-label", readable);
+      await userEvent.unhover(guide);
+      await composer.click();
+      await screen.user.keyboard(shortcut);
+
+      expect(harness.submitSteer).toHaveBeenCalledOnce();
+      expect(harness.submitSteer.mock.calls.at(0)?.at(0)).toMatchObject({
+        textContent: "Guide from the platform shortcut",
+      });
+      expect(harness.submit).not.toHaveBeenCalled();
+      await expect
+        .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+        .toBe("");
+    } finally {
+      platform.mockRestore();
+    }
+  },
+);
 
 test("routes guide shortcuts by draft presence while ordinary Enter stays ordinary", async () => {
   const harness = createQueueControllerHarness(
@@ -738,6 +783,29 @@ test("edits and deletes an ordinary pending message in one Drawer without changi
   await expect.element(listDialog.getByText("No pending messages", { exact: true })).toBeVisible();
   await expect.element(listDialog.getByRole("heading", { name: "Pending details" })).toHaveFocus();
   expect(listDialog.getByRole("alert").query()).toBeNull();
+});
+
+test.each([
+  { platform: "MacIntel", shortcut: "{Meta>}{Enter}{/Meta}" },
+  { platform: "Win32", shortcut: "{Control>}{Enter}{/Control}" },
+])("pending editor keeps modified Enter as save on $platform", async ({ platform, shortcut }) => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+  const screen = await renderComposerTurnControl({ scenario: { type: "activeFixture" } });
+  const composer = screen.composer();
+  await composer.fill("Queued message");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await composer.fill("Keep the main draft");
+  await screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true })
+    .click();
+  await screen.getByRole("button", { name: "Edit", exact: true }).click();
+  const editor = screen.getByRole("combobox", { name: "Edit pending message", exact: true });
+  await editor.fill("Saved edit");
+  await screen.user.keyboard(shortcut);
+  const list = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  await expect.element(list.getByText("Saved edit", { exact: true })).toBeVisible();
+  await expect.element(composer).toHaveTextContent("Keep the main draft");
 });
 
 test("returns focus to the Composer when cancelling an edit synchronously drains the last pending message", async () => {

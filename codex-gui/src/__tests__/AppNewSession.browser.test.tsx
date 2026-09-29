@@ -522,6 +522,36 @@ test("send follows nonblank draft content without creating an empty session", as
   expect(commands.startThread).not.toHaveBeenCalled();
 });
 
+test.each([
+  { platform: "MacIntel", shortcut: "{Meta>}{Enter}{/Meta}", visible: "↵" },
+  { platform: "Win32", shortcut: "{Control>}{Enter}{/Control}", visible: "Enter" },
+])("new session only sends with Enter on $platform", async ({ platform, shortcut, visible }) => {
+  vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+  const { commands } = await mount("/new");
+  const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
+  const send = page.getByRole("button", { name: "Send", exact: true });
+  await editor.fill("Keep the first message");
+  await expect.element(send).toBeEnabled();
+  await expect.element(editor).not.toHaveAttribute("aria-keyshortcuts");
+  await userEvent.keyboard(shortcut);
+  await expect.element(editor).toHaveTextContent("Keep the first message");
+  expect(commands.startThread).not.toHaveBeenCalled();
+  expect(commands.startTurn).not.toHaveBeenCalled();
+  await expect.element(send).toHaveAttribute("aria-keyshortcuts", "Enter");
+  await userEvent.unhover(document.body);
+  await userEvent.hover(send);
+  const tooltip = page.getByRole("tooltip");
+  await expect.element(tooltip).toHaveTextContent(visible);
+  const key = tooltip.element().querySelector("kbd");
+  expect(key).toHaveAttribute("aria-label", "Enter");
+  expect(key).toHaveClass("kbd--light");
+  await userEvent.unhover(send);
+  await editor.click();
+  await userEvent.keyboard("{Enter}");
+  await expect.poll(() => vi.mocked(commands.startThread).mock.calls.length).toBe(1);
+  await expect.poll(() => vi.mocked(commands.startTurn).mock.calls.length).toBe(1);
+});
+
 test("working directory reveals its selectable full path without changing the draft", async () => {
   const { commands } = await mount("/new", true, "/workspace/codex");
   const editor = page.getByRole("combobox", { name: "Message Codex" });

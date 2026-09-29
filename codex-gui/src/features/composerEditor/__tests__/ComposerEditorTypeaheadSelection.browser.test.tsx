@@ -290,6 +290,7 @@ function DrawerEditorFixture({
       role="dialog"
     >
       <ComposerEditor
+        submitIntents={["ordinary", "guide"]}
         ariaLabel="Pending message"
         controllerRef={controllerRef}
         disabled={false}

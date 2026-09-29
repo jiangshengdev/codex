@@ -322,13 +322,15 @@ async function renderEditors() {
   };
 }
 
-function ClipboardEditorFixture(props: Omit<ComposerEditorProps, "skillMenuParent">) {
+function ClipboardEditorFixture(
+  props: Omit<ComposerEditorProps, "skillMenuParent" | "submitIntents">,
+) {
   const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
 
   return (
     <div className="w-96 max-w-full">
       <div ref={setSkillMenuParent} style={fixtureSkillMenuParentStyle} />
-      <ComposerEditor {...props} skillMenuParent={skillMenuParent} />
+      <ComposerEditor {...props} submitIntents={["ordinary"]} skillMenuParent={skillMenuParent} />
     </div>
   );
 }

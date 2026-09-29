@@ -33,6 +33,8 @@ import { ComposerSurface } from "./ComposerSurface";
 import { CurrentThreadStatus } from "./CurrentThreadStatus";
 import { ComposerPersistenceStatus } from "./ComposerPersistenceStatus";
 import { usePersistComposerDraft } from "./usePersistComposerDraft";
+import { ShortcutKey } from "@/features/appShell/ShortcutKey";
+import { ComposerSendButton } from "./ComposerSendButton";
 
 export type ComposerTurnControlProps = {
   authorizationToken: string | null;
@@ -108,9 +110,7 @@ export function ComposerTurnControl({
     () => ({ invalidPaths: controlView.invalidSelectedSkillPaths, statusText: invalidStatusText }),
     [controlView.invalidSelectedSkillPaths, invalidStatusText],
   );
-  const { guide: guideShortcut, send: sendShortcut } = composerShortcutsForPlatform(
-    navigator.platform,
-  );
+  const { guide: guideShortcut } = composerShortcutsForPlatform(navigator.platform);
   const focusComposer = useCallback((): void => {
     if (composerEditorController == null) return;
     if (controlView.operationsEnabled) {
@@ -195,6 +195,7 @@ export function ComposerTurnControl({
           skillsRole.retrySkills(revision);
         },
         onSubmit: submit,
+        submitIntents: controlView.guide.shortcutEnabled ? ["ordinary", "guide"] : ["ordinary"],
         skillCatalog,
         skillValidity,
       }}
@@ -265,22 +266,17 @@ export function ComposerTurnControl({
                 >
                   <Trans>Guide</Trans>
                 </Button>
-                <Tooltip.Content>{guideShortcut.visible}</Tooltip.Content>
+                <Tooltip.Content>
+                  <ShortcutKey aria={guideShortcut.aria} variant="light" />
+                </Tooltip.Content>
               </Tooltip>
             ) : null}
-            <Tooltip>
-              <Button
-                render={(props) => <button {...props} aria-keyshortcuts={sendShortcut.aria} />}
-                isDisabled={!controlView.sendEnabled}
-                onPress={() => {
-                  submit();
-                }}
-                variant="outline"
-              >
-                <Trans>Send</Trans>
-              </Button>
-              <Tooltip.Content>{sendShortcut.visible}</Tooltip.Content>
-            </Tooltip>
+            <ComposerSendButton
+              isDisabled={!controlView.sendEnabled}
+              onPress={() => {
+                submit();
+              }}
+            />
           </div>
         </>
       }

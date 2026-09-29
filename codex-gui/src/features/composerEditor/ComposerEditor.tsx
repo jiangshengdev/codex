@@ -73,6 +73,7 @@ export type ComposerEditorProps = Readonly<{
   onDraftChange?: (draft: ComposerDraft) => void;
   onRetrySkillCatalog?: () => void;
   onSubmit: (capture: ComposerDraftCapture, intent: ComposerEditorSubmitIntent) => void;
+  submitIntents: readonly ComposerEditorSubmitIntent[];
   placeholder: string;
   skillCatalog: SkillCatalogState;
   skillMenuParent: HTMLElement | null;
@@ -95,6 +96,7 @@ export function ComposerEditor({
   onDraftChange,
   onRetrySkillCatalog,
   onSubmit,
+  submitIntents,
   placeholder,
   skillCatalog,
   skillMenuParent,
@@ -102,6 +104,7 @@ export function ComposerEditor({
   skillValidity,
 }: ComposerEditorProps) {
   const shortcuts = composerShortcutsForPlatform(navigator.platform);
+  const guideEnabled = submitIntents.includes("guide");
   const activeControllerRef = useRef<ComposerEditorController | null>(null);
   const isComposingRef = useRef(false);
   const suppressNextEnterRef = useRef(false);
@@ -138,7 +141,7 @@ export function ComposerEditor({
                 <ContentEditable
                   aria-autocomplete="list"
                   aria-label={ariaLabel}
-                  aria-keyshortcuts={shortcuts.guide.aria}
+                  aria-keyshortcuts={guideEnabled ? shortcuts.guide.aria : undefined}
                   aria-multiline="true"
                   className="min-h-24 w-full min-w-0 resize-none overflow-x-hidden overflow-y-auto bg-transparent px-3 py-2 leading-6 whitespace-pre-wrap outline-none [max-height:min(13rem,30vh)] [overflow-wrap:anywhere]"
                   onCompositionEnd={onCompositionEnd}
@@ -163,6 +166,7 @@ export function ComposerEditor({
             isComposingRef={isComposingRef}
             onSubmitRef={onSubmitRef}
             shortcuts={shortcuts}
+            submitIntents={submitIntents}
             suppressNextEnterRef={suppressNextEnterRef}
           />
           <HistoryPlugin />
@@ -208,12 +212,14 @@ function EnterCommandPlugin({
   isComposingRef,
   onSubmitRef,
   shortcuts,
+  submitIntents,
   suppressNextEnterRef,
 }: Readonly<{
   activeControllerRef: { current: ComposerEditorController | null };
   isComposingRef: { current: boolean };
   onSubmitRef: { current: ComposerEditorProps["onSubmit"] };
   shortcuts: ComposerShortcuts;
+  submitIntents: readonly ComposerEditorSubmitIntent[];
   suppressNextEnterRef: { current: boolean };
 }>): null {
   const [editor] = useLexicalComposerContext();
@@ -257,13 +263,22 @@ function EnterCommandPlugin({
             }
 
             event.preventDefault();
+            if (!submitIntents.includes(intent)) return true;
             onSubmitRef.current(controller.capture(), intent);
             return true;
           },
           COMMAND_PRIORITY_BEFORE_EDITOR,
         ),
       ),
-    [activeControllerRef, editor, isComposingRef, onSubmitRef, shortcuts, suppressNextEnterRef],
+    [
+      activeControllerRef,
+      editor,
+      isComposingRef,
+      onSubmitRef,
+      shortcuts,
+      submitIntents,
+      suppressNextEnterRef,
+    ],
   );
 
   return null;
