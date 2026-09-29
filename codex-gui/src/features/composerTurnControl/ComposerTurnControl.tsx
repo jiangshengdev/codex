@@ -108,7 +108,9 @@ export function ComposerTurnControl({
     () => ({ invalidPaths: controlView.invalidSelectedSkillPaths, statusText: invalidStatusText }),
     [controlView.invalidSelectedSkillPaths, invalidStatusText],
   );
-  const guideShortcut = composerShortcutsForPlatform(navigator.platform).guide;
+  const { guide: guideShortcut, send: sendShortcut } = composerShortcutsForPlatform(
+    navigator.platform,
+  );
   const focusComposer = useCallback((): void => {
     if (composerEditorController == null) return;
     if (controlView.operationsEnabled) {
@@ -266,15 +268,19 @@ export function ComposerTurnControl({
                 <Tooltip.Content>{guideShortcut.visible}</Tooltip.Content>
               </Tooltip>
             ) : null}
-            <Button
-              isDisabled={!controlView.sendEnabled}
-              onPress={() => {
-                submit();
-              }}
-              variant="outline"
-            >
-              <Trans>Send</Trans>
-            </Button>
+            <Tooltip>
+              <Button
+                render={(props) => <button {...props} aria-keyshortcuts={sendShortcut.aria} />}
+                isDisabled={!controlView.sendEnabled}
+                onPress={() => {
+                  submit();
+                }}
+                variant="outline"
+              >
+                <Trans>Send</Trans>
+              </Button>
+              <Tooltip.Content>{sendShortcut.visible}</Tooltip.Content>
+            </Tooltip>
           </div>
         </>
       }
