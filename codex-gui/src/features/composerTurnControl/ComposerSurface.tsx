@@ -84,7 +84,6 @@ export function ComposerSurface({
         {header}
         {feedback}
         <Surface
-          title={appShortcut("focus")?.visible}
           aria-keyshortcuts={appShortcut("focus")?.aria}
           aria-disabled={disabled}
           className="composer-panel task-bottom-panel composer-field grid grid-cols-1 gap-2"

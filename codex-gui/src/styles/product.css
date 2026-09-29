@@ -75,6 +75,15 @@
 }
 
 @layer components {
+  .close-button {
+    @apply outline-none;
+
+    /* Native keyboard focus can be visible while React Aria still reports pointer input. */
+    &:focus-visible {
+      @apply status-focused;
+    }
+  }
+
   .button:not(.button--icon-only) {
     min-width: 0;
     max-width: 100%;

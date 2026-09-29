@@ -1,4 +1,4 @@
-import { Badge, Button, Drawer } from "@heroui/react";
+import { Badge, Button, Drawer, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
@@ -24,17 +24,16 @@ import { ActiveThreadCollectionMenu } from "./ActiveThreadCollectionMenu";
 import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation";
 import { TopBarNavigationItem } from "./TopBarNavigationItem";
 import { appShortcut, useAppShortcuts } from "./appShortcuts";
-import { ShortcutKey } from "./ShortcutKey";
 import { useActiveTaskNavigation } from "./useActiveTaskNavigation";
 
 export function AppShellTopBar() {
   const { t } = useLingui();
   const navigate = useNavigate();
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [drawerOpenMode, setDrawerOpenMode] = useState<"pointer" | "keyboard" | null>(null);
   const menuShortcut = appShortcut("menu");
   const composerFocus = use(ComposerFocusContext);
   const taskNavigation = useActiveTaskNavigation(() => {
-    setIsDrawerOpen(false);
+    setDrawerOpenMode(null);
   });
   const { routeTarget, status, newSessionOwner, connectionRecovery } = useAppCapabilities();
   const newSession = useNewSessionSnapshot();
@@ -79,7 +78,7 @@ export function AppShellTopBar() {
     if (activeThreadId == null) {
       return;
     }
-    setIsDrawerOpen(false);
+    setDrawerOpenMode(null);
     void navigate({
       to: CURRENT_TASK_ROUTE_PATH,
       params: { threadId: activeThreadId },
@@ -87,13 +86,13 @@ export function AppShellTopBar() {
   };
 
   const navigateToHistory = (): void => {
-    setIsDrawerOpen(false);
+    setDrawerOpenMode(null);
     void navigate({ to: HISTORY_LIST_ROUTE_PATH });
   };
 
   const navigateToNewSession = (): void => {
     if (!newSessionOwner.open(newSessionCwd)) return;
-    setIsDrawerOpen(false);
+    setDrawerOpenMode(null);
     void navigate({ to: NEW_TASK_ROUTE_PATH });
   };
 
@@ -106,13 +105,13 @@ export function AppShellTopBar() {
       return true;
     },
     menu: () => {
-      setIsDrawerOpen((open) => !open);
+      setDrawerOpenMode((mode) => (mode == null ? "keyboard" : null));
       return true;
     },
     focus: () => {
       const focus = composerFocus?.current;
       if (focus == null) return false;
-      setIsDrawerOpen(false);
+      setDrawerOpenMode(null);
       requestAnimationFrame(() => {
         if (composerFocus?.current === focus) focus();
       });
@@ -124,22 +123,37 @@ export function AppShellTopBar() {
     <header className="fixed inset-x-0 top-0 z-30 h-14 border-b border-separator bg-surface text-foreground">
       <div className="app-shell-content-boundary flex h-full items-center gap-2 sm:gap-3">
         <Badge.Anchor className="shrink-0">
-          <Button
-            render={(props) => <button {...props} aria-keyshortcuts={menuShortcut?.aria} />}
-            className="shrink-0"
-            aria-label={t`Menu`}
-            aria-describedby={hasError ? "active-tasks-error" : undefined}
-            variant="secondary"
-            onPress={() => {
-              setIsDrawerOpen(true);
-            }}
-          >
-            <Menu aria-hidden="true" className="size-5" />
-            <span>
-              <Trans>Menu</Trans>
-            </span>
-            {menuShortcut ? <ShortcutKey aria={menuShortcut.aria} /> : null}
-          </Button>
+          <Tooltip isDisabled={menuShortcut == null}>
+            <Button
+              render={(props) => (
+                <button
+                  {...props}
+                  aria-describedby={
+                    [props["aria-describedby"], hasError ? "active-tasks-error" : undefined]
+                      .filter(Boolean)
+                      .join(" ") || undefined
+                  }
+                  aria-keyshortcuts={menuShortcut?.aria}
+                />
+              )}
+              className="shrink-0"
+              aria-label={t`Menu`}
+              variant="secondary"
+              onPress={(event) => {
+                setDrawerOpenMode(
+                  event.pointerType === "keyboard" || event.pointerType === "virtual"
+                    ? "keyboard"
+                    : "pointer",
+                );
+              }}
+            >
+              <Menu aria-hidden="true" className="size-5" />
+              <span>
+                <Trans>Menu</Trans>
+              </span>
+            </Button>
+            {menuShortcut ? <Tooltip.Content>{menuShortcut.visible}</Tooltip.Content> : null}
+          </Tooltip>
           {hasError ? (
             <Badge color="danger" size="sm" aria-hidden="true" data-menu-error-indicator="true" />
           ) : null}
@@ -156,11 +170,19 @@ export function AppShellTopBar() {
         </h1>
       </div>
 
-      <Drawer.Backdrop isOpen={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+      <Drawer.Backdrop
+        isOpen={drawerOpenMode != null}
+        onOpenChange={(open) => {
+          if (!open) setDrawerOpenMode(null);
+        }}
+      >
         <Drawer.Content placement="left">
           <Drawer.Dialog>
             {/* An initial child focus avoids the dialog's delayed refocus racing nested menus. */}
-            <Drawer.CloseTrigger autoFocus />
+            <Drawer.CloseTrigger
+              autoFocus
+              className={drawerOpenMode === "keyboard" ? "focus:status-focused" : undefined}
+            />
             <Drawer.Header>
               <Drawer.Heading>
                 <Trans>Navigation</Trans>
@@ -210,7 +232,7 @@ export function AppShellTopBar() {
                   id="shortcuts-navigation"
                   isCurrent={isShortcuts}
                   onPress={() => {
-                    setIsDrawerOpen(false);
+                    setDrawerOpenMode(null);
                     void navigate({ to: SHORTCUTS_ROUTE_PATH });
                   }}
                   label={
@@ -223,7 +245,7 @@ export function AppShellTopBar() {
               </nav>
               <ActiveThreadCollectionMenu
                 close={() => {
-                  setIsDrawerOpen(false);
+                  setDrawerOpenMode(null);
                 }}
               />
             </Drawer.Body>
