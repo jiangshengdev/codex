@@ -22,6 +22,8 @@ export type ShellScenarioOptions = Readonly<{
   empty?: boolean;
   missingCwd?: boolean;
   error?: "task" | "connection";
+  realPages?: boolean;
+  inputUnavailable?: boolean;
   collection?: "multiple" | "long" | "missing" | "running" | "navigationFailure" | "removalFailure";
 }>;
 
@@ -126,6 +128,7 @@ export function createShellScenario(dispatch: AppDispatch, options: ShellScenari
     scheduler: { requestFrame: requestAnimationFrame, cancelFrame: cancelAnimationFrame },
   });
   const newSessionOwner = new NewSessionOwner();
+  if (options.realPages) newSessionOwner.setConnection({ commands, session: controller.session });
   let start: Promise<void> | undefined;
   return {
     options,

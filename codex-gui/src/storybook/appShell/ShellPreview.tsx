@@ -12,6 +12,8 @@ import {
 import { useAppDispatch } from "@/app/hooks";
 import { AppCapabilitiesContext } from "@/features/appShell/AppCapabilities";
 import { AppShell } from "@/features/appShell/AppShell";
+import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
+import { NewSessionPage } from "@/features/newSession/NewSessionPage";
 import {
   CURRENT_TASK_ROUTE_PATH,
   HISTORY_DETAIL_ROUTE_PATH,
@@ -29,11 +31,16 @@ import { createShellScenario, shellThreadId, type ShellScenarioOptions } from ".
 type Scenario = ReturnType<typeof createShellScenario>;
 
 function Shell({ scenario }: Readonly<{ scenario: Scenario }>) {
+  const pathname = useLocation({ select: (location) => location.pathname });
   const routeTarget = useMatches({ select: selectGuiRouteTarget });
   const threadId = routeTarget?.type === "currentTask" ? routeTarget.threadId : null;
   useEffect(() => {
     if (threadId != null) void scenario.session.view(threadId);
   }, [scenario, threadId]);
+  useEffect(() => {
+    if (scenario.options.realPages)
+      scenario.newSessionOwner.setNavigation(pathname === NEW_TASK_ROUTE_PATH, pathname);
+  }, [pathname, scenario]);
   if (routeTarget == null) return null;
   return (
     <AppCapabilitiesContext
@@ -44,7 +51,7 @@ function Shell({ scenario }: Readonly<{ scenario: Scenario }>) {
             ? { label: "error", message: "STORYBOOK_CONNECTION_FAILED: local fixture" }
             : { label: "initialized" },
         authorizationToken: null,
-        commands: scenario.commands,
+        commands: scenario.options.inputUnavailable ? null : scenario.commands,
         activeThreadSession: scenario.session,
         connectionRecovery: null,
         newSessionOwner: scenario.newSessionOwner,
@@ -87,7 +94,14 @@ function ShellRouter({ scenario }: Readonly<{ scenario: Scenario }>) {
       createRoute({
         getParentRoute: () => root,
         path,
-        component: () => <Placeholder scenario={scenario} />,
+        component: () =>
+          scenario.options.realPages && path === CURRENT_TASK_ROUTE_PATH ? (
+            <CurrentTaskPage />
+          ) : scenario.options.realPages && path === NEW_TASK_ROUTE_PATH ? (
+            <NewSessionPage />
+          ) : (
+            <Placeholder scenario={scenario} />
+          ),
       }),
     );
     const initialPath =

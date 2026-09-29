@@ -19,6 +19,8 @@ const preview: Preview = {
           [
             "Navigation",
             ["States"],
+            "Shortcuts",
+            ["Menu and focus"],
             "Active tasks",
             ["States"],
             "QR access",
