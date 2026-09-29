@@ -71,8 +71,10 @@ for (const width of [375, 1280]) {
       await expect
         .poll(async () => {
           const notice = await description.boundingBox();
-          const messages = await list.boundingBox();
-          return notice != null && messages != null ? messages.y - notice.y - notice.height : 0;
+          const firstMessage = await list.getByRole("listitem").first().boundingBox();
+          return notice != null && firstMessage != null
+            ? firstMessage.y - notice.y - notice.height
+            : 0;
         })
         .toBeGreaterThanOrEqual(16);
       await expect
@@ -103,12 +105,24 @@ for (const width of [375, 1280]) {
       const style = getComputedStyle(element);
       return {
         height: element.getBoundingClientRect().height,
-        padding: style.padding,
+        paddingLeft: style.paddingLeft,
+        paddingRight: style.paddingRight,
         fontSize: style.fontSize,
         lineHeight: style.lineHeight,
       };
     };
     expect(await remove.evaluate(measureButton)).toEqual(await reconnect.evaluate(measureButton));
+    for (const button of [remove, reconnect]) {
+      await expect
+        .poll(() =>
+          button.evaluate(
+            (element) =>
+              element.scrollWidth <= element.clientWidth &&
+              element.scrollHeight <= element.clientHeight,
+          ),
+        )
+        .toBe(true);
+    }
     const panel = page.getByRole("status").filter({ has: remove });
     await expect(panel).toContainText("Sending result unknown");
     await expect(panel.getByRole("button")).toHaveCount(1);

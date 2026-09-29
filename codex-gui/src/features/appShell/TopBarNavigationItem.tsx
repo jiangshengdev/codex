@@ -1,5 +1,7 @@
 import { Button } from "@heroui/react";
 import type { ReactNode } from "react";
+import { ShortcutKey } from "./ShortcutKey";
+import type { appShortcut } from "./appShortcuts";
 
 type TopBarNavigationItemProps = {
   id: string;
@@ -8,6 +10,7 @@ type TopBarNavigationItemProps = {
   label: ReactNode;
   description: ReactNode;
   onPress: () => void;
+  shortcut?: ReturnType<typeof appShortcut>;
 };
 
 export function TopBarNavigationItem({
@@ -17,12 +20,14 @@ export function TopBarNavigationItem({
   label,
   description,
   onPress,
+  shortcut,
 }: TopBarNavigationItemProps) {
   const labelId = `${id}-label`;
   const descriptionId = `${id}-description`;
 
   return (
     <Button
+      render={(props) => <button {...props} aria-keyshortcuts={shortcut?.aria} />}
       aria-describedby={descriptionId}
       aria-current={isCurrent ? "page" : undefined}
       aria-labelledby={labelId}
@@ -55,6 +60,7 @@ export function TopBarNavigationItem({
           {description}
         </span>
       </span>
+      {shortcut ? <ShortcutKey aria={shortcut.aria} /> : null}
     </Button>
   );
 }

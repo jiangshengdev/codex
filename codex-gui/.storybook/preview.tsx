@@ -15,8 +15,23 @@ const preview: Preview = {
     options: {
       storySort: {
         order: [
+          "App shell",
+          [
+            "Navigation",
+            ["States"],
+            "Shortcuts",
+            ["Menu and focus", "Task switching"],
+            "Active tasks",
+            ["States"],
+            "QR access",
+            ["States"],
+            "Not found",
+            ["Navigation"],
+          ],
           "Composer",
           [
+            "Shortcuts",
+            ["Send and newline", "Guide"],
             "Input and drafts",
             ["Input", "Draft"],
             "Send controls",
@@ -46,6 +61,18 @@ const preview: Preview = {
           ],
           "Environment",
           ["Rendering", ["Preview"], "Stateful", ["Store and router"]],
+          "History",
+          "New session",
+          [
+            "Shortcuts",
+            ["Open draft"],
+            "Flow",
+            ["States (local simulation)"],
+            "Inputs",
+            ["Variants (local simulation)"],
+            "Mixed input recovery",
+            ["States (local simulation)"],
+          ],
         ],
       },
     },

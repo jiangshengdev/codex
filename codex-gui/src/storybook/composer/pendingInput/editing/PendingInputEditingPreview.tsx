@@ -1,7 +1,8 @@
 import { Button } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { userEvent, within } from "storybook/test";
+import { within } from "storybook/test";
+import { initializeWhenReady } from "../../../environment/initializeWhenReady";
 import { useComposerPendingInput } from "@/features/composerTurnControl/composerPendingInputHost";
 import { PendingInputPreview, PendingInputScenarioView } from "../PendingInputScenarioView";
 import { createPendingInputEditingScenario } from "./pendingInputEditingScenario";
@@ -31,27 +32,28 @@ function InitialState({
 
   useEffect(() => {
     if (initialState === "queue") return;
-    let current = true;
-    const isCurrent = () => current;
     const binding = host.getSnapshot().connection?.binding;
     if (binding == null) throw new Error("Pending preview binding is required for initialization");
     if (host.getSnapshot().pending.phase === "closed") host.session.open(binding);
     if (initialState === "deleteConfirmation") {
       // Initialize the list item's own confirmation through its rendered control.
-      const initializeDeletion = async () => {
-        const dialog = await within(document.body).findByRole("dialog");
-        if (!isCurrent()) return;
-        const item = await within(dialog).findByRole("group", {
-          name: /^Ordinary message 1(?:\s|$)/,
-        });
-        if (!isCurrent()) return;
-        const button = await within(item).findByRole("button", { name: deleteLabel });
-        if (!isCurrent()) return;
-        await userEvent.click(button);
-      };
-      void initializeDeletion().catch((error: unknown) => {
-        if (current) setInitializationError({ error });
-      });
+      return initializeWhenReady(
+        document.body,
+        () => {
+          const dialog = within(document.body).queryByRole("dialog");
+          if (dialog == null) return false;
+          const item = within(dialog).queryByRole("group", {
+            name: /^Ordinary message 1(?:\s|$)/,
+          });
+          if (item == null) return false;
+          const button = within(item).queryByRole("button", { name: deleteLabel });
+          if (button == null) return false;
+          button.click();
+          return true;
+        },
+        setInitializationError,
+        "Pending preview delete button was not mounted",
+      );
     } else if (host.getSnapshot().pending.view?.edit == null) {
       const page = scenario.role.readPendingInputPage({
         lane: "ordinary",
@@ -63,9 +65,6 @@ function InitialState({
         throw new Error("Initial queued message is required");
       host.session.beginEdit(binding, page.items[0]);
     }
-    return () => {
-      current = false;
-    };
   }, [deleteLabel, host, initialState, scenario]);
 
   useEffect(() => {

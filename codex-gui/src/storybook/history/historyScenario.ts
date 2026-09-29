@@ -37,7 +37,10 @@ export type HistoryScenarioOptions = Readonly<{
 
 export function createHistoryScenario(dispatch: AppDispatch, options: HistoryScenarioOptions = {}) {
   const fallback = createRecoveryCommands();
-  const tasks = createHistoryFixtures(options.list === "longContent");
+  const tasks = createHistoryFixtures(
+    options.list === "longContent",
+    options.fork != null && options.detail === "longContent",
+  );
   const cancellations = new Set<() => void>();
   const wait = (pending = false): Promise<void> =>
     new Promise((resolve, reject) => {
@@ -185,7 +188,16 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
       (start ??=
         options.list === "contextUnavailable"
           ? Promise.resolve()
-          : controller.session.activate(historyCurrentId)),
+          : controller.session.activate(historyCurrentId).then((outcome) => {
+              if (options.fork === "pageCoexistence") {
+                controller.session.setOperationError(
+                  historySelectedId,
+                  "navigation",
+                  new Error("STORYBOOK_OPEN_TASK_FAILED: The history task could not be opened."),
+                );
+              }
+              return outcome;
+            })),
     getActivationCount: () => activationCount,
     getForkCount: () => forkCount,
     subscribe: (listener: () => void) => listeners.subscribe(listener),

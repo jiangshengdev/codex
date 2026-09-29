@@ -33,6 +33,8 @@ import { ComposerSurface } from "./ComposerSurface";
 import { CurrentThreadStatus } from "./CurrentThreadStatus";
 import { ComposerPersistenceStatus } from "./ComposerPersistenceStatus";
 import { usePersistComposerDraft } from "./usePersistComposerDraft";
+import { ShortcutKey } from "@/features/appShell/ShortcutKey";
+import { ComposerSendButton } from "./ComposerSendButton";
 
 export type ComposerTurnControlProps = {
   authorizationToken: string | null;
@@ -108,7 +110,7 @@ export function ComposerTurnControl({
     () => ({ invalidPaths: controlView.invalidSelectedSkillPaths, statusText: invalidStatusText }),
     [controlView.invalidSelectedSkillPaths, invalidStatusText],
   );
-  const guideShortcut = composerShortcutsForPlatform(navigator.platform).guide;
+  const { guide: guideShortcut } = composerShortcutsForPlatform(navigator.platform);
   const focusComposer = useCallback((): void => {
     if (composerEditorController == null) return;
     if (controlView.operationsEnabled) {
@@ -193,6 +195,7 @@ export function ComposerTurnControl({
           skillsRole.retrySkills(revision);
         },
         onSubmit: submit,
+        submitIntents: controlView.guide.shortcutEnabled ? ["ordinary", "guide"] : ["ordinary"],
         skillCatalog,
         skillValidity,
       }}
@@ -232,7 +235,7 @@ export function ComposerTurnControl({
             onRequestCompaction={requestCompaction}
             usage={contextUsage}
           />
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
             {controlView.stop.failed ? (
               <Chip color="danger" size="md" variant="secondary" role="status">
                 <CircleAlert aria-hidden="true" className="size-3" />
@@ -250,7 +253,7 @@ export function ComposerTurnControl({
               <Trans>Stop</Trans>
             </Button>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
             {controlView.guide.visible ? (
               <Tooltip>
                 <Button
@@ -263,18 +266,17 @@ export function ComposerTurnControl({
                 >
                   <Trans>Guide</Trans>
                 </Button>
-                <Tooltip.Content>{guideShortcut.visible}</Tooltip.Content>
+                <Tooltip.Content>
+                  <ShortcutKey aria={guideShortcut.aria} variant="light" />
+                </Tooltip.Content>
               </Tooltip>
             ) : null}
-            <Button
+            <ComposerSendButton
               isDisabled={!controlView.sendEnabled}
               onPress={() => {
                 submit();
               }}
-              variant="outline"
-            >
-              <Trans>Send</Trans>
-            </Button>
+            />
           </div>
         </>
       }

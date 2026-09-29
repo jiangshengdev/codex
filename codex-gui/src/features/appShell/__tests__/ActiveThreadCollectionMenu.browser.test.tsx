@@ -271,7 +271,9 @@ test("a thrown remove error survives closing the drawer and clears after success
   await userEvent.keyboard("{Escape}");
   await expect.element(screen.getByRole("dialog", { name: "Navigation" })).not.toBeInTheDocument();
   const menu = screen.getByRole("button", { name: "Menu", exact: true });
-  await expect.element(menu).toHaveAccessibleDescription("Tasks or the connection need attention.");
+  await expect
+    .element(menu)
+    .toHaveAccessibleDescription(/Tasks or the connection need attention\./);
   await menu.click();
   await screen
     .getByRole("button", { name: `More options for ${backgroundThreadId}`, exact: true })
@@ -317,7 +319,9 @@ test("navigation rejections persist in the task owner until that navigation succ
   await expect
     .poll(() => harness.setOperationError.mock.calls)
     .toContainEqual([backgroundThreadId, "navigation", failure]);
-  await expect.element(menu).toHaveAccessibleDescription("Tasks or the connection need attention.");
+  await expect
+    .element(menu)
+    .toHaveAccessibleDescription(/Tasks or the connection need attention\./);
   await menu.click();
   await screen.getByRole("button", { name: backgroundThreadId, exact: true }).click();
   await expect

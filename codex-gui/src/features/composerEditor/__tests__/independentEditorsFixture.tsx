@@ -32,6 +32,7 @@ export function IndependentEditorsFixture({
           style={fixtureSkillMenuParentStyle}
         />
         <ComposerEditor
+          submitIntents={["ordinary", "guide"]}
           ariaLabel="First message"
           controllerRef={firstControllerRef}
           disabled={false}
@@ -50,6 +51,7 @@ export function IndependentEditorsFixture({
           style={fixtureSkillMenuParentStyle}
         />
         <ComposerEditor
+          submitIntents={["ordinary", "guide"]}
           ariaLabel="Second message"
           controllerRef={secondControllerRef}
           disabled={false}

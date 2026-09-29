@@ -38,7 +38,7 @@ test("guide failure preset gates a separate draft until explicit recovery", asyn
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const response = page.getByRole("button", { name: "Simulate guide response", exact: true });
   await expect(unsent).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Will send first", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Priority 1", exact: true })).toHaveCount(0);
   await editor.fill("Separate draft");
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Guide", exact: true })).toBeDisabled();
@@ -57,12 +57,15 @@ test("guide refusal preset is priority delivery rather than failure recovery", a
   await page.goto(
     `${storybookOrigin}/iframe.html?id=composer-input-and-send-guide--guide-unavailable`,
   );
-  const priority = page.getByRole("heading", { name: "Will send first", exact: true });
-  await expect(priority).toBeVisible();
+  const priority = page.getByRole("button", { name: "Priority 1", exact: true });
+  await priority.click();
+  const dialog = page.getByRole("dialog", { name: "Pending details", exact: true });
   await expect(
-    page.getByText("Currently unable to guide; added to queue", { exact: true }),
+    dialog.getByText("Currently unable to guide; added to queue", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Guide this fictional change.", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Guide this fictional change.", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
   await expect(page.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(0);
   await page
     .getByRole("combobox", { name: "Message Codex", exact: true })

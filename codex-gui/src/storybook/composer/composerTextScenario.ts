@@ -2,8 +2,8 @@ import { $createParagraphNode, $createTextNode, $getRoot, createEditor } from "l
 import { captureComposerDraft } from "@/features/composerEditor/composerDraft";
 import { createComposerScenario } from "./composerScenario";
 
-export function createComposerTextScenario(text: string) {
-  const scenario = createComposerScenario();
+export function createComposerTextScenario(text: string, activeTurnId: string | null = null) {
+  const scenario = createComposerScenario(undefined, activeTurnId);
   const editor = createEditor({
     namespace: "storybook-composer-text",
     onError(error) {

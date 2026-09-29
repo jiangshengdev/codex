@@ -26,39 +26,11 @@
   min-width: 0;
 }
 
-.failure-layout :is(.button, .link) {
+.failure-layout .link {
   min-width: 0;
   max-width: 100%;
   white-space: normal;
   overflow-wrap: anywhere;
-}
-
-.failure-layout .button {
-  height: auto;
-  min-height: 2.5rem;
-  padding-block: 0.25rem;
-}
-
-.failure-layout .button--sm {
-  min-height: 2.25rem;
-}
-
-.failure-layout .button--lg {
-  min-height: 2.75rem;
-}
-
-@media (min-width: 48rem) {
-  .failure-layout .button {
-    min-height: 2.25rem;
-  }
-
-  .failure-layout .button--sm {
-    min-height: 2rem;
-  }
-
-  .failure-layout .button--lg {
-    min-height: 2.5rem;
-  }
 }
 
 @container (min-width: 40rem) {

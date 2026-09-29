@@ -2,17 +2,16 @@ import path from "node:path";
 import { defineConfig, configDefaults, mergeConfig } from "vitest/config";
 import packageJson from "./package.json" with { type: "json" };
 import viteConfig from "./vite.config.ts";
-import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
-const dirname =
-  typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
+import { sharedTestConfig } from "./vitest.shared.config.ts";
 
 // More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 export default mergeConfig(
   viteConfig,
   defineConfig({
     test: {
+      ...sharedTestConfig,
       watch: false,
       projects: [
         {
@@ -40,7 +39,7 @@ export default mergeConfig(
             // The plugin will run tests for the stories defined in your Storybook config
             // See options at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon#storybooktest
             storybookTest({
-              configDir: path.join(dirname, ".storybook"),
+              configDir: path.join(import.meta.dirname, ".storybook"),
             }),
           ],
           test: {

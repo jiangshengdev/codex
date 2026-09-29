@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::body::Body;
-use axum::extract::Path;
 use axum::extract::State;
 use axum::http::Request;
 use axum::http::StatusCode;
@@ -24,10 +23,7 @@ use crate::GuiHostMode;
 use crate::GuiLaunchUrls;
 use crate::LaunchToken;
 use crate::assets;
-use crate::browser_contract::CURRENT_TASK_PATH_SEGMENT;
 use crate::browser_contract::FILE_PREVIEW_PATH;
-use crate::browser_contract::HISTORY_PATH_SEGMENT;
-use crate::browser_contract::NEW_TASK_PATH_SEGMENT;
 use crate::browser_contract::UPLOAD_PATH;
 use crate::browser_contract::WEBSOCKET_PATH;
 use crate::launch_url_for_thread;
@@ -146,51 +142,7 @@ where
         }
         GuiHostMode::Prod(config) => {
             assets::prod_dist_dir(config)?;
-            let root_config = config.clone();
-            let current_task_config = config.clone();
-            let new_task_config = config.clone();
-            let history_config = config.clone();
-            let history_thread_config = config.clone();
-            let current_task_path = format!("/{CURRENT_TASK_PATH_SEGMENT}/{{thread_id}}");
-            let new_task_path = format!("/{NEW_TASK_PATH_SEGMENT}");
-            let history_path = format!("/{HISTORY_PATH_SEGMENT}");
-            let history_thread_path = format!("/{HISTORY_PATH_SEGMENT}/{{thread_id}}");
             Ok(Router::new()
-                .route(
-                    "/",
-                    get(move || {
-                        let config = root_config.clone();
-                        async move { assets::serve_prod_index(config).await }
-                    }),
-                )
-                .route(
-                    &current_task_path,
-                    get(move |Path(thread_id): Path<String>| {
-                        let config = current_task_config.clone();
-                        async move { assets::serve_prod_thread_index(config, thread_id).await }
-                    }),
-                )
-                .route(
-                    &new_task_path,
-                    get(move || {
-                        let config = new_task_config.clone();
-                        async move { assets::serve_prod_index(config).await }
-                    }),
-                )
-                .route(
-                    &history_path,
-                    get(move || {
-                        let config = history_config.clone();
-                        async move { assets::serve_prod_index(config).await }
-                    }),
-                )
-                .route(
-                    &history_thread_path,
-                    get(move |Path(thread_id): Path<String>| {
-                        let config = history_thread_config.clone();
-                        async move { assets::serve_prod_thread_index(config, thread_id).await }
-                    }),
-                )
                 .route(WEBSOCKET_PATH, get(crate::ws::ws_handler::<B>))
                 .route(UPLOAD_PATH, post(crate::upload::upload::<B>))
                 .route(FILE_PREVIEW_PATH, get(crate::file_preview::preview::<B>))
@@ -378,13 +330,23 @@ mod tests {
         .await
         .expect("host should start");
 
-        for path in ["/", "/new"] {
-            let response = reqwest::get(format!(
-                "http://127.0.0.1:{}{path}",
-                handle.local_addr().port()
-            ))
-            .await
-            .expect("page request should succeed");
+        for path in [
+            "/",
+            "/new",
+            "/shortcuts",
+            "/unknown",
+            "/task/not-a-uuid",
+            "/history/not-a-uuid",
+        ] {
+            let response = reqwest::Client::new()
+                .get(format!(
+                    "http://127.0.0.1:{}{path}",
+                    handle.local_addr().port()
+                ))
+                .header("accept", "text/html")
+                .send()
+                .await
+                .expect("page request should succeed");
             assert_eq!(response.status(), StatusCode::OK);
             assert_eq!(
                 response
@@ -404,6 +366,124 @@ mod tests {
             assert!(body.contains("<h1>prod-static-test</h1>"));
         }
 
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn prod_spa_fallback_preserves_resource_and_endpoint_responses() {
+        let (package_root, config) = prod_config().await;
+        tokio::fs::write(package_root.path().join("dist/app.js"), "export {};")
+            .await
+            .expect("asset should be written");
+        let handle = GuiHost::start(config, NoopBackend)
+            .await
+            .expect("host should start");
+        let client = reqwest::Client::new();
+        for (method, path, accept, expected_status) in [
+            (reqwest::Method::GET, "/app.js", "*/*", StatusCode::OK),
+            (
+                reqwest::Method::GET,
+                "/missing.js",
+                "text/html",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                reqwest::Method::GET,
+                "/assets/missing",
+                "text/html",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                reqwest::Method::GET,
+                "/unknown",
+                "application/json",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                reqwest::Method::GET,
+                "/unknown",
+                "text/html;q=0",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                reqwest::Method::GET,
+                "/upload/unknown",
+                "text/html",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                reqwest::Method::GET,
+                "/ws/unknown",
+                "text/html",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                reqwest::Method::GET,
+                "/upload",
+                "text/html",
+                StatusCode::METHOD_NOT_ALLOWED,
+            ),
+            (
+                reqwest::Method::GET,
+                "/upload/preview?path=/tmp/example",
+                "text/html",
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                reqwest::Method::POST,
+                "/shortcuts",
+                "text/html",
+                StatusCode::METHOD_NOT_ALLOWED,
+            ),
+        ] {
+            let response = client
+                .request(
+                    method,
+                    format!("http://127.0.0.1:{}{path}", handle.local_addr().port()),
+                )
+                .header("accept", accept)
+                .send()
+                .await
+                .expect("request should succeed");
+            assert_eq!(response.status(), expected_status, "{path} with {accept}");
+            assert!(
+                !response
+                    .text()
+                    .await
+                    .expect("body should be readable")
+                    .contains("prod-static-test")
+            );
+        }
+        for destination in ["script", "style", "empty"] {
+            let response = client
+                .get(format!(
+                    "http://127.0.0.1:{}/unknown",
+                    handle.local_addr().port()
+                ))
+                .header("accept", "text/html")
+                .header("sec-fetch-dest", destination)
+                .send()
+                .await
+                .expect("resource request should succeed");
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
+        let response = client
+            .head(format!(
+                "http://127.0.0.1:{}/shortcuts",
+                handle.local_addr().port()
+            ))
+            .header("accept", "text/html")
+            .send()
+            .await
+            .expect("HEAD request should succeed");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            response
+                .bytes()
+                .await
+                .expect("HEAD body should be readable")
+                .is_empty()
+        );
         handle.shutdown().await;
     }
 

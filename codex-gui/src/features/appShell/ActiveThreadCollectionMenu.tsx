@@ -8,7 +8,6 @@ import type {
   ActiveThreadRemovalOutcome,
 } from "@/features/activeThreadSession/activeThreadSessionCollectionContracts";
 import {
-  CURRENT_TASK_ROUTE_PATH,
   HISTORY_LIST_ROUTE_PATH,
   selectGuiRouteTarget,
 } from "@/features/browserLaunch/guiRouteTarget";
@@ -16,6 +15,7 @@ import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntim
 import { useActiveThreadCollectionSnapshot, useAppCapabilities } from "./AppCapabilities";
 import { activeThreadRemovalBlockerMessage } from "./activeThreadCollectionMessages";
 import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation";
+import { useActiveTaskNavigation } from "./useActiveTaskNavigation";
 
 export function ActiveThreadCollectionMenu({ close }: Readonly<{ close(): void }>) {
   const collection = useActiveThreadCollectionSnapshot();
@@ -52,19 +52,14 @@ function ActiveThreadCollectionRow({
   const navigate = useNavigate();
   const router = useRouter();
   const { activeThreadSession } = useAppCapabilities();
+  const navigation = useActiveTaskNavigation(close);
   const runtime = useAppSelector((state) => selectThreadRuntimeRecord(state, member.threadId));
   const title = runtime?.thread.name?.trim() ? runtime.thread.name : member.threadId;
   const hasError = activeThreadMemberHasError(member);
   const errorId = `active-task-error-${member.threadId}`;
   const blockerId = `active-task-removal-${member.threadId}`;
   const select = (): void => {
-    close();
-    void navigate({ to: CURRENT_TASK_ROUTE_PATH, params: { threadId: member.threadId } }).then(
-      () => activeThreadSession?.setOperationError(member.threadId, "navigation", null),
-      (error: unknown) => {
-        activeThreadSession?.setOperationError(member.threadId, "navigation", error);
-      },
-    );
+    navigation.select(member.threadId);
   };
   const removed = async (
     outcome: Extract<ActiveThreadRemovalOutcome, { type: "removed" }>,

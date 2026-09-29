@@ -19,6 +19,7 @@ export function NewSessionWorkingDirectory({ cwd }: Readonly<{ cwd: string }>) {
             message: `Working directory: ${directoryName}`,
           })}
           className="h-auto max-w-full min-w-0 justify-start gap-1 rounded-xl px-2 py-1 text-xs md:h-auto"
+          size="sm"
           variant="ghost"
         >
           <Folder aria-hidden="true" className="m-0 size-3 shrink-0 sm:my-0 sm:size-3" />

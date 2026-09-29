@@ -132,14 +132,14 @@ for (const width of [375, 1280]) {
     await expect(transcript).toContainText("End of the code sample.");
     await expect(pagination.getByRole("button", { name: "Previous context page" })).toBeDisabled();
     await expect(transcript.getByRole("separator", { name: "Context compressed" })).toHaveCount(0);
-    const lastPage = pagination.getByRole("button", { name: "Context page 3" });
+    const lastPageButton = pagination.getByRole("button", { name: "Context page 3" });
     // Scrolling can change code-block heights; let the pagination settle before pressing it.
     let previousBounds: string | undefined;
     await expect
       .poll(
         async () => {
-          await lastPage.scrollIntoViewIfNeeded();
-          const bounds = JSON.stringify(await lastPage.boundingBox());
+          await lastPageButton.scrollIntoViewIfNeeded();
+          const bounds = JSON.stringify(await lastPageButton.boundingBox());
           const stable = bounds === previousBounds;
           previousBounds = bounds;
           return stable;
@@ -147,7 +147,7 @@ for (const width of [375, 1280]) {
         { intervals: [300] },
       )
       .toBe(true);
-    await lastPage.click();
+    await lastPageButton.click();
     await test.info().attach("page-after-return", {
       body: JSON.stringify(
         await pagination.getByRole("button").evaluateAll((buttons) =>

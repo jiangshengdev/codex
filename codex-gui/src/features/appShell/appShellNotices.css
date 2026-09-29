@@ -1,0 +1,47 @@
+.app-shell-notices {
+  display: none;
+  min-width: 0;
+  padding-block: calc(var(--spacing) * 3);
+
+  &:has(> .app-shell-notices__items:not(:empty)) {
+    display: block;
+  }
+
+  &[data-floating="true"] {
+    position: sticky;
+    top: calc(var(--spacing) * 14);
+    z-index: 20;
+    background: var(--background);
+  }
+}
+
+.task-page-layout > .app-shell-notices {
+  margin-block: calc(var(--spacing) * -3);
+  margin-inline: calc(-1 * var(--app-shell-content-gutter));
+  padding-inline: var(--app-shell-content-gutter);
+}
+
+.app-shell-notices.app-shell-content-boundary {
+  margin-bottom: calc(var(--spacing) * -3);
+}
+
+.app-shell-notices__items {
+  display: grid;
+  gap: calc(var(--spacing) * 3);
+  min-width: 0;
+
+  &:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+}
+
+.app-shell-notices[data-floating="true"] > .app-shell-notices__items {
+  /* Keep surface shadows inside the scrollport without insetting the cards. */
+  margin: calc(var(--spacing) * -2);
+  padding: calc(var(--spacing) * 2);
+  max-height: min(24rem, 40svh);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-padding-block: calc(var(--spacing) * 2);
+}

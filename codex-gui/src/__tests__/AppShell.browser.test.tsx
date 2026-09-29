@@ -154,7 +154,7 @@ afterEach(() => {
 
 test("App renders the committed transcript shell without visible host debug details", async () => {
   const { screen } = await renderReadyApp(startGuiHostConnectionMock);
-  const topNotices = screen.container.querySelector("[data-app-shell-top-notices]");
+  const topNotices = screen.container.querySelector<HTMLDivElement>("[data-app-shell-top-notices]");
 
   await expect
     .element(screen.getByRole("main"))
@@ -162,7 +162,8 @@ test("App renders the committed transcript shell without visible host debug deta
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
   await expect.element(screen.getByText("GUI host")).not.toBeInTheDocument();
-  expect(topNotices).toBeNull();
+  await expect.element(topNotices).not.toBeVisible();
+  expect(topNotices?.getBoundingClientRect().height).toBe(0);
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
 });
 
@@ -570,7 +571,7 @@ test("App aligns history startup errors with their responsive shell owners", asy
       .closest('[role="alert"]');
     const topNoticeTitle = screen.getByText("Unable to start Codex GUI").element();
     const topNoticeAlert = topNoticeTitle.closest(".alert");
-    const topNoticeContent = topNoticeAlert?.parentElement;
+    const topNoticeContent = topNoticeAlert?.closest("[data-app-shell-top-notices]");
 
     if (
       !(bannerContent instanceof HTMLElement) ||

@@ -76,15 +76,26 @@ async fn prod_serves_hashed_asset_from_package_root() {
 }
 
 #[tokio::test]
-async fn prod_known_spa_routes_serve_index() -> Result<()> {
+async fn prod_spa_navigation_serves_index_without_a_page_registry() -> Result<()> {
     let (package_root, handle) = start_test_prod_host().await?;
 
     for path in [
         format!("/task/{THREAD_ID}"),
         "/history".to_string(),
         format!("/history/{THREAD_ID}"),
+        "/new".to_string(),
+        "/shortcuts".to_string(),
+        "/unknown".to_string(),
+        "/task/not-a-uuid".to_string(),
+        "/history/not-a-uuid".to_string(),
+        "/task/invalid.id".to_string(),
+        format!("/task/{THREAD_ID}/extra"),
     ] {
-        let response = reqwest::get(format!("{}{path}", local_origin(&handle)))
+        let response = reqwest::Client::new()
+            .get(format!("{}{path}", local_origin(&handle)))
+            .header("accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
+            .header("sec-fetch-dest", "document")
+            .send()
             .await
             .expect("SPA route request should succeed");
         assert_index_response(response).await?;
@@ -124,9 +135,6 @@ async fn prod_unknown_asset_returns_not_found() -> Result<()> {
         "/assets/missing.css",
         "/task/missing.js",
         "/history/missing.css",
-        "/task/019c6e27-e55b-73d1-87d8-4e01f1f75043/extra",
-        "/history/019c6e27-e55b-73d1-87d8-4e01f1f75043/extra",
-        "/unknown",
     ] {
         let response = reqwest::get(format!("{origin}{path}"))
             .await
@@ -286,6 +294,13 @@ async fn prod_serves_built_codex_gui_dist_from_package_root_env() {
             .and_then(|value| value.to_str().ok())
             .is_some_and(|value| value.contains("javascript")),
         "built module asset should be served as JavaScript"
+    );
+    assert!(
+        !asset_response
+            .bytes()
+            .await
+            .expect("built module body should be readable")
+            .is_empty()
     );
 
     handle.shutdown().await;

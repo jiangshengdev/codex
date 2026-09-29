@@ -4,6 +4,7 @@ import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import { createAppRouter } from "@/router";
 import { renderWithProviders } from "@/utils/test-utils";
+import { expectRouteErrorConsole } from "./routeErrorConsole";
 
 const guiHostClientMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -59,6 +60,7 @@ beforeEach(() => {
 
 test.each([
   { initialEntry: "/", expectedErrors: [], expectedWarnings: [] },
+  { initialEntry: "/unknown", expectedErrors: [], expectedWarnings: [] },
   { initialEntry: "/task", expectedErrors: [], expectedWarnings: [] },
   { initialEntry: `/task/${validThreadId}/extra`, expectedErrors: [], expectedWarnings: [] },
   { initialEntry: `/history/${validThreadId}/extra`, expectedErrors: [], expectedWarnings: [] },
@@ -82,10 +84,7 @@ test.each([
 ])(
   "rejects invalid URL $initialEntry before starting a GUI host connection",
   async ({ initialEntry, expectedErrors, expectedWarnings }) => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-
-    try {
+    await expectRouteErrorConsole(expectedErrors, expectedWarnings, async () => {
       const router = createAppRouter(createMemoryHistory({ initialEntries: [initialEntry] }));
       const screen = await renderWithProviders(<RouterProvider router={router} />);
 
@@ -102,17 +101,7 @@ test.each([
         pathname: originalUrl.pathname,
         search: Object.fromEntries(originalUrl.searchParams),
       });
-      expect(consoleError).toHaveBeenCalledTimes(expectedErrors.length);
-      expect(
-        consoleError.mock.calls.flatMap((args) =>
-          args.filter((argument) => argument instanceof Error).map((error) => error.message),
-        ),
-      ).toEqual(expectedErrors);
-      expect(consoleWarn.mock.calls).toEqual(expectedWarnings.map((warning) => [warning]));
-    } finally {
-      consoleError.mockRestore();
-      consoleWarn.mockRestore();
-    }
+    });
   },
 );
 

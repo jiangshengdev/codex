@@ -76,6 +76,7 @@ export function ComposerPendingInputEditor({
             onSubmit={(capture) => {
               if (valid) onSave(capture);
             }}
+            submitIntents={["ordinary", "guide"]}
             placeholder={t`Edit pending message`}
             skillCatalog={skillCatalog}
             skillMenuParent={skillMenuParent}
