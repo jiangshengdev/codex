@@ -86,16 +86,23 @@ test("send Tooltip exposes Enter through hover and keyboard focus", async ({ pag
   await expect(send).toBeEnabled();
   await page.getByRole("combobox", { name: "Message Codex", exact: true }).click();
   await send.hover();
-  await expect(page.getByRole("tooltip")).toHaveText("Enter");
+  const tooltip = page.getByRole("tooltip", { name: "Enter", exact: true });
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toHaveText("↵");
   await expect(send).toHaveAccessibleDescription("Enter");
   await expect(send).toHaveAttribute("aria-keyshortcuts", "Enter");
   await expect(send).not.toHaveAttribute("title");
   await page.mouse.move(0, 0);
+  await expect(tooltip).toBeHidden();
   await send.focus();
-  await page.keyboard.press("Tab");
+  // Stay in the composer: tabbing forward into the story controls scrolls the
+  // page, whose delayed scroll event can dismiss the tooltip after refocusing.
   await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
   await expect(send).toBeFocused();
-  await expect(page.getByRole("tooltip")).toHaveText("Enter");
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toHaveText("↵");
+  await expect(send).toHaveAccessibleDescription("Enter");
 });
 
 test("simulated composing Enter preserves the draft", async ({ page }) => {

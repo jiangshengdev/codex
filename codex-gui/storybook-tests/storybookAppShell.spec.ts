@@ -60,10 +60,10 @@ test("task and connection errors remain indicated after closing navigation", asy
   for (const story of ["task-error", "connection-error"]) {
     await page.goto(`/iframe.html?id=app-shell-navigation--${story}&viewMode=story`);
     const menu = page.getByRole("button", { name: "Menu", exact: true });
-    await expect(menu).toHaveAccessibleDescription("Tasks or the connection need attention.");
+    await expect(menu).toHaveAccessibleDescription(/Tasks or the connection need attention\./);
     await menu.press("Enter");
     await page.keyboard.press("Escape");
-    await expect(menu).toHaveAccessibleDescription("Tasks or the connection need attention.");
+    await expect(menu).toHaveAccessibleDescription(/Tasks or the connection need attention\./);
   }
 });
 

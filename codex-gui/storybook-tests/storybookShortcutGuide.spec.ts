@@ -74,16 +74,20 @@ test("Guide Tooltip describes Command+Enter on hover and keyboard focus", async 
   await expect(guide).toBeEnabled();
   await page.getByRole("combobox", { name: "Message Codex", exact: true }).click();
   await guide.hover();
-  await expect(page.getByRole("tooltip", { name: "⌘ Enter", exact: true })).toBeVisible();
-  await expect(guide).toHaveAccessibleDescription("⌘ Enter");
+  const tooltip = page.getByRole("tooltip", { name: "Command+Enter", exact: true });
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toHaveText(/^⌘\s*↵$/);
+  await expect(guide).toHaveAccessibleDescription("Command+Enter");
   await expect(guide).toHaveAttribute("aria-keyshortcuts", "Meta+Enter");
   await page.mouse.move(0, 0);
+  await expect(tooltip).toBeHidden();
   await guide.focus();
   await page.keyboard.press("Tab");
   await page.keyboard.press("Shift+Tab");
   await expect(guide).toBeFocused();
-  await expect(page.getByRole("tooltip", { name: "⌘ Enter", exact: true })).toBeVisible();
-  await expect(guide).toHaveAccessibleDescription("⌘ Enter");
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toHaveText(/^⌘\s*↵$/);
+  await expect(guide).toHaveAccessibleDescription("Command+Enter");
 });
 
 test("simulated composition suppresses guidance", async ({ page }) => {

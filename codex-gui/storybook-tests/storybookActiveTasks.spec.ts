@@ -98,7 +98,7 @@ test("navigation failure survives drawer dismissal and clears after retry", asyn
   await expect(drawer(page)).toHaveCount(0);
   await expect(page.getByRole("main")).toHaveText(`/task/${firstId}`);
   await expect(menuButton(page)).toHaveAccessibleDescription(
-    "Tasks or the connection need attention.",
+    /Tasks or the connection need attention\./,
   );
   await menuButton(page).click();
   await expect(taskButton(page, "Shell task 2")).toHaveAccessibleDescription(
@@ -106,12 +106,14 @@ test("navigation failure survives drawer dismissal and clears after retry", asyn
   );
   await page.keyboard.press("Escape");
   await expect(menuButton(page)).toHaveAccessibleDescription(
-    "Tasks or the connection need attention.",
+    /Tasks or the connection need attention\./,
   );
   await menuButton(page).click();
   await taskButton(page, "Shell task 2").click();
   await expect(page.getByRole("main")).toHaveText(`/task/${secondId}`);
-  await expect(menuButton(page)).not.toHaveAttribute("aria-describedby");
+  await expect(menuButton(page)).not.toHaveAccessibleDescription(
+    /Tasks or the connection need attention\./,
+  );
 });
 
 test("detach failure keeps the task and error until a second removal succeeds", async ({
@@ -129,7 +131,7 @@ test("detach failure keeps the task and error until a second removal succeeds", 
   await page.keyboard.press("Escape");
   await expect(drawer(page)).toHaveCount(0);
   await expect(menuButton(page)).toHaveAccessibleDescription(
-    "Tasks or the connection need attention.",
+    /Tasks or the connection need attention\./,
   );
   await expect(page.getByRole("main")).toHaveText(`/task/${firstId}`);
   await menuButton(page).click();
@@ -139,7 +141,9 @@ test("detach failure keeps the task and error until a second removal succeeds", 
   await expect(taskButton(page, "Shell task 2")).toHaveCount(0);
   await expect(removeItem(page)).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await expect(menuButton(page)).not.toHaveAttribute("aria-describedby");
+  await expect(menuButton(page)).not.toHaveAccessibleDescription(
+    /Tasks or the connection need attention\./,
+  );
   await expect(page.getByRole("main")).toHaveText(`/task/${firstId}`);
 });
 

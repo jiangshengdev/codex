@@ -73,16 +73,21 @@ test("menu Tooltip describes the same keyboard binding on hover and focus", asyn
   await expect(page.getByRole("combobox", { name: "Message Codex", exact: true })).toBeEditable();
   await page.mouse.move(800, 600);
   await menu.hover();
-  await expect(page.getByRole("tooltip")).toHaveText("Command+B");
+  const tooltip = page.getByRole("tooltip", { name: "Command+B", exact: true });
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toHaveText("⌘B");
   await expect(menu).toHaveAccessibleDescription("Command+B");
   await expect(menu).toHaveAttribute("aria-keyshortcuts", "Meta+B");
   await expect(menu).not.toHaveAttribute("title");
   await page.mouse.move(800, 600);
+  await expect(tooltip).toBeHidden();
   await menu.focus();
   await page.keyboard.press("Tab");
   await page.keyboard.press("Shift+Tab");
   await expect(menu).toBeFocused();
-  await expect(page.getByRole("tooltip")).toHaveText("Command+B");
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toHaveText("⌘B");
+  await expect(menu).toHaveAccessibleDescription("Command+B");
 });
 
 test("application shortcuts ignore consumed, composing, repeated and AltGraph events", async ({
