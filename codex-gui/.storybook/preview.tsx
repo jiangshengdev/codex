@@ -20,7 +20,7 @@ const preview: Preview = {
             "Navigation",
             ["States"],
             "Shortcuts",
-            ["Menu and focus"],
+            ["Menu and focus", "Task switching"],
             "Active tasks",
             ["States"],
             "QR access",
