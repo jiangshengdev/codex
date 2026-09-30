@@ -43,6 +43,51 @@ const progressCircleFor = (button: Element): HTMLElement => {
 };
 
 describe("ContextUsagePopover", () => {
+  it.each(["light", "dark"])(
+    "preserves the empty track and uses a separate hover border in %s theme",
+    async (theme) => {
+      for (const percentage of [0, 1, 58, 100]) {
+        const screen = await renderWithProviders(
+          <div data-theme={theme} className="bg-field p-4">
+            <ContextUsagePopover
+              compaction={idleCompaction}
+              onRequestCompaction={vi.fn<() => void>()}
+              usage={{ ...knownUsage, percentage }}
+            />
+          </div>,
+        );
+        try {
+          await screen.user.unhover(document.body);
+          const trigger = screen.getByRole("button");
+          const track = trigger.element().querySelector(".progress-circle__track-circle");
+          const fill = trigger.element().querySelector(".progress-circle__fill-circle");
+          const surface = trigger.element().parentElement;
+          if (track == null || fill == null || surface == null) {
+            throw new Error("context usage ring must be rendered inside its surface");
+          }
+          const trackStroke = getComputedStyle(track).stroke;
+          const background = getComputedStyle(trigger.element()).backgroundColor;
+          const idleBorder = getComputedStyle(trigger.element()).borderTopColor;
+          expect(trackStroke).not.toBe(getComputedStyle(fill).stroke);
+          expect(trackStroke).not.toBe(getComputedStyle(surface).backgroundColor);
+          const circumference = Number.parseFloat(getComputedStyle(fill).strokeDasharray);
+          expect(Number.parseFloat(getComputedStyle(fill).strokeDashoffset)).toBeCloseTo(
+            circumference * (1 - percentage / 100),
+          );
+          await trigger.hover();
+          await expect.element(trigger).toHaveAttribute("data-hovered", "true");
+          await expect
+            .poll(() => getComputedStyle(trigger.element()).borderTopColor)
+            .not.toBe(idleBorder);
+          expect(getComputedStyle(trigger.element()).backgroundColor).toBe(background);
+          expect(getComputedStyle(track).stroke).toBe(trackStroke);
+        } finally {
+          await screen.unmount();
+        }
+      }
+    },
+  );
+
   it("explains an unknown compression result without presenting it as running or retryable", async () => {
     const onRequestCompaction = vi.fn<() => void>();
     const screen = await renderPopover(

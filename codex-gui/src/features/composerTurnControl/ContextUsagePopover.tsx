@@ -47,7 +47,13 @@ export function ContextUsagePopover({
 
   return (
     <Popover>
-      <Button aria-label={triggerLabel} isIconOnly size="sm" variant="ghost">
+      <Button
+        aria-label={triggerLabel}
+        className="border border-transparent [--button-bg-hover:transparent] [--button-bg-pressed:transparent] hover:border-border active:border-border data-[hovered=true]:border-border data-[pressed=true]:border-border"
+        isIconOnly
+        size="sm"
+        variant="ghost"
+      >
         {isCompressing ? (
           <Spinner aria-hidden color="current" size="sm" />
         ) : (

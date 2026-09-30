@@ -1,5 +1,9 @@
 # codex-gui
 
+## 前端工作开始前的必读要求
+
+- 在 `codex-gui` 中开展任何前端工作之前，必须阅读并遵循本地 HeroUI [Design Principles](.heroui-docs/react/getting-started/(overview)/design-principles.mdx)。此要求覆盖排查、设计、计划、实现、审查和验证，不限于代码修改。必须先阅读这些原则再提出方案；组件 API 文档不能替代此前置要求。
+
 ## 仓库格式化范围
 
 - 当且仅当任务修改了至少一个由当前 `scripts/format.py` 管理的文件时，才运行仓库级 `just fmt`；即使任务同时修改了不受其管理的文件，也适用此规则。目前的管理范围包括仓库 Justfile、由 `cargo fmt` 处理的 Rust 文件、由 buildifier 处理的 Bazel/Starlark 文件，以及 `sdk/python` 和 `scripts` 下的 Python 文件；如果这些范围发生变化，以当前实现为准。

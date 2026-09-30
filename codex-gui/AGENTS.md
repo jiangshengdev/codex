@@ -1,5 +1,9 @@
 # codex-gui
 
+## Required Reading Before Frontend Work
+
+- Before starting any frontend work in `codex-gui`, read and apply the local HeroUI [Design Principles](.heroui-docs/react/getting-started/(overview)/design-principles.mdx). This requirement covers investigation, design, planning, implementation, review, and verification, not only code edits. Read the principles before proposing a solution; component API documentation does not replace this prerequisite.
+
 ## Repository Formatting Scope
 
 - Run repository-level `just fmt` if and only if the task changes at least one file managed by the live `scripts/format.py`, including tasks that also change unmanaged files. Its current scopes are the repository Justfile, Rust files handled by `cargo fmt`, Bazel/Starlark files handled by buildifier, and Python files under `sdk/python` and `scripts`; the live implementation remains authoritative if these scopes change.
