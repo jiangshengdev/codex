@@ -153,3 +153,50 @@ test('merge collision preserves ignored files and directs a fresh retry', t => {
   assert.equal(readFileSync(join(repo, 'feature.txt'), 'utf8'), 'private local copy\n');
   assert.equal(git(repo, 'status', '--porcelain'), '');
 });
+
+test('promotion excludes new context and ADR documents while retaining them on dev', t => {
+  const repo = fixture(t);
+  put(repo, 'CONTEXT.md', 'dev context\n');
+  put(repo, 'docs/adr/nested/decision.md', 'dev decision\n');
+  put(repo, 'docs/adr-other/keep.md', 'normal document\n');
+  commit(repo, 'documents');
+  const before = git(repo, 'rev-parse', 'HEAD');
+  const preview = phase(repo, 'merge-dev-to-test.sh', ['--dry-run']);
+  const [included, excluded] = preview.split('excluded paths (preserving test state):');
+  assert.doesNotMatch(included, /[AM]\s+(CONTEXT\.md|docs\/adr\/)/);
+  assert.match(excluded, /CONTEXT\.md/);
+  assert.match(excluded, /docs\/adr\/nested\/decision\.md/);
+  assert.equal(git(repo, 'rev-parse', 'HEAD'), before);
+  assert.equal(git(repo, 'status', '--porcelain'), '');
+  phase(repo, 'promote-dev-to-release.sh');
+  for (const branch of ['test', 'release']) {
+    assert.equal(git(repo, 'ls-tree', '-r', '--name-only', branch, '--', 'CONTEXT.md', 'docs/adr'), '');
+    assert.equal(git(repo, 'show', `${branch}:docs/adr-other/keep.md`), 'normal document');
+    assert.equal(git(repo, 'show', `${branch}:feature.txt`), 'new feature');
+  }
+  assert.equal(git(repo, 'show', 'dev:CONTEXT.md'), 'dev context');
+  assert.equal(git(repo, 'show', 'dev:docs/adr/nested/decision.md'), 'dev decision');
+  assert.equal(git(repo, 'status', '--porcelain'), '');
+});
+
+test('continue preserves target documents despite incoming edits, additions and deletions', t => {
+  const repo = fixture(t);
+  put(repo, 'CONTEXT.md', 'base context\n');
+  put(repo, 'docs/adr/old.md', 'base decision\n');
+  commit(repo, 'base documents');
+  git(repo, 'switch', 'test');
+  git(repo, 'merge', '--ff-only', 'dev');
+  const target = git(repo, 'rev-parse', 'HEAD');
+  git(repo, 'switch', 'dev');
+  put(repo, 'CONTEXT.md', 'updated context\n');
+  git(repo, 'rm', '--', 'docs/adr/old.md');
+  put(repo, 'docs/adr/new.md', 'new decision\n');
+  put(repo, 'source.txt', 'updated code\n');
+  commit(repo, 'updates');
+  git(repo, 'switch', 'test');
+  git(repo, 'merge', '--no-ff', '--no-commit', 'dev');
+  phase(repo, 'merge-dev-to-test.sh', ['--continue']);
+  assert.equal(git(repo, 'diff', target, 'test', '--', 'CONTEXT.md', 'docs/adr'), '');
+  assert.equal(git(repo, 'show', 'test:source.txt'), 'updated code');
+  assert.equal(git(repo, 'status', '--porcelain'), '');
+});

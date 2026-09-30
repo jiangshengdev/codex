@@ -7,7 +7,7 @@ description: Promote local codex branches from dev to test, merge test to releas
 
 Promote local Codex branches with the bundled scripts:
 
-1. Merge `dev` into `test`, including committed document removals.
+1. Merge `dev` into `test`, preserving the pre-merge `test` state of `CONTEXT.md` and `docs/adr/`. Other committed document removals propagate normally.
 2. Merge `test` into `release` while preserving the release branch version in `codex-rs/Cargo.toml`.
 3. Bump `release` from `X.Y.Z-cdx.N` to `X.Y.Z-cdx.N+1`.
 
@@ -20,7 +20,8 @@ Promote local Codex branches with the bundled scripts:
 - They do not run tests, formatters, installs, or publish commands.
 - If a merge conflict occurs, they stop in the conflict state for manual resolution.
 - `dev` and `test` must have workspace version `0.0.0`; the dev-to-test phase also checks the staged version before committing.
-- No document path is specially excluded or restored. Switches and merges use `--no-overwrite-ignore`; before merging, incoming paths are also checked against ignored local data because merge strategies may still overwrite it. A collision stops promotion. Preserve those files and resolve the collision before retrying.
+- The dev-to-test phase restores `CONTEXT.md` and `docs/adr/` from the pre-merge target state before committing, including on `--continue`. Paths absent from the target remain absent; documents on `dev` stay tracked. Dry-run lists excluded changes separately. Conflicts still require manual resolution before continuing; the exclusions are then reapplied. The test-to-release phase has no additional document exclusions.
+- Switches and merges use `--no-overwrite-ignore`; before merging, incoming paths are also checked against ignored local data because merge strategies may still overwrite it. A collision stops promotion. Preserve those files and resolve the collision before retrying.
 - They never run `git reset --hard`.
 
 ## Commands
