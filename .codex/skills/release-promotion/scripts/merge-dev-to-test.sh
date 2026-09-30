@@ -10,6 +10,7 @@ test_branch="test"
 message="merge(test): sync dev"
 dry_run=false
 continue_mode=false
+excluded_paths=(CONTEXT.md docs/adr)
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -53,8 +54,14 @@ if [[ "$dry_run" == true ]]; then
   rp_log preflight "dry-run only; no branch switch, merge, stage, or commit"
   rp_log preflight "dev=$dev_branch $(rp_git rev-parse --short "$dev_branch")"
   rp_log preflight "test=$test_branch $(rp_git rev-parse --short "$test_branch")"
-  rp_log merge-dev-to-test "diff:"
-  rp_git diff --name-status "$test_branch..$dev_branch"
+  rp_log merge-dev-to-test "diff excluding CONTEXT.md and docs/adr/:"
+  diff_paths=(.)
+  for path in "${excluded_paths[@]}"; do
+    diff_paths+=(":(exclude)$path")
+  done
+  rp_git diff --name-status "$test_branch..$dev_branch" -- "${diff_paths[@]}"
+  rp_log merge-dev-to-test "excluded paths (preserving $test_branch state):"
+  rp_git diff --name-status "$test_branch..$dev_branch" -- "${excluded_paths[@]}"
   exit 0
 fi
 
@@ -163,6 +170,17 @@ if rp_has_unmerged_paths; then
   rp_print_conflict_guidance "$0"
   exit 1
 fi
+
+rp_require_merge_head_matches_dev
+rp_log merge-dev-to-test "preserving $test_branch state for CONTEXT.md and docs/adr/"
+for path in "${excluded_paths[@]}"; do
+  # Restore only changed paths, including additions absent from HEAD. An absent
+  # path in both trees needs no restore and would otherwise fail its pathspec.
+  if ! rp_git diff --cached --quiet HEAD -- "$path"; then
+    rp_git restore --source=HEAD --staged --worktree -- "$path"
+  fi
+done
+rp_git diff --cached --exit-code HEAD -- "${excluded_paths[@]}"
 
 rp_log verify "checking staged diff"
 rp_require_staged_diff_check_for_merge
