@@ -29,6 +29,9 @@ export const createQueueCoordinatorMock = (
       .mockReturnValue({ type: "committed" }),
     discardUnknown: vi.fn<ComposerInputQueueCoordinator["discardUnknown"]>().mockReturnValue(false),
     ownerThreadId: threadId,
+    submitIndependent: vi
+      .fn<ComposerInputQueueCoordinator["submitIndependent"]>()
+      .mockReturnValue({ type: "accepted" }),
     submit: vi.fn<ComposerInputQueueCoordinator["submit"]>().mockReturnValue({ type: "accepted" }),
     submitSteer: vi
       .fn<ComposerInputQueueCoordinator["submitSteer"]>()

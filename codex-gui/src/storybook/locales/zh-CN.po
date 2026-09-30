@@ -50,7 +50,7 @@ msgid "Create read-model slot"
 msgstr "创建读取模型槽位"
 
 #. A simulated assistant turn blocks automatic dispatch of ordinary queued messages
-#: src/storybook/composer/ComposerPreview.tsx:190
+#: src/storybook/composer/ComposerPreview.tsx:199
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:252
 msgid "Current turn is running"
 msgstr "当前轮次正在运行"
@@ -112,7 +112,7 @@ msgstr "离开会保留已保存的草稿，重新开始则会重置草稿。离
 msgid "Local simulation. No real sessions, uploads or model responses."
 msgstr "本地模拟，不会创建真实会话、上传文件或生成模型回复。"
 
-#: src/storybook/composer/ComposerPreview.tsx:92
+#: src/storybook/composer/ComposerPreview.tsx:101
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:81
 msgid "Local simulation. Requests and runtime events advance only when you use the simulation controls."
 msgstr "本地演示。只有操作模拟控件时，请求和运行时事件才会推进。"
@@ -183,7 +183,7 @@ msgid "Reset replay"
 msgstr "重置回放"
 
 #. The request succeeded but the simulated runtime acceptance event has not been injected
-#: src/storybook/composer/ComposerPreview.tsx:188
+#: src/storybook/composer/ComposerPreview.tsx:197
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:244
 msgid "Response received; waiting for runtime confirmation"
 msgstr "已收到响应，等待运行时确认"
@@ -196,7 +196,7 @@ msgid "Restart simulation"
 msgstr "重新开始演示"
 
 #. Return the fictional skill to the local catalog
-#: src/storybook/composer/ComposerPreview.tsx:179
+#: src/storybook/composer/ComposerPreview.tsx:188
 msgid "Restore simulated skill"
 msgstr "恢复模拟技能"
 
@@ -217,14 +217,14 @@ msgstr "快捷键操作说明"
 
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
 #. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
-#: src/storybook/composer/ComposerPreview.tsx:165
+#: src/storybook/composer/ComposerPreview.tsx:174
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:204
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:105
 msgid "Simulate current turn completed"
 msgstr "模拟当前轮次完成"
 
 #. Inject the interrupted terminal event for the current simulated turn, separately from the stop request response
-#: src/storybook/composer/ComposerPreview.tsx:161
+#: src/storybook/composer/ComposerPreview.tsx:170
 msgid "Simulate current turn interrupted"
 msgstr "模拟当前轮次中断"
 
@@ -281,14 +281,14 @@ msgstr "模拟返回"
 
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
-#: src/storybook/composer/ComposerPreview.tsx:146
+#: src/storybook/composer/ComposerPreview.tsx:155
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:234
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:141
 msgid "Simulate runtime confirmation"
 msgstr "模拟运行时确认"
 
 #. Remount the Composer using its isolated saved queue and current simulated runtime
-#: src/storybook/composer/ComposerPreview.tsx:206
+#: src/storybook/composer/ComposerPreview.tsx:215
 msgid "Simulate saved queue restore"
 msgstr "模拟恢复已保存的队列"
 
@@ -299,26 +299,26 @@ msgstr "模拟保存失败"
 
 #. Reject the simulated ordinary send as definitely not accepted
 #. Reject the simulated sending request with definite non-delivery
-#: src/storybook/composer/ComposerPreview.tsx:123
+#: src/storybook/composer/ComposerPreview.tsx:132
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:127
 msgid "Simulate send failure"
 msgstr "模拟发送失败"
 
 #. Resolve the local start-turn request without injecting a runtime event
 #. Resolve the pending local start-turn request without injecting a runtime event
-#: src/storybook/composer/ComposerPreview.tsx:116
+#: src/storybook/composer/ComposerPreview.tsx:125
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:219
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:118
 msgid "Simulate send response"
 msgstr "模拟发送响应"
 
 #. Settle the simulated ordinary send without knowing whether it was accepted
-#: src/storybook/composer/ComposerPreview.tsx:132
+#: src/storybook/composer/ComposerPreview.tsx:141
 msgid "Simulate send unknown"
 msgstr "模拟发送结果未知"
 
 #. Remove the fictional skill from the local catalog to exercise selected-skill validation
-#: src/storybook/composer/ComposerPreview.tsx:175
+#: src/storybook/composer/ComposerPreview.tsx:184
 msgid "Simulate skill unavailable"
 msgstr "模拟技能不可用"
 
@@ -348,7 +348,7 @@ msgid "Simulate target turn closed"
 msgstr "模拟目标轮次关闭"
 
 #. No simulated assistant turn or start-turn request remains active
-#: src/storybook/composer/ComposerPreview.tsx:192
+#: src/storybook/composer/ComposerPreview.tsx:201
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:256
 msgid "Simulation is idle"
 msgstr "演示处于空闲状态"
@@ -371,7 +371,7 @@ msgid "This preview freezes the brief recovery notification. Release it to inspe
 msgstr "此预览暂停展示短暂的恢复状态。结束展示后，可检查等待中的发送请求。"
 
 #. The local start-turn request remains unresolved until the preview response control is used
-#: src/storybook/composer/ComposerPreview.tsx:186
+#: src/storybook/composer/ComposerPreview.tsx:195
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:240
 msgid "Waiting for send response"
 msgstr "等待发送响应"

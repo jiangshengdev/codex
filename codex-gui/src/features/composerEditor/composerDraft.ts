@@ -1,5 +1,6 @@
 import {
   $createParagraphNode,
+  $createTextNode,
   $getRoot,
   $isElementNode,
   $nodesOfType,
@@ -64,6 +65,24 @@ type ComposerDraftRecord = Readonly<{
 
 const composerDraftRecords = new WeakMap<ComposerDraft, ComposerDraftRecord>();
 const composerDraftCaptureStates = new WeakMap<ComposerDraftCapture, EditorState>();
+
+export function capturePlainTextDraft(text: string): ComposerDraftCapture {
+  const editor = createEditor({
+    namespace: "plain-text-input",
+    onError(error) {
+      throw error;
+    },
+  });
+  editor.update(
+    () => {
+      for (const line of text.split("\n")) {
+        $getRoot().append($createParagraphNode().append($createTextNode(line)));
+      }
+    },
+    { discrete: true },
+  );
+  return captureComposerDraft(editor.getEditorState());
+}
 
 export function exportComposerDraft(draft: ComposerDraft): PersistedComposerDraft {
   const record = composerDraftRecords.get(draft);

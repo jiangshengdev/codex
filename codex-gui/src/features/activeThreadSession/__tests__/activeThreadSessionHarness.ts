@@ -1,4 +1,5 @@
 import { vi, type Mock } from "vitest";
+import { AsyncQuestions } from "@/features/asyncQuestions/asyncQuestions";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import type {
@@ -175,6 +176,10 @@ export const activeThreadSessionSnapshot = (
     composerRole: createComposerRole(),
     compactionRole: createCompactionRole(() => revision),
     skillsRole: createSkillsRole(),
+    questions: new AsyncQuestions(
+      () => false,
+      () => false,
+    ),
     ...options,
     phase: "active",
   };
@@ -200,6 +205,10 @@ export const projectionUnavailableActiveThreadSessionSnapshot = (
     composerRole: createComposerRole(),
     compactionRole: createCompactionRole(() => revision),
     skillsRole: createSkillsRole(),
+    questions: new AsyncQuestions(
+      () => false,
+      () => false,
+    ),
     ...options,
     phase: "projectionUnavailable",
   };

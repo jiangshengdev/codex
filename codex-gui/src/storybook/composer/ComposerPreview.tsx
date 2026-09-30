@@ -1,4 +1,5 @@
 import { Button, Surface, Toast } from "@heroui/react";
+import { AsyncQuestions } from "@/features/asyncQuestions/asyncQuestions";
 import { Trans } from "@lingui/react/macro";
 import { StrictMode, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ActiveThreadSessionSnapshot } from "@/features/activeThreadSession/activeThreadSession";
@@ -45,6 +46,13 @@ export function ComposerSimulation({
   );
   const requests = useSyncExternalStore(scenario.starts.subscribe, scenario.starts.getSnapshot);
   const [activeTurnId, setActiveTurnId] = useState(scenario.initialActiveTurnId);
+  const [questions] = useState(
+    () =>
+      new AsyncQuestions(
+        () => false,
+        () => false,
+      ),
+  );
   const [responseTurnId, setResponseTurnId] = useState(initialResponseTurnId);
   const [skillAvailable, setSkillAvailable] = useState(initialSkillAvailable);
   const release = scenario.coordinator.getReleaseReadiness();
@@ -61,6 +69,7 @@ export function ComposerSimulation({
       ));
   const snapshot: Extract<ActiveThreadSessionSnapshot, { phase: "active" }> = {
     phase: "active",
+    questions,
     revision: 1,
     identity: scenario.identity,
     threadId: "thread-1",

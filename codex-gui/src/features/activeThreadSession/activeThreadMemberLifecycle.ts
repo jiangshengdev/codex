@@ -738,6 +738,7 @@ class ActiveThreadMemberLifecycleImpl {
 
 function createSessionRoles(liveSession: LiveActiveThreadSession): ActiveThreadSessionRoles {
   return {
+    questions: liveSession.questions,
     compactionRole: {
       requestCompaction: liveSession.requestCompaction,
     },
