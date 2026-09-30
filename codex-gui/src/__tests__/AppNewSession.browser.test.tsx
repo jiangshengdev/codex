@@ -58,7 +58,9 @@ const shortcutPlatforms = [
   },
 ];
 
-beforeEach(() => {
+beforeEach(async () => {
+  // Browser Mode retains pointer position between cases, including over a newly mounted Menu.
+  await userEvent.unhover(document.body);
   resetAppBrowserTestSupport(host.startGuiHostConnection);
 });
 afterEach(() => {
