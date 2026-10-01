@@ -27,7 +27,7 @@
     "test:browser:smoke": "vitest --config=vitest.browser.smoke.config.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test:storybook": "playwright test --config=playwright.storybook.config.ts",
+    "test:storybook": "tsx scripts/testRun/cli.ts storybook",
     "test:storybook:stories": "vitest --run --project=storybook",
     "protocol:check-validators": "tsx scripts/protocolValidators/cli.ts --check",
     "protocol:generate-validators": "tsx scripts/protocolValidators/cli.ts --write",
