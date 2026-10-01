@@ -498,7 +498,7 @@ msgid "Error - Agent resume failed"
 msgstr "错误 - 恢复智能体失败"
 
 #. Close the fullscreen Markdown table dialog.
-#: src/features/committedTranscriptSurface/MarkdownTable.tsx:47
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:48
 msgid "Exit fullscreen"
 msgstr "退出全屏"
 
@@ -1717,7 +1717,7 @@ msgstr "查看全文"
 #. Open the Markdown table in a fullscreen dialog.
 #: src/features/committedTranscriptSurface/MarkdownTable.tsx:29
 #: src/features/committedTranscriptSurface/MarkdownTable.tsx:37
-#: src/features/committedTranscriptSurface/MarkdownTable.tsx:54
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:55
 msgid "View fullscreen"
 msgstr "全屏查看"
 

@@ -498,7 +498,7 @@ msgid "Error - Agent resume failed"
 msgstr "Error - Agent resume failed"
 
 #. Close the fullscreen Markdown table dialog.
-#: src/features/committedTranscriptSurface/MarkdownTable.tsx:47
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:48
 msgid "Exit fullscreen"
 msgstr "Exit fullscreen"
 
@@ -1717,7 +1717,7 @@ msgstr "View full message"
 #. Open the Markdown table in a fullscreen dialog.
 #: src/features/committedTranscriptSurface/MarkdownTable.tsx:29
 #: src/features/committedTranscriptSurface/MarkdownTable.tsx:37
-#: src/features/committedTranscriptSurface/MarkdownTable.tsx:54
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:55
 msgid "View fullscreen"
 msgstr "View fullscreen"
 
