@@ -58,6 +58,8 @@ export function runEnvironment(
     CODEX_GUI_TEST_RUN_DIR: context.directory,
     CODEX_GUI_TEST_PORT: String(context.port),
     CACHE_DIR: context.cacheDirectory,
+    CODEX_GUI_VITE_PORT: String(context.port),
+    CODEX_GUI_VITE_HMR_PORT: String(context.port),
     PLAYWRIGHT_HTML_OPEN: "never",
   };
 }
