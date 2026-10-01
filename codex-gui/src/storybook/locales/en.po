@@ -117,6 +117,10 @@ msgstr "Local simulation. No real sessions, uploads or model responses."
 msgid "Local simulation. Requests and runtime events advance only when you use the simulation controls."
 msgstr "Local simulation. Requests and runtime events advance only when you use the simulation controls."
 
+#: src/storybook/asyncQuestions/QuestionPagePreview.tsx:25
+msgid "Local simulation. Submit an answer, then confirm it to show the runtime user message."
+msgstr "Local simulation. Submit an answer, then confirm it to show the runtime user message."
+
 #: src/storybook/composer/ComposerDraftPreview.tsx:23
 msgid "Local simulation. The composer is unmounted; its saved draft is kept until you return or restart the simulation."
 msgstr "Local simulation. The composer is unmounted; its saved draft is kept until you return or restart the simulation."
@@ -279,8 +283,10 @@ msgstr "Simulate leaving"
 msgid "Simulate returning"
 msgstr "Simulate returning"
 
+#. Inject the runtime acceptance event for the next answer in the local question preview
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
+#: src/storybook/asyncQuestions/QuestionPagePreview.tsx:36
 #: src/storybook/composer/ComposerPreview.tsx:155
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:234
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:141

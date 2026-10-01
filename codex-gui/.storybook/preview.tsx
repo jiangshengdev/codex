@@ -45,6 +45,8 @@ const preview: Preview = {
           [
             "Basic messages",
             ["Messages", "Long user message"],
+            "Agent questions",
+            ["Daily answers", ["Plain Text", "Options", "Multiple"]],
             "Rich content",
             ["Formatting", "Images", "Mixed"],
             "Execution",
