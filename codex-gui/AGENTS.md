@@ -19,6 +19,10 @@ Use `$codex-gui-toolchain` to select and run frontend formatters, package script
 
 ## Frontend Engineering Constraints
 
+- Each production Modal or Drawer must establish an explicit initial focus target on every opening and verify its observable focus behavior. Reading dialogs focus their heading without adding it to the normal Tab order; action-oriented overlays use the appropriate control. Preserve existing designated-group and editor focus semantics.
+- When an overlay contains a menu, cover menu dismissal, restoration to the surviving trigger, containment, layered Escape, and final restoration to the overlay opener. An `autoFocus` attribute alone is not acceptance evidence. Reuse HeroUI/React Aria focus management; do not add a global recovery owner or a universal overlay wrapper to force focus.
+- For menu restoration races, start with the known mechanism and minimal evidence path in [Overlay focus](../docs/agents/overlay-focus.md). The shared Browser test helper advances dialog timeouts after real menu removal while leaving the actual FocusScope restore frame intact.
+
 - Within `codex-gui/**`, Rust module LoC, changed lines, and TypeScript, TSX, or JavaScript file length measure different objects. Do not convert one into another or use any of them alone as a hard stop.
 - Evaluate frontend structure by responsibilities, state ownership, coupling, function scope, testability, and reviewability. A small public interface or short file does not justify concentrating multiple operations or state-transition families in one function, factory, or closure.
 - Do not split, compress, weaken, or remove frontend tests merely to satisfy a length signal. Add style tests only for stable, user-visible product constraints with a concrete regression risk.

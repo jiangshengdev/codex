@@ -5,6 +5,7 @@ import { I18nProvider } from "@lingui/react";
 import { page, userEvent } from "vitest/browser";
 import type { ReactNode } from "react";
 import "@/index.css";
+import { withDialogMenuFocusRace } from "@/__tests__/dialogMenuFocusRace";
 import { MarkdownText } from "../MarkdownText";
 import { LiveMarkdownText } from "../LiveMarkdownText";
 
@@ -222,9 +223,7 @@ test("supports keyboard menu navigation, fullscreen focus and layered Escape", a
 
 test("restores fullscreen copy focus when dialog timers run before menu focus restoration", async () => {
   installClipboard();
-  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-  let observer: MutationObserver | undefined;
-  try {
+  await withDialogMenuFocusRace(async (observeMenu) => {
     const screen = await render(content(<MarkdownText source={markdown} />));
     const open = screen.getByRole("button", { name: "View fullscreen" });
     await open.click();
@@ -234,28 +233,15 @@ test("restores fullscreen copy focus when dialog timers run before menu focus re
     await copy.click();
     const menu = page.getByRole("menu", { name: "Copy table", exact: true });
     await expect.element(menu).toBeVisible();
-    const menuElement = menu.element();
-    let crossedRestoreWindow = false;
-    observer = new MutationObserver(() => {
-      if (!menuElement.isConnected && !crossedRestoreWindow) {
-        crossedRestoreWindow = true;
-        // Exercise dialog timers while the removed menu's FocusScope awaits its next frame.
-        vi.advanceTimersByTime(500);
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
+    observeMenu(menu.element());
     await page.getByRole("menuitem", { name: "TSV", exact: true }).click();
     await expect.element(dialog.getByRole("status")).toHaveTextContent("Table copied");
     await expect.element(menu).not.toBeInTheDocument();
-    expect(crossedRestoreWindow).toBe(true);
     await expect.element(copy).toHaveFocus();
     await userEvent.keyboard("{Escape}");
     await expect.element(dialog).not.toBeInTheDocument();
     await expect.element(open).toHaveFocus();
-  } finally {
-    observer?.disconnect();
-    vi.useRealTimers();
-  }
+  });
 });
 
 test("disables streaming operations while preserving the fullscreen close action and current content", async () => {
