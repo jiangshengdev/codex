@@ -1,6 +1,7 @@
 import { Button, Modal } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import type { ComponentProps, ReactNode } from "react";
+import { ReadingModalHeading } from "@/feedback/ReadingModalHeading";
 
 export function ComposerFullMessagePreview({
   actions,
@@ -49,7 +50,7 @@ export function ComposerFullMessagePreview({
                   <Modal.Dialog>
                     <Modal.CloseTrigger />
                     <Modal.Header>
-                      <Modal.Heading>{heading}</Modal.Heading>
+                      <ReadingModalHeading>{heading}</ReadingModalHeading>
                     </Modal.Header>
                     <Modal.Body>
                       <p className="min-w-0 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">
