@@ -13,6 +13,7 @@ function QuestionPage({
   scenario,
 }: Readonly<{ scenario: ReturnType<typeof createQuestionScenario> }>) {
   const requests = useSyncExternalStore(scenario.steers.subscribe, scenario.steers.getSnapshot);
+  const starts = useSyncExternalStore(scenario.starts.subscribe, scenario.starts.getSnapshot);
   const ready = useSyncExternalStore(scenario.subscribe, scenario.isReady);
   useEffect(() => {
     void scenario.start();
@@ -28,13 +29,24 @@ function QuestionPage({
         </p>
         <Button
           variant="secondary"
-          isDisabled={requests.length === 0}
+          isDisabled={requests.length + starts.length === 0}
           onPress={() => {
             scenario.confirmNext();
           }}
         >
           <Trans comment="Inject the runtime acceptance event for the next answer in the local question preview">
             Simulate runtime confirmation
+          </Trans>
+        </Button>
+        <Button
+          variant="secondary"
+          isDisabled={requests.length + starts.length > 0}
+          onPress={() => {
+            scenario.completeTurn();
+          }}
+        >
+          <Trans comment="Inject a completed turn event in the local question preview">
+            Simulate turn completion
           </Trans>
         </Button>
       </DevOnly>

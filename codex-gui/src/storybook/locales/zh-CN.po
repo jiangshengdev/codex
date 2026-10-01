@@ -117,7 +117,7 @@ msgstr "本地模拟，不会创建真实会话、上传文件或生成模型回
 msgid "Local simulation. Requests and runtime events advance only when you use the simulation controls."
 msgstr "本地演示。只有操作模拟控件时，请求和运行时事件才会推进。"
 
-#: src/storybook/asyncQuestions/QuestionPagePreview.tsx:25
+#: src/storybook/asyncQuestions/QuestionPagePreview.tsx:26
 msgid "Local simulation. Submit an answer, then confirm it to show the runtime user message."
 msgstr "本地模拟。提交答案后，再模拟确认以显示运行时用户消息。"
 
@@ -286,7 +286,7 @@ msgstr "模拟返回"
 #. Inject the runtime acceptance event for the next answer in the local question preview
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
 #. Inject the runtime turn-started event that confirms the simulated queued message was accepted
-#: src/storybook/asyncQuestions/QuestionPagePreview.tsx:36
+#: src/storybook/asyncQuestions/QuestionPagePreview.tsx:37
 #: src/storybook/composer/ComposerPreview.tsx:155
 #: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:234
 #: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:141
@@ -352,6 +352,11 @@ msgstr "模拟存储恢复"
 #: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:144
 msgid "Simulate target turn closed"
 msgstr "模拟目标轮次关闭"
+
+#. Inject a completed turn event in the local question preview
+#: src/storybook/asyncQuestions/QuestionPagePreview.tsx:48
+msgid "Simulate turn completion"
+msgstr "模拟轮次结束"
 
 #. No simulated assistant turn or start-turn request remains active
 #: src/storybook/composer/ComposerPreview.tsx:201

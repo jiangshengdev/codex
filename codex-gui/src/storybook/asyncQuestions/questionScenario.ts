@@ -10,6 +10,8 @@ import {
   attachBaseline,
   eventItemCompleted,
   eventItemStarted,
+  eventTurnStarted,
+  eventTurnCompleted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   asyncQuestionMessage,
@@ -22,12 +24,15 @@ import {
   itemCompleted,
   itemStarted,
   userMessage,
+  turnStarted,
+  turnCompleted,
+  turnWithStatus,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { manualRequests } from "../composer/pendingInput/pendingInputScenario";
 import { createRecoveryCommands } from "../recovery/recoveryCommands";
 
 export const questionThreadId = "00000000-0000-0000-0000-000000000214";
-export type QuestionPreset = "plainText" | "options" | "multiple";
+export type QuestionPreset = "plainText" | "options" | "multiple" | "idle" | "queued";
 
 export function createQuestionScenario(dispatch: AppDispatch, preset: QuestionPreset) {
   const fallback = createRecoveryCommands();
@@ -48,7 +53,7 @@ export function createQuestionScenario(dispatch: AppDispatch, preset: QuestionPr
     },
     crypto.randomUUID(),
   );
-  const turn = inProgressTurn("question-turn");
+  let turn = inProgressTurn("question-turn");
   const initial = attachWithTurns(attachWithThreadId(attachBaseline, questionThreadId), [turn]);
   const baseline = attachWithSnapshotThread(initial, {
     ...initial.snapshot.thread,
@@ -61,6 +66,10 @@ export function createQuestionScenario(dispatch: AppDispatch, preset: QuestionPr
   const steers = manualRequests<
     Parameters<GuiHostCommands["steerTurn"]>[0],
     Awaited<ReturnType<GuiHostCommands["steerTurn"]>>
+  >();
+  const starts = manualRequests<
+    Parameters<GuiHostCommands["startTurn"]>[0],
+    Awaited<ReturnType<GuiHostCommands["startTurn"]>>
   >();
   const commands: GuiHostCommands = {
     ...fallback.commands,
@@ -82,6 +91,7 @@ export function createQuestionScenario(dispatch: AppDispatch, preset: QuestionPr
       ),
     attachThreadProjection: () => Promise.resolve(baseline),
     steerTurn: steers.issue,
+    startTurn: starts.issue,
   };
   const controller = createActiveThreadSession({
     dispatch,
@@ -96,6 +106,7 @@ export function createQuestionScenario(dispatch: AppDispatch, preset: QuestionPr
   let started: Promise<void> | undefined;
   let disposed = false;
   const emitItem = (item: Parameters<typeof itemCompleted>[3], started = false) => {
+    turn = { ...turn, items: [...turn.items.filter((existing) => existing.id !== item.id), item] };
     const commitId = `question-commit-${String(++sequence)}`;
     controller.handleProjectionEvent(
       eventForThreadOwner(
@@ -110,19 +121,57 @@ export function createQuestionScenario(dispatch: AppDispatch, preset: QuestionPr
     );
     head = commitId;
   };
+  const emitTurn = (completed: boolean) => {
+    const commitId = `question-commit-${String(++sequence)}`;
+    controller.handleProjectionEvent(
+      eventForThreadOwner(
+        eventWithEnvelope(
+          completed
+            ? turnCompleted(eventTurnCompleted, commitId, turn)
+            : turnStarted(eventTurnStarted, commitId, turn),
+          { parentCommitId: head },
+        ),
+        { threadId: questionThreadId, subscriptionId: baseline.subscriptionId },
+      ),
+    );
+    head = commitId;
+  };
+  const completeTurn = () => {
+    if (
+      turn.status !== "inProgress" ||
+      steers.getSnapshot().length > 0 ||
+      starts.getSnapshot().length > 0
+    )
+      return;
+    turn = turnWithStatus(turn, "completed");
+    emitTurn(true);
+  };
   return {
     commands,
     session: controller.session,
     newSessionOwner,
     steers,
+    starts,
+    completeTurn,
     subscribe: (listener: () => void) => listeners.subscribe(listener),
     isReady: () => ready,
     start: () =>
       (started ??= (async () => {
         await controller.session.activate(questionThreadId);
         if (disposed) return;
-        const snapshot = controller.session.getSnapshot();
+        let snapshot = controller.session.getSnapshot();
         if (snapshot.phase !== "active") throw new Error("Question preview could not initialize");
+        if (preset === "queued") {
+          snapshot.composerRole.submit(snapshot.revision, composerDraftCapture("Ordinary message"));
+          snapshot = controller.session.getSnapshot();
+          if (snapshot.phase !== "active") throw new Error("Question preview lost its active task");
+          snapshot.composerRole.submitSteer(
+            snapshot.revision,
+            composerDraftCapture("Earlier guidance"),
+          );
+          snapshot = controller.session.getSnapshot();
+          if (snapshot.phase !== "active") throw new Error("Question preview lost its active task");
+        }
         snapshot.composerRole.saveDraft(
           snapshot.revision,
           composerDraftCapture("Keep my bottom draft").draft,
@@ -144,10 +193,25 @@ export function createQuestionScenario(dispatch: AppDispatch, preset: QuestionPr
                 ],
           ),
         );
+        if (preset === "idle") completeTurn();
         ready = true;
         listeners.notify();
       })()),
     confirmNext() {
+      const start = starts.getSnapshot()[0];
+      if (start != null && !disposed) {
+        turn = inProgressTurn(`answer-turn-${String(sequence)}`);
+        start.resolve({ turn });
+        emitTurn(false);
+        const item = userMessage(
+          `answer-${String(sequence)}`,
+          start.params.input,
+          start.params.clientUserMessageId ?? null,
+        );
+        emitItem(item, true);
+        emitItem(item);
+        return;
+      }
       const request = steers.getSnapshot()[0];
       if (request == null || disposed) return;
       request.resolve({ turnId: turn.id });
@@ -163,6 +227,8 @@ export function createQuestionScenario(dispatch: AppDispatch, preset: QuestionPr
       disposed = true;
       controller.dispose();
       for (const request of steers.getSnapshot())
+        request.reject(new Error("Question preview disposed"));
+      for (const request of starts.getSnapshot())
         request.reject(new Error("Question preview disposed"));
       fallback.dispose();
       listeners.clear();
