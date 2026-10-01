@@ -156,6 +156,10 @@ export type ComposerInputQueueCoordinator = Readonly<{
   ownerThreadId: string;
   submit(capture: ComposerDraftCapture): ComposerInputQueueSubmitResult;
   submitSteer(capture: ComposerDraftCapture): ComposerInputQueueSubmitResult;
+  submitIndependent(
+    capture: ComposerDraftCapture,
+    intent: "send" | "steer",
+  ): ComposerInputQueueSubmitResult;
   promoteOrdinaryFrontToSteer(): boolean;
   interruptActiveTurn(): boolean;
   recover(): boolean;
@@ -653,6 +657,22 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       ? result.result
       : { type: "rejected", reason: "persistenceFailed" };
   }
+  submitIndependent(
+    capture: ComposerDraftCapture,
+    intent: "send" | "steer",
+  ): ComposerInputQueueSubmitResult {
+    if (this.disposed) return { type: "rejected", reason: "disposed" };
+    const result = this.persistTransaction(() =>
+      this.submitInput(
+        capture,
+        intent === "steer" ? this.queue.submitSteer : this.queue.submit,
+        true,
+      ),
+    );
+    return result.type === "committed"
+      ? result.result
+      : { type: "rejected", reason: "persistenceFailed" };
+  }
   promoteOrdinaryFrontToSteer(): boolean {
     const result = this.persistTransaction(() => this.promoteOrdinaryFrontToSteerImpl());
     return result.type === "committed" && result.result;
@@ -904,6 +924,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   private submitInput(
     capture: ComposerDraftCapture,
     submit: ComposerInputQueue["submit"],
+    preserveDraft = false,
   ): ComposerInputQueueSubmitResult {
     if (this.disposed) return { type: "rejected", reason: "disposed" };
     if (!capture.attachmentsReady) return { type: "rejected", reason: "invalidInput" };
@@ -923,7 +944,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       return { type: "rejected", reason: "invalidInput" };
     }
     this.consumeTransition(transition);
-    this.state.draft = null;
+    if (!preserveDraft) this.state.draft = null;
     return { type: "accepted" };
   }
   private runEffects(effects: readonly ComposerInputQueueEffect[]): void {

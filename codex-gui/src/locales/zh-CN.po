@@ -71,7 +71,7 @@ msgstr "{minutes}分钟 {seconds}秒"
 msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 msgstr "{omittedCount, plural, one {及其他 # 个子代理} other {及其他 # 个子代理}}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:87
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:93
 msgid "{percentageLabel} used"
 msgstr "{percentageLabel} 已用"
 
@@ -85,11 +85,11 @@ msgstr "{threadId}：{agentState}"
 msgid "{totalSeconds}s"
 msgstr "{totalSeconds}秒"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:90
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:96
 msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgstr "已用 {usedTokensLabel} tokens，共 {contextWindowLabel}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:82
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:88
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 
@@ -128,6 +128,16 @@ msgstr "继续此任务时发生意外错误。"
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:112
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
+
+#. Plain-text answer to an agent question
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:99
+msgid "Answer"
+msgstr "回答"
+
+#. Answer accepted by the local sending queue, not necessarily consumed
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:126
+msgid "Answer submitted"
+msgstr "回答已提交"
 
 #. Choose local files to attach to the current message
 #: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:154
@@ -230,12 +240,12 @@ msgid "Completed <0/> <1/>"
 msgstr "以下子代理已完成工作：<0/> <1/>"
 
 #. Button that starts compression for the current conversation context
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:110
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:116
 msgid "Compress context"
 msgstr "压缩上下文"
 
 #. Status shown while the current conversation context is compressed
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:102
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:108
 msgid "Compressing"
 msgstr "正在压缩"
 
@@ -266,7 +276,7 @@ msgstr "内容可能不是最新的。对话和输入内容仍保留在此处。
 msgid "Context compressed"
 msgstr "上下文已压缩"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:131
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:137
 msgid "Context compression could not be started."
 msgstr "无法启动上下文压缩。"
 
@@ -282,8 +292,8 @@ msgstr "上下文第 {item} 页"
 
 #. Accessible label for the context usage progress indicator
 #. Heading for context usage and compression controls
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:56
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:75
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:62
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:81
 msgid "Context usage"
 msgstr "上下文用量"
 
@@ -392,6 +402,11 @@ msgstr "当前任务状态未知"
 msgid "Currently unable to guide; added to queue"
 msgstr "当前无法引导，已加入队列"
 
+#. Choose a freely typed answer instead of an agent-provided option
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:91
+msgid "Custom answer"
+msgstr "自定义回答"
+
 #. Accessible name of the explicit dark appearance option
 #: src/app/ThemePreferenceControl.tsx:21
 msgid "Dark theme"
@@ -483,7 +498,7 @@ msgid "Error - Agent resume failed"
 msgstr "错误 - 恢复智能体失败"
 
 #. Close the fullscreen Markdown table dialog.
-#: src/features/committedTranscriptSurface/MarkdownTable.tsx:47
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:48
 msgid "Exit fullscreen"
 msgstr "退出全屏"
 
@@ -493,7 +508,7 @@ msgid "Failed"
 msgstr "失败"
 
 #. Status entry indicating that transcript processing failed
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:105
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:107
 msgid "Failed."
 msgstr "失败。"
 
@@ -631,7 +646,7 @@ msgid "Interrupted <0/> <1/>"
 msgstr "已中断 <0/> <1/>"
 
 #. Status entry indicating that transcript processing was interrupted
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:99
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:101
 msgid "Interrupted."
 msgstr "已中断。"
 
@@ -995,6 +1010,11 @@ msgstr "GUI 启动令牌尚未就绪，暂时无法通过二维码访问。"
 msgid "QR code for current GUI URL"
 msgstr "当前 GUI URL 的二维码。"
 
+#. Question dismissed locally without sending an answer
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:132
+msgid "Question skipped"
+msgstr "问题已跳过"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:483
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:198
 msgid "Queued"
@@ -1245,6 +1265,11 @@ msgstr "已关闭"
 msgid "Skills could not be loaded"
 msgstr "无法加载技能"
 
+#. Dismiss this question locally without sending an answer
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:118
+msgid "Skip question"
+msgstr "跳过问题"
+
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:424
 msgid "Some skills could not be loaded"
 msgstr "部分技能无法加载"
@@ -1291,6 +1316,11 @@ msgstr "停止失败"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:314
 msgid "Structured input"
 msgstr "结构化输入"
+
+#. Submit only this agent question's answer
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:115
+msgid "Submit answer"
+msgstr "提交回答"
 
 #: src/features/currentTask/ProjectionRecoveryNotice.tsx:68
 msgid "Synchronization could not be restored. You can try again."
@@ -1358,7 +1388,7 @@ msgid "The browser could not display {name} as an image."
 msgstr "浏览器无法将 {name} 显示为图片。"
 
 #. Explains the independent sending barrier after an uncertain compression request
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:123
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:129
 msgid "The compression request result is unknown. Sending and compression remain unavailable until its result is confirmed."
 msgstr "压缩请求结果不明。确认结果前，仍无法发送消息或再次压缩。"
 
@@ -1687,7 +1717,7 @@ msgstr "查看全文"
 #. Open the Markdown table in a fullscreen dialog.
 #: src/features/committedTranscriptSurface/MarkdownTable.tsx:29
 #: src/features/committedTranscriptSurface/MarkdownTable.tsx:37
-#: src/features/committedTranscriptSurface/MarkdownTable.tsx:54
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:55
 msgid "View fullscreen"
 msgstr "全屏查看"
 
@@ -1756,7 +1786,7 @@ msgid "Waiting for input"
 msgstr "等待输入"
 
 #. Explains why sending stays blocked after requesting context compression
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:116
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:122
 msgid "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
 msgstr "正在等待压缩请求结果。确认结果前，仍无法发送消息。"
 

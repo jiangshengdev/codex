@@ -1,6 +1,7 @@
 import { Button, Modal } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { ComponentProps, ReactNode } from "react";
+import { ReadingModalHeading } from "./ReadingModalHeading";
 
 export function FailureDiagnosticModal({
   children,
@@ -30,11 +31,11 @@ export function FailureDiagnosticModal({
               })}
             />
             <Modal.Header>
-              <Modal.Heading>
+              <ReadingModalHeading>
                 <Trans comment="Title of the dialog showing raw failure details">
                   Diagnostic information
                 </Trans>
-              </Modal.Heading>
+              </ReadingModalHeading>
             </Modal.Header>
             <Modal.Body className="whitespace-pre-wrap [overflow-wrap:anywhere]">
               {children}

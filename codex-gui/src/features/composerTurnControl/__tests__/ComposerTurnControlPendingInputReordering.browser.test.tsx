@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
+import { withDialogMenuFocusRace } from "@/__tests__/dialogMenuFocusRace";
 
 import { renderComposerTurnControl } from "./composerTurnControlBrowserTestSupport";
 import {
@@ -22,178 +23,188 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 test("moves pending messages through the authoritative owner and preserves menu and item focus", async () => {
-  const ordinary = ["A", "B", "C", "D"].map((label) =>
-    pendingInputItem(`ordinary-${label.toLowerCase()}`, "ordinary", {
-      type: "text",
-      text: `Queued ${label}`,
-      truncated: false,
-    }),
-  );
-  const steer = ["A", "B"].map((label) =>
-    pendingInputItem(`steer-${label.toLowerCase()}`, "steer", {
-      type: "text",
-      text: `Guiding ${label}`,
-      truncated: false,
-    }),
-  );
-  const harness = createQueueControllerHarness(
-    queueSnapshot({
-      ordinaryQueuedCount: ordinary.length,
-      guidingCount: steer.length,
-      detailRevision: 10,
-      canStop: true,
-    }),
-    { ordinary, steer },
-  );
-  const screen = await renderComposerTurnControl({
-    scenario: { type: "activeFixture" },
-    queue: { type: "provided", controller: harness.controller },
-  });
-
-  await screen
-    .getByRole("group", { name: "Pending: Guide 2, Queued 4", exact: true })
-    .getByRole("button", { name: "Guide 2", exact: true })
-    .click();
-  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
-  const queuedA = dialog.getByRole("group", { name: "Queued A", exact: true });
-  const queuedD = dialog.getByRole("group", { name: "Queued D", exact: true });
-  await expect
-    .element(
-      queuedA.getByRole("button", {
-        name: "Move up pending message: Queued A",
-        exact: true,
+  await withDialogMenuFocusRace(async (observeMenu) => {
+    const ordinary = ["A", "B", "C", "D"].map((label) =>
+      pendingInputItem(`ordinary-${label.toLowerCase()}`, "ordinary", {
+        type: "text",
+        text: `Queued ${label}`,
+        truncated: false,
       }),
-    )
-    .toBeDisabled();
-  await expect
-    .element(
-      queuedD.getByRole("button", {
-        name: "Move down pending message: Queued D",
-        exact: true,
+    );
+    const steer = ["A", "B"].map((label) =>
+      pendingInputItem(`steer-${label.toLowerCase()}`, "steer", {
+        type: "text",
+        text: `Guiding ${label}`,
+        truncated: false,
       }),
-    )
-    .toBeDisabled();
-
-  const aMenuTrigger = queuedA.getByRole("button", {
-    name: "More move options for pending message: Queued A",
-    exact: true,
-  });
-  await aMenuTrigger.click();
-  const menu = screen.getByRole("menu");
-  await expect.element(menu).toBeVisible();
-  expect(screen.getByRole("menu").all().length).toBe(1);
-  await expect
-    .element(menu.getByRole("menuitem", { name: "Move to first", exact: true }))
-    .toBeDisabled();
-  await expect
-    .element(menu.getByRole("menuitem", { name: "Move to last", exact: true }))
-    .toBeEnabled();
-  await screen.user.keyboard("{Escape}");
-  await expect.element(menu).not.toBeInTheDocument();
-  await expect.element(aMenuTrigger).toHaveFocus();
-
-  const queuedB = dialog.getByRole("group", { name: "Queued B", exact: true });
-  await queuedB
-    .getByRole("button", {
-      name: "Move up pending message: Queued B",
-      exact: true,
-    })
-    .click();
-  expect(harness.movePendingInput).toHaveBeenLastCalledWith({
-    key: ordinary[1]?.key,
-    revision: 10,
-    destination: "earlier",
-  });
-  await expect
-    .poll(() => {
-      const text = dialog.element().textContent;
-      return text.indexOf("Queued B") < text.indexOf("Queued A");
-    })
-    .toBe(true);
-  await expect.element(dialog.getByRole("group", { name: "Queued B", exact: true })).toHaveFocus();
-  await expect
-    .element(screen.getByRole("status").filter({ hasText: "Queued message moved" }))
-    .toHaveTextContent("Queued message moved to position 1 of 4.");
-
-  await dialog
-    .getByRole("group", { name: "Queued B", exact: true })
-    .getByRole("button", {
-      name: "Move down pending message: Queued B",
-      exact: true,
-    })
-    .click();
-  expect(harness.movePendingInput).toHaveBeenLastCalledWith({
-    key: ordinary[1]?.key,
-    revision: 11,
-    destination: "later",
-  });
-
-  const cMenuTrigger = dialog
-    .getByRole("group", { name: "Queued C", exact: true })
-    .getByRole("button", {
-      name: "More move options for pending message: Queued C",
-      exact: true,
+    );
+    const harness = createQueueControllerHarness(
+      queueSnapshot({
+        ordinaryQueuedCount: ordinary.length,
+        guidingCount: steer.length,
+        detailRevision: 10,
+        canStop: true,
+      }),
+      { ordinary, steer },
+    );
+    const screen = await renderComposerTurnControl({
+      scenario: { type: "activeFixture" },
+      queue: { type: "provided", controller: harness.controller },
     });
-  cMenuTrigger.element().focus();
-  await screen.user.keyboard("{Enter}");
-  await expect.element(screen.getByRole("menu")).toBeVisible();
-  await screen.user.keyboard("{Escape}");
-  await expect.element(cMenuTrigger).toHaveFocus();
-  await cMenuTrigger.click();
-  await screen
-    .getByRole("menu")
-    .getByRole("menuitem", { name: "Move to first", exact: true })
-    .click();
-  expect(harness.movePendingInput).toHaveBeenLastCalledWith({
-    key: ordinary[2]?.key,
-    revision: 12,
-    destination: "first",
-  });
-  await expect
-    .poll(() => {
-      const text = dialog.element().textContent;
-      return text.indexOf("Queued C") < text.indexOf("Queued A");
-    })
-    .toBe(true);
 
-  const movedAMenuTrigger = dialog
-    .getByRole("group", { name: "Queued A", exact: true })
-    .getByRole("button", {
+    await screen
+      .getByRole("group", { name: "Pending: Guide 2, Queued 4", exact: true })
+      .getByRole("button", { name: "Guide 2", exact: true })
+      .click();
+    const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+    const queuedA = dialog.getByRole("group", { name: "Queued A", exact: true });
+    const queuedD = dialog.getByRole("group", { name: "Queued D", exact: true });
+    await expect
+      .element(
+        queuedA.getByRole("button", {
+          name: "Move up pending message: Queued A",
+          exact: true,
+        }),
+      )
+      .toBeDisabled();
+    await expect
+      .element(
+        queuedD.getByRole("button", {
+          name: "Move down pending message: Queued D",
+          exact: true,
+        }),
+      )
+      .toBeDisabled();
+
+    const aMenuTrigger = queuedA.getByRole("button", {
       name: "More move options for pending message: Queued A",
       exact: true,
     });
-  await movedAMenuTrigger.click();
-  await screen
-    .getByRole("menu")
-    .getByRole("menuitem", { name: "Move to last", exact: true })
-    .click();
-  expect(harness.movePendingInput).toHaveBeenLastCalledWith({
-    key: ordinary[0]?.key,
-    revision: 13,
-    destination: "last",
-  });
-  await expect
-    .poll(() => {
-      const text = dialog.element().textContent;
-      return text.indexOf("Queued D") < text.indexOf("Queued A");
-    })
-    .toBe(true);
+    await aMenuTrigger.click();
+    const menu = screen.getByRole("menu");
+    await expect.element(menu).toBeVisible();
+    expect(screen.getByRole("menu").all().length).toBe(1);
+    await expect
+      .element(menu.getByRole("menuitem", { name: "Move to first", exact: true }))
+      .toBeDisabled();
+    await expect
+      .element(menu.getByRole("menuitem", { name: "Move to last", exact: true }))
+      .toBeEnabled();
+    observeMenu(menu.element());
+    await screen.user.keyboard("{Escape}");
+    await expect.element(menu).not.toBeInTheDocument();
+    await expect.element(aMenuTrigger).toHaveFocus();
 
-  await dialog
-    .getByRole("group", { name: "Guiding B", exact: true })
-    .getByRole("button", {
-      name: "Move up pending message: Guiding B",
-      exact: true,
-    })
-    .click();
-  expect(harness.movePendingInput).toHaveBeenLastCalledWith({
-    key: steer[1]?.key,
-    revision: 14,
-    destination: "earlier",
+    const queuedB = dialog.getByRole("group", { name: "Queued B", exact: true });
+    await queuedB
+      .getByRole("button", {
+        name: "Move up pending message: Queued B",
+        exact: true,
+      })
+      .click();
+    expect(harness.movePendingInput).toHaveBeenLastCalledWith({
+      key: ordinary[1]?.key,
+      revision: 10,
+      destination: "earlier",
+    });
+    await expect
+      .poll(() => {
+        const text = dialog.element().textContent;
+        return text.indexOf("Queued B") < text.indexOf("Queued A");
+      })
+      .toBe(true);
+    await expect
+      .element(dialog.getByRole("group", { name: "Queued B", exact: true }))
+      .toHaveFocus();
+    await expect
+      .element(screen.getByRole("status").filter({ hasText: "Queued message moved" }))
+      .toHaveTextContent("Queued message moved to position 1 of 4.");
+
+    await dialog
+      .getByRole("group", { name: "Queued B", exact: true })
+      .getByRole("button", {
+        name: "Move down pending message: Queued B",
+        exact: true,
+      })
+      .click();
+    expect(harness.movePendingInput).toHaveBeenLastCalledWith({
+      key: ordinary[1]?.key,
+      revision: 11,
+      destination: "later",
+    });
+
+    const cMenuTrigger = dialog
+      .getByRole("group", { name: "Queued C", exact: true })
+      .getByRole("button", {
+        name: "More move options for pending message: Queued C",
+        exact: true,
+      });
+    cMenuTrigger.element().focus();
+    await screen.user.keyboard("{Enter}");
+    await expect.element(screen.getByRole("menu")).toBeVisible();
+    await screen.user.keyboard("{Escape}");
+    await expect.element(cMenuTrigger).toHaveFocus();
+    await cMenuTrigger.click();
+    await screen
+      .getByRole("menu")
+      .getByRole("menuitem", { name: "Move to first", exact: true })
+      .click();
+    expect(harness.movePendingInput).toHaveBeenLastCalledWith({
+      key: ordinary[2]?.key,
+      revision: 12,
+      destination: "first",
+    });
+    await expect
+      .poll(() => {
+        const text = dialog.element().textContent;
+        return text.indexOf("Queued C") < text.indexOf("Queued A");
+      })
+      .toBe(true);
+
+    const movedAMenuTrigger = dialog
+      .getByRole("group", { name: "Queued A", exact: true })
+      .getByRole("button", {
+        name: "More move options for pending message: Queued A",
+        exact: true,
+      });
+    await movedAMenuTrigger.click();
+    await screen
+      .getByRole("menu")
+      .getByRole("menuitem", { name: "Move to last", exact: true })
+      .click();
+    expect(harness.movePendingInput).toHaveBeenLastCalledWith({
+      key: ordinary[0]?.key,
+      revision: 13,
+      destination: "last",
+    });
+    await expect
+      .poll(() => {
+        const text = dialog.element().textContent;
+        return text.indexOf("Queued D") < text.indexOf("Queued A");
+      })
+      .toBe(true);
+
+    await dialog
+      .getByRole("group", { name: "Guiding B", exact: true })
+      .getByRole("button", {
+        name: "Move up pending message: Guiding B",
+        exact: true,
+      })
+      .click();
+    expect(harness.movePendingInput).toHaveBeenLastCalledWith({
+      key: steer[1]?.key,
+      revision: 14,
+      destination: "earlier",
+    });
+    await expect
+      .element(screen.getByRole("status").filter({ hasText: "Guiding message moved" }))
+      .toHaveTextContent("Guiding message moved to position 1 of 2.");
+    await screen.user.keyboard("{Escape}");
+    await expect.element(dialog).not.toBeInTheDocument();
+    await expect
+      .element(screen.getByRole("button", { name: "Guide 2", exact: true }))
+      .toHaveFocus();
   });
-  await expect
-    .element(screen.getByRole("status").filter({ hasText: "Guiding message moved" }))
-    .toHaveTextContent("Guiding message moved to position 1 of 2.");
 });
 
 test("re-reads independent lane budgets after a move and does not locate an item beyond the prefix", async () => {

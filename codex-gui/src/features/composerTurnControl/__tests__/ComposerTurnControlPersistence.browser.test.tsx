@@ -170,6 +170,13 @@ test("opens the complete unknown message from a three-line preview and restores 
   await screen.user.keyboard("{Enter}");
   const dialog = screen.getByRole("dialog");
   await expect.element(dialog).toBeVisible();
+  const heading = dialog.getByRole("heading");
+  const close = dialog.getByRole("button", { name: "Close", exact: true });
+  await expect.element(heading).toHaveFocus();
+  await screen.user.tab();
+  await expect.element(close).toHaveFocus();
+  await screen.user.tab();
+  await expect.element(close).toHaveFocus();
   const fullText = dialog.getByText(text, { exact: true });
   await expect.element(fullText).toBeVisible();
   const body = fullText.element().parentElement;
@@ -179,6 +186,11 @@ test("opens the complete unknown message from a three-line preview and restores 
   await expect.poll(() => body.scrollTop).toBeGreaterThan(0);
   await expect.element(dialog.getByRole("button", { name: "Close", exact: true })).toBeVisible();
   await screen.user.keyboard("{Escape}");
+  await expect.element(dialog).not.toBeInTheDocument();
+  await expect.element(trigger).toHaveFocus();
+  await trigger.click();
+  await expect.element(heading).toHaveFocus();
+  await close.click();
   await expect.element(dialog).not.toBeInTheDocument();
   await expect.element(trigger).toHaveFocus();
   expect(harness.submit).not.toHaveBeenCalled();

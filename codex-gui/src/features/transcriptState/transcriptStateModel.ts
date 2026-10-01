@@ -152,7 +152,7 @@ export type TranscriptEntry =
           textInputs: Extract<UserInput, { type: "text" }>[];
           imageInputs: Extract<UserInput, { type: "localImage" }>[];
         }
-      | { role: "assistant" }
+      | { role: "assistant"; questions?: TranscriptAgentMessageItem["questions"] }
     ))
   | {
       type: "status";
@@ -205,6 +205,7 @@ export type TranscriptMessageView = {
   turnId: string;
   role: "user" | "assistant";
   rendering: TranscriptMessageRendering;
+  questions?: TranscriptAgentMessageItem["questions"];
   revision: number;
 };
 

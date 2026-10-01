@@ -2,6 +2,7 @@ import { Button, ButtonGroup, Modal, Tooltip } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { Info } from "lucide-react";
 import type { ReactNode } from "react";
+import { ReadingModalHeading } from "@/feedback/ReadingModalHeading";
 
 export function AttachmentFailureDetails({
   name,
@@ -40,7 +41,7 @@ export function AttachmentFailureDetails({
               })}
             />
             <Modal.Header>
-              <Modal.Heading className="wrap-anywhere pr-8">{label}</Modal.Heading>
+              <ReadingModalHeading className="wrap-anywhere pr-8">{label}</ReadingModalHeading>
             </Modal.Header>
             <Modal.Body className="wrap-anywhere">{children}</Modal.Body>
           </Modal.Dialog>

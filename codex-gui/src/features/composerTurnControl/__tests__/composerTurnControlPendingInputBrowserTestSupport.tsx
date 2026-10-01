@@ -303,6 +303,9 @@ export const createQueueControllerHarness = (
       .fn<ComposerInputQueueCoordinator["reconcileProjection"]>()
       .mockReturnValue({ type: "committed" }),
     ownerThreadId: threadId,
+    submitIndependent: vi
+      .fn<ComposerInputQueueCoordinator["submitIndependent"]>()
+      .mockReturnValue({ type: "accepted" }),
     submit,
     submitSteer,
     promoteOrdinaryFrontToSteer,

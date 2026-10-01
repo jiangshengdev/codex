@@ -71,7 +71,7 @@ msgstr "{minutes}m {seconds}s"
 msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 msgstr "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:87
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:93
 msgid "{percentageLabel} used"
 msgstr "{percentageLabel} used"
 
@@ -85,11 +85,11 @@ msgstr "{threadId}: {agentState}"
 msgid "{totalSeconds}s"
 msgstr "{totalSeconds}s"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:90
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:96
 msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:82
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:88
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 
@@ -128,6 +128,16 @@ msgstr "An unexpected error occurred while continuing the task."
 #: src/features/threadHistory/ContinueTaskFailureAlert.tsx:112
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
+
+#. Plain-text answer to an agent question
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:99
+msgid "Answer"
+msgstr "Answer"
+
+#. Answer accepted by the local sending queue, not necessarily consumed
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:126
+msgid "Answer submitted"
+msgstr "Answer submitted"
 
 #. Choose local files to attach to the current message
 #: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:154
@@ -230,12 +240,12 @@ msgid "Completed <0/> <1/>"
 msgstr "Completed <0/> <1/>"
 
 #. Button that starts compression for the current conversation context
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:110
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:116
 msgid "Compress context"
 msgstr "Compress context"
 
 #. Status shown while the current conversation context is compressed
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:102
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:108
 msgid "Compressing"
 msgstr "Compressing"
 
@@ -266,7 +276,7 @@ msgstr "Content may not be up to date. Your conversations and input are still he
 msgid "Context compressed"
 msgstr "Context compressed"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:131
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:137
 msgid "Context compression could not be started."
 msgstr "Context compression could not be started."
 
@@ -282,8 +292,8 @@ msgstr "Context page {item}"
 
 #. Accessible label for the context usage progress indicator
 #. Heading for context usage and compression controls
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:56
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:75
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:62
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:81
 msgid "Context usage"
 msgstr "Context usage"
 
@@ -392,6 +402,11 @@ msgstr "Current task status is unknown"
 msgid "Currently unable to guide; added to queue"
 msgstr "Currently unable to guide; added to queue"
 
+#. Choose a freely typed answer instead of an agent-provided option
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:91
+msgid "Custom answer"
+msgstr "Custom answer"
+
 #. Accessible name of the explicit dark appearance option
 #: src/app/ThemePreferenceControl.tsx:21
 msgid "Dark theme"
@@ -483,7 +498,7 @@ msgid "Error - Agent resume failed"
 msgstr "Error - Agent resume failed"
 
 #. Close the fullscreen Markdown table dialog.
-#: src/features/committedTranscriptSurface/MarkdownTable.tsx:47
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:48
 msgid "Exit fullscreen"
 msgstr "Exit fullscreen"
 
@@ -493,7 +508,7 @@ msgid "Failed"
 msgstr "Failed"
 
 #. Status entry indicating that transcript processing failed
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:105
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:107
 msgid "Failed."
 msgstr "Failed."
 
@@ -631,7 +646,7 @@ msgid "Interrupted <0/> <1/>"
 msgstr "Interrupted <0/> <1/>"
 
 #. Status entry indicating that transcript processing was interrupted
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:99
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:101
 msgid "Interrupted."
 msgstr "Interrupted."
 
@@ -995,6 +1010,11 @@ msgstr "QR access is unavailable until the GUI launch token is ready."
 msgid "QR code for current GUI URL"
 msgstr "QR code for current GUI URL"
 
+#. Question dismissed locally without sending an answer
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:132
+msgid "Question skipped"
+msgstr "Question skipped"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:483
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:198
 msgid "Queued"
@@ -1245,6 +1265,11 @@ msgstr "Shutdown"
 msgid "Skills could not be loaded"
 msgstr "Skills could not be loaded"
 
+#. Dismiss this question locally without sending an answer
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:118
+msgid "Skip question"
+msgstr "Skip question"
+
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:424
 msgid "Some skills could not be loaded"
 msgstr "Some skills could not be loaded"
@@ -1291,6 +1316,11 @@ msgstr "Stop failed"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:314
 msgid "Structured input"
 msgstr "Structured input"
+
+#. Submit only this agent question's answer
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:115
+msgid "Submit answer"
+msgstr "Submit answer"
 
 #: src/features/currentTask/ProjectionRecoveryNotice.tsx:68
 msgid "Synchronization could not be restored. You can try again."
@@ -1358,7 +1388,7 @@ msgid "The browser could not display {name} as an image."
 msgstr "The browser could not display {name} as an image."
 
 #. Explains the independent sending barrier after an uncertain compression request
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:123
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:129
 msgid "The compression request result is unknown. Sending and compression remain unavailable until its result is confirmed."
 msgstr "The compression request result is unknown. Sending and compression remain unavailable until its result is confirmed."
 
@@ -1687,7 +1717,7 @@ msgstr "View full message"
 #. Open the Markdown table in a fullscreen dialog.
 #: src/features/committedTranscriptSurface/MarkdownTable.tsx:29
 #: src/features/committedTranscriptSurface/MarkdownTable.tsx:37
-#: src/features/committedTranscriptSurface/MarkdownTable.tsx:54
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:55
 msgid "View fullscreen"
 msgstr "View fullscreen"
 
@@ -1756,7 +1786,7 @@ msgid "Waiting for input"
 msgstr "Waiting for input"
 
 #. Explains why sending stays blocked after requesting context compression
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:116
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:122
 msgid "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
 msgstr "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
 

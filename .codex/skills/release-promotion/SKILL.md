@@ -18,9 +18,9 @@ Promote local Codex branches with the bundled scripts:
 - They do not run `git fetch`, `git pull`, `git push`, or `git remote`.
 - They do not tag releases.
 - They do not run tests, formatters, installs, or publish commands.
-- If a merge conflict occurs, they stop in the conflict state for manual resolution.
+- If a merge conflict occurs outside the dev-to-test excluded paths, they stop in the conflict state for manual resolution.
 - `dev` and `test` must have workspace version `0.0.0`; the dev-to-test phase also checks the staged version before committing.
-- The dev-to-test phase restores `CONTEXT.md` and `docs/adr/` from the pre-merge target state before committing, including on `--continue`. Paths absent from the target remain absent; documents on `dev` stay tracked. Dry-run lists excluded changes separately. Conflicts still require manual resolution before continuing; the exclusions are then reapplied. The test-to-release phase has no additional document exclusions.
+- The dev-to-test phase verifies the merge source, then restores `CONTEXT.md` and `docs/adr/` from the pre-merge target state before checking remaining conflicts, including on `--continue`. Paths absent from the target remain absent; documents on `dev` stay tracked. Dry-run lists excluded changes separately. Only remaining conflicts require manual resolution before continuing. The test-to-release phase has no additional document exclusions.
 - Switches and merges use `--no-overwrite-ignore`; before merging, incoming paths are also checked against ignored local data because merge strategies may still overwrite it. A collision stops promotion. Preserve those files and resolve the collision before retrying.
 - They never run `git reset --hard`.
 

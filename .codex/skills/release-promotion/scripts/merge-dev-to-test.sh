@@ -155,32 +155,33 @@ else
   rp_require_no_ignored_merge_collisions "$dev_branch"
   rp_log merge-dev-to-test "merging $dev_branch into $test_branch without committing"
   if ! rp_git merge --no-overwrite-ignore --no-ff --no-commit "$dev_branch"; then
-    if [[ -e "$(rp_git_dir)/MERGE_HEAD" ]]; then
-      rp_unmerged_paths >&2
-      rp_print_conflict_guidance "$0"
-    else
+    if [[ ! -e "$(rp_git_dir)/MERGE_HEAD" ]]; then
       rp_log error "merge did not start; resolve the reported blocker, then rerun this phase without --continue"
+      exit 1
     fi
-    exit 1
   fi
 fi
+
+rp_require_merge_head_matches_dev
+rp_log merge-dev-to-test "preserving $test_branch state for CONTEXT.md and docs/adr/"
+for path in "${excluded_paths[@]}"; do
+  while IFS= read -r -d '' changed_path; do
+    if ! rp_git cat-file -e "HEAD:$changed_path" 2>/dev/null &&
+      [[ -n "$(rp_git ls-files -u -- "$changed_path")" ]]; then
+      # Restore cannot resolve an unmerged path absent from its source tree.
+      rp_git rm -- "$changed_path"
+    else
+      rp_git restore --source=HEAD --staged --worktree -- "$changed_path"
+    fi
+  done < <(rp_git diff --cached --name-only -z HEAD -- "$path")
+done
+rp_git diff --cached --exit-code HEAD -- "${excluded_paths[@]}"
 
 if rp_has_unmerged_paths; then
   rp_unmerged_paths >&2
   rp_print_conflict_guidance "$0"
   exit 1
 fi
-
-rp_require_merge_head_matches_dev
-rp_log merge-dev-to-test "preserving $test_branch state for CONTEXT.md and docs/adr/"
-for path in "${excluded_paths[@]}"; do
-  # Restore only changed paths, including additions absent from HEAD. An absent
-  # path in both trees needs no restore and would otherwise fail its pathspec.
-  if ! rp_git diff --cached --quiet HEAD -- "$path"; then
-    rp_git restore --source=HEAD --staged --worktree -- "$path"
-  fi
-done
-rp_git diff --cached --exit-code HEAD -- "${excluded_paths[@]}"
 
 rp_log verify "checking staged diff"
 rp_require_staged_diff_check_for_merge

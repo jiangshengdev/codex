@@ -120,6 +120,54 @@ test.each([375, 1280])(
   },
 );
 
+test("focuses full-message reading independently inside the pending Drawer and restores each layer", async () => {
+  const fullText = "Complete queued message\n".repeat(20).trim();
+  const harness = createQueueControllerHarness(
+    queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1 }),
+    {
+      ordinary: [
+        pendingInputItem(
+          "reading-queued",
+          "ordinary",
+          { type: "text", text: "Complete queued message", truncated: true },
+          fullText,
+        ),
+      ],
+      steer: [],
+    },
+  );
+  const screen = await renderComposerTurnControl({
+    queue: { type: "provided", controller: harness.controller },
+    strictMode: true,
+  });
+  const drawerTrigger = screen
+    .getByRole("group", { name: "Pending: Queued 1", exact: true })
+    .getByRole("button", { name: "Queued 1", exact: true });
+  await drawerTrigger.click();
+  await waitForPendingDrawerOpen();
+  const drawer = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  const fullMessageTrigger = drawer.getByRole("button", { name: "View full message", exact: true });
+  const detail = screen.getByRole("dialog", { name: "Pending details", exact: true }).last();
+  for (const closeWithEscape of [true, false]) {
+    await fullMessageTrigger.click();
+    await expect.element(detail.getByRole("heading", { name: "Pending details" })).toHaveFocus();
+    await expect.element(detail.getByText(fullText, { exact: true })).toBeVisible();
+    const close = detail.getByRole("button", { name: "Close", exact: true });
+    await screen.user.tab();
+    await expect.element(close).toHaveFocus();
+    await screen.user.tab();
+    await expect.element(close).toHaveFocus();
+    if (closeWithEscape) await screen.user.keyboard("{Escape}");
+    else await close.click();
+    await expect.element(screen.getByText(fullText, { exact: true })).not.toBeInTheDocument();
+    await expect.element(fullMessageTrigger).toHaveFocus();
+    await expect.element(drawer).toBeVisible();
+  }
+  await screen.user.keyboard("{Escape}");
+  await expect.element(drawer).not.toBeInTheDocument();
+  await expect.element(drawerTrigger).toHaveFocus();
+});
+
 test("keeps submit and pending-input open available after StrictMode effect replay", async () => {
   const harness = createQueueControllerHarness(
     queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1 }),

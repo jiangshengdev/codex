@@ -1,4 +1,6 @@
 import { Card, Typography } from "@heroui/react";
+import { AsyncQuestionCard } from "@/features/asyncQuestions/AsyncQuestionCard";
+import { questionKey } from "@/features/asyncQuestions/asyncQuestions";
 import { useLingui } from "@lingui/react/macro";
 import {
   transcriptEntryIdFor,
@@ -191,7 +193,21 @@ export const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView 
           variant={isStreaming ? undefined : entry.role === "user" ? "secondary" : "default"}
         >
           <Card.Content className="grid min-w-0 gap-2">
-            <MessageEntryBody enableMath={entry.role === "assistant"} rendering={entry.rendering} />
+            {!entry.questions?.length && (
+              <MessageEntryBody
+                enableMath={entry.role === "assistant"}
+                rendering={entry.rendering}
+              />
+            )}
+            {entry.questions?.map((question, index) => (
+              <AsyncQuestionCard
+                question={question}
+                turnId={entry.turnId}
+                itemId={entry.id}
+                index={index}
+                key={questionKey(entry.turnId, entry.id, index)}
+              />
+            ))}
           </Card.Content>
         </Card>
       );

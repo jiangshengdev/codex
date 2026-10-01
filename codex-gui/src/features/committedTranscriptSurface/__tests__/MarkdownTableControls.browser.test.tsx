@@ -5,6 +5,7 @@ import { I18nProvider } from "@lingui/react";
 import { page, userEvent } from "vitest/browser";
 import type { ReactNode } from "react";
 import "@/index.css";
+import { withDialogMenuFocusRace } from "@/__tests__/dialogMenuFocusRace";
 import { MarkdownText } from "../MarkdownText";
 import { LiveMarkdownText } from "../LiveMarkdownText";
 
@@ -193,6 +194,7 @@ test("supports keyboard menu navigation, fullscreen focus and layered Escape", a
   await userEvent.keyboard("{Enter}");
   const dialog = page.getByRole("dialog", { name: "View fullscreen" });
   await expect.element(dialog).toBeVisible();
+  await expect.element(dialog.getByRole("button", { name: "Exit fullscreen" })).toHaveFocus();
   await expect.poll(() => dialog.element().contains(document.activeElement)).toBe(true);
   await expect.element(dialog.getByRole("button", { name: /download/i })).not.toBeInTheDocument();
   for (let step = 0; step < 4; step += 1) {
@@ -217,6 +219,29 @@ test("supports keyboard menu navigation, fullscreen focus and layered Escape", a
   await expect.element(dialog).not.toBeInTheDocument();
   await expect.element(open).toHaveFocus();
   expect(document.documentElement.style.overflow).toBe(overflowBefore);
+});
+
+test("restores fullscreen copy focus when dialog timers run before menu focus restoration", async () => {
+  installClipboard();
+  await withDialogMenuFocusRace(async (observeMenu) => {
+    const screen = await render(content(<MarkdownText source={markdown} />));
+    const open = screen.getByRole("button", { name: "View fullscreen" });
+    await open.click();
+    const dialog = page.getByRole("dialog", { name: "View fullscreen" });
+    await expect.element(dialog).toBeVisible();
+    const copy = dialog.getByRole("button", { name: "Copy table", exact: true });
+    await copy.click();
+    const menu = page.getByRole("menu", { name: "Copy table", exact: true });
+    await expect.element(menu).toBeVisible();
+    observeMenu(menu.element());
+    await page.getByRole("menuitem", { name: "TSV", exact: true }).click();
+    await expect.element(dialog.getByRole("status")).toHaveTextContent("Table copied");
+    await expect.element(menu).not.toBeInTheDocument();
+    await expect.element(copy).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    await expect.element(dialog).not.toBeInTheDocument();
+    await expect.element(open).toHaveFocus();
+  });
 });
 
 test("disables streaming operations while preserving the fullscreen close action and current content", async () => {

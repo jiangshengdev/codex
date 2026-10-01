@@ -1,5 +1,9 @@
 # codex-gui
 
+## Required Reading Before Frontend Work
+
+- Before starting any frontend work in `codex-gui`, read and apply the local HeroUI [Design Principles](<.heroui-docs/react/getting-started/(overview)/design-principles.mdx>). This requirement covers investigation, design, planning, implementation, review, and verification, not only code edits. Read the principles before proposing a solution; component API documentation does not replace this prerequisite.
+
 ## Repository Formatting Scope
 
 - Run repository-level `just fmt` if and only if the task changes at least one file managed by the live `scripts/format.py`, including tasks that also change unmanaged files. Its current scopes are the repository Justfile, Rust files handled by `cargo fmt`, Bazel/Starlark files handled by buildifier, and Python files under `sdk/python` and `scripts`; the live implementation remains authoritative if these scopes change.
@@ -14,6 +18,10 @@ Use `$codex-gui-toolchain` to select and run frontend formatters, package script
 - Use `$lingui-catalog-workflow` when Lingui message extraction, catalog diffs, catalog translation changes, or extraction stability are in scope.
 
 ## Frontend Engineering Constraints
+
+- Each production Modal or Drawer must establish an explicit initial focus target on every opening and verify its observable focus behavior. Reading dialogs focus their heading without adding it to the normal Tab order; action-oriented overlays use the appropriate control. Preserve existing designated-group and editor focus semantics.
+- When an overlay contains a menu, cover menu dismissal, restoration to the surviving trigger, containment, layered Escape, and final restoration to the overlay opener. An `autoFocus` attribute alone is not acceptance evidence. Reuse HeroUI/React Aria focus management; do not add a global recovery owner or a universal overlay wrapper to force focus.
+- For menu restoration races, start with the known mechanism and minimal evidence path in [Overlay focus](../docs/agents/overlay-focus.md). The shared Browser test helper advances dialog timeouts after real menu removal while leaving the actual FocusScope restore frame intact.
 
 - Within `codex-gui/**`, Rust module LoC, changed lines, and TypeScript, TSX, or JavaScript file length measure different objects. Do not convert one into another or use any of them alone as a hard stop.
 - Evaluate frontend structure by responsibilities, state ownership, coupling, function scope, testability, and reviewability. A small public interface or short file does not justify concentrating multiple operations or state-transition families in one function, factory, or closure.

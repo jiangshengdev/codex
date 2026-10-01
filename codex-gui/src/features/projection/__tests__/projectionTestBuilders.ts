@@ -44,6 +44,23 @@ export const userMessage = (
 
 type AgentMessagePhase = Extract<ThreadItem, { type: "agentMessage" }>["phase"];
 
+export const asyncQuestionMessage = (
+  id: string,
+  questions: NonNullable<Extract<ThreadItem, { type: "agentMessage" }>["questions"]>,
+): ThreadItem => ({
+  type: "agentMessage",
+  id,
+  text: questions
+    .map((question) =>
+      [question.title, ...(question.options ?? []).map((option) => `- ${option}`)].join("\n"),
+    )
+    .join("\n\n"),
+  phase: "final_answer",
+  memoryCitation: null,
+  delivery: "async",
+  questions,
+});
+
 export const agentMessage = (
   id: string,
   text: string,
