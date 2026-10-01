@@ -206,11 +206,8 @@ cd "$REPO_ROOT"
 
 ACTUAL_ROOT="$(git rev-parse --show-toplevel)"
 [[ "$ACTUAL_ROOT" == "$REPO_ROOT" ]] || die "unexpected repo root: $ACTUAL_ROOT"
-BASE_COMMIT="$(git rev-parse --verify "${BASE}^{commit}" 2>/dev/null)" || die "base does not resolve to a commit: $BASE"
-
-# Domain decisions are optional, but must be readable when the base has them.
-if git cat-file -e "$BASE_COMMIT:docs/adr" 2>/dev/null; then
-  SPARSE_PATHS+=("docs/adr")
+if ! $RESUME; then
+  BASE_COMMIT="$(git rev-parse --verify "${BASE}^{commit}" 2>/dev/null)" || die "base does not resolve to a commit: $BASE"
 fi
 
 case "$WORKTREE_ROOT/" in
@@ -245,9 +242,14 @@ if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
 fi
 fi
 
+# Derive optional inputs from the actual base, including the recorded resume base.
+if git cat-file -e "$BASE_COMMIT:docs/adr" 2>/dev/null; then
+  SPARSE_PATHS+=("docs/adr")
+fi
+
 for sparse_path in "${SPARSE_PATHS[@]}"; do
   git cat-file -e "$BASE_COMMIT:$sparse_path" 2>/dev/null \
-    || die "sparse checkout path does not exist in base $BASE: $sparse_path"
+    || die "sparse checkout path does not exist in base $BASE_COMMIT: $sparse_path"
 done
 
 require_path_exists "$REPO_ROOT/codex-gui/node_modules"

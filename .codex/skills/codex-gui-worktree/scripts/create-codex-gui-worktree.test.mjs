@@ -156,3 +156,20 @@ test('task preparation pins HEAD, preserves dirty source and resumes only its ow
   assert.equal(readFileSync(join(f.repo, 'codex-gui/AGENTS.md'), 'utf8'), 'uncommitted investigation\n');
   assert.equal(readFileSync(join(f.target, 'codex-gui/AGENTS.md'), 'utf8'), 'ongoing task diagnosis\n');
 });
+
+test('resume derives optional inputs from the recorded base even when the default branch changes', t => {
+  const f = fixture(t, { domain: false });
+  const base = f.git('rev-parse', 'HEAD');
+  const created = f.run('--base', base, '--task-id', 'chat-one');
+  assert.equal(created.status, 0, created.stderr);
+  put(f.repo, 'docs/adr/new.md', 'decision added after task start\n');
+  f.git('add', 'docs/adr/new.md');
+  f.git('commit', '-m', 'new domain input');
+  const resumed = f.run('--task-id', 'chat-one', '--resume');
+  assert.equal(resumed.status, 0, resumed.stderr);
+  assert.equal(existsSync(join(f.target, 'docs/adr')), false);
+  f.git('branch', '-m', 'dev', 'main');
+  const renamed = f.run('--task-id', 'chat-one', '--resume');
+  assert.equal(renamed.status, 0, renamed.stderr);
+  assert.equal(f.git('-C', f.target, 'rev-parse', 'HEAD'), base);
+});
