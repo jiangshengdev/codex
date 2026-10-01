@@ -134,3 +134,25 @@ test('rejects an incompatible documentation link without replacing it', t => {
   assert.equal(readlinkSync(link), other);
   assert.doesNotMatch(result.stdout, /Worktree ready:/);
 });
+
+test('task preparation pins HEAD, preserves dirty source and resumes only its owner', t => {
+  const f = fixture(t);
+  put(f.repo, 'codex-gui/AGENTS.md', 'second committed state\n');
+  f.git('add', 'codex-gui/AGENTS.md');
+  f.git('commit', '-m', 'task start');
+  const base = f.git('rev-parse', 'HEAD');
+  put(f.repo, 'codex-gui/AGENTS.md', 'uncommitted investigation\n');
+  const created = f.run('--base', base, '--task-id', 'chat-one');
+  assert.equal(created.status, 0, created.stderr);
+  assert.equal(f.git('-C', f.target, 'rev-parse', 'HEAD'), base);
+  assert.equal(readFileSync(join(f.target, 'codex-gui/AGENTS.md'), 'utf8'), 'second committed state\n');
+  put(f.target, 'codex-gui/AGENTS.md', 'ongoing task diagnosis\n');
+  const resumed = f.run('--task-id', 'chat-one', '--resume');
+  assert.equal(resumed.status, 0, resumed.stderr);
+  assert.equal(readFileSync(join(f.target, 'codex-gui/AGENTS.md'), 'utf8'), 'ongoing task diagnosis\n');
+  const other = f.run('--task-id', 'chat-two', '--resume');
+  assert.notEqual(other.status, 0);
+  assert.match(other.stderr, /task ownership mismatch/);
+  assert.equal(readFileSync(join(f.repo, 'codex-gui/AGENTS.md'), 'utf8'), 'uncommitted investigation\n');
+  assert.equal(readFileSync(join(f.target, 'codex-gui/AGENTS.md'), 'utf8'), 'ongoing task diagnosis\n');
+});

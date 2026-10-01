@@ -29,6 +29,8 @@ Required:
 
 Optional:
   --base BASE          Base branch or commit. Defaults to dev
+  --task-id ID         Record the owning chat/task identity (not the issue number)
+  --resume             Verify and reuse the existing worktree owned by --task-id
   --include PATH       Additional sparse checkout path. Can be repeated
   --repo-root PATH     Codex repo root. Defaults to this script's git root
   --worktree-root PATH Worktree parent. Defaults to <repo-root>/.worktrees
@@ -114,6 +116,8 @@ REPO_ROOT="${CODEX_GUI_WORKTREE_REPO_ROOT:-}"
 WORKTREE_ROOT="${CODEX_GUI_WORKTREE_ROOT:-}"
 VITEST_ROOT="${CODEX_GUI_WORKTREE_VITEST_ROOT:-}"
 INCLUDE_PATHS=()
+TASK_ID=""
+RESUME=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -131,6 +135,15 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 ]] || die "--base requires a value"
       BASE="$2"
       shift 2
+      ;;
+    --task-id)
+      [[ $# -ge 2 ]] || die "--task-id requires a value"
+      TASK_ID="$2"
+      shift 2
+      ;;
+    --resume)
+      RESUME=true
+      shift
       ;;
     --include)
       [[ $# -ge 2 ]] || die "--include requires a value"
@@ -165,6 +178,13 @@ done
 [[ -n "$NAME" ]] || die "--name is required"
 [[ -n "$BRANCH" ]] || die "--branch is required"
 [[ "$NAME" != */* ]] || die "--name must be a single directory name, got: $NAME"
+[[ "$NAME" != . && "$NAME" != .. ]] || die "invalid worktree name: $NAME"
+if [[ -n "$TASK_ID" ]]; then
+  [[ "$TASK_ID" != *[!a-zA-Z0-9_-]* ]] || die "--task-id must contain only letters, digits, underscores or hyphens"
+fi
+if $RESUME; then
+  [[ -n "$TASK_ID" ]] || die "--resume requires --task-id"
+fi
 if [[ -z "$REPO_ROOT" ]]; then
   [[ -n "$DEFAULT_REPO_ROOT" ]] || die "unable to infer repo root; pass --repo-root or set CODEX_GUI_WORKTREE_REPO_ROOT"
   REPO_ROOT="$DEFAULT_REPO_ROOT"
@@ -200,10 +220,29 @@ case "$WORKTREE_ROOT/" in
 esac
 
 WORKTREE_PATH="$WORKTREE_ROOT/$NAME"
-ensure_absent "$WORKTREE_PATH"
+if $RESUME; then
+  require_dir_exists "$WORKTREE_PATH"
+  [[ ! -L "$WORKTREE_PATH" ]] || die "worktree path is a symlink: $WORKTREE_PATH"
+  [[ "$(git -C "$WORKTREE_PATH" rev-parse --show-toplevel)" == "$WORKTREE_PATH" ]] \
+    || die "unexpected worktree root: $WORKTREE_PATH"
+  [[ "$(git -C "$WORKTREE_PATH" rev-parse --git-common-dir)" == "$(git rev-parse --path-format=absolute --git-common-dir)" ]] \
+    || die "worktree belongs to another repository: $WORKTREE_PATH"
+  TASK_RECORD="$(git -C "$WORKTREE_PATH" rev-parse --path-format=absolute --git-path codex-gui-task)"
+  [[ -f "$TASK_RECORD" && ! -L "$TASK_RECORD" ]] || die "missing task ownership record: $TASK_RECORD"
+  RECORDED_TASK="$(sed -n '1p' "$TASK_RECORD")"
+  [[ "$RECORDED_TASK" == "$TASK_ID" ]] || die "task ownership mismatch: $WORKTREE_PATH"
+  [[ "$(sed -n '2p' "$TASK_RECORD")" == "$REPO_ROOT" ]] || die "task repository mismatch: $WORKTREE_PATH"
+  [[ "$(sed -n '3p' "$TASK_RECORD")" == "$WORKTREE_PATH" ]] || die "task path mismatch: $WORKTREE_PATH"
+  [[ "$(sed -n '4p' "$TASK_RECORD")" == "$BRANCH" ]] || die "task branch mismatch: $WORKTREE_PATH"
+  [[ "$(git -C "$WORKTREE_PATH" branch --show-current)" == "$BRANCH" ]] || die "worktree branch changed: $WORKTREE_PATH"
+  BASE_COMMIT="$(sed -n '5p' "$TASK_RECORD")"
+  git cat-file -e "${BASE_COMMIT}^{commit}" || die "task base commit is missing"
+else
+  ensure_absent "$WORKTREE_PATH"
 
 if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
   die "branch already exists: $BRANCH"
+fi
 fi
 
 for sparse_path in "${SPARSE_PATHS[@]}"; do
@@ -220,13 +259,22 @@ if [[ ! -d "$VITEST_ROOT/docs" ]]; then
 fi
 VITEST_ROOT="$(normalize_path_preserving_leaf "$VITEST_ROOT")"
 
-git worktree add --no-checkout "$WORKTREE_PATH" -b "$BRANCH" "$BASE_COMMIT"
-trap print_cleanup_hint ERR
+if ! $RESUME; then
+  git worktree add --no-checkout "$WORKTREE_PATH" -b "$BRANCH" "$BASE_COMMIT"
+  trap print_cleanup_hint ERR
+fi
 
 cd "$WORKTREE_PATH"
-git sparse-checkout init --cone
-git sparse-checkout set "${SPARSE_PATHS[@]}"
-git checkout
+if ! $RESUME; then
+  git sparse-checkout init --cone
+  git sparse-checkout set "${SPARSE_PATHS[@]}"
+  git checkout
+else
+  for sparse_path in "${SPARSE_PATHS[@]}"; do
+    git sparse-checkout list | rg -Fx -- "$sparse_path" >/dev/null \
+      || die "required sparse path is missing: $sparse_path"
+  done
+fi
 
 ensure_symlink "$REPO_ROOT/codex-gui/node_modules" "$WORKTREE_PATH/codex-gui/node_modules"
 
@@ -261,6 +309,12 @@ test -d "$WORKTREE_PATH/../vitest/docs/guide/browser"
 test -d "$WORKTREE_PATH/../vitest/docs/config/browser"
 
 info ""
+if [[ -n "$TASK_ID" ]] && ! $RESUME; then
+  TASK_RECORD="$(git rev-parse --path-format=absolute --git-path codex-gui-task)"
+  (set -o noclobber; printf '%s\n' "$TASK_ID" "$REPO_ROOT" "$WORKTREE_PATH" "$BRANCH" "$BASE_COMMIT" > "$TASK_RECORD")
+fi
+info "  task: ${TASK_ID:-unassigned}"
+info "  base: $BASE_COMMIT"
 info "Worktree ready:"
 info "  path: $WORKTREE_PATH"
 info "  branch: $BRANCH"

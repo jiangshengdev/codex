@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex GUI BUG 隔离排查"
+  short_description: "用专属工作树与独立测试资源并行排查 Codex GUI BUG"
+  default_prompt: "使用 $codex-gui-bug-investigation 在专属工作树中排查这个 Codex GUI BUG，并保留独立测试证据。"
