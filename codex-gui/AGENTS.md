@@ -2,7 +2,7 @@
 
 ## Required Reading Before Frontend Work
 
-- Before starting any frontend work in `codex-gui`, read and apply the local HeroUI [Design Principles](.heroui-docs/react/getting-started/(overview)/design-principles.mdx). This requirement covers investigation, design, planning, implementation, review, and verification, not only code edits. Read the principles before proposing a solution; component API documentation does not replace this prerequisite.
+- Before starting any frontend work in `codex-gui`, read and apply the local HeroUI [Design Principles](<.heroui-docs/react/getting-started/(overview)/design-principles.mdx>). This requirement covers investigation, design, planning, implementation, review, and verification, not only code edits. Read the principles before proposing a solution; component API documentation does not replace this prerequisite.
 
 ## Repository Formatting Scope
 

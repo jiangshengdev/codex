@@ -2,7 +2,7 @@
 
 ## 前端工作开始前的必读要求
 
-- 在 `codex-gui` 中开展任何前端工作之前，必须阅读并遵循本地 HeroUI [Design Principles](.heroui-docs/react/getting-started/(overview)/design-principles.mdx)。此要求覆盖排查、设计、计划、实现、审查和验证，不限于代码修改。必须先阅读这些原则再提出方案；组件 API 文档不能替代此前置要求。
+- 在 `codex-gui` 中开展任何前端工作之前，必须阅读并遵循本地 HeroUI [Design Principles](<.heroui-docs/react/getting-started/(overview)/design-principles.mdx>)。此要求覆盖排查、设计、计划、实现、审查和验证，不限于代码修改。必须先阅读这些原则再提出方案；组件 API 文档不能替代此前置要求。
 
 ## 仓库格式化范围
 
