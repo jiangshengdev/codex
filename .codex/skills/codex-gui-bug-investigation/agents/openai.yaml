@@ -1,4 +1,4 @@
 interface:
-  display_name: "Codex GUI BUG 隔离排查"
-  short_description: "用专属工作树与独立测试资源并行排查 Codex GUI BUG"
-  default_prompt: "使用 $codex-gui-bug-investigation 在专属工作树中排查这个 Codex GUI BUG，并保留独立测试证据。"
+  display_name: "Codex GUI Bug Investigation Isolation"
+  short_description: "Investigate GUI bugs with isolated worktrees and test runs"
+  default_prompt: "Use $codex-gui-bug-investigation to investigate this Codex GUI bug in a dedicated worktree and retain independent test evidence."

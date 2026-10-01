@@ -1,51 +1,51 @@
 ---
 name: codex-gui-bug-investigation
-description: 在 Codex GUI 中用专属工作树和正式隔离测试入口排查 BUG，适用于多个独立聊天同时调查、需要保护用户服务并保留证据的任务。
+description: Investigate Codex GUI bugs using dedicated worktrees and official isolated test entrypoints when independent chats investigate concurrently and need to protect user services and retain evidence.
 ---
 
-# Codex GUI BUG 调查隔离
+# Codex GUI Bug Investigation Isolation
 
-各聊天自行使用本 skill。工作树归属于聊天中的调查任务，服务、缓存和报告归属于单次测试运行；Issue 编号不能作为共享可写资源的身份。
+Each chat uses this skill independently. A worktree belongs to the investigation task in that chat; services, caches, and reports belong to an individual test run. An Issue number must not serve as the identity of shared writable resources.
 
-## 权威依赖
+## Authoritative Dependencies
 
-本 skill 的外部诊断依赖链接以主 checkout 的 `.codex/skills/codex-gui-bug-investigation/` 为基准。在工作树中，用 `git rev-parse --path-format=absolute --git-common-dir` 找到共享 Git 目录及其主 checkout，再解析主 checkout 中的诊断依赖链接；不要根据 Issue 或当前工作树的目录名猜测依赖位置。
+Resolve this skill's external diagnostic dependency link relative to `.codex/skills/codex-gui-bug-investigation/` in the main checkout. From a worktree, use `git rev-parse --path-format=absolute --git-common-dir` to locate the shared Git directory and its main checkout, then resolve the diagnostic dependency link in that main checkout. Do not infer dependency locations from the Issue or the current worktree's directory name.
 
-- [codex-gui-worktree](../codex-gui-worktree/SKILL.md)：必须读取并使用其脚本准备、核验工作树。以目标 checkout 自带的该 skill 和脚本执行；不要复制准备流程。
-- [diagnosing-bugs](../../../../codex-config/.agents/skills/diagnosing-bugs/SKILL.md)：必须读取并实际遵循诊断阶段。隔离只提供调查环境，不替代失败信号、最小复现或根因验证。
+- [codex-gui-worktree](../codex-gui-worktree/SKILL.md): Read it and use its scripts to prepare and verify the worktree. Use the skill and scripts included in the target checkout; do not duplicate the preparation workflow.
+- [diagnosing-bugs](../../../../codex-config/.agents/skills/diagnosing-bugs/SKILL.md): Read it and actually follow its diagnostic stages. Isolation provides the investigation environment; it does not replace a failure signal, a minimal reproduction, or root-cause verification.
 
-依赖不可解析时停止相应步骤并指出缺失项。遵循目标仓库的 AGENTS、tracker 配置及工具链，先核对最新 Issue 正文、评论、标签与调查范围。
+If a dependency cannot be resolved, stop the affected step and identify the missing item. Follow the target repository's AGENTS, tracker configuration, and toolchain. First check the latest Issue body, comments, labels, and investigation scope.
 
-## 准备或恢复任务
+## Prepare or Resume a Task
 
-1. 记录原请求授权：只排查、获准添加诊断代码、或获准修复。准备和运行已有测试不自动授权产品修改、诊断代码修改、提交、合并、外部写入或清理工作树。
-2. 使用实际聊天身份或本任务首次创建并保留的唯一标识作为 `--task-id`。记录任务身份、Issue、工作树名、`codex/` 分支及基准提交；同一 Issue 的另一个聊天取得不同身份和资源。不能借用其他任务的分支或目录。
-3. 新任务核对工作树 skill 的前提，读取启动 checkout 的 `git rev-parse HEAD`，将所得完整提交显式传入准备脚本的 `--base`，同时传 `--task-id`、专属 `--name` 和 `--branch`。不携带未提交内容；主目录有修改本身不是准备阻塞。
-4. 恢复同一任务先核对原记录，再用相同目录、分支、身份和路径参数加 `--resume`。该模式保留基准和调查修改，拒绝归属、分支、资源链接或准备状态不一致。身份不明、准备失败、路径冲突时停止依赖步骤，不覆盖资源，不谎报工作树就绪。
-5. 准备成功后按工作树 skill 的验证要求交付工作树、任务身份、实际基准、分支、稀疏输入和资源链接证据，再进入该工作树调查。默认保留工作树。
+1. Record the original request's authorization: investigation only, permission to add diagnostic code, or permission to fix. Preparing and running existing tests does not automatically authorize product changes, diagnostic code changes, commits, merges, external writes, or worktree cleanup.
+2. Use the actual chat identity or a unique identifier created and retained when this task first starts as `--task-id`. Record the task identity, Issue, worktree name, `codex/` branch, and base commit. Another chat investigating the same Issue gets a different identity and resources. Do not borrow another task's branch or directory.
+3. For a new task, check the worktree skill's prerequisites, read `git rev-parse HEAD` in the starting checkout, and explicitly pass the full resulting commit to the preparation script's `--base`, together with `--task-id`, a dedicated `--name`, and `--branch`. Do not carry over uncommitted content. Changes in the main checkout alone do not block preparation.
+4. To resume the same task, first check its original record, then use the same directory, branch, identity, and path arguments with `--resume`. This mode preserves the base and investigation changes and rejects inconsistencies in ownership, branch, resource links, or preparation state. If the identity is unknown, preparation fails, or paths conflict, stop dependent steps. Do not overwrite resources or falsely report that the worktree is ready.
+5. After successful preparation, provide evidence of the worktree, task identity, actual base, branch, sparse inputs, and resource links as required by the worktree skill's verification workflow. Then investigate in that worktree. Retain the worktree by default.
 
-## 选择正式测试接缝
+## Select an Official Test Seam
 
-先按 diagnosing-bugs 建立能检测原症状的反馈循环。根据 BUG 路径选入口与已有过滤参数，从准备完成的工作树 `codex-gui` 运行，遵循 `codex-gui-toolchain` 的 fnm 环境：
+First follow diagnosing-bugs to establish a feedback loop that detects the original symptom. Select an entrypoint and existing filter arguments based on the bug's execution path. Run from `codex-gui` in the prepared worktree, using the fnm environment required by `codex-gui-toolchain`:
 
-| 目标 | 正式入口 |
+| Target | Official entrypoint |
 | --- | --- |
-| Storybook Playwright | `pnpm run test:storybook <spec 文件> --grep <用例>` |
-| GUI E2E | `pnpm run test:e2e <spec 文件> --grep <用例>` |
-| Vitest Browser 并行集合 | `pnpm run test:browser:parallel --run <测试文件>` |
-| Vitest Browser 顺序集合 | `pnpm run test:browser:sequential --run <测试文件>` |
-| Storybook stories | `pnpm run test:storybook:stories <stories 文件>` |
+| Storybook Playwright | `pnpm run test:storybook <spec file> --grep <test case>` |
+| GUI E2E | `pnpm run test:e2e <spec file> --grep <test case>` |
+| Vitest Browser parallel suite | `pnpm run test:browser:parallel --run <test file>` |
+| Vitest Browser sequential suite | `pnpm run test:browser:sequential --run <test file>` |
+| Storybook stories | `pnpm run test:storybook:stories <stories file>` |
 
-正式入口负责分配单次运行身份、实际端口、隔离缓存和产物目录，输出地址和证据位置，并在成功、失败或取消时清理本次拥有的服务。使用其输出，不能临时改写每个 BUG 工作树的测试配置，也不能在 skill 中再建一套端口分配或进程清理。缺少已实现的正式隔离入口时报告准备不足，不回退到固定端口路径。
+Official entrypoints allocate the individual run identity, actual port, isolated caches, and artifact directories, print the address and evidence locations, and clean up services owned by that run on success, failure, or cancellation. Use their output. Do not temporarily rewrite test configuration in each bug worktree or create another port-allocation or process-cleanup implementation in this skill. If an implemented official isolated entrypoint is missing, report incomplete preparation; do not fall back to a fixed-port path.
 
-6007 及其他用户服务只能观察，不能复用、接管、终止或重启。不要按端口、宽泛进程名清理；取消通过本次入口处理。正常结束和失败均保留报告、截图、trace 与附件，不主动删除其他任务产物。
+Services on 6007 and other user services may only be observed. Do not reuse, take over, terminate, or restart them. Do not clean up by port or broad process name; handle cancellation through the entrypoint for this run. Retain reports, screenshots, traces, and attachments on both normal completion and failure. Do not proactively delete other tasks' artifacts.
 
-验证默认无头，不自动打开报告或 trace viewer。检查实际收集、执行与跳过范围；零收集不计通过。缺工具、依赖、准备输入时报告阻塞，由用户处理，不安装组件或主动构建后端/原生程序。
+Verification is headless by default. Do not automatically open reports or a trace viewer. Check the actual collected, executed, and skipped scope; zero collected tests do not count as a pass. Report missing tools, dependencies, or preparation inputs as blockers for the user to resolve. Do not install components or proactively build backend or native programs.
 
-## 证据交付
+## Deliver Evidence
 
-输出本任务的 Issue 与授权范围、任务身份、工作树、分支、实际基准、测试命令和过滤范围、实际服务地址、通过/失败/未复现结果、保留产物位置及未完成事项。凭真实运行证据判定结果；绿色重复运行不能证明原 BUG 已修复。
+Report this task's Issue and authorization scope, task identity, worktree, branch, actual base, test commands and filter scope, actual service address, pass/fail/not-reproduced results, retained artifact locations, and unfinished items. Determine results from actual execution evidence; repeated green runs do not prove that the original bug is fixed.
 
-报告中区分隔离支撑的 Level 1 与具体 BUG 所需的真实运行时或可见桌面验收；不得用隔离测试代替后两者。正式 tracker 记录须脱敏，避免暴露私人路径或凭据。
+Distinguish Level 1 evidence supported by isolation from the real-runtime or visible-desktop acceptance required for the specific bug. Do not substitute isolated tests for either of the latter. Redact formal tracker records to avoid exposing private paths or credentials.
 
-任务结束默认保留工作树、未提交诊断及已有提交；用户明确要求清理时才交给既有授权与工作树流程。该 skill 不创建总控聊天，不自动提交、合并或操作 Git 远程，也不依赖 MCP 自动发现。本项目 skill 直接维护在 `.codex/skills/codex-gui-bug-investigation/`，与现有项目 skill 一致，不安装全局 skill、不增加发现符号链接。只能交付实际验证过的发现方式，不能承诺旧聊天立即刷新。
+At task completion, retain the worktree, uncommitted diagnostics, and existing commits by default. Only when the user explicitly requests cleanup, hand it to the existing authorization and worktree workflows. This skill does not create an orchestrator chat, automatically commit or merge, operate Git remotes, or rely on MCP automatic discovery. Maintain this project skill directly in `.codex/skills/codex-gui-bug-investigation/`, consistent with existing project skills. Do not install a global skill or add discovery symlinks. Report only discovery methods that have actually been verified; do not promise that existing chats refresh immediately.
