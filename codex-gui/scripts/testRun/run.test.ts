@@ -128,32 +128,42 @@ test("cancelling startup stops only the owned service and retains its result", a
 
 test("the user's service at 6007 remains reachable through a failed isolated run", async () => {
   const userServer = createServer((_request, response) => response.end("user-service"));
-  await new Promise<void>((resolve, reject) => {
-    userServer.once("error", reject);
-    userServer.listen(6007, "127.0.0.1", resolve);
-  });
+  let ownsProtectionFixture = false;
   try {
-    expect(await (await fetch("http://127.0.0.1:6007")).text()).toBe("user-service");
+    await new Promise<void>((resolve, reject) => {
+      userServer.once("error", reject);
+      userServer.listen(6007, "127.0.0.1", resolve);
+    });
+    ownsProtectionFixture = true;
+  } catch (error) {
+    // An existing user service is observed, never replaced or stopped.
+    if ((error as NodeJS.ErrnoException).code !== "EADDRINUSE") throw error;
+  }
+  try {
+    const initialStatus = (await fetch("http://127.0.0.1:6007")).status;
     const result = await runIsolated({
       name: "protected",
       service,
+      env: { CODEX_GUI_PROTECTION_STATUS: String(initialStatus) },
       test: {
         command: process.execPath,
         args: [
           "-e",
-          `fetch('http://127.0.0.1:6007').then(r=>r.text()).then(body=>{if(body!=='user-service')process.exit(9);process.exit(7);});`,
+          `fetch('http://127.0.0.1:6007').then(r=>{if(String(r.status)!==process.env.CODEX_GUI_PROTECTION_STATUS)process.exit(9);process.exit(7);});`,
         ],
       },
     });
     expect(result.code).toBe(7);
     expect(result.context.port).not.toBe(6007);
-    expect(await (await fetch("http://127.0.0.1:6007")).text()).toBe("user-service");
+    expect((await fetch("http://127.0.0.1:6007")).status).toBe(initialStatus);
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      userServer.close((error) => {
-        if (error) reject(error);
-        else resolve();
-      }),
-    );
+    if (ownsProtectionFixture) {
+      await new Promise<void>((resolve, reject) =>
+        userServer.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        }),
+      );
+    }
   }
 });
