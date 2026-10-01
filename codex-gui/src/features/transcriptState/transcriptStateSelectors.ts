@@ -220,6 +220,9 @@ const createTranscriptEntryView = (entry: TranscriptStoredEntry): TranscriptEntr
         id: entry.id,
         turnId: entry.turnId,
         role: entry.role,
+        ...(entry.role === "assistant" && entry.questions != null
+          ? { questions: entry.questions }
+          : {}),
         rendering:
           entry.role === "assistant"
             ? {
@@ -331,7 +334,10 @@ const createTranscriptEntryView = (entry: TranscriptStoredEntry): TranscriptEntr
       };
     }
     case "live":
-      if (entry.transientText.length === 0) {
+      if (
+        entry.transientText.length === 0 &&
+        !(entry.initialItem.delivery === "async" && entry.initialItem.questions?.length)
+      ) {
         return null;
       }
 
@@ -341,6 +347,9 @@ const createTranscriptEntryView = (entry: TranscriptStoredEntry): TranscriptEntr
         turnId: entry.turnId,
         role: "assistant",
         rendering: { mode: "streamingMarkdown", source: entry.transientText },
+        ...(entry.initialItem.delivery === "async"
+          ? { questions: entry.initialItem.questions }
+          : {}),
         revision: entry.revision,
       };
   }

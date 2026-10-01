@@ -1,5 +1,9 @@
 # codex-gui
 
+## 前端工作开始前的必读要求
+
+- 在 `codex-gui` 中开展任何前端工作之前，必须阅读并遵循本地 HeroUI [Design Principles](<.heroui-docs/react/getting-started/(overview)/design-principles.mdx>)。此要求覆盖排查、设计、计划、实现、审查和验证，不限于代码修改。必须先阅读这些原则再提出方案；组件 API 文档不能替代此前置要求。
+
 ## 仓库格式化范围
 
 - 当且仅当任务修改了至少一个由当前 `scripts/format.py` 管理的文件时，才运行仓库级 `just fmt`；即使任务同时修改了不受其管理的文件，也适用此规则。目前的管理范围包括仓库 Justfile、由 `cargo fmt` 处理的 Rust 文件、由 buildifier 处理的 Bazel/Starlark 文件，以及 `sdk/python` 和 `scripts` 下的 Python 文件；如果这些范围发生变化，以当前实现为准。
@@ -14,6 +18,10 @@
 - 当范围涉及 Lingui 消息提取、目录文件差异、目录文件中的翻译修改或提取稳定性时，使用 `$lingui-catalog-workflow`。
 
 ## 前端工程约束
+
+- 每个生产可达 Modal 或 Drawer 每次打开时都必须建立明确的初始焦点目标，并验证可观察的焦点行为。阅读型弹层聚焦标题，但不将标题加入普通 Tab 顺序；操作型弹层使用适当的控件。保留已有指定分组和编辑器焦点语义。
+- 弹层包含菜单时，覆盖菜单关闭、恢复到仍存在的触发按钮、焦点包含、分层 Escape，以及最终恢复到弹层入口。仅有 `autoFocus` 属性不构成验收证据。复用 HeroUI／React Aria 焦点管理，不新增全局恢复 owner 或万能弹层 wrapper 强制焦点。
+- 排查菜单恢复竞争时，从[弹层焦点指南](../docs/agents/overlay-focus.zh-CN.md)中的已知机制与最小证据路径开始。共享 Browser 测试 helper 在真实菜单移除后推进 dialog timeout，同时保留实际 FocusScope 恢复帧。
 
 - 在 `codex-gui/**` 中，Rust 模块代码行数（LoC）、变更行数，以及 TypeScript、TSX 或 JavaScript 文件长度衡量的是不同对象。不得将它们相互换算，也不得仅凭其中任何一项作为硬性停止条件。
 - 根据职责、状态所有权、耦合、函数作用域、可测试性和可审查性评估前端结构。公共接口小或文件短，不足以成为将多种操作或多类状态转换集中到一个函数、工厂或闭包中的理由。

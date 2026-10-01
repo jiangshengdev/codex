@@ -60,7 +60,7 @@ export function TopBarNavigationItem({
           {description}
         </span>
       </span>
-      {shortcut ? <ShortcutKey aria={shortcut.aria} /> : null}
+      {shortcut ? <ShortcutKey aria={shortcut.aria} variant="light" /> : null}
     </Button>
   );
 }

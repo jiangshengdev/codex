@@ -895,12 +895,21 @@ test("an image is previewable in the draft and authoritative history and sends a
   await preview.click();
   const dialog = screen.getByRole("dialog", { name: "picture.png", exact: true });
   await expect.element(dialog.getByRole("img", { name: "picture.png" })).toBeVisible();
+  await expect.element(dialog.getByRole("button", { name: "Close image preview" })).toHaveFocus();
   await dialog.getByRole("button", { name: "Close image preview" }).click();
   await expect.element(preview).toHaveFocus();
   await userEvent.tab();
   await expect.element(remove).toHaveFocus();
   await expect.element(screen.getByRole("tooltip")).toHaveTextContent("Remove picture.png");
   await userEvent.tab({ shift: true });
+  await expect.element(preview).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(dialog.getByRole("button", { name: "Close image preview" })).toHaveFocus();
+  await userEvent.tab();
+  await expect.element(dialog.getByRole("button", { name: "Close image preview" })).toHaveFocus();
+  await userEvent.tab({ shift: true });
+  await expect.element(dialog.getByRole("button", { name: "Close image preview" })).toHaveFocus();
+  await userEvent.keyboard("{Escape}");
   await expect.element(preview).toHaveFocus();
   await screen.getByRole("button", { name: "Guide", exact: true }).click();
   await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
@@ -925,11 +934,18 @@ test("an image is previewable in the draft and authoritative history and sends a
       { parentCommitId: attachResponse.snapshot.headCommitId },
     ),
   );
-  await screen
+  const sentPreview = screen
     .getByRole("region", { name: "Committed transcript" })
-    .getByRole("button", { name: "Preview picture.png", exact: true })
-    .click();
+    .getByRole("button", { name: "Preview picture.png", exact: true });
+  await sentPreview.click();
   await expect.element(dialog.getByRole("img", { name: "picture.png" })).toBeVisible();
+  await expect.element(dialog.getByRole("button", { name: "Close image preview" })).toHaveFocus();
+  await dialog.getByRole("button", { name: "Close image preview" }).click();
+  await expect.element(sentPreview).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(dialog.getByRole("button", { name: "Close image preview" })).toHaveFocus();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(sentPreview).toHaveFocus();
   expect(
     request.mock.calls
       .filter(([, options]) => options?.method !== "POST")

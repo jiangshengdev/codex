@@ -1,4 +1,5 @@
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
+import type { AsyncQuestions } from "@/features/asyncQuestions/asyncQuestions";
 import type {
   ComposerInputQueueCoordinator,
   ComposerInputQueueCoordinatorSnapshot,
@@ -109,6 +110,7 @@ export type ActiveThreadReserveReleaseResult =
   | Readonly<{ type: "reserved"; reservation: ActiveThreadReleaseReservation }>;
 
 export type LiveActiveThreadSession = Readonly<{
+  questions: AsyncQuestions;
   identity: ActiveThreadSessionIdentity;
   getSnapshot(): LiveActiveThreadSessionSnapshot;
   subscribe(listener: () => void): () => void;

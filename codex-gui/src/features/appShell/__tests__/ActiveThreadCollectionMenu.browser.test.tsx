@@ -2,6 +2,7 @@ import { expect, test, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { attachResponse } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred } from "@/__tests__/testDeferred";
+import { withDialogMenuFocusRace } from "@/__tests__/dialogMenuFocusRace";
 import {
   activeThreadReadModelSlotCreated,
   activeThreadReadModelTransitionApplied,
@@ -177,53 +178,58 @@ for (const phase of ["failed", "cleanupPending", "ready"] as const) {
   });
 }
 
-test("Escape closes actions before the drawer and restores focus to each trigger", async () => {
-  const {
-    screen,
-    router,
-    activeThreadSessionHarness: harness,
-  } = await renderTopBar({
-    initialEntry: `/task/${currentThreadId}`,
-    routeTarget: { type: "currentTask", threadId: currentThreadId },
+test("Escape restores task actions focus when dialog timers run before menu focus restoration", async () => {
+  await withDialogMenuFocusRace(async (observeMenu) => {
+    const {
+      screen,
+      router,
+      activeThreadSessionHarness: harness,
+    } = await renderTopBar({
+      initialEntry: `/task/${currentThreadId}`,
+      routeTarget: { type: "currentTask", threadId: currentThreadId },
+    });
+    harness.publishCollection({
+      viewedThreadId: currentThreadId,
+      errors: [],
+      members: [
+        {
+          threadId: backgroundThreadId,
+          phase: "failed",
+          snapshot: null,
+          error: new Error("failed"),
+          operationErrors: [],
+          canRemove: true,
+          removalBlockers: [],
+          retryAction: "load",
+          retryPending: false,
+          removalPending: false,
+        },
+      ],
+    });
+    const menu = screen.getByRole("button", { name: "Menu", exact: true });
+    await menu.click();
+    const more = screen.getByRole("button", {
+      name: `More options for ${backgroundThreadId}`,
+      exact: true,
+    });
+    await more.click();
+    await expect
+      .element(screen.getByRole("menuitem", { name: "Remove from list", exact: true }))
+      .toBeVisible();
+    expect(router.state.location.pathname).toBe(`/task/${currentThreadId}`);
+    observeMenu(screen.getByRole("menu").element());
+    await userEvent.keyboard("{Escape}");
+    await expect
+      .element(screen.getByRole("menuitem", { name: "Remove from list", exact: true }))
+      .not.toBeInTheDocument();
+    await expect.element(screen.getByRole("dialog", { name: "Navigation" })).toBeVisible();
+    await expect.element(more).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    await expect
+      .element(screen.getByRole("dialog", { name: "Navigation" }))
+      .not.toBeInTheDocument();
+    await expect.element(menu).toHaveFocus();
   });
-  harness.publishCollection({
-    viewedThreadId: currentThreadId,
-    errors: [],
-    members: [
-      {
-        threadId: backgroundThreadId,
-        phase: "failed",
-        snapshot: null,
-        error: new Error("failed"),
-        operationErrors: [],
-        canRemove: true,
-        removalBlockers: [],
-        retryAction: "load",
-        retryPending: false,
-        removalPending: false,
-      },
-    ],
-  });
-  const menu = screen.getByRole("button", { name: "Menu", exact: true });
-  await menu.click();
-  const more = screen.getByRole("button", {
-    name: `More options for ${backgroundThreadId}`,
-    exact: true,
-  });
-  await more.click();
-  await expect
-    .element(screen.getByRole("menuitem", { name: "Remove from list", exact: true }))
-    .toBeVisible();
-  expect(router.state.location.pathname).toBe(`/task/${currentThreadId}`);
-  await userEvent.keyboard("{Escape}");
-  await expect
-    .element(screen.getByRole("menuitem", { name: "Remove from list", exact: true }))
-    .not.toBeInTheDocument();
-  await expect.element(screen.getByRole("dialog", { name: "Navigation" })).toBeVisible();
-  await expect.element(more).toHaveFocus();
-  await userEvent.keyboard("{Escape}");
-  await expect.element(screen.getByRole("dialog", { name: "Navigation" })).not.toBeInTheDocument();
-  await expect.element(menu).toHaveFocus();
 });
 
 test("a thrown remove error survives closing the drawer and clears after successful removal", async () => {

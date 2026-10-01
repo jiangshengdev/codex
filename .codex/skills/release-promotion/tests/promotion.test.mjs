@@ -200,3 +200,58 @@ test('continue preserves target documents despite incoming edits, additions and 
   assert.equal(git(repo, 'show', 'test:source.txt'), 'updated code');
   assert.equal(git(repo, 'status', '--porcelain'), '');
 });
+
+function deletedTargetDocuments(t, sourceConflict = false) {
+  const repo = fixture(t);
+  put(repo, 'CONTEXT.md', 'base context\n');
+  put(repo, 'docs/adr/old.md', 'base decision\n');
+  commit(repo, 'base documents');
+  git(repo, 'switch', 'test');
+  git(repo, 'merge', '--ff-only', 'dev');
+  git(repo, 'rm', '--', 'CONTEXT.md', 'docs/adr/old.md');
+  if (sourceConflict) put(repo, 'source.txt', 'test change\n');
+  commit(repo, 'target document removal');
+  git(repo, 'switch', 'dev');
+  put(repo, 'CONTEXT.md', 'updated context\n');
+  put(repo, 'docs/adr/old.md', 'updated decision\n');
+  put(repo, 'docs/adr/new.md', 'new decision\n');
+  if (sourceConflict) put(repo, 'source.txt', 'dev change\n');
+  commit(repo, 'incoming updates');
+  return repo;
+}
+
+test('excluded modify-delete conflicts do not block promotion', t => {
+  const repo = deletedTargetDocuments(t);
+  phase(repo, 'promote-dev-to-release.sh');
+  for (const branch of ['test', 'release']) {
+    assert.equal(git(repo, 'ls-tree', '-r', '--name-only', branch, '--', 'CONTEXT.md', 'docs/adr'), '');
+  }
+  assert.equal(git(repo, 'show', 'dev:CONTEXT.md'), 'updated context');
+  assert.equal(git(repo, 'show', 'dev:docs/adr/old.md'), 'updated decision');
+  assert.equal(git(repo, 'status', '--porcelain'), '');
+});
+
+test('continue restores excluded conflicts but leaves source conflicts for manual resolution', t => {
+  const repo = deletedTargetDocuments(t, true);
+  git(repo, 'switch', 'test');
+  run(repo, 'git', ['merge', '--no-ff', '--no-commit', 'dev'], 1);
+  const target = git(repo, 'rev-parse', 'HEAD');
+  phase(repo, 'merge-dev-to-test.sh', ['--continue'], 1);
+  assert.equal(git(repo, 'diff', '--name-only', '--diff-filter=U'), 'source.txt');
+  assert.equal(git(repo, 'diff', '--cached', 'HEAD', '--', 'CONTEXT.md', 'docs/adr'), '');
+  assert.equal(git(repo, 'rev-parse', 'HEAD'), target);
+  put(repo, 'source.txt', 'resolved\n');
+  git(repo, 'diff', '--check', '--', 'source.txt');
+  git(repo, 'add', '--', 'source.txt');
+  phase(repo, 'merge-dev-to-test.sh', ['--continue']);
+  assert.equal(git(repo, 'show', 'test:source.txt'), 'resolved');
+  assert.equal(git(repo, 'ls-tree', '-r', '--name-only', 'test', '--', 'CONTEXT.md', 'docs/adr'), '');
+  assert.equal(git(repo, 'status', '--porcelain'), '');
+});
+
+test('initial merge restores excluded conflicts before reporting source conflicts', t => {
+  const repo = deletedTargetDocuments(t, true);
+  phase(repo, 'merge-dev-to-test.sh', [], 1);
+  assert.equal(git(repo, 'diff', '--name-only', '--diff-filter=U'), 'source.txt');
+  assert.equal(git(repo, 'diff', '--cached', 'HEAD', '--', 'CONTEXT.md', 'docs/adr'), '');
+});

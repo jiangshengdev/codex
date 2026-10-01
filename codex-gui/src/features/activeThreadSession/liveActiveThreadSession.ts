@@ -1,4 +1,6 @@
 import type { AppDispatch } from "@/app/store";
+import { AsyncQuestions } from "@/features/asyncQuestions/asyncQuestions";
+import { capturePlainTextDraft } from "@/features/composerEditor/composerDraft";
 import type { ActiveThreadConnection } from "./activeThreadConnection";
 import {
   createComposerInputQueueCoordinator,
@@ -60,6 +62,16 @@ export type CreateLiveActiveThreadSessionInput = Readonly<{
 }>;
 
 class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
+  readonly questions = new AsyncQuestions(
+    () => this.operationUnavailable(this.revision) == null,
+    (text) =>
+      this.runChildTransaction(() =>
+        this.queue.submitIndependent(
+          capturePlainTextDraft(text),
+          this.activeTurnId == null ? "send" : "steer",
+        ),
+      ).type === "accepted",
+  );
   readonly identity: ActiveThreadSessionIdentity;
   private readonly threadId: string;
   private subscriptionId: string;
@@ -753,6 +765,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
 
   private applyOwnerFacts(facts: readonly ActiveThreadProjectionAcceptedEvent[]): void {
     for (const fact of facts) {
+      this.questions.observe(fact);
       if (fact.replay === "live") {
         switch (fact.notification.event.type) {
           case "turnStarted":

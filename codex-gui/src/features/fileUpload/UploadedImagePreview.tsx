@@ -225,7 +225,7 @@ function ImagePreview({ path, name, authorizationToken, draft }: UploadedImagePr
               width: `max(16rem, min(${String(outcome.width + 48)}px, calc(100vw - 32px), calc((100dvh - 160px) * ${String(outcome.width / outcome.height)} + 48px)))`,
             }}
           >
-            <Modal.CloseTrigger aria-label={t`Close image preview`} />
+            <Modal.CloseTrigger autoFocus aria-label={t`Close image preview`} />
             <Modal.Header className="min-h-8 shrink-0 pr-10">
               <Modal.Heading className="line-clamp-2 break-all" title={name}>
                 {name}

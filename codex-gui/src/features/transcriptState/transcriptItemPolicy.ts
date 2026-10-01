@@ -316,7 +316,7 @@ export const projectCompletedTranscriptItem = (
       };
     }
     case "agentMessage":
-      if (item.text.length === 0) {
+      if (item.text.length === 0 && !(item.delivery === "async" && item.questions?.length)) {
         return { kind: "remove" };
       }
 
@@ -328,6 +328,7 @@ export const projectCompletedTranscriptItem = (
           turnId,
           role: "assistant",
           source: item.text,
+          ...(item.delivery === "async" ? { questions: item.questions } : {}),
           phase: item.phase,
           revision: 0,
         },
