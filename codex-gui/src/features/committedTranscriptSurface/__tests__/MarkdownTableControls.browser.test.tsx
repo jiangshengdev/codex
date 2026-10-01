@@ -193,6 +193,7 @@ test("supports keyboard menu navigation, fullscreen focus and layered Escape", a
   await userEvent.keyboard("{Enter}");
   const dialog = page.getByRole("dialog", { name: "View fullscreen" });
   await expect.element(dialog).toBeVisible();
+  await expect.element(dialog.getByRole("button", { name: "Exit fullscreen" })).toHaveFocus();
   await expect.poll(() => dialog.element().contains(document.activeElement)).toBe(true);
   await expect.element(dialog.getByRole("button", { name: /download/i })).not.toBeInTheDocument();
   for (let step = 0; step < 4; step += 1) {
@@ -217,6 +218,44 @@ test("supports keyboard menu navigation, fullscreen focus and layered Escape", a
   await expect.element(dialog).not.toBeInTheDocument();
   await expect.element(open).toHaveFocus();
   expect(document.documentElement.style.overflow).toBe(overflowBefore);
+});
+
+test("restores fullscreen copy focus when dialog timers run before menu focus restoration", async () => {
+  installClipboard();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  let observer: MutationObserver | undefined;
+  try {
+    const screen = await render(content(<MarkdownText source={markdown} />));
+    const open = screen.getByRole("button", { name: "View fullscreen" });
+    await open.click();
+    const dialog = page.getByRole("dialog", { name: "View fullscreen" });
+    await expect.element(dialog).toBeVisible();
+    const copy = dialog.getByRole("button", { name: "Copy table", exact: true });
+    await copy.click();
+    const menu = page.getByRole("menu", { name: "Copy table", exact: true });
+    await expect.element(menu).toBeVisible();
+    const menuElement = menu.element();
+    let crossedRestoreWindow = false;
+    observer = new MutationObserver(() => {
+      if (!menuElement.isConnected && !crossedRestoreWindow) {
+        crossedRestoreWindow = true;
+        // Exercise dialog timers while the removed menu's FocusScope awaits its next frame.
+        vi.advanceTimersByTime(500);
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    await page.getByRole("menuitem", { name: "TSV", exact: true }).click();
+    await expect.element(dialog.getByRole("status")).toHaveTextContent("Table copied");
+    await expect.element(menu).not.toBeInTheDocument();
+    expect(crossedRestoreWindow).toBe(true);
+    await expect.element(copy).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    await expect.element(dialog).not.toBeInTheDocument();
+    await expect.element(open).toHaveFocus();
+  } finally {
+    observer?.disconnect();
+    vi.useRealTimers();
+  }
 });
 
 test("disables streaming operations while preserving the fullscreen close action and current content", async () => {

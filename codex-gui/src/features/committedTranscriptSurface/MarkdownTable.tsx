@@ -44,6 +44,7 @@ export function MarkdownTable({ children, node: _node, className, ...props }: Ma
             <Modal.Container size="full" scroll="inside">
               <Modal.Dialog data-streamdown="table-fullscreen">
                 <Modal.CloseTrigger
+                  autoFocus
                   aria-label={t({
                     message: "Exit fullscreen",
                     comment: "Close the fullscreen Markdown table dialog.",
