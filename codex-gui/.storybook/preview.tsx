@@ -51,6 +51,8 @@ const preview: Preview = {
               ["Plain Text", "Options", "Multiple"],
               "Turn and queue",
               ["Idle", "Queued"],
+              "Recovery and history",
+              ["Disconnected", "History"],
             ],
             "Rich content",
             ["Formatting", "Images", "Mixed"],

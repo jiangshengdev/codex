@@ -1,10 +1,7 @@
 import type { AppDispatch } from "@/app/store";
-import {
-  createActiveThreadSession,
-  type ActiveThreadSessionController,
-} from "@/features/activeThreadSession/activeThreadSession";
+import type { ActiveThreadSessionController } from "@/features/activeThreadSession/activeThreadSession";
 import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
-import { startGuiHostConnectionLifecycle } from "@/features/appShell/guiHostConnectionLifecycle";
+import { startStorybookConnectionLifecycle } from "../environment/storybookConnectionLifecycle";
 import { BrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
@@ -51,7 +48,7 @@ export function createRecoveryPageScenario(
   const isDisposed = () => disposed;
   let connection: StartGuiHostConnectionOptions | null = null;
   let round = 0;
-  let lifecycle: ReturnType<typeof startGuiHostConnectionLifecycle> | undefined;
+  let lifecycle: ReturnType<typeof startStorybookConnectionLifecycle> | undefined;
   const patch = (update: Partial<AppCapabilities>) => {
     capabilities = { ...capabilities, ...update };
     listeners.notify();
@@ -87,80 +84,40 @@ export function createRecoveryPageScenario(
     isReady: () => ready,
     start() {
       if (lifecycle != null || disposed) return;
-      lifecycle = startGuiHostConnectionLifecycle(
-        {
-          dispatch,
-          newSessionOwner,
-          getRouteTarget: () => capabilities.routeTarget,
-          setStatus: (status) => {
-            patch({ status });
-          },
-          setCommands: (commands) => {
-            patch({ commands });
-          },
-          // Attachments are outside this preview; a null token keeps real upload unavailable.
-          setAuthorizationToken: () => undefined,
-          setActiveThreadSession: (activeThreadSession) => {
-            patch({ activeThreadSession });
-          },
-          setConnectionRecovery: (connectionRecovery) => {
-            patch({ connectionRecovery });
-          },
-        },
-        {
-          readLocation: () => new URL("http://storybook.invalid/task/" + recoveryFirstId),
-          replaceState: () => undefined,
-          subscribePageTransitions: () => () => undefined,
-          scheduler: {
-            requestFrame: (callback) => window.requestAnimationFrame(callback),
-            cancelFrame: (id) => {
-              window.cancelAnimationFrame(id);
-            },
-          },
-          queueMicrotask,
-        },
-        {
-          consumeAuthorization: () => authorization,
-          createSession: (input) => {
-            const controller = createActiveThreadSession({
-              ...input,
-              persistence: { authorizationContext: authorization.getPersistenceContext(), storage },
-            });
-            return {
-              ...controller,
-              activateRecoveryThread: async (preferredThreadId) => {
-                const outcome = await controller.activateRecoveryThread(preferredThreadId);
-                if (outcome.type === "ready" && !disposed) await prepare(controller);
-                return outcome;
-              },
-            };
-          },
-          startConnection: (options) => {
-            connection = options;
-            const attempt = round++;
-            const complete = () => {
-              if (startup ? attempt === 0 : attempt === 1) {
-                options.onCommandsUnavailable?.();
-                options.onStatus?.({
-                  label: "error",
-                  message: "STORYBOOK_RECONNECT_FAILED: simulated transport unavailable.",
-                });
-                if (startup && attempt === 0) {
-                  ready = true;
-                  listeners.notify();
-                }
-              } else {
-                options.onStatus?.({ label: "initialized" });
-                options.onCommandsReady?.(host.commands);
+      lifecycle = startStorybookConnectionLifecycle({
+        dispatch,
+        newSessionOwner,
+        authorization,
+        threadId: recoveryFirstId,
+        persistence: { authorizationContext: authorization.getPersistenceContext(), storage },
+        getCapabilities: () => capabilities,
+        patch,
+        prepare,
+        startConnection: (options) => {
+          connection = options;
+          const attempt = round++;
+          const complete = () => {
+            if (startup ? attempt === 0 : attempt === 1) {
+              options.onCommandsUnavailable?.();
+              options.onStatus?.({
+                label: "error",
+                message: "STORYBOOK_RECONNECT_FAILED: simulated transport unavailable.",
+              });
+              if (startup && attempt === 0) {
+                ready = true;
+                listeners.notify();
               }
-            };
-            const timer = window.setTimeout(complete, attempt === 0 ? 0 : 1_500);
-            return () => {
-              window.clearTimeout(timer);
-            };
-          },
+            } else {
+              options.onStatus?.({ label: "initialized" });
+              options.onCommandsReady?.(host.commands);
+            }
+          };
+          const timer = window.setTimeout(complete, attempt === 0 ? 0 : 1_500);
+          return () => {
+            window.clearTimeout(timer);
+          };
         },
-      );
+      });
     },
     view(threadId: string) {
       patch({ routeTarget: { type: "currentTask", threadId } });

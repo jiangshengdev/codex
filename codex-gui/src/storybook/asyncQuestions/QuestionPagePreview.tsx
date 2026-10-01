@@ -7,16 +7,21 @@ import { AppShell } from "@/features/appShell/AppShell";
 import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
 import { PendingInputPreview } from "../composer/pendingInput/PendingInputScenarioView";
 import { DevOnly } from "../environment/DevOnly";
-import { createQuestionScenario, questionThreadId, type QuestionPreset } from "./questionScenario";
+import { createQuestionScenario, type QuestionPreset } from "./questionScenario";
 
 function QuestionPage({
   scenario,
 }: Readonly<{ scenario: ReturnType<typeof createQuestionScenario> }>) {
   const requests = useSyncExternalStore(scenario.steers.subscribe, scenario.steers.getSnapshot);
   const starts = useSyncExternalStore(scenario.starts.subscribe, scenario.starts.getSnapshot);
+  const attachments = useSyncExternalStore(
+    scenario.attachments.subscribe,
+    scenario.attachments.getSnapshot,
+  );
+  const capabilities = useSyncExternalStore(scenario.subscribe, scenario.getSnapshot);
   const ready = useSyncExternalStore(scenario.subscribe, scenario.isReady);
   useEffect(() => {
-    void scenario.start();
+    scenario.start();
   }, [scenario]);
   if (!ready) return null;
   return (
@@ -38,9 +43,25 @@ function QuestionPage({
             Simulate runtime confirmation
           </Trans>
         </Button>
+        {attachments.length > 0 && (
+          <Button
+            variant="secondary"
+            onPress={() => {
+              scenario.confirmAttachment();
+            }}
+          >
+            <Trans comment="Complete the simulated backend attachment after connection recovery">
+              Simulate task attachment
+            </Trans>
+          </Button>
+        )}
         <Button
           variant="secondary"
-          isDisabled={requests.length + starts.length > 0}
+          isDisabled={
+            capabilities.commands == null ||
+            attachments.length > 0 ||
+            requests.length + starts.length > 0
+          }
           onPress={() => {
             scenario.completeTurn();
           }}
@@ -50,17 +71,7 @@ function QuestionPage({
           </Trans>
         </Button>
       </DevOnly>
-      <AppCapabilitiesContext
-        value={{
-          status: { label: "initialized" },
-          authorizationToken: null,
-          commands: scenario.commands,
-          activeThreadSession: scenario.session,
-          connectionRecovery: null,
-          newSessionOwner: scenario.newSessionOwner,
-          routeTarget: { type: "currentTask", threadId: questionThreadId },
-        }}
-      >
+      <AppCapabilitiesContext value={capabilities}>
         <AppShell>
           <CurrentTaskPage />
         </AppShell>
