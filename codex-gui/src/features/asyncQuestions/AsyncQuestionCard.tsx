@@ -1,9 +1,9 @@
 import { use, useSyncExternalStore } from "react";
-import { Button, TextArea } from "@heroui/react";
+import { Button, Radio, RadioGroup, TextArea } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { AppCapabilitiesContext } from "@/features/appShell/AppCapabilities";
 import { TranscriptReadContext } from "@/features/committedTranscriptSurface/TranscriptReadContext";
-import { questionKey, type AsyncQuestion } from "./asyncQuestions";
+import { questionAnswerText, questionKey, type AsyncQuestion } from "./asyncQuestions";
 
 const noSubscription = () => () => undefined;
 
@@ -46,7 +46,7 @@ export function AsyncQuestionCard({
   return (
     <div role="group" aria-label={question.title} className="grid min-w-0 gap-3">
       <p className="min-w-0 whitespace-pre-wrap wrap-anywhere">{question.title}</p>
-      {question.options != null && (
+      {question.options != null && answer?.status !== "pending" && (
         <ul className="list-disc space-y-1 pl-5">
           {question.options.map((option, optionIndex) => (
             <li
@@ -60,6 +60,41 @@ export function AsyncQuestionCard({
       )}
       {answer?.status === "pending" ? (
         <>
+          {!!question.options?.length && (
+            <RadioGroup
+              aria-label={question.title}
+              value={answer.selectedOption === null ? "custom" : String(answer.selectedOption)}
+              onChange={(value) => owner?.select(key, value === "custom" ? null : Number(value))}
+              isDisabled={!enabled}
+              variant="secondary"
+              className="min-w-0"
+            >
+              {question.options.map((option, optionIndex) => (
+                <Radio
+                  key={questionKey(turnId, itemId, optionIndex)}
+                  value={String(optionIndex)}
+                  className="min-w-0"
+                >
+                  <Radio.Content className="min-w-0 items-start">
+                    <Radio.Control>
+                      <Radio.Indicator />
+                    </Radio.Control>
+                    <span className="min-w-0 whitespace-pre-wrap wrap-anywhere">{option}</span>
+                  </Radio.Content>
+                </Radio>
+              ))}
+              <Radio value="custom">
+                <Radio.Content>
+                  <Radio.Control>
+                    <Radio.Indicator />
+                  </Radio.Control>
+                  <Trans comment="Choose a freely typed answer instead of an agent-provided option">
+                    Custom answer
+                  </Trans>
+                </Radio.Content>
+              </Radio>
+            </RadioGroup>
+          )}
           <TextArea
             aria-label={t({ message: "Answer", comment: "Plain-text answer to an agent question" })}
             value={answer.text}
@@ -72,7 +107,7 @@ export function AsyncQuestionCard({
           <div className="flex flex-wrap gap-2">
             <Button
               variant="primary"
-              isDisabled={!enabled || !answer.text.trim()}
+              isDisabled={!enabled || !questionAnswerText(question, answer).trim()}
               onPress={() => {
                 owner?.submit(key);
               }}

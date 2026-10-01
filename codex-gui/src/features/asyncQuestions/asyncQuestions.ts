@@ -7,8 +7,15 @@ export type AsyncQuestion = NonNullable<
 >[number];
 export type QuestionAnswer = Readonly<{
   text: string;
+  selectedOption: number | null;
   status: "pending" | "submitted" | "skipped";
 }>;
+
+export function questionAnswerText(question: AsyncQuestion, answer: QuestionAnswer): string {
+  return answer.selectedOption === null
+    ? answer.text
+    : (question.options?.[answer.selectedOption] ?? "");
+}
 
 export function answeredQuestionText(question: string, answer: string): string {
   const encoder = new TextEncoder();
@@ -47,7 +54,11 @@ export class AsyncQuestions {
       const key = questionKey(turnId, item.id, index);
       if (this.answers.has(key)) continue;
       this.questions.set(key, question);
-      this.answers.set(key, { text: "", status: "pending" });
+      this.answers.set(key, {
+        text: "",
+        selectedOption: question.options?.length ? 0 : null,
+        status: "pending",
+      });
     }
     this.listeners.notify();
   }
@@ -55,16 +66,23 @@ export class AsyncQuestions {
   edit(key: string, text: string): void {
     const answer = this.get(key);
     if (!this.enabled() || answer?.status !== "pending") return;
-    this.answers.set(key, { ...answer, text });
+    this.answers.set(key, { ...answer, text, selectedOption: null });
+    this.listeners.notify();
+  }
+
+  select(key: string, selectedOption: number | null): void {
+    const answer = this.get(key);
+    if (!this.enabled() || answer?.status !== "pending") return;
+    this.answers.set(key, { ...answer, selectedOption });
     this.listeners.notify();
   }
 
   submit(key: string): boolean {
     const answer = this.get(key);
     const question = this.questions.get(key);
-    if (!this.enabled() || answer?.status !== "pending" || question == null || !answer.text.trim())
-      return false;
-    if (!this.deliver(answeredQuestionText(question.title, answer.text))) return false;
+    if (!this.enabled() || answer?.status !== "pending" || question == null) return false;
+    const text = questionAnswerText(question, answer);
+    if (!text.trim() || !this.deliver(answeredQuestionText(question.title, text))) return false;
     this.answers.set(key, { ...answer, status: "submitted" });
     this.listeners.notify();
     return true;

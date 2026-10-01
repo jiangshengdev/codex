@@ -194,6 +194,7 @@ test("snapshot questions remain readable without restoring answer controls", asy
 async function renderLiveQuestion(
   title = "Deployment target?",
   commands = createGuiHostCommands(),
+  questions: Parameters<typeof asyncQuestionMessage>[1] = [{ title, options: null }],
 ) {
   const screen = await renderWithProviders(<App />);
   const options = getHostOptions(connectionMock);
@@ -202,7 +203,7 @@ async function renderLiveQuestion(
   initializeHost(options, commands);
   const composer = getAppComposer(screen);
   await expect.element(composer).toHaveAttribute("contenteditable", "true");
-  const item = asyncQuestionMessage("question-message", [{ title, options: null }]);
+  const item = asyncQuestionMessage("question-message", questions);
   const event = eventWithEnvelope(
     itemCompleted(eventItemCompleted, "question-commit", turn.id, item),
     {
@@ -214,6 +215,144 @@ async function renderLiveQuestion(
   await expect.element(question.getByRole("textbox")).toBeVisible();
   return { commands, screen, options, turn, item, event, question, composer };
 }
+
+test("selects an option without sending and preserves custom text when switching answers", async () => {
+  const { question, commands } = await renderLiveQuestion("Environment?", undefined, [
+    { title: "Environment?", options: ["Preview", "Production"] },
+  ]);
+  await expect.element(question.getByRole("radio", { name: "Preview", exact: true })).toBeChecked();
+  expect(commands.steerTurn).not.toHaveBeenCalled();
+  await question.getByRole("textbox").fill("Custom environment");
+  await expect
+    .element(question.getByRole("radio", { name: "Custom answer", exact: true }))
+    .toBeChecked();
+  await question.getByText("Production", { exact: true }).click();
+  await expect.element(question.getByRole("textbox")).toHaveValue("Custom environment");
+  expect(commands.steerTurn).not.toHaveBeenCalled();
+  await question.getByRole("button", { name: "Submit answer", exact: true }).click();
+  await expect.poll(() => vi.mocked(commands.steerTurn).mock.calls.length).toBe(1);
+  expect(vi.mocked(commands.steerTurn).mock.calls[0]?.[0].input).toEqual([
+    textInput("> Environment?\n\nProduction"),
+  ]);
+});
+
+test("submits mixed answers out of order even when question references share a prefix", async () => {
+  const prefix = "界".repeat(170);
+  const titles = [prefix + "第一题", prefix + "第二题", "Skip only me"] as const;
+  const { screen, commands, options, event, turn } = await renderLiveQuestion(
+    titles[0],
+    undefined,
+    [
+      { title: titles[0], options: ["First option", "Second option"] },
+      { title: titles[1], options: ["Default", "Alternative"] },
+      { title: titles[2], options: null },
+    ],
+  );
+  const first = screen.getByRole("group", { name: titles[0], exact: true });
+  const second = screen.getByRole("group", { name: titles[1], exact: true });
+  const third = screen.getByRole("group", { name: titles[2], exact: true });
+  vi.mocked(commands.steerTurn).mockResolvedValue({ turnId: turn.id });
+  await first.getByText("Second option", { exact: true }).click();
+  await second.getByRole("textbox").fill("Second custom answer");
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(
+      itemCompleted(
+        eventItemCompleted,
+        "later-question",
+        turn.id,
+        asyncQuestionMessage("later-message", [
+          { title: "Later question", options: ["Later option"] },
+        ]),
+      ),
+      { parentCommitId: event.commitId },
+    ),
+  );
+  await expect
+    .element(first.getByRole("radio", { name: "Second option", exact: true }))
+    .toBeChecked();
+  await expect.element(second.getByRole("textbox")).toHaveValue("Second custom answer");
+  await third.getByRole("button", { name: "Skip question", exact: true }).click();
+  await second.getByRole("button", { name: "Submit answer", exact: true }).click();
+  await first.getByRole("button", { name: "Submit answer", exact: true }).click();
+  await expect.poll(() => vi.mocked(commands.steerTurn).mock.calls.length).toBe(2);
+  expect(vi.mocked(commands.steerTurn).mock.calls.map(([params]) => params.input)).toEqual([
+    [textInput("> " + prefix + "\n\nSecond custom answer")],
+    [textInput("> " + prefix + "\n\nSecond option")],
+  ]);
+  await expect
+    .element(
+      screen.getByRole("group", { name: "Later question", exact: true }).getByRole("textbox"),
+    )
+    .toBeVisible();
+  await expect.element(third.getByText("Question skipped", { exact: true })).toBeVisible();
+});
+
+test("custom option rejects blank text and retains the selection when queue handoff fails", async () => {
+  const { question, commands, screen } = await renderLiveQuestion("Choice?", undefined, [
+    { title: "Choice?", options: ["One", "Two"] },
+  ]);
+  await question.getByText("Custom answer", { exact: true }).click();
+  await question.getByRole("textbox").fill("   ");
+  await expect
+    .element(question.getByRole("button", { name: "Submit answer", exact: true }))
+    .toBeDisabled();
+  await question.getByRole("textbox").fill("Retained custom");
+  await question.getByText("Two", { exact: true }).click();
+  const write = vi.spyOn(Storage.prototype, "setItem").mockImplementationOnce(() => {
+    throw new Error("Storage unavailable");
+  });
+  try {
+    await question.getByRole("button", { name: "Submit answer", exact: true }).click();
+    await expect.element(question.getByRole("radio", { name: "Two", exact: true })).toBeChecked();
+    await expect.element(question.getByRole("textbox")).toHaveValue("Retained custom");
+    expect(commands.steerTurn).not.toHaveBeenCalled();
+  } finally {
+    write.mockRestore();
+  }
+  await screen.getByRole("button", { name: "Retry saving", exact: true }).click();
+  await question.getByText("Custom answer", { exact: true }).click();
+  await question.getByRole("button", { name: "Submit answer", exact: true }).click();
+  await expect.poll(() => vi.mocked(commands.steerTurn).mock.calls.length).toBe(1);
+  expect(vi.mocked(commands.steerTurn).mock.calls[0]?.[0].input).toEqual([
+    textInput("> Choice?\n\nRetained custom"),
+  ]);
+});
+
+test("keeps option controls disabled until the disconnected task recovers", async () => {
+  const { question, options, commands } = await renderLiveQuestion("Offline choice?", undefined, [
+    { title: "Offline choice?", options: ["One", "Two"] },
+  ]);
+  await question.getByText("Two", { exact: true }).click();
+  markCommandsUnavailable(options);
+  await expect.element(question.getByRole("radio", { name: "Two", exact: true })).toBeDisabled();
+  await expect.element(question.getByRole("radio", { name: "Two", exact: true })).toBeChecked();
+  await expect.element(question.getByRole("textbox")).toHaveAttribute("readonly");
+  await expect
+    .element(question.getByRole("button", { name: "Submit answer", exact: true }))
+    .toBeDisabled();
+  expect(commands.steerTurn).not.toHaveBeenCalled();
+});
+
+test("wraps long choices on phones while keeping their labels clickable", async () => {
+  await page.viewport(390, 844);
+  try {
+    const option = "VeryLongOption".repeat(40);
+    const { question, commands } = await renderLiveQuestion("Phone options?", undefined, [
+      { title: "Phone options?", options: ["Short", option] },
+    ]);
+    const label = question.getByText(option, { exact: true });
+    const rect = label.element().getBoundingClientRect();
+    expect(rect.left).toBeGreaterThanOrEqual(0);
+    expect(rect.right).toBeLessThanOrEqual(window.innerWidth);
+    await label.click();
+    await expect.element(question.getByRole("radio", { name: option, exact: true })).toBeChecked();
+    await question.getByRole("button", { name: "Submit answer", exact: true }).click();
+    await expect.poll(() => vi.mocked(commands.steerTurn).mock.calls.length).toBe(1);
+  } finally {
+    await page.viewport(1280, 720);
+  }
+});
 
 test("skipping closes only the local entrance and duplicate events do not reopen it", async () => {
   const { commands, question, options, event } = await renderLiveQuestion();
@@ -315,71 +454,97 @@ test("keeps a long plain-text question operable within a phone viewport", async 
   }
 });
 
-test("retains pending question and bottom drafts across task switches", async () => {
-  const secondId = "00000000-0000-0000-0000-000000000002";
-  const router = createAppRouter(
-    createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
-  );
-  const screen = await renderWithProviders(<RouterProvider router={router} />);
-  const commands = createGuiHostCommands({ storedThreadIds: [launchThreadId, secondId] });
-  const options = getHostOptions(connectionMock);
-  const turn = inProgressTurn("question-turn");
-  queueAttachProjectionResponse(commands, attachWithTurns(attachResponse, [turn]));
-  initializeHost(options, commands);
-  const composer = getAppComposer(screen);
-  await expect.element(composer).toHaveAttribute("contenteditable", "true");
-  emitProjectionEvent(
-    options,
-    eventWithEnvelope(
-      itemCompleted(
-        eventItemCompleted,
-        "question-commit",
-        turn.id,
-        asyncQuestionMessage("question-message", [{ title: "First task question", options: null }]),
+test.each([false, true])(
+  "retains pending question and bottom drafts across task switches (options: %s)",
+  async (withOptions) => {
+    const secondId = "00000000-0000-0000-0000-000000000002";
+    const router = createAppRouter(
+      createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
+    );
+    const screen = await renderWithProviders(<RouterProvider router={router} />);
+    const commands = createGuiHostCommands({ storedThreadIds: [launchThreadId, secondId] });
+    const options = getHostOptions(connectionMock);
+    const turn = inProgressTurn("question-turn");
+    queueAttachProjectionResponse(commands, attachWithTurns(attachResponse, [turn]));
+    initializeHost(options, commands);
+    const composer = getAppComposer(screen);
+    await expect.element(composer).toHaveAttribute("contenteditable", "true");
+    emitProjectionEvent(
+      options,
+      eventWithEnvelope(
+        itemCompleted(
+          eventItemCompleted,
+          "question-commit",
+          turn.id,
+          asyncQuestionMessage("question-message", [
+            { title: "First task question", options: withOptions ? ["One", "Two"] : null },
+          ]),
+        ),
+        {
+          parentCommitId: attachResponse.snapshot.headCommitId,
+        },
       ),
-      {
-        parentCommitId: attachResponse.snapshot.headCommitId,
-      },
-    ),
-  );
-  const question = screen.getByRole("group", { name: "First task question", exact: true });
-  await question.getByRole("textbox").fill("Retained answer");
-  await composer.fill("Retained composer draft");
-  queueAttachProjectionResponse(
-    commands,
-    attachWithThreadId(attachWithTurns(attachResponse, []), secondId),
-  );
-  await router.navigate({ to: "/task/$threadId", params: { threadId: secondId } });
-  await expect.element(question).not.toBeInTheDocument();
-  await expect.element(composer).toHaveTextContent("");
-  await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
-  await expect.element(question.getByRole("textbox")).toHaveValue("Retained answer");
-  await question.getByRole("button", { name: "Submit answer", exact: true }).click();
-  await router.navigate({ to: "/task/$threadId", params: { threadId: secondId } });
-  await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
-  await expect.element(composer).toHaveTextContent("Retained composer draft");
-  await expect.element(question.getByText("Answer submitted", { exact: true })).toBeVisible();
-});
+    );
+    const question = screen.getByRole("group", { name: "First task question", exact: true });
+    await question.getByRole("textbox").fill("Retained answer");
+    if (withOptions) await question.getByText("Two", { exact: true }).click();
+    await composer.fill("Retained composer draft");
+    queueAttachProjectionResponse(
+      commands,
+      attachWithThreadId(attachWithTurns(attachResponse, []), secondId),
+    );
+    await router.navigate({ to: "/task/$threadId", params: { threadId: secondId } });
+    await expect.element(question).not.toBeInTheDocument();
+    await expect.element(composer).toHaveTextContent("");
+    await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
+    await expect.element(question.getByRole("textbox")).toHaveValue("Retained answer");
+    expect(
+      question
+        .getByRole("radio", { checked: true })
+        .all()
+        .map((radio) => radio.element().getAttribute("value")),
+    ).toEqual(withOptions ? ["1"] : []);
+    await question.getByRole("button", { name: "Submit answer", exact: true }).click();
+    await router.navigate({ to: "/task/$threadId", params: { threadId: secondId } });
+    await router.navigate({ to: "/task/$threadId", params: { threadId: launchThreadId } });
+    await expect.element(composer).toHaveTextContent("Retained composer draft");
+    await expect.element(question.getByText("Answer submitted", { exact: true })).toBeVisible();
+  },
+);
 
-test("waits for target recovery before editing a retained question and never auto-sends", async () => {
-  const { question, options, item, turn, screen } = await renderLiveQuestion();
-  await question.getByRole("textbox").fill("Draft before disconnect");
-  markCommandsUnavailable(options);
-  options.onStatus?.({ label: "closed" });
-  await screen.getByRole("button", { name: "Reconnect", exact: true }).click();
-  const recovered = createGuiHostCommands({ loadedThreadIds: [launchThreadId] });
-  const recovery = createDeferred<typeof attachResponse>();
-  vi.mocked(recovered.attachThreadProjection).mockImplementation(() => recovery.promise);
-  initializeHost(getHostOptions(connectionMock), recovered);
-  await expect.poll(() => vi.mocked(recovered.attachThreadProjection).mock.calls.length).toBe(1);
-  await expect.element(question.getByRole("textbox")).toHaveAttribute("readonly");
-  recovery.resolve(attachWithTurns(attachResponse, [baseTurn(turn.id, [item])]));
-  await expect.element(question.getByRole("textbox")).not.toHaveAttribute("readonly");
-  await expect.element(question.getByRole("textbox")).toHaveValue("Draft before disconnect");
-  expect(recovered.startTurn).not.toHaveBeenCalled();
-  await question.getByRole("button", { name: "Submit answer", exact: true }).click();
-  await expect.poll(() => vi.mocked(recovered.startTurn).mock.calls.length).toBe(1);
-});
+test.each([false, true])(
+  "waits for target recovery before editing a retained question and never auto-sends (options: %s)",
+  async (withOptions) => {
+    const { question, options, item, turn, screen } = await renderLiveQuestion(
+      "Recovery?",
+      undefined,
+      [{ title: "Recovery?", options: withOptions ? ["One", "Two"] : null }],
+    );
+    await question.getByRole("textbox").fill("Draft before disconnect");
+    if (withOptions) await question.getByText("Two", { exact: true }).click();
+    markCommandsUnavailable(options);
+    options.onStatus?.({ label: "closed" });
+    await screen.getByRole("button", { name: "Reconnect", exact: true }).click();
+    const recovered = createGuiHostCommands({ loadedThreadIds: [launchThreadId] });
+    const recovery = createDeferred<typeof attachResponse>();
+    vi.mocked(recovered.attachThreadProjection).mockImplementation(() => recovery.promise);
+    initializeHost(getHostOptions(connectionMock), recovered);
+    await expect.poll(() => vi.mocked(recovered.attachThreadProjection).mock.calls.length).toBe(1);
+    await expect.element(question.getByRole("textbox")).toHaveAttribute("readonly");
+    recovery.resolve(attachWithTurns(attachResponse, [baseTurn(turn.id, [item])]));
+    await expect.element(question.getByRole("textbox")).not.toHaveAttribute("readonly");
+    await expect.element(question.getByRole("textbox")).toHaveValue("Draft before disconnect");
+    expect(
+      question
+        .getByRole("radio", { checked: true })
+        .all()
+        .map((radio) => radio.element().getAttribute("value")),
+    ).toEqual(withOptions ? ["1"] : []);
+    expect(recovered.startTurn).not.toHaveBeenCalled();
+    await question.getByRole("button", { name: "Submit answer", exact: true }).click();
+    await expect.poll(() => vi.mocked(recovered.startTurn).mock.calls.length).toBe(1);
+  },
+);
 
 test("does not expire or automatically send a question after thirty seconds", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });

@@ -130,12 +130,12 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
 #. Plain-text answer to an agent question
-#: src/features/asyncQuestions/AsyncQuestionCard.tsx:64
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:99
 msgid "Answer"
 msgstr "Answer"
 
 #. Answer accepted by the local sending queue, not necessarily consumed
-#: src/features/asyncQuestions/AsyncQuestionCard.tsx:91
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:126
 msgid "Answer submitted"
 msgstr "Answer submitted"
 
@@ -401,6 +401,11 @@ msgstr "Current task status is unknown"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:91
 msgid "Currently unable to guide; added to queue"
 msgstr "Currently unable to guide; added to queue"
+
+#. Choose a freely typed answer instead of an agent-provided option
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:91
+msgid "Custom answer"
+msgstr "Custom answer"
 
 #. Accessible name of the explicit dark appearance option
 #: src/app/ThemePreferenceControl.tsx:21
@@ -1006,7 +1011,7 @@ msgid "QR code for current GUI URL"
 msgstr "QR code for current GUI URL"
 
 #. Question dismissed locally without sending an answer
-#: src/features/asyncQuestions/AsyncQuestionCard.tsx:97
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:132
 msgid "Question skipped"
 msgstr "Question skipped"
 
@@ -1261,7 +1266,7 @@ msgid "Skills could not be loaded"
 msgstr "Skills could not be loaded"
 
 #. Dismiss this question locally without sending an answer
-#: src/features/asyncQuestions/AsyncQuestionCard.tsx:83
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:118
 msgid "Skip question"
 msgstr "Skip question"
 
@@ -1313,7 +1318,7 @@ msgid "Structured input"
 msgstr "Structured input"
 
 #. Submit only this agent question's answer
-#: src/features/asyncQuestions/AsyncQuestionCard.tsx:80
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:115
 msgid "Submit answer"
 msgstr "Submit answer"
 

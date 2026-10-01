@@ -130,12 +130,12 @@ msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
 #. Plain-text answer to an agent question
-#: src/features/asyncQuestions/AsyncQuestionCard.tsx:64
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:99
 msgid "Answer"
 msgstr "回答"
 
 #. Answer accepted by the local sending queue, not necessarily consumed
-#: src/features/asyncQuestions/AsyncQuestionCard.tsx:91
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:126
 msgid "Answer submitted"
 msgstr "回答已提交"
 
@@ -401,6 +401,11 @@ msgstr "当前任务状态未知"
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:91
 msgid "Currently unable to guide; added to queue"
 msgstr "当前无法引导，已加入队列"
+
+#. Choose a freely typed answer instead of an agent-provided option
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:91
+msgid "Custom answer"
+msgstr "自定义回答"
 
 #. Accessible name of the explicit dark appearance option
 #: src/app/ThemePreferenceControl.tsx:21
@@ -1006,7 +1011,7 @@ msgid "QR code for current GUI URL"
 msgstr "当前 GUI URL 的二维码。"
 
 #. Question dismissed locally without sending an answer
-#: src/features/asyncQuestions/AsyncQuestionCard.tsx:97
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:132
 msgid "Question skipped"
 msgstr "问题已跳过"
 
@@ -1261,7 +1266,7 @@ msgid "Skills could not be loaded"
 msgstr "无法加载技能"
 
 #. Dismiss this question locally without sending an answer
-#: src/features/asyncQuestions/AsyncQuestionCard.tsx:83
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:118
 msgid "Skip question"
 msgstr "跳过问题"
 
@@ -1313,7 +1318,7 @@ msgid "Structured input"
 msgstr "结构化输入"
 
 #. Submit only this agent question's answer
-#: src/features/asyncQuestions/AsyncQuestionCard.tsx:80
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:115
 msgid "Submit answer"
 msgstr "提交回答"
 
