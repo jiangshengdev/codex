@@ -31,6 +31,7 @@ export function answeredQuestionText(question: string, answer: string): string {
 
 /** Page-local answers. Snapshot attachment never populates this owner. */
 export class AsyncQuestions {
+  private readonly received: (readonly AsyncQuestion[])[] = [];
   private readonly answers = new Map<string, QuestionAnswer>();
   private readonly questions = new Map<string, AsyncQuestion>();
   private readonly listeners = createListenerSet();
@@ -43,6 +44,8 @@ export class AsyncQuestions {
 
   readonly subscribe = (listener: () => void) => this.listeners.subscribe(listener);
   readonly get = (key: string): QuestionAnswer | null => this.answers.get(key) ?? null;
+  /** Live question batches only; shares answer deduplication and projection replay rules. */
+  readonly getReceived = (): readonly (readonly AsyncQuestion[])[] => this.received;
 
   observe(fact: ActiveThreadProjectionAcceptedEvent): void {
     const event = fact.notification.event;
@@ -50,9 +53,11 @@ export class AsyncQuestions {
       return;
     const { item, turnId } = event.notification;
     if (item.type !== "agentMessage" || item.delivery !== "async") return;
+    const received: AsyncQuestion[] = [];
     for (const [index, question] of (item.questions ?? []).entries()) {
       const key = questionKey(turnId, item.id, index);
       if (this.answers.has(key)) continue;
+      received.push(question);
       this.questions.set(key, question);
       this.answers.set(key, {
         text: "",
@@ -60,6 +65,7 @@ export class AsyncQuestions {
         status: "pending",
       });
     }
+    if (received.length > 0) this.received.push(received);
     this.listeners.notify();
   }
 

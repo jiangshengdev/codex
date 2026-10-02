@@ -15,6 +15,7 @@ import {
 import { AppShellTopBar } from "./AppShellTopBar";
 import { ConnectionRecoveryNotice } from "./ConnectionRecoveryNotice";
 import { AppShellNotices } from "./AppShellNotices";
+import { BrowserNotificationPermission } from "@/features/taskNotifications/BrowserNotificationPermission";
 
 export type AppShellProps = { children: ReactNode };
 
@@ -72,6 +73,7 @@ export function AppShell({ children }: AppShellProps) {
             floating={floating}
             notices={
               <>
+                <BrowserNotificationPermission />
                 {connectionRecovery == null ? <GuiHostErrorAlert status={status} /> : null}
                 {status.label === "closed" || connectionRecovery != null ? (
                   <ConnectionRecoveryNotice

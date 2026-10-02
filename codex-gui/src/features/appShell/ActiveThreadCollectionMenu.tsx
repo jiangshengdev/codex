@@ -1,4 +1,4 @@
-import { Badge, Button, Dropdown, Label } from "@heroui/react";
+import { Badge, Button, Chip, Dropdown, Label } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { Ellipsis } from "lucide-react";
@@ -16,6 +16,7 @@ import { useActiveThreadCollectionSnapshot, useAppCapabilities } from "./AppCapa
 import { activeThreadRemovalBlockerMessage } from "./activeThreadCollectionMessages";
 import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation";
 import { useActiveTaskNavigation } from "./useActiveTaskNavigation";
+import { useTaskWaitingMarker } from "@/features/taskNotifications/taskNotificationContext";
 
 export function ActiveThreadCollectionMenu({ close }: Readonly<{ close(): void }>) {
   const collection = useActiveThreadCollectionSnapshot();
@@ -56,6 +57,7 @@ function ActiveThreadCollectionRow({
   const runtime = useAppSelector((state) => selectThreadRuntimeRecord(state, member.threadId));
   const title = runtime?.thread.name?.trim() ? runtime.thread.name : member.threadId;
   const hasError = activeThreadMemberHasError(member);
+  const waiting = useTaskWaitingMarker(member.threadId);
   const errorId = `active-task-error-${member.threadId}`;
   const blockerId = `active-task-removal-${member.threadId}`;
   const select = (): void => {
@@ -119,6 +121,15 @@ function ActiveThreadCollectionRow({
               aria-hidden="true"
               data-task-error-indicator="true"
             />
+          ) : null}
+          {waiting ? (
+            <Chip size="sm" color="warning" variant="soft">
+              <Chip.Label>
+                <Trans comment="Unread task-entry marker: an agent question needs the user's response">
+                  Waiting for response
+                </Trans>
+              </Chip.Label>
+            </Chip>
           ) : null}
         </Button>
         <Dropdown>
