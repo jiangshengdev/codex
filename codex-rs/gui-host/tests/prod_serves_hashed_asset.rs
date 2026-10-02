@@ -40,13 +40,14 @@ async fn prod_serves_hashed_asset_from_package_root() {
     .await
     .expect("hashed asset should be written");
 
-    let handle = GuiHost::start(
+    let handle = GuiHost::start_for_test(
         GuiHostConfig {
             mode: GuiHostMode::Prod(ProdAssetConfig {
                 package_root: package_root.path().to_path_buf(),
             }),
         },
         NoopBackend,
+        /*preferred_port*/ 0,
     )
     .await
     .expect("host should start");
@@ -164,13 +165,14 @@ async fn start_test_prod_host() -> Result<(tempfile::TempDir, codex_gui_host::Gu
     .await
     .context("hashed asset should be written")?;
 
-    let handle = GuiHost::start(
+    let handle = GuiHost::start_for_test(
         GuiHostConfig {
             mode: GuiHostMode::Prod(ProdAssetConfig {
                 package_root: package_root.path().to_path_buf(),
             }),
         },
         NoopBackend,
+        /*preferred_port*/ 0,
     )
     .await
     .context("host should start")?;
@@ -261,13 +263,14 @@ async fn prod_serves_built_codex_gui_dist_from_package_root_env() {
         dist_dir.join("index.html").display()
     );
 
-    let handle = GuiHost::start(
+    let handle = GuiHost::start_for_test(
         GuiHostConfig {
             mode: GuiHostMode::Prod(ProdAssetConfig {
                 package_root: package_root.clone(),
             }),
         },
         NoopBackend,
+        /*preferred_port*/ 0,
     )
     .await
     .expect("host should start with real codex-gui dist");

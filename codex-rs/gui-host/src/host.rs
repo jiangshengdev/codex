@@ -60,6 +60,26 @@ impl GuiHost {
             config,
             backend,
             crate::net::discover_advertised_hosts(/*include_ipv6*/ false),
+            /*preferred_port*/ 80,
+        )
+        .await
+    }
+
+    /// Starts an isolated test host using the production startup path.
+    #[doc(hidden)]
+    pub async fn start_for_test<B>(
+        config: GuiHostConfig,
+        backend: B,
+        preferred_port: u16,
+    ) -> io::Result<GuiHostHandle>
+    where
+        B: GuiBackend + Clone,
+    {
+        start_with_advertised_hosts(
+            config,
+            backend,
+            crate::net::discover_advertised_hosts(/*include_ipv6*/ false),
+            preferred_port,
         )
         .await
     }
@@ -187,19 +207,23 @@ pub(crate) fn is_advertised_host(
 ) -> bool {
     advertised_hosts
         .iter()
-        .any(|advertised| host == advertised.authority(port))
+        .any(|advertised| advertised.matches_authority(port, host))
 }
 
 async fn start_with_advertised_hosts<B>(
     config: GuiHostConfig,
     backend: B,
     advertised_hosts: Vec<AdvertisedHost>,
+    preferred_port: u16,
 ) -> io::Result<GuiHostHandle>
 where
     B: GuiBackend + Clone,
 {
     let advertised_hosts = ensure_advertised_hosts(advertised_hosts);
-    let listener = TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, 0)).await?;
+    let listener = bind_listener(preferred_port, |port| {
+        TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, port))
+    })
+    .await?;
     let local_addr = listener.local_addr()?;
     let launch_token = LaunchToken::generate().map_err(io::Error::other)?;
     let state = Arc::new(GuiHostState {
@@ -237,6 +261,18 @@ where
     })
 }
 
+async fn bind_listener<F, Fut>(preferred_port: u16, mut bind: F) -> io::Result<TcpListener>
+where
+    F: FnMut(u16) -> Fut,
+    Fut: std::future::Future<Output = io::Result<TcpListener>>,
+{
+    match bind(preferred_port).await {
+        Ok(listener) => Ok(listener),
+        Err(error) if error.kind() == io::ErrorKind::AddrInUse => bind(0).await,
+        Err(error) => Err(error),
+    }
+}
+
 fn ensure_advertised_hosts(advertised_hosts: Vec<AdvertisedHost>) -> Vec<AdvertisedHost> {
     if advertised_hosts.is_empty() {
         vec![AdvertisedHost::new(
@@ -258,8 +294,12 @@ async fn start_with_advertised_hosts_for_test<B>(
 where
     B: GuiBackend + Clone,
 {
-    start_with_advertised_hosts(config, backend, advertised_hosts).await
+    start_with_advertised_hosts(config, backend, advertised_hosts, /*preferred_port*/ 0).await
 }
+
+#[cfg(test)]
+#[path = "port_tests.rs"]
+mod port_tests;
 
 #[cfg(test)]
 mod tests {
@@ -289,13 +329,14 @@ mod tests {
 
     #[tokio::test]
     async fn binds_unspecified_ipv4_ephemeral_port() {
-        let handle = GuiHost::start(
+        let handle = GuiHost::start_for_test(
             GuiHostConfig {
                 mode: GuiHostMode::Dev(crate::DevAssetProxyConfig {
                     vite_origin: "http://127.0.0.1:5173".to_string(),
                 }),
             },
             NoopBackend,
+            /*preferred_port*/ 0,
         )
         .await
         .expect("host should start");
@@ -319,13 +360,14 @@ mod tests {
         )
         .await
         .expect("index should be written");
-        let handle = GuiHost::start(
+        let handle = GuiHost::start_for_test(
             GuiHostConfig {
                 mode: GuiHostMode::Prod(ProdAssetConfig {
                     package_root: package_root.path().to_path_buf(),
                 }),
             },
             NoopBackend,
+            /*preferred_port*/ 0,
         )
         .await
         .expect("host should start");
@@ -375,7 +417,7 @@ mod tests {
         tokio::fs::write(package_root.path().join("dist/app.js"), "export {};")
             .await
             .expect("asset should be written");
-        let handle = GuiHost::start(config, NoopBackend)
+        let handle = GuiHost::start_for_test(config, NoopBackend, /*preferred_port*/ 0)
             .await
             .expect("host should start");
         let client = reqwest::Client::new();
@@ -500,13 +542,14 @@ mod tests {
         )
         .await
         .expect("index should be written");
-        let handle = GuiHost::start(
+        let handle = GuiHost::start_for_test(
             GuiHostConfig {
                 mode: GuiHostMode::Prod(ProdAssetConfig {
                     package_root: package_root.path().to_path_buf(),
                 }),
             },
             NoopBackend,
+            /*preferred_port*/ 0,
         )
         .await
         .expect("host should start");
@@ -577,7 +620,7 @@ mod tests {
         dev_handle.shutdown().await;
 
         let (_package_root, config) = prod_config().await;
-        let prod_handle = GuiHost::start(config, NoopBackend)
+        let prod_handle = GuiHost::start_for_test(config, NoopBackend, /*preferred_port*/ 0)
             .await
             .expect("prod host should start");
         let (websocket, response) = connect_websocket(&prod_handle).await;
@@ -1210,13 +1253,14 @@ mod tests {
     where
         B: crate::GuiBackend + Clone,
     {
-        GuiHost::start(
+        GuiHost::start_for_test(
             GuiHostConfig {
                 mode: GuiHostMode::Dev(crate::DevAssetProxyConfig {
                     vite_origin: "http://127.0.0.1:5173".to_string(),
                 }),
             },
             backend,
+            /*preferred_port*/ 0,
         )
         .await
         .expect("host should start")

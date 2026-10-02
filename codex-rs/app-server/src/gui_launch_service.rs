@@ -263,6 +263,10 @@ pub(crate) mod test_support {
 mod gui_launch_service_tests;
 
 #[cfg(test)]
+#[path = "gui_launch_port_tests.rs"]
+mod gui_launch_port_tests;
+
+#[cfg(test)]
 mod tests {
     use codex_gui_host::DevAssetProxyConfig;
     use codex_gui_host::GuiHostMode;

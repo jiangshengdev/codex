@@ -371,13 +371,14 @@ first\r\n",
             }
         });
 
-        let gui_handle = GuiHost::start(
+        let gui_handle = GuiHost::start_for_test(
             GuiHostConfig {
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: format!("http://{upstream_addr}"),
                 }),
             },
             NoopBackend,
+            /*preferred_port*/ 0,
         )
         .await
         .context("GUI host should start")?;
@@ -488,13 +489,14 @@ hop headers\r\n\
             }
         });
 
-        let gui_handle = GuiHost::start(
+        let gui_handle = GuiHost::start_for_test(
             GuiHostConfig {
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: format!("http://{upstream_addr}"),
                 }),
             },
             NoopBackend,
+            /*preferred_port*/ 0,
         )
         .await
         .context("GUI host should start")?;
@@ -610,13 +612,14 @@ impl TestServers {
                 .context("fake upstream should serve")
         });
 
-        let gui_handle = GuiHost::start(
+        let gui_handle = GuiHost::start_for_test(
             GuiHostConfig {
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: format!("http://{upstream_addr}"),
                 }),
             },
             NoopBackend,
+            /*preferred_port*/ 0,
         )
         .await
         .context("GUI host should start")?;

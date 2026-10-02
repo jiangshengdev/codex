@@ -101,7 +101,10 @@ pub(crate) fn validate_host_and_origin(
     }
 
     advertised_hosts.iter().any(|advertised| {
-        host == advertised.authority(port) && origin == Some(advertised.origin(port).as_str())
+        advertised.matches_authority(port, host)
+            && origin
+                .and_then(|origin| origin.strip_prefix("http://"))
+                .is_some_and(|authority| advertised.matches_authority(port, authority))
     })
 }
 
