@@ -1,5 +1,5 @@
 import { storybookOrigin } from "./servers";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 test.use({ locale: "en" });
 
@@ -106,7 +106,7 @@ test("edits queued text without replacing the main draft", async ({ page }) => {
     .click();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   const editor = page.getByRole("combobox", { name: "Edit pending message", exact: true });
-  await editor.fill("");
+  await clearPendingMessage(editor);
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Message cannot be empty");
   await expect(editor).toBeVisible();
@@ -117,6 +117,39 @@ test("edits queued text without replacing the main draft", async ({ page }) => {
   await expect(page.getByRole("textbox", { name: "Main draft", exact: true })).toHaveValue(
     "Separate main draft",
   );
+});
+
+test("rejects an empty queued edit before selectionchange is delivered", async ({ page }) => {
+  // Keep the DOM selection notification pending so clearing cannot depend on its timing.
+  await page.addInitScript(() => {
+    document.addEventListener(
+      "selectionchange",
+      (event) => {
+        event.stopImmediatePropagation();
+      },
+      true,
+    );
+  });
+  await page.goto(`${storybookOrigin}/iframe.html?id=composer-pending-input-editing--interactive`);
+  await page.getByRole("button", { name: "Queued 1", exact: true }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  const editor = page.getByRole("combobox", { name: "Edit pending message", exact: true });
+  await expect(editor).toHaveText("Ordinary message 1");
+  await expect(editor).toBeFocused();
+  await clearPendingMessage(editor);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Message cannot be empty");
+  await expect(editor).toBeVisible();
+  await expect(editor).toBeEmpty();
+  await expect(page.getByRole("textbox", { name: "Main draft", exact: true })).toHaveValue(
+    "Separate main draft",
+  );
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Discard changes", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText("Ordinary message 1");
 });
 
 test("retains failed edits, reports clipboard results, and confirms discard", async ({ page }) => {
@@ -278,3 +311,10 @@ test("shows the injected sending conflict without entering an editor", async ({ 
   ).toHaveCount(0);
   await expect(page.getByRole("dialog")).toContainText("Ordinary message 1");
 });
+
+async function clearPendingMessage(editor: Locator): Promise<void> {
+  // Let Lexical select its content directly instead of waiting for a DOM selectionchange.
+  await editor.press("ControlOrMeta+A");
+  await editor.press("Backspace");
+  await expect(editor).toBeEmpty();
+}

@@ -1,15 +1,13 @@
 import { defineConfig } from "@playwright/test";
 import shared from "./playwright.shared.config";
-import { storybookOrigin, storybookPort } from "./storybook-tests/servers";
+import { storybookOrigin } from "./storybook-tests/servers";
+import { currentRunContext } from "./scripts/testRun/resources.ts";
+
+const run = currentRunContext();
 
 export default defineConfig(shared, {
   testDir: "./storybook-tests",
-  outputDir: "test-results/storybook",
-  reporter: [["html", { outputFolder: "playwright-report/storybook" }]],
+  outputDir: `${run.artifactsDirectory}/test-results`,
+  reporter: [["html", { outputFolder: `${run.artifactsDirectory}/report`, open: "never" }]],
   use: { baseURL: storybookOrigin },
-  webServer: {
-    command: `pnpm run storybook --port ${String(storybookPort)} --ci --no-open --disable-telemetry --no-version-updates`,
-    url: storybookOrigin,
-    reuseExistingServer: false,
-  },
 });

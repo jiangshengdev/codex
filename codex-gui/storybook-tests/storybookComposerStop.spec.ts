@@ -1,5 +1,6 @@
 import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
+import { closePendingInputDrawer } from "./pendingInputDrawer";
 
 test.use({ locale: "en" });
 
@@ -24,8 +25,9 @@ test("accepted stop waits for termination and preserves queued input for explici
   await expect(page.getByRole("dialog").getByRole("listitem").nth(1)).toContainText(
     "Second queued message",
   );
-  await page.keyboard.press("Escape");
+  await closePendingInputDrawer(page, page.getByRole("button", { name: "Queued 2", exact: true }));
   await editor.fill("Separate draft");
+  await expect(editor).toHaveText("Separate draft");
   await stop.click();
   await expect(stop).toBeDisabled();
   await expect(stop).toHaveAttribute("data-pending", "true");

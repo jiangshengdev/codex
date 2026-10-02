@@ -1,1 +1,5 @@
-export const generatedArtifactWatchIgnored = ["**/playwright-report/**", "**/storybook-static/**"];
+export const generatedArtifactWatchIgnored = [
+  "**/playwright-report/**",
+  "**/storybook-static/**",
+  "**/.reports/**",
+];

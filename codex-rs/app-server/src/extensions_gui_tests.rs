@@ -58,6 +58,7 @@ async fn thread_extensions_install_launch_gui_tool_when_gui_service_available() 
         crate::gui_host::GuiHostManager::new_with_opener(
             Arc::new(UnusedGuiOpener),
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: "http://127.0.0.1:5173".to_string(),
                 }),

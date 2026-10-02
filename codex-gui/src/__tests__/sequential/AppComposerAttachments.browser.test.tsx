@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { page, server, userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import {
   attachResponse,
   createDeferred,
@@ -453,7 +453,7 @@ test("narrow draft attachments preserve visible keyboard focus beside adjacent c
   await expect.element(composer.getByText("File upload failed.", { exact: true })).toBeVisible();
   expect(composer.element().scrollWidth).toBeLessThanOrEqual(composer.element().clientWidth);
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(400);
-  await composer.screenshot({ path: `__screenshots__/attachment-focus-${server.browser}.png` });
+  await composer.screenshot();
 });
 
 test("mixed file and image attachments align their bottom edges without overflowing narrow messages", async () => {
@@ -580,9 +580,7 @@ test("mixed file and image attachments align their bottom edges without overflow
     await expect
       .element(transcript.getByRole("button", { name: /^Remove / }))
       .not.toBeInTheDocument();
-    await transcript.screenshot({
-      path: `__screenshots__/attachment-layout-${server.browser}-${String(width)}-smooth-${String(CSS.supports("corner-shape", "squircle"))}.png`,
-    });
+    await transcript.screenshot();
   }
   await page.viewport(1280, 720);
 });

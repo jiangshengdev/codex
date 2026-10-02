@@ -185,12 +185,12 @@ msgid "Cleanup diagnostic:"
 msgstr "清理诊断信息："
 
 #. Accessible label for closing the failure diagnostics dialog
-#: src/feedback/FailureDiagnosticModal.tsx:27
+#: src/feedback/FailureDiagnosticModal.tsx:28
 msgid "Close diagnostics"
 msgstr "关闭诊断信息"
 
 #. Closes the attachment failure dialog
-#: src/features/fileUpload/AttachmentFailureDetails.tsx:37
+#: src/features/fileUpload/AttachmentFailureDetails.tsx:38
 msgid "Close failure details"
 msgstr "关闭失败详情"
 
@@ -422,7 +422,7 @@ msgid "Delete this pending message?"
 msgstr "删除这条待处理消息？"
 
 #. Title of the dialog showing raw failure details
-#: src/feedback/FailureDiagnosticModal.tsx:34
+#: src/feedback/FailureDiagnosticModal.tsx:35
 msgid "Diagnostic information"
 msgstr "诊断信息"
 
@@ -513,7 +513,7 @@ msgid "Failed."
 msgstr "失败。"
 
 #. Opens upload or preview failure details for the named draft attachment
-#: src/features/fileUpload/AttachmentFailureDetails.tsx:14
+#: src/features/fileUpload/AttachmentFailureDetails.tsx:15
 msgid "Failure details for {name}"
 msgstr "{name} 的失败详情"
 
@@ -1703,12 +1703,12 @@ msgid "View"
 msgstr "查看"
 
 #. Opens raw diagnostic details for the associated failure
-#: src/feedback/FailureDiagnosticModal.tsx:19
+#: src/feedback/FailureDiagnosticModal.tsx:20
 msgid "View diagnostic information"
 msgstr "查看诊断信息"
 
 #. Open a dialog containing the complete message shown in a truncated composer preview
-#: src/features/composerTurnControl/ComposerFullMessagePreview.tsx:43
+#: src/features/composerTurnControl/ComposerFullMessagePreview.tsx:44
 msgid "View full message"
 msgstr "查看全文"
 

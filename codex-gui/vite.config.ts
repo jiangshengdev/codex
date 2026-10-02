@@ -8,6 +8,7 @@ import compression from "@polka/compression";
 import babel from "@rolldown/plugin-babel";
 import { storybookIsolationReport } from "./scripts/storybookIsolation/buildReport.ts";
 import { generatedArtifactWatchIgnored } from "./scripts/devServerWatch.ts";
+import { currentRunContext } from "./scripts/testRun/resources.ts";
 import {
   appServerProtocolDirectory,
   guiHostContractDirectory,
@@ -46,6 +47,9 @@ const viteDevCompression = (): Plugin => ({
 
 // https://vite.dev/config/
 export default defineConfig({
+  ...(process.env.CODEX_GUI_TEST_RUN_DIR
+    ? { cacheDir: `${currentRunContext().cacheDirectory}/vite` }
+    : {}),
   optimizeDeps: {
     // Discover the attachment editability hook before browser tests start.
     include: ["@lexical/react/useLexicalEditable"],

@@ -31,8 +31,8 @@ impl AdvertisedHost {
         format!("{}:{port}", host_for_url(&self.host))
     }
 
-    pub(crate) fn origin(&self, port: u16) -> String {
-        format!("http://{}", self.authority(port))
+    pub(crate) fn matches_authority(&self, port: u16, authority: &str) -> bool {
+        authority == self.authority(port) || (port == 80 && authority == host_for_url(&self.host))
     }
 }
 
