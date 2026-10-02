@@ -349,3 +349,27 @@ test.each(["rejection", "synchronous exception"])(
     expect(BrowserNotification.requestPermission).toHaveBeenCalledOnce();
   },
 );
+
+test.each([false, true])(
+  "closes page-owned notifications on pagehide (persisted=%s)",
+  async (persisted) => {
+    BrowserNotification.permission = "granted";
+    const { screen, options, router, question } = await readyTask();
+    await router.navigate({ to: "/history" });
+    emitProjectionEvent(options, question());
+    await expect.poll(() => BrowserNotification.sent.length).toBe(1);
+    const notification = BrowserNotification.sent[0];
+    if (notification == null) throw new Error("Expected a question notification");
+
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(notification.close).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted }));
+    expect(notification.close).toHaveBeenCalledOnce();
+    expect(notification.onclick).toBeNull();
+    expect(notification.onclose).toBeNull();
+    await screen.unmount();
+    expect(notification.close).toHaveBeenCalledOnce();
+  },
+);
