@@ -54,11 +54,7 @@ impl GuiHostManager {
     }
 
     pub async fn launch_urls_for_thread(&self, thread_id: ThreadId) -> io::Result<GuiLaunchUrls> {
-        let _lifecycle = self
-            .lifecycle
-            .acquire()
-            .await
-            .expect("lifecycle semaphore is never closed");
+        let _lifecycle = self.lifecycle.acquire().await.map_err(io::Error::other)?;
         if let Some(urls) = {
             let state = self.state.lock().map_err(state_lock_error)?;
             if state.closed {
@@ -103,11 +99,14 @@ impl GuiHostManager {
         if let Ok(mut state) = self.state.lock() {
             state.closed = true;
         }
-        let _lifecycle = self
-            .lifecycle
-            .acquire()
-            .await
-            .expect("lifecycle semaphore is never closed");
+        let _lifecycle = match self.lifecycle.acquire().await {
+            Ok(permit) => permit,
+            Err(err) => {
+                tracing::error!("failed to acquire GUI lifecycle permit during shutdown: {err}");
+                self.cancel();
+                return;
+            }
+        };
         let handle = match self.state.lock() {
             Ok(mut state) => state.handle.take(),
             Err(_) => None,
