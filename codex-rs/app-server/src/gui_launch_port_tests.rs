@@ -4,6 +4,7 @@ use codex_gui_host::DevAssetProxyConfig;
 use codex_gui_host::GuiHostConfig;
 use codex_gui_host::GuiHostMode;
 use codex_protocol::ThreadId;
+use pretty_assertions::assert_eq;
 use tokio::net::TcpListener;
 
 use super::AppServerGuiLaunchService;
