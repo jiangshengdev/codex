@@ -51,6 +51,7 @@ async fn unset_gui_port_serves_http_and_authenticates_on_port_80() {
 
 async fn run_env_case(port: Option<&str>, case: &str, mode: &str) {
     let package = tempfile::tempdir().unwrap();
+    let completion = package.path().join("child-completed");
     tokio::fs::create_dir(package.path().join("dist"))
         .await
         .unwrap();
@@ -74,6 +75,7 @@ async fn run_env_case(port: Option<&str>, case: &str, mode: &str) {
         .env("CODEX_GUI_PACKAGE_ROOT", package.path())
         .env("CODEX_GUI_VITE_URL", vite_url)
         .env("CODEX_GUI_PORT_TEST_CASE", case)
+        .env("CODEX_GUI_PORT_TEST_COMPLETION", &completion)
         .kill_on_drop(true);
     match port {
         Some(port) => {
@@ -91,8 +93,11 @@ async fn run_env_case(port: Option<&str>, case: &str, mode: &str) {
         output.status.success(),
         "case {case}, mode {mode}: {output:?}"
     );
-    assert!(
-        String::from_utf8_lossy(&output.stdout).contains("GUI_PORT_ENV_VERIFIED"),
+    assert_eq!(
+        tokio::fs::read_to_string(completion)
+            .await
+            .expect("child must write its completion marker"),
+        "GUI_PORT_ENV_VERIFIED",
         "child must execute the assertion path: {output:?}"
     );
 }
@@ -187,5 +192,11 @@ async fn gui_port_env_child() {
     }
     service.shutdown().await;
     bridge.shutdown().await;
-    println!("GUI_PORT_ENV_VERIFIED");
+    tokio::fs::write(
+        std::env::var_os("CODEX_GUI_PORT_TEST_COMPLETION")
+            .expect("parent must provide a completion marker path"),
+        "GUI_PORT_ENV_VERIFIED",
+    )
+    .await
+    .unwrap();
 }

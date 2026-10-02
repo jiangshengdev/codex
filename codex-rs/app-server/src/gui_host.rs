@@ -17,7 +17,8 @@ pub struct GuiHostManager {
     opener: Arc<dyn LocalGuiConnectionOpener>,
     config: GuiHostConfig,
     state: Mutex<GuiHostState>,
-    lifecycle: tokio::sync::Mutex<()>,
+    // Serialize asynchronous lifecycle operations without locking host state across awaits.
+    lifecycle: tokio::sync::Semaphore,
     #[cfg(test)]
     start_pause: Option<Arc<lifecycle_tests::StartPause>>,
 }
@@ -46,14 +47,18 @@ impl GuiHostManager {
             opener,
             config,
             state: Mutex::new(GuiHostState::default()),
-            lifecycle: tokio::sync::Mutex::new(()),
+            lifecycle: tokio::sync::Semaphore::new(/*permits*/ 1),
             #[cfg(test)]
             start_pause: None,
         }
     }
 
     pub async fn launch_urls_for_thread(&self, thread_id: ThreadId) -> io::Result<GuiLaunchUrls> {
-        let _lifecycle = self.lifecycle.lock().await;
+        let _lifecycle = self
+            .lifecycle
+            .acquire()
+            .await
+            .expect("lifecycle semaphore is never closed");
         if let Some(urls) = {
             let state = self.state.lock().map_err(state_lock_error)?;
             if state.closed {
@@ -98,7 +103,11 @@ impl GuiHostManager {
         if let Ok(mut state) = self.state.lock() {
             state.closed = true;
         }
-        let _lifecycle = self.lifecycle.lock().await;
+        let _lifecycle = self
+            .lifecycle
+            .acquire()
+            .await
+            .expect("lifecycle semaphore is never closed");
         let handle = match self.state.lock() {
             Ok(mut state) => state.handle.take(),
             Err(_) => None,
