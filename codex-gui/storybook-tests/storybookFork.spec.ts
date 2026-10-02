@@ -25,6 +25,11 @@ for (const width of [375, 1280]) {
       { event: DEV_VISIBILITY_CHANGED, visibility: { visible: false } },
     );
     await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+    await expect(page.getByRole("main")).toContainText("Read-only history evidence");
+    // Notices can be ready before the asynchronous history body creates the long page.
+    await expect
+      .poll(() => page.evaluate(() => (document.documentElement.scrollHeight - innerHeight) * 0.5))
+      .toBeGreaterThan(800);
     const lastFork = notices
       .getByRole("alert")
       .filter({ hasText: "00000000-0000-0000-0000-000000000104" });

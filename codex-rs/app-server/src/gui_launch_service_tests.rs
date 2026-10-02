@@ -62,6 +62,7 @@ async fn clear_runtime_references_cancels_gui_launch_service() {
         crate::gui_host::GuiHostManager::new_with_opener(
             gui_bridge.opener(),
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: "http://127.0.0.1:5173".to_string(),
                 }),

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex GUI Bug Investigation Isolation"
+  short_description: "Investigate GUI bugs with isolated worktrees and test runs"
+  default_prompt: "Use $codex-gui-bug-investigation to investigate this Codex GUI bug in a dedicated worktree and retain independent test evidence."

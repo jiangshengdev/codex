@@ -1,6 +1,7 @@
 import type { StorybookConfig } from "@storybook/tanstack-react";
 import { mergeConfig, searchForWorkspaceRoot } from "vite";
 import { generatedArtifactWatchIgnored } from "../scripts/devServerWatch.ts";
+import { currentRunContext } from "../scripts/testRun/resources.ts";
 import {
   appServerProtocolDirectory,
   guiHostContractDirectory,
@@ -19,6 +20,9 @@ const config: StorybookConfig = {
   viteFinal: (viteConfig) => ({
     // The Storybook builder replaces the shared Vite server configuration.
     ...mergeConfig(viteConfig, {
+      ...(process.env.CODEX_GUI_TEST_RUN_DIR
+        ? { cacheDir: `${currentRunContext().cacheDirectory}/storybook-vite` }
+        : {}),
       server: {
         watch: { ignored: generatedArtifactWatchIgnored },
         fs: {

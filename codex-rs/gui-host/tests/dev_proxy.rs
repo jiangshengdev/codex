@@ -373,6 +373,7 @@ first\r\n",
 
         let gui_handle = GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: format!("http://{upstream_addr}"),
                 }),
@@ -490,6 +491,7 @@ hop headers\r\n\
 
         let gui_handle = GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: format!("http://{upstream_addr}"),
                 }),
@@ -612,6 +614,7 @@ impl TestServers {
 
         let gui_handle = GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: format!("http://{upstream_addr}"),
                 }),

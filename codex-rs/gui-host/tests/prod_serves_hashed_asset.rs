@@ -42,6 +42,7 @@ async fn prod_serves_hashed_asset_from_package_root() {
 
     let handle = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Prod(ProdAssetConfig {
                 package_root: package_root.path().to_path_buf(),
             }),
@@ -166,6 +167,7 @@ async fn start_test_prod_host() -> Result<(tempfile::TempDir, codex_gui_host::Gu
 
     let handle = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Prod(ProdAssetConfig {
                 package_root: package_root.path().to_path_buf(),
             }),
@@ -263,6 +265,7 @@ async fn prod_serves_built_codex_gui_dist_from_package_root_env() {
 
     let handle = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Prod(ProdAssetConfig {
                 package_root: package_root.clone(),
             }),

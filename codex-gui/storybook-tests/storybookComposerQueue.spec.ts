@@ -1,5 +1,6 @@
 import { storybookOrigin } from "./servers";
 import { expect, test } from "@playwright/test";
+import { closePendingInputDrawer } from "./pendingInputDrawer";
 
 test.use({ locale: "en" });
 
@@ -106,8 +107,12 @@ test("restored queue recovery and unknown-record removal preserve a separate dra
   await preview.getByRole("button", { name: "Continue sending", exact: true }).click();
   await preview.getByRole("button", { name: "Queued 1", exact: true }).click();
   await expect(preview.getByRole("dialog")).toContainText("Local record to discard");
-  await page.keyboard.press("Escape");
+  await closePendingInputDrawer(
+    page,
+    preview.getByRole("button", { name: "Queued 1", exact: true }),
+  );
   await editor.fill("Separate draft");
+  await expect(editor).toHaveText("Separate draft");
   await expect(send).toBeEnabled();
   await preview
     .getByRole("button", { name: "Simulate current turn completed", exact: true })

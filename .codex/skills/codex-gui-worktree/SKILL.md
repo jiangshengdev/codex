@@ -76,6 +76,17 @@ bash .codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh \
 
 Environment overrides are also supported: `CODEX_GUI_WORKTREE_REPO_ROOT`, `CODEX_GUI_WORKTREE_ROOT`, and `CODEX_GUI_WORKTREE_VITEST_ROOT`.
 
+For a BUG task, pin the starting checkout's `git rev-parse HEAD` and pass that
+commit explicitly as `--base`; pass the chat/task identity as `--task-id`.
+Issue numbers alone are not task identities. Ownership is recorded in the
+worktree's Git administrative directory only after preparation succeeds.
+Reuse requires the same `--name`, `--branch`, `--task-id`, and repository/root
+parameters with `--resume`. The script checks ownership, branch, sparse inputs
+and linked resources, preserves the original base and all investigation changes,
+and rejects resources belonging to another task. A worktree without a successful
+ownership record cannot be resumed through this mode; inspect failed preparation
+without claiming it is ready. Do not rerun create over an existing target.
+
 ## Linked Resources
 
 The script links these resources:

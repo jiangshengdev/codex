@@ -1,3 +1,5 @@
-export const guiPort = 5174;
+import { currentRunContext } from "../scripts/testRun/resources.ts";
 
-export const guiOrigin = `http://localhost:${String(guiPort)}`;
+const run = currentRunContext();
+export const guiPort = run.port;
+export const guiOrigin = run.origin;

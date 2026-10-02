@@ -1,7 +1,25 @@
 import { storybookOrigin } from "./servers";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 test.use({ locale: "en" });
+
+// Scrolling activates deferred code-block layout, which can move the click target.
+async function scrollIntoStableView(target: Locator) {
+  let previousBounds: string | undefined;
+  await expect
+    .poll(
+      async () => {
+        await target.scrollIntoViewIfNeeded();
+        const bounds = await target.boundingBox();
+        const serializedBounds = JSON.stringify(bounds);
+        const stable = bounds !== null && serializedBounds === previousBounds;
+        previousBounds = serializedBounds;
+        return stable;
+      },
+      { intervals: [300] },
+    )
+    .toBe(true);
+}
 
 for (const width of [375, 1280]) {
   test(`streaming long answer grows and remains readable at ${String(width)}px`, async ({
@@ -116,6 +134,7 @@ for (const width of [375, 1280]) {
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.keyboard.press("Escape");
     const disclosure = transcript.getByRole("button", { name: /Intermediate updates/ });
+    await scrollIntoStableView(disclosure);
     await disclosure.click();
     await expect(transcript).toContainText("Review complete");
     await disclosure.click();
@@ -133,20 +152,7 @@ for (const width of [375, 1280]) {
     await expect(pagination.getByRole("button", { name: "Previous context page" })).toBeDisabled();
     await expect(transcript.getByRole("separator", { name: "Context compressed" })).toHaveCount(0);
     const lastPageButton = pagination.getByRole("button", { name: "Context page 3" });
-    // Scrolling can change code-block heights; let the pagination settle before pressing it.
-    let previousBounds: string | undefined;
-    await expect
-      .poll(
-        async () => {
-          await lastPageButton.scrollIntoViewIfNeeded();
-          const bounds = JSON.stringify(await lastPageButton.boundingBox());
-          const stable = bounds === previousBounds;
-          previousBounds = bounds;
-          return stable;
-        },
-        { intervals: [300] },
-      )
-      .toBe(true);
+    await scrollIntoStableView(lastPageButton);
     await lastPageButton.click();
     await test.info().attach("page-after-return", {
       body: JSON.stringify(

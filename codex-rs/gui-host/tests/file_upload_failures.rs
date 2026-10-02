@@ -46,6 +46,7 @@ async fn file_upload_storage_and_transport_failures() -> Result<()> {
     }
     let host = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
         },
         NoopBackend,
