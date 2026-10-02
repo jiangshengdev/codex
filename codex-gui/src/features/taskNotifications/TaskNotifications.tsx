@@ -47,14 +47,6 @@ export function TaskNotifications({ children }: Readonly<{ children: ReactNode }
     if (session == null) return;
     const observed = new Map<AsyncQuestions, { count: number; unsubscribe(): void }>();
     const notifications = new Set<Notification>();
-    const closeNotifications = () => {
-      for (const notification of notifications) {
-        notification.onclick = null;
-        notification.onclose = null;
-        notification.close();
-      }
-      notifications.clear();
-    };
     const viewing = (): string | null => {
       if (document.visibilityState !== "visible" || !document.hasFocus()) return null;
       const target = selectGuiRouteTarget(router.state.matches);
@@ -127,18 +119,19 @@ export function TaskNotifications({ children }: Readonly<{ children: ReactNode }
     const unsubscribe = session.subscribe(sync);
     const unsubscribeRoute = router.subscribe("onResolved", clearViewed);
     window.addEventListener("focus", clearViewed);
-    // A document unload does not run React cleanup; native notifications can outlive it.
-    window.addEventListener("pagehide", closeNotifications);
     document.addEventListener("visibilitychange", clearViewed);
     sync();
     return () => {
       unsubscribe();
       unsubscribeRoute();
       window.removeEventListener("focus", clearViewed);
-      window.removeEventListener("pagehide", closeNotifications);
       document.removeEventListener("visibilitychange", clearViewed);
       for (const observation of observed.values()) observation.unsubscribe();
-      closeNotifications();
+      for (const notification of notifications) {
+        notification.onclick = null;
+        notification.onclose = null;
+        notification.close();
+      }
     };
   }, [session, router, markers]);
 
