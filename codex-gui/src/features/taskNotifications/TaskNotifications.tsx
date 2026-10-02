@@ -9,6 +9,7 @@ import type { AsyncQuestion, AsyncQuestions } from "@/features/asyncQuestions/as
 import { selectGuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import { TaskNotificationContext } from "./taskNotificationContext";
 import { TaskNotificationMarkers } from "./taskNotificationMarkers";
+import { connectBrowserTaskNotifications } from "./browserTaskNotifications";
 
 export function TaskNotifications({ children }: Readonly<{ children: ReactNode }>) {
   const { activeThreadSession: session } = useAppCapabilities();
@@ -46,7 +47,12 @@ export function TaskNotifications({ children }: Readonly<{ children: ReactNode }
   useEffect(() => {
     if (session == null) return;
     const observed = new Map<AsyncQuestions, { count: number; unsubscribe(): void }>();
-    const notifications = new Set<Notification>();
+    const notifications = connectBrowserTaskNotifications((threadId) => {
+      if (!session.getCollectionSnapshot().members.some((member) => member.threadId === threadId))
+        return false;
+      select(threadId);
+      return true;
+    });
     const viewing = (): string | null => {
       if (document.visibilityState !== "visible" || !document.hasFocus()) return null;
       const target = selectGuiRouteTarget(router.state.matches);
@@ -69,23 +75,7 @@ export function TaskNotifications({ children }: Readonly<{ children: ReactNode }
       if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
       const title = titleFor(threadId);
       const body = describe(questions);
-      try {
-        const notification = new Notification(title, { body });
-        notifications.add(notification);
-        notification.onclose = () => notifications.delete(notification);
-        notification.onclick = () => {
-          if (
-            !session.getCollectionSnapshot().members.some((member) => member.threadId === threadId)
-          )
-            return;
-          window.focus();
-          select(threadId);
-          notification.close();
-          notifications.delete(notification);
-        };
-      } catch {
-        // Browser/platform failures must not interrupt question delivery or the task marker.
-      }
+      void notifications?.show(threadId, title, body);
     };
     const sync = () => {
       const current = new Set<AsyncQuestions>();
@@ -127,11 +117,7 @@ export function TaskNotifications({ children }: Readonly<{ children: ReactNode }
       window.removeEventListener("focus", clearViewed);
       document.removeEventListener("visibilitychange", clearViewed);
       for (const observation of observed.values()) observation.unsubscribe();
-      for (const notification of notifications) {
-        notification.onclick = null;
-        notification.onclose = null;
-        notification.close();
-      }
+      notifications?.dispose();
     };
   }, [session, router, markers]);
 

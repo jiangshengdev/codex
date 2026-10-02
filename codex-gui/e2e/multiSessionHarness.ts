@@ -10,6 +10,7 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   agentMessage,
+  asyncQuestionMessage,
   attachWithSnapshotThread,
   attachWithThreadId,
   attachWithTurns,
@@ -376,6 +377,21 @@ export async function createMultiSessionHarness(
     async open() {
       await page.goto(`/task/${firstThreadId}#token=multi-session-test-token`);
       await ready(page);
+    },
+    question(id: string, title: string) {
+      const value = thread(id);
+      const active = value.turns.find((turn) => turn.status === "inProgress");
+      if (!active) throw new Error(`No active turn for ${id}`);
+      const item = asyncQuestionMessage(`${active.id}-question`, [{ title, options: null }]);
+      active.items.push(item);
+      emit(
+        id,
+        itemStarted(eventItemStarted, `commit-${String(++commitSequence)}`, active.id, item),
+      );
+      emit(
+        id,
+        itemCompleted(eventItemCompleted, `commit-${String(++commitSequence)}`, active.id, item),
+      );
     },
     finish(id: string, output = `Completed ${id}`) {
       const value = thread(id);

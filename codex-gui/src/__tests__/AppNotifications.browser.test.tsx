@@ -3,6 +3,7 @@ import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { createAppRouter } from "@/router";
 import { renderWithProviders } from "@/utils/test-utils";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
+import type { TaskNotificationTarget } from "@/features/taskNotifications/taskNotificationProtocol";
 import {
   attachResponse,
   createGuiHostCommands,
@@ -33,23 +34,41 @@ vi.mock("@/features/guiHost/guiHostClient", () => ({
   startGuiHostConnection: hostMock.startGuiHostConnection,
 }));
 
-class BrowserNotification {
-  static permission: NotificationPermission = "default";
-  static requestPermission = vi.fn<() => Promise<NotificationPermission>>(() => {
+const BrowserNotification = {
+  permission: "default" as NotificationPermission,
+  requestPermission: vi.fn<() => Promise<NotificationPermission>>(() => {
     BrowserNotification.permission = "granted";
     return Promise.resolve("granted");
+  }),
+  sent: [] as { title: string; options: NotificationOptions }[],
+};
+
+let workerMessages: EventTarget;
+const showNotification = vi.fn<(title: string, options: NotificationOptions) => Promise<void>>();
+const register = vi.fn<() => Promise<object>>();
+const getNotifications = vi.fn<() => Promise<Notification[]>>(() => Promise.resolve([]));
+
+async function clickNotification() {
+  const channel = new MessageChannel();
+  const message = new MessageEvent("message", {
+    data: {
+      type: "codex-task-notification-click",
+      target: BrowserNotification.sent[0]?.options.data as TaskNotificationTarget,
+    },
+    ports: [channel.port2],
   });
-  static sent: BrowserNotification[] = [];
-  onclick: (() => void) | null = null;
-  onclose: (() => void) | null = null;
-  close = vi.fn<() => void>();
-  readonly title: string;
-  readonly options: NotificationOptions;
-  constructor(title: string, options: NotificationOptions) {
-    this.title = title;
-    this.options = options;
-    BrowserNotification.sent.push(this);
-  }
+  Object.defineProperty(message, "source", {
+    value: { scriptURL: new URL("/task-notifications.js", location.origin).href },
+  });
+  const accepted = new Promise((resolve) => {
+    channel.port1.onmessage = (event) => {
+      resolve(event.data);
+    };
+  });
+  workerMessages.dispatchEvent(message);
+  expect(await accepted).toBe(true);
+  channel.port1.close();
+  channel.port2.close();
 }
 
 let documentFocused = true;
@@ -60,6 +79,20 @@ beforeEach(() => {
   BrowserNotification.sent = [];
   BrowserNotification.requestPermission.mockClear();
   vi.stubGlobal("Notification", BrowserNotification);
+  showNotification.mockReset().mockImplementation((title, options) => {
+    BrowserNotification.sent.push({ title, options });
+    return Promise.resolve();
+  });
+  getNotifications.mockClear();
+  const registration = { active: {}, showNotification, getNotifications };
+  register.mockReset().mockResolvedValue(registration);
+  workerMessages = Object.assign(new EventTarget(), {
+    register,
+    ready: Promise.resolve(registration),
+  });
+  vi.spyOn(navigator, "serviceWorker", "get").mockReturnValue(
+    workerMessages as ServiceWorkerContainer,
+  );
   documentFocused = true;
   vi.spyOn(document, "hasFocus").mockImplementation(() => documentFocused);
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
@@ -129,12 +162,10 @@ test("notifies a question on another page and clears its marker only when viewin
     eventWithEnvelope(event, { commitId: "duplicate-question", parentCommitId: event.commitId }),
   );
   expect(BrowserNotification.sent).toHaveLength(1);
-  const focus = vi.spyOn(window, "focus").mockImplementation(() => undefined);
-  BrowserNotification.sent[0]?.onclick?.();
+  await clickNotification();
   await expect
     .element(screen.getByRole("group", { name: "Which environment?", exact: true }))
     .toBeVisible();
-  expect(focus).toHaveBeenCalledOnce();
   await screen.getByRole("button", { name: "Menu", exact: true }).click();
   await expect
     .element(screen.getByText("Waiting for response", { exact: true }))
@@ -188,6 +219,22 @@ test("does not notify or mark a question in the foreground task being viewed", a
   expect(BrowserNotification.requestPermission).not.toHaveBeenCalled();
 });
 
+test("delivers questions through persistent notifications without closing them on unmount", async () => {
+  BrowserNotification.permission = "granted";
+  const { screen, options, router, question } = await readyTask();
+  await router.navigate({ to: "/history" });
+  emitProjectionEvent(options, question());
+  await expect.poll(() => showNotification.mock.calls.length).toBe(1);
+  expect(BrowserNotification.sent).toHaveLength(1);
+  expect(BrowserNotification.sent[0]?.options.data).toEqual({
+    tabId: window.name,
+    threadId: launchThreadId,
+  });
+  await screen.unmount();
+  expect(getNotifications).not.toHaveBeenCalled();
+  expect(showNotification).toHaveBeenCalledOnce();
+});
+
 test.each([
   { place: "current", focused: false, visible: true },
   { place: "current", focused: true, visible: false },
@@ -213,36 +260,42 @@ test.each([
     emitProjectionEvent(options, question());
     await screen.getByRole("button", { name: "Menu", exact: true }).click();
     await expect.element(screen.getByText("Waiting for response", { exact: true })).toBeVisible();
-    expect(BrowserNotification.sent).toHaveLength(1);
+    await expect.poll(() => BrowserNotification.sent.length).toBe(1);
     expect(BrowserNotification.requestPermission).not.toHaveBeenCalled();
   },
 );
 
-test.each(["default", "denied", "unavailable", "throws"] as const)(
-  "retains question markers when notification permission is %s",
-  async (permission) => {
-    if (permission === "unavailable") vi.stubGlobal("Notification", undefined);
-    else BrowserNotification.permission = permission === "throws" ? "granted" : permission;
-    if (permission === "throws") {
-      vi.stubGlobal(
-        "Notification",
-        class extends BrowserNotification {
-          constructor(title: string, options: NotificationOptions) {
-            super(title, options);
-            throw new Error("Platform does not support notification construction");
-          }
-        },
-      );
-    }
-    const { screen, options, router, question } = await readyTask();
-    await router.navigate({ to: "/history" });
-    emitProjectionEvent(options, question());
-    await screen.getByRole("button", { name: "Menu", exact: true }).click();
-    await expect.element(screen.getByText("Waiting for response", { exact: true })).toBeVisible();
-    expect(BrowserNotification.requestPermission).not.toHaveBeenCalled();
-    expect(BrowserNotification.sent).toHaveLength(permission === "throws" ? 1 : 0);
-  },
-);
+test.each([
+  "default",
+  "denied",
+  "unavailable",
+  "throws",
+  "registration fails",
+  "worker unavailable",
+] as const)("retains question markers when notification permission is %s", async (permission) => {
+  if (permission === "unavailable") vi.stubGlobal("Notification", undefined);
+  else
+    BrowserNotification.permission =
+      permission === "default" || permission === "denied" ? permission : "granted";
+  if (permission === "throws") {
+    showNotification.mockRejectedValue(
+      new Error("Platform does not support persistent notifications"),
+    );
+  }
+  if (permission === "registration fails")
+    register.mockRejectedValue(new Error("Registration unavailable"));
+  if (permission === "worker unavailable")
+    vi.spyOn(navigator, "serviceWorker", "get").mockReturnValue(
+      undefined as unknown as ServiceWorkerContainer,
+    );
+  const { screen, options, router, question } = await readyTask();
+  await router.navigate({ to: "/history" });
+  emitProjectionEvent(options, question());
+  await screen.getByRole("button", { name: "Menu", exact: true }).click();
+  await expect.element(screen.getByText("Waiting for response", { exact: true })).toBeVisible();
+  expect(BrowserNotification.requestPermission).not.toHaveBeenCalled();
+  expect(BrowserNotification.sent).toHaveLength(0);
+});
 
 test.each([
   { title: "🧑‍💻".repeat(31), count: 1, body: "Question: " + "🧑‍💻".repeat(30) },
@@ -322,8 +375,7 @@ test("does not replay notifications on reconnect and ignores old connection call
   );
   expect(BrowserNotification.sent).toHaveLength(1);
   await screen.unmount();
-  expect(BrowserNotification.sent[0]?.onclick).toBeNull();
-  expect(BrowserNotification.sent[0]?.close).toHaveBeenCalledOnce();
+  expect(getNotifications).not.toHaveBeenCalled();
 });
 
 test.each(["rejection", "synchronous exception"])(
