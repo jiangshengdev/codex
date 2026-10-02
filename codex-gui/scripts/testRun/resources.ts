@@ -1,6 +1,5 @@
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
-import { tmpdir } from "node:os";
 import path from "node:path";
 
 export type RunContext = {
@@ -31,7 +30,11 @@ async function candidatePort(): Promise<number> {
 }
 
 export async function createRunContext(name: string): Promise<RunContext> {
-  const directory = await mkdtemp(path.join(tmpdir(), `codex-gui-${name}-`));
+  // Vitest incorporates the trace path relative to the project into attachment
+  // filenames. Keep that prefix short, independent of the checkout's location.
+  const reportsDirectory = path.resolve(".reports");
+  await mkdir(reportsDirectory, { recursive: true });
+  const directory = await mkdtemp(path.join(reportsDirectory, "run-"));
   const cacheDirectory = path.join(directory, "cache");
   const artifactsDirectory = path.join(directory, "artifacts");
   await Promise.all([mkdir(cacheDirectory), mkdir(artifactsDirectory)]);
@@ -44,7 +47,7 @@ export async function createRunContext(name: string): Promise<RunContext> {
     port,
     origin: `http://127.0.0.1:${String(port)}`,
   };
-  await writeFile(path.join(directory, "run.json"), JSON.stringify(context, null, 2));
+  await writeFile(path.join(directory, "run.json"), JSON.stringify({ ...context, name }, null, 2));
   return context;
 }
 
