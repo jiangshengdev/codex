@@ -17,6 +17,9 @@ pub struct GuiHostManager {
     opener: Arc<dyn LocalGuiConnectionOpener>,
     config: GuiHostConfig,
     state: Mutex<GuiHostState>,
+    lifecycle: tokio::sync::Mutex<()>,
+    #[cfg(test)]
+    start_pause: Option<Arc<lifecycle_tests::StartPause>>,
 }
 
 #[derive(Default)]
@@ -43,10 +46,14 @@ impl GuiHostManager {
             opener,
             config,
             state: Mutex::new(GuiHostState::default()),
+            lifecycle: tokio::sync::Mutex::new(()),
+            #[cfg(test)]
+            start_pause: None,
         }
     }
 
     pub async fn launch_urls_for_thread(&self, thread_id: ThreadId) -> io::Result<GuiLaunchUrls> {
+        let _lifecycle = self.lifecycle.lock().await;
         if let Some(urls) = {
             let state = self.state.lock().map_err(state_lock_error)?;
             if state.closed {
@@ -62,26 +69,24 @@ impl GuiHostManager {
 
         let backend = GuiTransportBackend::new(Arc::clone(&self.opener));
         let new_handle = GuiHost::start(self.config.clone(), backend).await?;
-        let (urls, redundant_handle) = {
+        #[cfg(test)]
+        if let Some(pause) = &self.start_pause {
+            *pause.address.lock().unwrap() = Some(new_handle.local_addr());
+            pause.started.notify_one();
+            pause.release.notified().await;
+        }
+        let (urls, closed_handle) = {
             let mut state = self.state.lock().map_err(state_lock_error)?;
             if state.closed {
                 (Err(closed_error()), Some(new_handle))
             } else {
-                match state.handle.as_ref() {
-                    Some(handle) => (
-                        Ok(handle.launch_urls_for_thread(thread_id)),
-                        Some(new_handle),
-                    ),
-                    None => {
-                        let urls = new_handle.launch_urls_for_thread(thread_id);
-                        state.handle = Some(new_handle);
-                        (Ok(urls), None)
-                    }
-                }
+                let urls = new_handle.launch_urls_for_thread(thread_id);
+                state.handle = Some(new_handle);
+                (Ok(urls), None)
             }
         };
 
-        if let Some(handle) = redundant_handle {
+        if let Some(handle) = closed_handle {
             handle.shutdown().await;
         }
 
@@ -89,11 +94,13 @@ impl GuiHostManager {
     }
 
     pub async fn shutdown(&self) {
+        // Close the gate before waiting for an in-flight launch to finish.
+        if let Ok(mut state) = self.state.lock() {
+            state.closed = true;
+        }
+        let _lifecycle = self.lifecycle.lock().await;
         let handle = match self.state.lock() {
-            Ok(mut state) => {
-                state.closed = true;
-                state.handle.take()
-            }
+            Ok(mut state) => state.handle.take(),
             Err(_) => None,
         };
         if let Some(handle) = handle {
@@ -132,6 +139,10 @@ fn closed_error() -> io::Error {
 fn state_lock_error<T>(_: std::sync::PoisonError<T>) -> io::Error {
     io::Error::other("GUI host manager state is poisoned")
 }
+
+#[cfg(test)]
+#[path = "gui_host_lifecycle_tests.rs"]
+mod lifecycle_tests;
 
 #[cfg(test)]
 mod tests {
