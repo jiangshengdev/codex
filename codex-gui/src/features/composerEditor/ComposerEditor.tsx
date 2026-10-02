@@ -24,6 +24,7 @@ import { ComposerClipboardPlugin } from "./ComposerClipboardPlugin";
 import { ComposerContentModelPlugin } from "./ComposerContentModelPlugin";
 import { SelectedSkillPresentationEnvironment } from "./SelectedSkillToken";
 import { ComposerAtomicNodePlugin } from "./ComposerAtomicNodePlugin";
+import { ComposerDeletionSelectionPlugin } from "./ComposerDeletionSelectionPlugin";
 import {
   captureComposerDraft,
   composerDraftCaptureMatchesEditorState,
@@ -179,6 +180,7 @@ export function ComposerEditor({
           />
           <EditablePlugin disabled={disabled} />
           <ComposerAtomicNodePlugin />
+          <ComposerDeletionSelectionPlugin />
           {skillMenuParent == null ? null : (
             <SkillTypeaheadPlugin
               onRetry={onRetrySkillCatalog}
