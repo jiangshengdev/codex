@@ -60,26 +60,6 @@ impl GuiHost {
             config,
             backend,
             crate::net::discover_advertised_hosts(/*include_ipv6*/ false),
-            /*preferred_port*/ 80,
-        )
-        .await
-    }
-
-    /// Starts an isolated test host using the production startup path.
-    #[doc(hidden)]
-    pub async fn start_for_test<B>(
-        config: GuiHostConfig,
-        backend: B,
-        preferred_port: u16,
-    ) -> io::Result<GuiHostHandle>
-    where
-        B: GuiBackend + Clone,
-    {
-        start_with_advertised_hosts(
-            config,
-            backend,
-            crate::net::discover_advertised_hosts(/*include_ipv6*/ false),
-            preferred_port,
         )
         .await
     }
@@ -214,13 +194,12 @@ async fn start_with_advertised_hosts<B>(
     config: GuiHostConfig,
     backend: B,
     advertised_hosts: Vec<AdvertisedHost>,
-    preferred_port: u16,
 ) -> io::Result<GuiHostHandle>
 where
     B: GuiBackend + Clone,
 {
     let advertised_hosts = ensure_advertised_hosts(advertised_hosts);
-    let listener = bind_listener(preferred_port, |port| {
+    let listener = bind_listener(config.port, |port| {
         TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, port))
     })
     .await?;
@@ -286,18 +265,6 @@ fn ensure_advertised_hosts(advertised_hosts: Vec<AdvertisedHost>) -> Vec<Adverti
 }
 
 #[cfg(test)]
-async fn start_with_advertised_hosts_for_test<B>(
-    config: GuiHostConfig,
-    backend: B,
-    advertised_hosts: Vec<AdvertisedHost>,
-) -> io::Result<GuiHostHandle>
-where
-    B: GuiBackend + Clone,
-{
-    start_with_advertised_hosts(config, backend, advertised_hosts, /*preferred_port*/ 0).await
-}
-
-#[cfg(test)]
 #[path = "port_tests.rs"]
 mod port_tests;
 
@@ -313,7 +280,7 @@ mod tests {
     use tokio_tungstenite::tungstenite::protocol::CloseFrame;
     use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 
-    use super::start_with_advertised_hosts_for_test;
+    use super::start_with_advertised_hosts;
     use crate::AdvertisedHost;
     use crate::GuiHostConfig;
     use crate::GuiHostMode;
@@ -329,14 +296,14 @@ mod tests {
 
     #[tokio::test]
     async fn binds_unspecified_ipv4_ephemeral_port() {
-        let handle = GuiHost::start_for_test(
+        let handle = GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(crate::DevAssetProxyConfig {
                     vite_origin: "http://127.0.0.1:5173".to_string(),
                 }),
             },
             NoopBackend,
-            /*preferred_port*/ 0,
         )
         .await
         .expect("host should start");
@@ -360,14 +327,14 @@ mod tests {
         )
         .await
         .expect("index should be written");
-        let handle = GuiHost::start_for_test(
+        let handle = GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Prod(ProdAssetConfig {
                     package_root: package_root.path().to_path_buf(),
                 }),
             },
             NoopBackend,
-            /*preferred_port*/ 0,
         )
         .await
         .expect("host should start");
@@ -417,7 +384,7 @@ mod tests {
         tokio::fs::write(package_root.path().join("dist/app.js"), "export {};")
             .await
             .expect("asset should be written");
-        let handle = GuiHost::start_for_test(config, NoopBackend, /*preferred_port*/ 0)
+        let handle = GuiHost::start(config, NoopBackend)
             .await
             .expect("host should start");
         let client = reqwest::Client::new();
@@ -542,14 +509,14 @@ mod tests {
         )
         .await
         .expect("index should be written");
-        let handle = GuiHost::start_for_test(
+        let handle = GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Prod(ProdAssetConfig {
                     package_root: package_root.path().to_path_buf(),
                 }),
             },
             NoopBackend,
-            /*preferred_port*/ 0,
         )
         .await
         .expect("host should start");
@@ -620,7 +587,7 @@ mod tests {
         dev_handle.shutdown().await;
 
         let (_package_root, config) = prod_config().await;
-        let prod_handle = GuiHost::start_for_test(config, NoopBackend, /*preferred_port*/ 0)
+        let prod_handle = GuiHost::start(config, NoopBackend)
             .await
             .expect("prod host should start");
         let (websocket, response) = connect_websocket(&prod_handle).await;
@@ -1069,13 +1036,10 @@ mod tests {
 
     #[tokio::test]
     async fn launch_urls_for_thread_uses_advertised_hosts() {
-        let handle = start_with_advertised_hosts_for_test(
-            dev_config(),
-            NoopBackend,
-            advertised_hosts_for_test(),
-        )
-        .await
-        .expect("host should start");
+        let handle =
+            start_with_advertised_hosts(dev_config(), NoopBackend, advertised_hosts_for_test())
+                .await
+                .expect("host should start");
 
         let urls = handle.launch_urls_for_thread("thread abc/#");
         let port = handle.local_addr().port();
@@ -1119,7 +1083,7 @@ mod tests {
 
     #[tokio::test]
     async fn launch_urls_fall_back_to_local_when_no_hosts_are_advertised() {
-        let handle = start_with_advertised_hosts_for_test(dev_config(), NoopBackend, Vec::new())
+        let handle = start_with_advertised_hosts(dev_config(), NoopBackend, Vec::new())
             .await
             .expect("host should start");
 
@@ -1162,10 +1126,9 @@ mod tests {
     #[tokio::test]
     async fn host_rejects_unadvertised_http_host() {
         let (package_root, config) = prod_config().await;
-        let handle =
-            start_with_advertised_hosts_for_test(config, NoopBackend, advertised_hosts_for_test())
-                .await
-                .expect("host should start");
+        let handle = start_with_advertised_hosts(config, NoopBackend, advertised_hosts_for_test())
+            .await
+            .expect("host should start");
         let client = reqwest::Client::new();
         let port = handle.local_addr().port();
 
@@ -1253,14 +1216,14 @@ mod tests {
     where
         B: crate::GuiBackend + Clone,
     {
-        GuiHost::start_for_test(
+        GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(crate::DevAssetProxyConfig {
                     vite_origin: "http://127.0.0.1:5173".to_string(),
                 }),
             },
             backend,
-            /*preferred_port*/ 0,
         )
         .await
         .expect("host should start")
@@ -1270,13 +1233,14 @@ mod tests {
     where
         B: crate::GuiBackend + Clone,
     {
-        start_with_advertised_hosts_for_test(dev_config(), backend, advertised_hosts_for_test())
+        start_with_advertised_hosts(dev_config(), backend, advertised_hosts_for_test())
             .await
             .expect("host should start")
     }
 
     fn dev_config() -> GuiHostConfig {
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(crate::DevAssetProxyConfig {
                 vite_origin: "http://127.0.0.1:5173".to_string(),
             }),
@@ -1300,6 +1264,7 @@ mod tests {
         (
             package_root,
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Prod(ProdAssetConfig {
                     package_root: package_root_path,
                 }),

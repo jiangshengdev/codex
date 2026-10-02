@@ -44,12 +44,12 @@ async fn file_upload_storage_and_transport_failures() -> Result<()> {
         );
         return Ok(());
     }
-    let host = GuiHost::start_for_test(
+    let host = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
         },
         NoopBackend,
-        /*preferred_port*/ 0,
     )
     .await?;
     let authority = format!("127.0.0.1:{}", host.local_addr().port());

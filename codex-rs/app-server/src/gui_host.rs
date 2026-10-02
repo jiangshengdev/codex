@@ -20,8 +20,6 @@ pub struct GuiHostManager {
     lifecycle: tokio::sync::Mutex<()>,
     #[cfg(test)]
     start_pause: Option<Arc<lifecycle_tests::StartPause>>,
-    #[cfg(test)]
-    pub(crate) preferred_port: u16,
 }
 
 #[derive(Default)]
@@ -51,8 +49,6 @@ impl GuiHostManager {
             lifecycle: tokio::sync::Mutex::new(()),
             #[cfg(test)]
             start_pause: None,
-            #[cfg(test)]
-            preferred_port: 0,
         }
     }
 
@@ -72,11 +68,7 @@ impl GuiHostManager {
         }
 
         let backend = GuiTransportBackend::new(Arc::clone(&self.opener));
-        #[cfg(not(test))]
         let new_handle = GuiHost::start(self.config.clone(), backend).await?;
-        #[cfg(test)]
-        let new_handle =
-            GuiHost::start_for_test(self.config.clone(), backend, self.preferred_port).await?;
         #[cfg(test)]
         if let Some(pause) = &self.start_pause {
             *pause.address.lock().unwrap() = Some(new_handle.local_addr());
@@ -168,6 +160,7 @@ mod tests {
         let manager = GuiHostManager::new(
             client.sender(),
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: "http://127.0.0.1:5173".to_string(),
                 }),
@@ -221,6 +214,7 @@ mod tests {
         let manager = GuiHostManager::new(
             client.sender(),
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: "http://127.0.0.1:5173".to_string(),
                 }),

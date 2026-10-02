@@ -15,12 +15,12 @@ struct NoopBackend;
 
 #[tokio::test]
 async fn file_preview_returns_uploaded_image_bytes_without_origin() -> Result<()> {
-    let host = GuiHost::start_for_test(
+    let host = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
         },
         NoopBackend,
-        /*preferred_port*/ 0,
     )
     .await?;
     let origin = format!("http://127.0.0.1:{}", host.local_addr().port());
@@ -56,11 +56,12 @@ async fn file_preview_survives_host_restart_and_identifies_supported_media() -> 
     let package = tempfile::tempdir()?;
     tokio::fs::create_dir(package.path().join("dist")).await?;
     let config = GuiHostConfig {
+        port: 0,
         mode: GuiHostMode::Prod(codex_gui_host::ProdAssetConfig {
             package_root: package.path().to_path_buf(),
         }),
     };
-    let host = GuiHost::start_for_test(config.clone(), NoopBackend, /*preferred_port*/ 0).await?;
+    let host = GuiHost::start(config.clone(), NoopBackend).await?;
     let origin = format!("http://127.0.0.1:{}", host.local_addr().port());
     let client = reqwest::Client::new();
     let mut uploaded = Vec::new();
@@ -83,7 +84,7 @@ async fn file_preview_survives_host_restart_and_identifies_supported_media() -> 
         uploaded.push((response.text().await?, contents, content_type));
     }
     host.shutdown().await;
-    let host = GuiHost::start_for_test(config, NoopBackend, /*preferred_port*/ 0).await?;
+    let host = GuiHost::start(config, NoopBackend).await?;
     let origin = format!("http://127.0.0.1:{}", host.local_addr().port());
     for (path, contents, content_type) in uploaded {
         let response = client
@@ -110,12 +111,12 @@ impl GuiBackend for NoopBackend {
 
 #[tokio::test]
 async fn file_preview_requires_token_trusted_host_and_valid_origin_when_present() -> Result<()> {
-    let host = GuiHost::start_for_test(
+    let host = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
         },
         NoopBackend,
-        /*preferred_port*/ 0,
     )
     .await?;
     let origin = format!("http://127.0.0.1:{}", host.local_addr().port());
@@ -177,12 +178,12 @@ async fn file_preview_requires_token_trusted_host_and_valid_origin_when_present(
 
 #[tokio::test]
 async fn file_preview_rejects_non_upload_paths_non_images_and_oversized_files() -> Result<()> {
-    let host = GuiHost::start_for_test(
+    let host = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
         },
         NoopBackend,
-        /*preferred_port*/ 0,
     )
     .await?;
     let origin = format!("http://127.0.0.1:{}", host.local_addr().port());
@@ -239,12 +240,12 @@ async fn file_preview_rejects_non_upload_paths_non_images_and_oversized_files() 
 #[cfg(unix)]
 #[tokio::test]
 async fn file_preview_rejects_symbolic_links() -> Result<()> {
-    let host = GuiHost::start_for_test(
+    let host = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
         },
         NoopBackend,
-        /*preferred_port*/ 0,
     )
     .await?;
     let origin = format!("http://127.0.0.1:{}", host.local_addr().port());
@@ -271,12 +272,12 @@ async fn file_preview_rejects_symbolic_links() -> Result<()> {
 
 #[tokio::test]
 async fn file_upload_shutdown_does_not_wait_for_stalled_client() -> Result<()> {
-    let host = GuiHost::start_for_test(
+    let host = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
         },
         NoopBackend,
-        /*preferred_port*/ 0,
     )
     .await?;
     let authority = format!("127.0.0.1:{}", host.local_addr().port());
@@ -298,12 +299,12 @@ async fn file_upload_shutdown_does_not_wait_for_stalled_client() -> Result<()> {
 
 #[tokio::test]
 async fn file_upload_preserves_original_bytes_and_survives_shutdown() -> Result<()> {
-    let host = GuiHost::start_for_test(
+    let host = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
         },
         NoopBackend,
-        /*preferred_port*/ 0,
     )
     .await?;
     let origin = format!("http://127.0.0.1:{}", host.local_addr().port());
@@ -330,12 +331,12 @@ async fn file_upload_preserves_original_bytes_and_survives_shutdown() -> Result<
 
 #[tokio::test]
 async fn file_upload_enforces_limit_on_actual_streamed_bytes() -> Result<()> {
-    let host = GuiHost::start_for_test(
+    let host = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
         },
         NoopBackend,
-        /*preferred_port*/ 0,
     )
     .await?;
     let origin = format!("http://127.0.0.1:{}", host.local_addr().port());
@@ -369,12 +370,12 @@ async fn file_upload_enforces_limit_on_actual_streamed_bytes() -> Result<()> {
 
 #[tokio::test]
 async fn file_upload_requires_token_and_same_origin() -> Result<()> {
-    let host = GuiHost::start_for_test(
+    let host = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
         },
         NoopBackend,
-        /*preferred_port*/ 0,
     )
     .await?;
     let origin = format!("http://127.0.0.1:{}", host.local_addr().port());
@@ -406,14 +407,14 @@ async fn file_upload_requires_token_and_same_origin() -> Result<()> {
 async fn file_upload_prod_keeps_same_named_files_distinct() -> Result<()> {
     let package = tempfile::tempdir()?;
     tokio::fs::create_dir(package.path().join("dist")).await?;
-    let host = GuiHost::start_for_test(
+    let host = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Prod(codex_gui_host::ProdAssetConfig {
                 package_root: package.path().to_path_buf(),
             }),
         },
         NoopBackend,
-        /*preferred_port*/ 0,
     )
     .await?;
     let origin = format!("http://127.0.0.1:{}", host.local_addr().port());

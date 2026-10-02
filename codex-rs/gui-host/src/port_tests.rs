@@ -88,14 +88,14 @@ async fn uses_preferred_port_when_available() {
         .expect("reserve port");
     let preferred_port = reservation.local_addr().expect("address").port();
     drop(reservation);
-    let handle = GuiHost::start_for_test(
+    let handle = GuiHost::start(
         GuiHostConfig {
+            port: preferred_port,
             mode: GuiHostMode::Dev(DevAssetProxyConfig {
                 vite_origin: "http://127.0.0.1:5173".to_string(),
             }),
         },
         NoopBackend,
-        preferred_port,
     )
     .await
     .expect("host should start");
@@ -113,18 +113,19 @@ async fn occupied_preferred_port_falls_back_without_moving_after_release() {
         .expect("reserve port");
     let preferred_port = occupied.local_addr().expect("address").port();
     let config = GuiHostConfig {
+        port: preferred_port,
         mode: GuiHostMode::Dev(DevAssetProxyConfig {
             vite_origin: "http://127.0.0.1:5173".to_string(),
         }),
     };
-    let handle = GuiHost::start_for_test(config.clone(), NoopBackend, preferred_port)
+    let handle = GuiHost::start(config.clone(), NoopBackend)
         .await
         .expect("occupied port should fall back");
     let fallback_port = handle.local_addr().port();
     assert_ne!(fallback_port, preferred_port);
     assert_ne!(fallback_port, 0);
     drop(occupied);
-    let restarted = GuiHost::start_for_test(config, NoopBackend, preferred_port)
+    let restarted = GuiHost::start(config, NoopBackend)
         .await
         .expect("released preferred port should be available");
     assert_eq!(restarted.local_addr().port(), preferred_port);
@@ -154,6 +155,7 @@ async fn production_default_port_80_serves_http_and_authenticates_websocket() {
         .expect("index file");
     let handle = GuiHost::start(
         GuiHostConfig {
+            port: 80,
             mode: GuiHostMode::Prod(crate::ProdAssetConfig {
                 package_root: package.path().to_path_buf(),
             }),

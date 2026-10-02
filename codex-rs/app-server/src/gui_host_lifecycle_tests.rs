@@ -19,6 +19,7 @@ async fn shutdown_waits_for_inflight_gui_launch_cleanup() {
     let mut manager = GuiHostManager::new_with_opener(
         bridge.opener(),
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
         },
     );
@@ -61,6 +62,7 @@ async fn concurrent_gui_launches_share_a_live_host_and_preserve_tasks() {
     let mut manager = GuiHostManager::new_with_opener(
         bridge.opener(),
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
         },
     );

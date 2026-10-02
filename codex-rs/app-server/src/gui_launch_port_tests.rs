@@ -16,10 +16,10 @@ async fn occupied_port_falls_back_and_restart_reclaims_preferred_port() {
     let preferred_port = occupied.local_addr().unwrap().port();
     let bridge = crate::gui_connection_bridge::test_support::start_local_bridge_for_test().await;
     let config = GuiHostConfig {
+        port: preferred_port,
         mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
     };
-    let mut manager = GuiHostManager::new_with_opener(bridge.opener(), config.clone());
-    manager.preferred_port = preferred_port;
+    let manager = GuiHostManager::new_with_opener(bridge.opener(), config.clone());
     let fallback = AppServerGuiLaunchService::new(manager);
     let task = ThreadId::new();
     let urls = fallback.launch_urls_for_thread(task).await.unwrap();
@@ -39,8 +39,7 @@ async fn occupied_port_falls_back_and_restart_reclaims_preferred_port() {
     drop(occupied);
     assert_eq!(fallback.launch_urls_for_thread(task).await.unwrap(), urls);
 
-    let mut manager = GuiHostManager::new_with_opener(bridge.opener(), config.clone());
-    manager.preferred_port = preferred_port;
+    let manager = GuiHostManager::new_with_opener(bridge.opener(), config.clone());
     let preferred = AppServerGuiLaunchService::new(manager);
     let preferred_urls = preferred
         .launch_urls_for_thread(ThreadId::new())
@@ -50,8 +49,7 @@ async fn occupied_port_falls_back_and_restart_reclaims_preferred_port() {
     assert_eq!(preferred_url.port_or_known_default(), Some(preferred_port));
     assert_ne!(preferred_url.fragment(), fallback_url.fragment());
 
-    let mut manager = GuiHostManager::new_with_opener(bridge.opener(), config.clone());
-    manager.preferred_port = preferred_port;
+    let manager = GuiHostManager::new_with_opener(bridge.opener(), config.clone());
     let third = AppServerGuiLaunchService::new(manager);
     let third_urls = third.launch_urls_for_thread(ThreadId::new()).await.unwrap();
     let third_url = url::Url::parse(&third_urls.entries[0].url).unwrap();
@@ -65,8 +63,7 @@ async fn occupied_port_falls_back_and_restart_reclaims_preferred_port() {
     }
     preferred.shutdown().await;
     assert_eq!(fallback.launch_urls_for_thread(task).await.unwrap(), urls);
-    let mut manager = GuiHostManager::new_with_opener(bridge.opener(), config);
-    manager.preferred_port = preferred_port;
+    let manager = GuiHostManager::new_with_opener(bridge.opener(), config);
     let restarted = AppServerGuiLaunchService::new(manager);
     let restarted_urls = restarted
         .launch_urls_for_thread(ThreadId::new())
@@ -88,13 +85,13 @@ async fn occupied_port_falls_back_and_restart_reclaims_preferred_port() {
 #[ignore = "requires port 80 to be available and permitted; run explicitly for acceptance"]
 async fn real_port_80_gui_url_accepts_browser_default_authority() {
     let bridge = crate::gui_connection_bridge::test_support::start_local_bridge_for_test().await;
-    let mut manager = GuiHostManager::new_with_opener(
+    let manager = GuiHostManager::new_with_opener(
         bridge.opener(),
         GuiHostConfig {
+            port: 80,
             mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
         },
     );
-    manager.preferred_port = 80;
     let service = AppServerGuiLaunchService::new(manager);
     let urls = service
         .launch_urls_for_thread(ThreadId::new())
