@@ -14,10 +14,13 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import { createActiveThreadMemberLifecycle } from "../activeThreadMemberLifecycle";
 import { createActiveThreadConnection } from "../activeThreadConnection";
+import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   attachWithSnapshotThread,
   eventWithEnvelope,
   closedWithEnvelope,
+  attachWithGoal,
+  threadGoal,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 const threadId = attachBaseline.snapshot.thread.id;
@@ -56,6 +59,102 @@ function createHarness(
 }
 
 describe("active thread member lifecycle", () => {
+  it.each([true, false])("reads the goal when opening a task (loaded: %s)", async (loaded) => {
+    const h = createHarness();
+    const goal = threadGoal(threadId);
+    vi.mocked(h.commands.listLoadedThreads).mockResolvedValue({
+      data: loaded ? [threadId] : [],
+      nextCursor: null,
+    });
+    vi.mocked(h.commands.attachThreadProjection).mockResolvedValue(
+      attachWithGoal(attachBaseline, goal),
+    );
+    await h.member.initialize();
+    expect(h.member.getState().phase).toBe("ready");
+    expect(selectThreadRuntimeRecord(h.store.getState(), threadId)).toMatchObject({ goal });
+    h.member.dispose();
+  });
+
+  it("opens a task without a goal", async () => {
+    const h = createHarness();
+    vi.mocked(h.commands.attachThreadProjection).mockResolvedValue(
+      attachWithGoal(attachBaseline, null),
+    );
+    await h.member.initialize();
+    expect(h.member.getState().phase).toBe("ready");
+    expect(selectThreadRuntimeRecord(h.store.getState(), threadId)).toMatchObject({ goal: null });
+    h.member.dispose();
+  });
+
+  it.each(["connection", "projection"] as const)(
+    "refreshes the goal on %s recovery",
+    async (mode) => {
+      const h = createHarness();
+      vi.mocked(h.commands.attachThreadProjection).mockResolvedValue(
+        attachWithGoal(attachBaseline, threadGoal(threadId)),
+      );
+      await h.member.initialize();
+      const initial = h.member.getState().snapshot;
+      if (initial?.phase !== "active") throw new Error("expected active member");
+      for (const goal of [
+        threadGoal(threadId, { objective: "Changed while disconnected", status: "complete" }),
+        null,
+      ]) {
+        vi.mocked(h.commands.attachThreadProjection).mockResolvedValue(
+          attachWithGoal(attachBaseline, goal),
+        );
+        if (mode === "connection") {
+          h.member.connectionUnavailable();
+          h.connection.replace(h.commands);
+        } else h.member.handleProjectionClosed(closedBackpressure);
+        const result =
+          mode === "connection"
+            ? await h.member.recoverConnection(initial.identity)
+            : await h.member.recoverProjection(initial.identity);
+        expect(result).toEqual({ type: "recovered" });
+        expect(selectThreadRuntimeRecord(h.store.getState(), threadId)).toMatchObject({ goal });
+      }
+      h.member.dispose();
+    },
+  );
+
+  it("reports a required goal read failure instead of publishing an empty goal", async () => {
+    const h = createHarness();
+    const error = new Error("failed to read thread goal");
+    vi.mocked(h.commands.attachThreadProjection).mockRejectedValue(error);
+    await h.member.initialize();
+    expect(h.member.getState()).toMatchObject({ phase: "failed", error });
+    expect(selectThreadRuntimeRecord(h.store.getState(), threadId)).toBeNull();
+    h.member.dispose();
+  });
+
+  it.each(["connection", "projection"] as const)(
+    "keeps the retained goal and reports failure during %s recovery",
+    async (mode) => {
+      const h = createHarness();
+      const goal = threadGoal(threadId);
+      vi.mocked(h.commands.attachThreadProjection).mockResolvedValue(
+        attachWithGoal(attachBaseline, goal),
+      );
+      await h.member.initialize();
+      const initial = h.member.getState().snapshot;
+      if (initial?.phase !== "active") throw new Error("expected active member");
+      const error = new Error("failed to read thread goal");
+      vi.mocked(h.commands.attachThreadProjection).mockRejectedValue(error);
+      if (mode === "connection") {
+        h.member.connectionUnavailable();
+        h.connection.replace(h.commands);
+      } else h.member.handleProjectionClosed(closedBackpressure);
+      const result =
+        mode === "connection"
+          ? await h.member.recoverConnection(initial.identity)
+          : await h.member.recoverProjection(initial.identity);
+      expect(result).toMatchObject({ type: "failed", error });
+      expect(selectThreadRuntimeRecord(h.store.getState(), threadId)).toMatchObject({ goal });
+      h.member.dispose();
+    },
+  );
+
   it("stops recovery pagination at a later loaded match without resuming", async () => {
     const h = createHarness();
     await h.member.initialize();

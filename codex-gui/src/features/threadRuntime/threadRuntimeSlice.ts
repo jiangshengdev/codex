@@ -6,13 +6,14 @@ import {
 } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type { ActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
 import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
-import type { Thread, ThreadTokenUsage } from "@codex-protocol/v2";
+import type { Thread, ThreadGoal, ThreadTokenUsage } from "@codex-protocol/v2";
 
 export type ThreadRuntimeRecord = {
   sessionRevision: number;
   threadId: string;
   thread: Omit<Thread, "turns" | "status">;
   tokenUsage: ThreadTokenUsage | null;
+  goal: ThreadGoal | null;
 };
 
 export type ThreadRuntimeSlot = {
@@ -48,6 +49,7 @@ const applyRuntimeFact = (
         threadId: thread.id,
         thread,
         tokenUsage: fact.response.snapshot.tokenUsage,
+        goal: fact.response.snapshot.goal,
       };
       return;
     }

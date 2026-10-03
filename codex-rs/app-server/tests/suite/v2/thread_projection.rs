@@ -36,12 +36,118 @@ use codex_protocol::config_types::CollaborationMode;
 use codex_protocol::config_types::ModeKind;
 use codex_protocol::config_types::Settings;
 use codex_protocol::openai_models::ReasoningEffort;
+use codex_utils_absolute_path::test_support::PathExt;
 use core_test_support::responses;
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 use tokio::time::timeout;
 
 const DEFAULT_READ_TIMEOUT: Duration = Duration::from_secs(10);
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn thread_projection_attach_reads_existing_goal() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let server = responses::start_mock_server().await;
+    app_test_support::MockResponsesConfig::new(&server.uri())
+        .enable_feature(codex_features::Feature::Goals)
+        .enable_feature(codex_features::Feature::Sqlite)
+        .write(codex_home.path())?;
+    let mut app_server = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
+        .await?;
+    let thread = app_server
+        .start_thread(ThreadStartParams::default())
+        .await?;
+    let request = app_server
+        .send_raw_request(
+            "thread/goal/set",
+            Some(serde_json::json!({
+                "threadId": thread.thread.id,
+                "objective": "Read the existing goal",
+                "status": "paused",
+                "tokenBudget": 1000,
+            })),
+        )
+        .await?;
+    let goal: codex_app_server_protocol::ThreadGoalSetResponse =
+        timeout(DEFAULT_READ_TIMEOUT, app_server.read_response(request)).await??;
+    let request = app_server
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+            thread_id: thread.thread.id,
+        })
+        .await?;
+    let attached: serde_json::Value =
+        timeout(DEFAULT_READ_TIMEOUT, app_server.read_response(request)).await??;
+    assert_eq!(
+        attached["snapshot"]["goal"],
+        serde_json::to_value(goal.goal)?
+    );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn thread_projection_goal_respects_support_and_read_errors() -> Result<()> {
+    for (goals, broken_database, ephemeral, expected_error) in [
+        (true, false, false, None),
+        (false, false, false, None),
+        (
+            true,
+            false,
+            true,
+            Some("ephemeral threads do not support thread/turns/list"),
+        ),
+        (true, true, false, Some("failed to read thread goal")),
+    ] {
+        let codex_home = TempDir::new()?;
+        let sqlite_home = codex_home.path().to_string_lossy();
+        let server = responses::start_mock_server().await;
+        app_test_support::MockResponsesConfig::new(&server.uri())
+            .with_extra_config(&format!("[features]\ngoals = {goals}\n"))
+            .write(codex_home.path())?;
+        let mut app_server = TestAppServer::builder()
+            .with_codex_home(codex_home.path())
+            .with_env_overrides(&[("CODEX_SQLITE_HOME", Some(sqlite_home.as_ref()))])
+            .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
+            .await?;
+        let thread = app_server
+            .start_thread(ThreadStartParams {
+                ephemeral: Some(ephemeral),
+                ..Default::default()
+            })
+            .await?;
+        if broken_database {
+            let sqlite = codex_state::SqliteConfig::new_for_testing(codex_home.path().abs());
+            let pool = sqlite.open_read_write_pool(&sqlite.goals_db_path()).await?;
+            sqlx::query("DROP TABLE thread_goals")
+                .execute(&pool)
+                .await?;
+            pool.close().await;
+        }
+        let request = app_server
+            .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+                thread_id: thread.thread.id,
+            })
+            .await?;
+        if let Some(expected_error) = expected_error {
+            let error = timeout(
+                DEFAULT_READ_TIMEOUT,
+                app_server.read_stream_until_error_message(RequestId::Integer(request)),
+            )
+            .await??;
+            assert!(
+                error.error.message.contains(expected_error),
+                "{}",
+                error.error.message
+            );
+        } else {
+            let attached: ThreadProjectionAttachResponse =
+                timeout(DEFAULT_READ_TIMEOUT, app_server.read_response(request)).await??;
+            assert_eq!(attached.snapshot.goal, None);
+        }
+    }
+    Ok(())
+}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn thread_projection_attach_returns_snapshot_and_detach_status() -> Result<()> {

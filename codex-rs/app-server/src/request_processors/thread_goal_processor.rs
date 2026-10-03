@@ -221,7 +221,7 @@ impl ThreadGoalRequestProcessor {
         Ok(())
     }
 
-    async fn thread_goal_get_inner(
+    pub(super) async fn thread_goal_get_inner(
         &self,
         params: ThreadGoalGetParams,
     ) -> Result<ThreadGoalGetResponse, JSONRPCErrorError> {

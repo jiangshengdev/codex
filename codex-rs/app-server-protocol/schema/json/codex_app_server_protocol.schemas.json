@@ -22764,6 +22764,16 @@
       },
       "ThreadProjectionSnapshot": {
         "properties": {
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ThreadGoal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "headCommitId": {
             "type": [
               "string",

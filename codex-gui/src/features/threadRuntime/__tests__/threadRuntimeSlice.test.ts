@@ -72,6 +72,7 @@ describe("thread runtime derived read model", () => {
         threadId: attachBaseline.snapshot.thread.id,
         thread,
         tokenUsage: attachBaseline.snapshot.tokenUsage,
+        goal: null,
       },
     });
     expect(selectThreadRuntimeRecord(runtimeRoot(state), identity.threadId)).toStrictEqual(
