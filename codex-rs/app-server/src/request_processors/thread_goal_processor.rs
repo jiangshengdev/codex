@@ -493,7 +493,7 @@ fn thread_settings_applied_item(
     ))
 }
 
-pub(crate) fn api_thread_goal_from_state(goal: codex_state::ThreadGoal) -> ThreadGoal {
+pub(super) fn api_thread_goal_from_state(goal: codex_state::ThreadGoal) -> ThreadGoal {
     ThreadGoal {
         thread_id: goal.thread_id.to_string(),
         objective: goal.objective,

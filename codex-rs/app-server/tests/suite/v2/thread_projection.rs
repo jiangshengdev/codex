@@ -150,22 +150,6 @@ async fn thread_projection_attach_includes_token_usage_baseline() -> Result<()> 
     .await??;
     assert_eq!(TurnStatus::Completed, completed.turn.status);
 
-    let completion_goal = timeout(DEFAULT_READ_TIMEOUT, async {
-        loop {
-            let event: ThreadProjectionEventNotification =
-                mcp.read_notification("thread/projection/event").await?;
-            if let ThreadProjectionEvent::TurnCompleted { notification, goal } = event.event {
-                assert_eq!(notification, completed);
-                return Ok::<_, anyhow::Error>(goal);
-            }
-        }
-    })
-    .await??;
-    assert_eq!(
-        completion_goal,
-        codex_app_server_protocol::ThreadGoalStatusSnapshot::Known { status: None }
-    );
-
     let reattach = attach_projection(&mut mcp, &thread.id).await?;
     let token_usage = reattach
         .snapshot

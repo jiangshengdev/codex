@@ -4440,53 +4440,6 @@
       ],
       "type": "string"
     },
-    "ThreadGoalStatusSnapshot": {
-      "description": "Authoritative goal state read when publishing a completed turn.",
-      "oneOf": [
-        {
-          "properties": {
-            "status": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/ThreadGoalStatus"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": {
-              "enum": [
-                "known"
-              ],
-              "title": "KnownThreadGoalStatusSnapshotType",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type"
-          ],
-          "title": "KnownThreadGoalStatusSnapshot",
-          "type": "object"
-        },
-        {
-          "properties": {
-            "type": {
-              "enum": [
-                "unavailable"
-              ],
-              "title": "UnavailableThreadGoalStatusSnapshotType",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type"
-          ],
-          "title": "UnavailableThreadGoalStatusSnapshot",
-          "type": "object"
-        }
-      ]
-    },
     "ThreadGoalUpdatedNotification": {
       "properties": {
         "goal": {
@@ -5551,9 +5504,6 @@
         },
         {
           "properties": {
-            "goal": {
-              "$ref": "#/definitions/ThreadGoalStatusSnapshot"
-            },
             "notification": {
               "$ref": "#/definitions/TurnCompletedNotification"
             },
@@ -5566,7 +5516,6 @@
             }
           },
           "required": [
-            "goal",
             "notification",
             "type"
           ],

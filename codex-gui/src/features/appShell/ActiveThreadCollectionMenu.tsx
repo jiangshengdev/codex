@@ -16,7 +16,7 @@ import { useActiveThreadCollectionSnapshot, useAppCapabilities } from "./AppCapa
 import { activeThreadRemovalBlockerMessage } from "./activeThreadCollectionMessages";
 import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation";
 import { useActiveTaskNavigation } from "./useActiveTaskNavigation";
-import { useTaskNotificationMarker } from "@/features/taskNotifications/taskNotificationContext";
+import { useTaskWaitingMarker } from "@/features/taskNotifications/taskNotificationContext";
 
 export function ActiveThreadCollectionMenu({ close }: Readonly<{ close(): void }>) {
   const collection = useActiveThreadCollectionSnapshot();
@@ -57,7 +57,7 @@ function ActiveThreadCollectionRow({
   const runtime = useAppSelector((state) => selectThreadRuntimeRecord(state, member.threadId));
   const title = runtime?.thread.name?.trim() ? runtime.thread.name : member.threadId;
   const hasError = activeThreadMemberHasError(member);
-  const marker = useTaskNotificationMarker(member.threadId);
+  const waiting = useTaskWaitingMarker(member.threadId);
   const errorId = `active-task-error-${member.threadId}`;
   const blockerId = `active-task-removal-${member.threadId}`;
   const select = (): void => {
@@ -122,20 +122,11 @@ function ActiveThreadCollectionRow({
               data-task-error-indicator="true"
             />
           ) : null}
-          {marker?.waiting ? (
+          {waiting ? (
             <Chip size="sm" color="warning" variant="soft">
               <Chip.Label>
                 <Trans comment="Unread task-entry marker: an agent question needs the user's response">
                   Waiting for response
-                </Trans>
-              </Chip.Label>
-            </Chip>
-          ) : null}
-          {marker?.finished ? (
-            <Chip size="sm" color="default" variant="soft">
-              <Chip.Label>
-                <Trans comment="Completed task notification or unread task-entry marker">
-                  Execution finished
                 </Trans>
               </Chip.Label>
             </Chip>

@@ -488,7 +488,6 @@ export type { ThreadGoalGetResponse } from "./ThreadGoalGetResponse";
 export type { ThreadGoalSetParams } from "./ThreadGoalSetParams";
 export type { ThreadGoalSetResponse } from "./ThreadGoalSetResponse";
 export type { ThreadGoalStatus } from "./ThreadGoalStatus";
-export type { ThreadGoalStatusSnapshot } from "./ThreadGoalStatusSnapshot";
 export type { ThreadGoalUpdatedNotification } from "./ThreadGoalUpdatedNotification";
 export type { ThreadHistoryMode } from "./ThreadHistoryMode";
 export type { ThreadInjectItemsParams } from "./ThreadInjectItemsParams";

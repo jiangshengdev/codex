@@ -75,7 +75,6 @@ export function ComposerSimulation({
     threadId: "thread-1",
     subscriptionId: "preview-subscription",
     activeTurnId,
-    completion: null,
     threadStatus: activeTurnId == null ? { type: "idle" } : { type: "active", activeFlags: [] },
     compaction: { phase: "idle", canRequest: false, startFailure: null },
     compactionRole: {

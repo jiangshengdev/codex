@@ -425,9 +425,9 @@ export async function openMenu(page: Page) {
 export async function selectTask(page: Page, id: string) {
   await openMenu(page);
   await activeRow(page, id)
-    .getByRole("button")
-    .filter({
-      has: page.getByText(id === firstThreadId ? firstTitle : secondTitle, { exact: true }),
+    .getByRole("button", {
+      name: id === firstThreadId ? firstTitle : secondTitle,
+      exact: true,
     })
     .click();
   await expect(page).toHaveURL(new RegExp(`/task/${id}$`));

@@ -101,7 +101,6 @@ mod bespoke_event_handling;
 mod code_mode_host;
 mod codex_home_metrics;
 mod command_exec;
-mod completion_goal;
 mod config_layer;
 mod config_manager;
 mod config_manager_service;

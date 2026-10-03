@@ -560,7 +560,6 @@ export const turnCompleted = (
   eventTurnCompleted: ThreadProjectionEventNotification,
   commitId: string,
   turn: Turn,
-  goal?: Extract<ThreadProjectionEventNotification["event"], { type: "turnCompleted" }>["goal"],
 ): ThreadProjectionEventNotification => {
   if (eventTurnCompleted.event.type !== "turnCompleted") {
     throw new Error("fixture must contain a turnCompleted projection event");
@@ -571,7 +570,6 @@ export const turnCompleted = (
     commitId,
     event: {
       ...eventTurnCompleted.event,
-      goal: goal ?? eventTurnCompleted.event.goal,
       notification: {
         ...eventTurnCompleted.event.notification,
         turn,
