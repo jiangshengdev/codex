@@ -100,6 +100,7 @@ test("App dispatches projection display facts and updates the active session", a
     threadId,
     thread,
     tokenUsage: attachResponse.snapshot.tokenUsage,
+    goal: attachResponse.snapshot.goal,
   });
   expect(sessionSnapshot.activeTurnId).toBe(projectionEvent.event.notification.turn.id);
 });
