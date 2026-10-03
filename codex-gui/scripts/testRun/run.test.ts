@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { runIsolated } from "./run.ts";
 
 const service = {
@@ -50,6 +50,7 @@ test("a service losing its port does not start tests or connect to the competito
   const coordinatorAddress = coordinator.address();
   if (!coordinatorAddress || typeof coordinatorAddress === "string")
     throw new Error("Missing coordinator address");
+  const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
   try {
     const result = await runIsolated({
       name: "race",
@@ -63,6 +64,11 @@ test("a service losing its port does not start tests or connect to the competito
       test: client,
     });
     expect(result.code).toBe(1);
+    expect(errorLog).toHaveBeenCalledExactlyOnceWith(expect.any(Error));
+    expect(errorLog.mock.calls[0]?.[0]).toHaveProperty(
+      "message",
+      "Server exited before readiness (3)",
+    );
     expect(competingRequests).toBe(0);
     expect(await (await fetch(result.context.origin)).text()).toBe("competitor survives");
     await expect(readFile(`${result.context.directory}/evidence.txt`, "utf8")).rejects.toThrow(
@@ -72,6 +78,7 @@ test("a service losing its port does not start tests or connect to the competito
       "Server exited before readiness (3)",
     );
   } finally {
+    errorLog.mockRestore();
     await new Promise<void>((resolve) =>
       competitor.close(() => {
         resolve();
@@ -108,6 +115,7 @@ test("failed tests preserve evidence and stop their service", async () => {
 });
 
 test("cancelling startup stops only the owned service and retains its result", async () => {
+  const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
   const controller = new AbortController();
   const running = runIsolated({
     name: "cancel",
@@ -118,12 +126,18 @@ test("cancelling startup stops only the owned service and retains its result", a
   const timer = setTimeout(() => {
     controller.abort();
   }, 200);
-  const result = await running;
-  clearTimeout(timer);
-  expect(result.code).toBe(1);
-  expect(await readFile(`${result.context.directory}/result.json`, "utf8")).toContain(
-    "Test run cancelled",
-  );
+  try {
+    const result = await running;
+    expect(result.code).toBe(1);
+    expect(errorLog).toHaveBeenCalledExactlyOnceWith(expect.any(Error));
+    expect(errorLog.mock.calls[0]?.[0]).toHaveProperty("message", "Test run cancelled");
+    expect(await readFile(`${result.context.directory}/result.json`, "utf8")).toContain(
+      "Test run cancelled",
+    );
+  } finally {
+    clearTimeout(timer);
+    errorLog.mockRestore();
+  }
 });
 
 test("the user's service at 6007 remains reachable through a failed isolated run", async () => {
