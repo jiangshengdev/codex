@@ -60,10 +60,8 @@ describe("thread runtime derived read model", () => {
       threadRuntimeSlice.reducer(undefined, activeThreadReadModelSlotCreated(identity)),
       action,
     );
-    const { turns, status, ...thread } = attachBaseline.snapshot.thread;
+    const { turns: _turns, status: _status, ...thread } = attachBaseline.snapshot.thread;
 
-    expect(turns).toBe(attachBaseline.snapshot.thread.turns);
-    expect(status).toBe(attachBaseline.snapshot.thread.status);
     expect(state.byThreadId[identity.threadId]).toStrictEqual({
       identity,
       sessionRevision: 1,
