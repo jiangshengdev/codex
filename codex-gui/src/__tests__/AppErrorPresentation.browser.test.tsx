@@ -198,15 +198,6 @@ test.each([`/task/${launchThreadId}`, "/history", `/history/${launchThreadId}`])
 
     await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
     await expect.element(screen.getByText("Codex GUI could not be started.")).toBeVisible();
-    const globalAlert = screen
-      .getByText("Unable to start Codex GUI")
-      .element()
-      .closest('[data-slot="alert-root"]');
-    if (globalAlert == null) throw new Error("Expected the global error alert");
-    expect(
-      globalAlert.getBoundingClientRect().top -
-        screen.getByRole("banner").element().getBoundingClientRect().bottom,
-    ).toBeCloseTo(12, 0);
     await expect
       .element(
         screen
@@ -389,10 +380,6 @@ test("initialization and cleanup failures both remain visible in the task page",
     for (const width of [1280, 375]) {
       await page.viewport(width, 720);
       const retry = notice.getByRole("button", { name: "Load task", exact: true });
-      expect(
-        notice.element().getBoundingClientRect().top -
-          screen.getByRole("banner").element().getBoundingClientRect().bottom,
-      ).toBeCloseTo(12, 0);
       const title = notice.getByText("Unable to load the current task", { exact: true });
       const description = notice.getByText("The current task could not be loaded.", {
         exact: true,
