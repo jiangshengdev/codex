@@ -40,7 +40,36 @@ export async function capturedTarget(page: Page): Promise<TaskNotificationTarget
   expect(captured.title).toBe(firstTitle);
   expect(captured.options.body).toContain("Where next?");
   expect(captured.options.data.threadId).toBe(firstThreadId);
+  expect(captured.options.data.message).toEqual({
+    turnId: `${firstThreadId}-initial`,
+    itemId: `${firstThreadId}-initial-question`,
+  });
   return captured.options.data;
+}
+
+export async function expectNotificationMessageStart(page: Page, target: TaskNotificationTarget) {
+  await expect(page).toHaveURL(
+    (url) =>
+      url.pathname === `/task/${target.threadId}` &&
+      url.searchParams.get("turnId") === target.message?.turnId &&
+      url.searchParams.get("itemId") === target.message.itemId &&
+      url.searchParams.get("position") === "start",
+  );
+  const message = page
+    .getByRole("group", { name: "Where next?", exact: true })
+    .locator("xpath=ancestor::*[@data-transcript-entry-id][1]");
+  await expect(message).toBeVisible();
+  await expect
+    .poll(async () =>
+      message.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const bottom =
+          document.querySelector("[data-task-bottom-region]")?.getBoundingClientRect().top ??
+          window.innerHeight;
+        return rect.top >= 0 && rect.top < Math.min(bottom, window.innerHeight);
+      }),
+    )
+    .toBe(true);
 }
 
 export async function historyReady(page: Page) {

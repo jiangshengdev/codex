@@ -72,12 +72,19 @@ const MiddleTranscriptModule = ({
   chunkIds,
   hasFinalAnswer,
   middleEntryCount,
+  messagePosition,
 }: {
   chunkIds: string[];
   hasFinalAnswer: boolean;
   middleEntryCount: number;
+  messagePosition: CommittedTranscriptTurnFragmentRendererProps["messagePosition"];
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(messagePosition != null);
+  const [positionVisit, setPositionVisit] = useState(messagePosition);
+  if (positionVisit !== messagePosition) {
+    setPositionVisit(messagePosition);
+    if (messagePosition != null) setIsExpanded(true);
+  }
   const shouldShowEntries = !hasFinalAnswer || isExpanded;
 
   if (middleEntryCount === 0) {
@@ -159,7 +166,11 @@ const TurnErrorAlert = ({ error }: { error: NonNullable<TranscriptTurn["error"]>
 );
 
 export const CommittedTranscriptTurnFragment = memo(
-  ({ fragmentId, lastFragmentIdsByTurnId }: CommittedTranscriptTurnFragmentRendererProps) => {
+  ({
+    fragmentId,
+    lastFragmentIdsByTurnId,
+    messagePosition,
+  }: CommittedTranscriptTurnFragmentRendererProps) => {
     const { t } = useLingui();
     const labelTime = useTranscriptSelector(
       (state) => selectTranscriptTimeLabelsFromTranscriptState(state)[fragmentId],
@@ -170,6 +181,12 @@ export const CommittedTranscriptTurnFragment = memo(
     const turn = useTranscriptSelector((state) =>
       fragment == null ? null : selectTranscriptTurnFromTranscriptState(state, fragment.turnId),
     );
+    const middlePosition = useTranscriptSelector((state) => {
+      if (messagePosition?.position !== "start" || fragment == null) return null;
+      const chunkId =
+        state.entryChunkById[transcriptEntryIdFor(messagePosition.turnId, messagePosition.itemId)];
+      return chunkId != null && fragment.middleChunkIds.includes(chunkId) ? messagePosition : null;
+    });
 
     if (turn == null || fragment == null) {
       return null;
@@ -237,6 +254,7 @@ export const CommittedTranscriptTurnFragment = memo(
             chunkIds={fragment.middleChunkIds}
             hasFinalAnswer={fragment.finalAssistantEntryIds.length > 0}
             middleEntryCount={fragment.middleEntryCount}
+            messagePosition={middlePosition}
           />
           <FinalAssistantMessages entryIds={fragment.finalAssistantEntryIds} />
           {!isLastFragment || turn.error == null ? null : <TurnErrorAlert error={turn.error} />}

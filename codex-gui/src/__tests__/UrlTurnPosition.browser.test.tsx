@@ -46,6 +46,91 @@ afterEach(() => {
   toast.clear();
 });
 
+test("message positioning opens its context page and scrolls the message beginning into view", async () => {
+  const url = `/task/${launchThreadId}?turnId=target&itemId=answer&position=start`;
+  window.history.replaceState({}, "", url);
+  seedBrowserAuthorizationSession({ token: "position-test-secret" });
+  const fixture = attachWithTurns(attachResponse, [
+    baseTurn("target", [
+      userMessage("prompt", [textInput("Before target\n".repeat(100))]),
+      agentMessage("answer", `Target beginning\n\n${"Long message\n\n".repeat(100)}`, "commentary"),
+      agentMessage("final", "Later final result", "final_answer"),
+    ]),
+    baseTurn("latest", [
+      contextCompaction("compact"),
+      userMessage("latest", [textInput("Latest page")]),
+    ]),
+  ]);
+  const commands = createGuiHostCommands();
+  queueAttachProjectionResponse(commands, fixture);
+  const router = createAppRouter(createMemoryHistory({ initialEntries: [url] }));
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  initializeHost(getHostOptions(guiHostClientMock.startGuiHostConnection), commands);
+  const beginning = screen.getByText("Target beginning", { exact: true });
+  await expect.element(beginning).toBeVisible();
+  await expect.element(screen.getByText("Latest page", { exact: true })).not.toBeInTheDocument();
+  const expectBeginning = async () => {
+    await expect
+      .poll(() => {
+        const message = beginning.element().closest("[data-transcript-entry-id]");
+        if (message == null) throw new Error("Missing target message");
+        const bounds = message.getBoundingClientRect();
+        const top = Math.max(
+          0,
+          ...Array.from(
+            screen.container.querySelectorAll("header, [data-app-shell-top-notices]"),
+          ).map((element) => element.getBoundingClientRect().bottom),
+        );
+        return bounds.top >= top && bounds.top - top < 20;
+      })
+      .toBe(true);
+  };
+  await expectBeginning();
+  window.scrollTo({ top: 0, behavior: "instant" });
+  await router.navigate({
+    to: "/task/$threadId",
+    params: { threadId: launchThreadId },
+    search: { turnId: "target", itemId: "answer", position: "start" },
+  });
+  await expectBeginning();
+});
+
+test("a missing message opens the task without selecting a substitute target or showing a missing-turn toast", async () => {
+  const url = `/task/${launchThreadId}`;
+  window.history.replaceState({}, "", url);
+  seedBrowserAuthorizationSession({ token: "position-test-secret" });
+  const fixture = attachWithTurns(attachResponse, [
+    baseTurn("target", [userMessage("prompt", [textInput("Existing message\n".repeat(100))])]),
+  ]);
+  const commands = createGuiHostCommands();
+  queueAttachProjectionResponse(commands, fixture);
+  const router = createAppRouter(createMemoryHistory({ initialEntries: [url] }));
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  initializeHost(getHostOptions(guiHostClientMock.startGuiHostConnection), commands);
+  await expect
+    .element(screen.getByRole("article", { name: "Turn target", exact: true }))
+    .toBeVisible();
+  window.scrollTo({ top: 100, behavior: "instant" });
+  await router.navigate({
+    to: "/task/$threadId",
+    params: { threadId: launchThreadId },
+    search: { turnId: "target", itemId: "missing", position: "start" },
+  });
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        resolve();
+      }),
+    ),
+  );
+  // Normal route navigation resets scroll; a missing message must not then
+  // invoke the old missing-turn fallback that scrolls to the conversation end.
+  expect(window.scrollY).toBe(0);
+  await expect
+    .element(screen.getByText("The specified turn was not found."))
+    .not.toBeInTheDocument();
+});
+
 test("an existing empty turn is not reported as missing", async () => {
   const url = `/history/${launchThreadId}?turnId=empty-turn&position=end`;
   window.history.replaceState({}, "", url);

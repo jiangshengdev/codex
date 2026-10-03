@@ -5,6 +5,11 @@ import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThrea
 export type AsyncQuestion = NonNullable<
   Extract<ThreadItem, { type: "agentMessage" }>["questions"]
 >[number];
+export type ReceivedQuestions = Readonly<{
+  turnId: string;
+  itemId: string;
+  questions: readonly AsyncQuestion[];
+}>;
 export type QuestionAnswer = Readonly<{
   text: string;
   selectedOption: number | null;
@@ -31,7 +36,7 @@ export function answeredQuestionText(question: string, answer: string): string {
 
 /** Page-local answers. Snapshot attachment never populates this owner. */
 export class AsyncQuestions {
-  private readonly received: (readonly AsyncQuestion[])[] = [];
+  private readonly received: ReceivedQuestions[] = [];
   private readonly answers = new Map<string, QuestionAnswer>();
   private readonly questions = new Map<string, AsyncQuestion>();
   private readonly listeners = createListenerSet();
@@ -45,7 +50,7 @@ export class AsyncQuestions {
   readonly subscribe = (listener: () => void) => this.listeners.subscribe(listener);
   readonly get = (key: string): QuestionAnswer | null => this.answers.get(key) ?? null;
   /** Live question batches only; shares answer deduplication and projection replay rules. */
-  readonly getReceived = (): readonly (readonly AsyncQuestion[])[] => this.received;
+  readonly getReceived = (): readonly ReceivedQuestions[] => this.received;
 
   observe(fact: ActiveThreadProjectionAcceptedEvent): void {
     const event = fact.notification.event;
@@ -65,7 +70,7 @@ export class AsyncQuestions {
         status: "pending",
       });
     }
-    if (received.length > 0) this.received.push(received);
+    if (received.length > 0) this.received.push({ turnId, itemId: item.id, questions: received });
     this.listeners.notify();
   }
 

@@ -5,7 +5,12 @@ import { plural } from "@lingui/core/macro";
 import { useAppSelector } from "@/app/hooks";
 import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
 import { useActiveTaskNavigation } from "@/features/appShell/useActiveTaskNavigation";
-import type { AsyncQuestion, AsyncQuestions } from "@/features/asyncQuestions/asyncQuestions";
+import type {
+  AsyncQuestion,
+  AsyncQuestions,
+  ReceivedQuestions,
+} from "@/features/asyncQuestions/asyncQuestions";
+import type { TaskNotificationTarget } from "./taskNotificationProtocol";
 import { selectGuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import { TaskNotificationContext } from "./taskNotificationContext";
 import { TaskNotificationMarkers } from "./taskNotificationMarkers";
@@ -40,17 +45,21 @@ export function TaskNotifications({ children }: Readonly<{ children: ReactNode }
       comment: "Browser notification body; preview is the agent's question title",
     });
   });
-  const select = useEffectEvent((threadId: string) => {
-    navigation.select(threadId);
+  const select = useEffectEvent((target: TaskNotificationTarget) => {
+    navigation.select(target.threadId, target.message);
   });
 
   useEffect(() => {
     if (session == null) return;
     const observed = new Map<AsyncQuestions, { count: number; unsubscribe(): void }>();
-    const notifications = connectBrowserTaskNotifications((threadId) => {
-      if (!session.getCollectionSnapshot().members.some((member) => member.threadId === threadId))
+    const notifications = connectBrowserTaskNotifications((target) => {
+      if (
+        !session
+          .getCollectionSnapshot()
+          .members.some((member) => member.threadId === target.threadId)
+      )
         return false;
-      select(threadId);
+      select(target);
       return true;
     });
     const viewing = (): string | null => {
@@ -69,13 +78,17 @@ export function TaskNotifications({ children }: Readonly<{ children: ReactNode }
       if (threadId == null) return;
       markers.viewed(threadId);
     };
-    const receive = (threadId: string, questions: readonly AsyncQuestion[]) => {
+    const receive = (threadId: string, batch: ReceivedQuestions) => {
       if (viewing() === threadId) return;
       markers.mark(threadId);
       if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
       const title = titleFor(threadId);
-      const body = describe(questions);
-      void notifications?.show(threadId, title, body);
+      const body = describe(batch.questions);
+      void notifications?.show(
+        { threadId, message: { turnId: batch.turnId, itemId: batch.itemId } },
+        title,
+        body,
+      );
     };
     const sync = () => {
       const current = new Set<AsyncQuestions>();

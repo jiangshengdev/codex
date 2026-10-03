@@ -9,7 +9,9 @@ export const SHORTCUTS_ROUTE_PATH = "/shortcuts";
 
 const threadIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type TurnPosition = Readonly<{ turnId: string; position: "end" }>;
+export type TurnPosition =
+  | Readonly<{ turnId: string; position: "end" }>
+  | Readonly<{ turnId: string; itemId: string; position: "start" }>;
 
 export type GuiRouteTarget =
   | Readonly<{ type: "currentTask"; threadId: string; turnPosition?: TurnPosition }>
@@ -85,20 +87,24 @@ export function validateTurnPositionSearch(
 ): TurnPosition | Readonly<{ turnId?: never; position?: never }> {
   const keys = Object.keys(search);
   if (keys.length === 0) return {};
-  if (keys.some((key) => key !== "turnId" && key !== "position")) {
+  if (keys.some((key) => key !== "turnId" && key !== "position" && key !== "itemId")) {
     return validateEmptyRouteSearch(search);
   }
-  if (
-    keys.length !== 2 ||
-    !keys.includes("turnId") ||
-    !keys.includes("position") ||
-    typeof search.turnId !== "string" ||
-    search.turnId.trim().length === 0 ||
-    search.position !== "end"
-  ) {
+  if (typeof search.turnId !== "string" || search.turnId.trim().length === 0) {
     throw new Error("Invalid turn positioning parameters");
   }
-  return { turnId: search.turnId, position: "end" };
+  if (keys.length === 2 && search.position === "end") {
+    return { turnId: search.turnId, position: "end" };
+  }
+  if (
+    keys.length === 3 &&
+    search.position === "start" &&
+    typeof search.itemId === "string" &&
+    search.itemId.trim().length > 0
+  ) {
+    return { turnId: search.turnId, itemId: search.itemId, position: "start" };
+  }
+  throw new Error("Invalid turn positioning parameters");
 }
 
 export function isValidThreadId(value: unknown): value is string {

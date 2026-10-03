@@ -9,6 +9,7 @@ import {
   capturedNotifications,
   goToHistory,
   historyReady,
+  expectNotificationMessageStart,
 } from "./taskNotificationsHarness";
 
 const reloadCases: { name: string; runReload: (page: Page) => Promise<unknown> }[] = [
@@ -42,7 +43,7 @@ for (const { name, runReload } of reloadCases) {
     await historyReady(page);
     expect(await page.evaluate(() => window.name)).toBe(target.tabId);
     await dispatchNotificationClick(page, target);
-    await expect(page).toHaveURL(new RegExp(`/task/${firstThreadId}$`));
+    await expectNotificationMessageStart(page, target);
     await ready(page);
     expect(await capturedNotifications(page)).toHaveLength(1);
     expect(host.sends(firstThreadId)).toHaveLength(0);
@@ -68,7 +69,7 @@ test("a second authenticated tab does not accept another tab's notification", as
   await page.reload();
   await historyReady(page);
   await dispatchNotificationClick(other, target, [page, other]);
-  await expect(page).toHaveURL(new RegExp(`/task/${firstThreadId}$`));
+  await expectNotificationMessageStart(page, target);
   await ready(page);
   await expect(other).toHaveURL(/\/history$/);
   expect(context.pages()).toHaveLength(2);
@@ -95,7 +96,7 @@ test("an opener storage copy gets a new identity and a closed source does not re
   await historyReady(copy);
   expect(await notificationIdentity(copy)).not.toBe(target.tabId);
   await dispatchNotificationClick(copy, target, [page, copy]);
-  await expect(page).toHaveURL(new RegExp(`/task/${firstThreadId}$`));
+  await expectNotificationMessageStart(page, target);
   await expect(copy).toHaveURL(/\/history$/);
   await page.close();
   await dispatchNotificationClick(copy, target);

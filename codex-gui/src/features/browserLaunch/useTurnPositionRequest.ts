@@ -11,8 +11,15 @@ export function useTurnPositionRequest(target: GuiRouteTarget): TurnPositionRequ
       ? target.turnPosition
       : undefined;
   const turnId = position?.turnId;
+  const edge = position?.position;
+  const itemId = position?.position === "start" ? position.itemId : undefined;
   return useMemo(
-    () => (turnId == null ? null : { turnId, position: "end", visit: location }),
-    [location, turnId],
+    () =>
+      turnId == null
+        ? null
+        : edge === "start" && itemId != null
+          ? { turnId, itemId, position: "start", visit: location }
+          : { turnId, position: "end", visit: location },
+    [location, turnId, edge, itemId],
   );
 }

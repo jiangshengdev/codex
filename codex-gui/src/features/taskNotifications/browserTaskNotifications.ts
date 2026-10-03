@@ -21,7 +21,9 @@ function tabId(): string {
   return documentTabId;
 }
 
-export function connectBrowserTaskNotifications(select: (threadId: string) => boolean) {
+export function connectBrowserTaskNotifications(
+  select: (target: TaskNotificationTarget) => boolean,
+) {
   if (!("serviceWorker" in navigator) || typeof Notification === "undefined") return null;
   const container = navigator.serviceWorker as ServiceWorkerContainer | undefined;
   if (container == null) return null;
@@ -43,7 +45,7 @@ export function connectBrowserTaskNotifications(select: (threadId: string) => bo
       event.data.target?.tabId !== identity
     )
       return;
-    const accepted = select(event.data.target.threadId);
+    const accepted = select(event.data.target);
     event.ports[0]?.postMessage(accepted);
   };
   const hide = () => {
@@ -56,10 +58,10 @@ export function connectBrowserTaskNotifications(select: (threadId: string) => bo
   window.addEventListener("pagehide", hide);
   window.addEventListener("pageshow", show);
   return {
-    async show(threadId: string, title: string, body: string) {
+    async show(target: Omit<TaskNotificationTarget, "tabId">, title: string, body: string) {
       const registered = await registration;
       if (disposed || registered == null || Notification.permission !== "granted") return;
-      const data: TaskNotificationTarget = { tabId: identity, threadId };
+      const data: TaskNotificationTarget = { ...target, tabId: identity };
       try {
         await registered.showNotification(title, { body, data });
       } catch {

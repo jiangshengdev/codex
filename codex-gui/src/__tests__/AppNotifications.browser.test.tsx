@@ -25,6 +25,9 @@ import {
   eventWithEnvelope,
   inProgressTurn,
   itemCompleted,
+  agentMessage,
+  textInput,
+  userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 const hostMock = vi.hoisted(() => ({
@@ -229,10 +232,59 @@ test("delivers questions through persistent notifications without closing them o
   expect(BrowserNotification.sent[0]?.options.data).toEqual({
     tabId: window.name,
     threadId: launchThreadId,
+    message: { turnId: "notification-turn", itemId: "notification-item" },
   });
   await screen.unmount();
   expect(getNotifications).not.toHaveBeenCalled();
   expect(showNotification).toHaveBeenCalledOnce();
+});
+
+test("an old multi-question notification returns to its message start even after skipping and later messages", async () => {
+  BrowserNotification.permission = "granted";
+  const { screen, commands, options, router, question, turn } = await readyTask([
+    userMessage("long-prompt", [textInput("Earlier context.\n\n".repeat(100))]),
+  ]);
+  await router.navigate({ to: "/history" });
+  const received = question("Choose the next step", 2);
+  emitProjectionEvent(options, received);
+  await expect.poll(() => BrowserNotification.sent.length).toBe(1);
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(
+      itemCompleted(
+        eventItemCompleted,
+        "later-answer",
+        turn.id,
+        agentMessage("later-answer", "Later output.\n\n".repeat(100)),
+      ),
+      { parentCommitId: received.commitId },
+    ),
+  );
+  await clickNotification();
+  const questions = screen.getByRole("group", { name: "Choose the next step", exact: true });
+  await expect.element(questions.first()).toBeVisible();
+  const message = () => questions.first().element().closest("[data-transcript-entry-id]");
+  const startVisible = () => {
+    const rect = message()?.getBoundingClientRect();
+    const bottom =
+      screen.container.querySelector("[data-task-bottom-region]")?.getBoundingClientRect().top ??
+      window.innerHeight;
+    return rect != null && rect.top >= 0 && rect.top < Math.min(bottom, window.innerHeight);
+  };
+  await expect.poll(startVisible).toBe(true);
+  await questions.first().getByRole("button", { name: "Skip question", exact: true }).click();
+  window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
+  await expect.poll(startVisible).toBe(false);
+  await clickNotification();
+  await expect.poll(startVisible).toBe(true);
+  expect(router.state.location.search).toEqual({
+    turnId: turn.id,
+    itemId: "notification-item",
+    position: "start",
+  });
+  expect(commands.startTurn).not.toHaveBeenCalled();
+  expect(commands.steerTurn).not.toHaveBeenCalled();
+  expect(BrowserNotification.sent).toHaveLength(1);
 });
 
 test.each([
