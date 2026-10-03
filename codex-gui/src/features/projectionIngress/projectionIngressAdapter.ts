@@ -189,8 +189,6 @@ export class ProjectionIngressAdapter {
       case "turnStarted":
       case "turnCompleted":
       case "tokenUsageUpdated":
-      case "goalUpdated":
-      case "goalCleared":
         return false;
       case "itemStarted":
       case "itemCompleted":
@@ -210,8 +208,6 @@ export class ProjectionIngressAdapter {
       case "itemStarted":
       case "itemCompleted":
       case "tokenUsageUpdated":
-      case "goalUpdated":
-      case "goalCleared":
         return;
       default:
         event satisfies never;

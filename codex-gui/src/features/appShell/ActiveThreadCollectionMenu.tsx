@@ -16,7 +16,7 @@ import { useActiveThreadCollectionSnapshot, useAppCapabilities } from "./AppCapa
 import { activeThreadRemovalBlockerMessage } from "./activeThreadCollectionMessages";
 import { activeThreadMemberHasError } from "./activeThreadCollectionPresentation";
 import { useActiveTaskNavigation } from "./useActiveTaskNavigation";
-import { useTaskNotificationMarker } from "@/features/taskNotifications/taskNotificationContext";
+import { useTaskWaitingMarker } from "@/features/taskNotifications/taskNotificationContext";
 
 export function ActiveThreadCollectionMenu({ close }: Readonly<{ close(): void }>) {
   const collection = useActiveThreadCollectionSnapshot();
@@ -57,8 +57,7 @@ function ActiveThreadCollectionRow({
   const runtime = useAppSelector((state) => selectThreadRuntimeRecord(state, member.threadId));
   const title = runtime?.thread.name?.trim() ? runtime.thread.name : member.threadId;
   const hasError = activeThreadMemberHasError(member);
-  const waiting = useTaskNotificationMarker(member.threadId, "waiting");
-  const finished = useTaskNotificationMarker(member.threadId, "finished");
+  const waiting = useTaskWaitingMarker(member.threadId);
   const errorId = `active-task-error-${member.threadId}`;
   const blockerId = `active-task-removal-${member.threadId}`;
   const select = (): void => {
@@ -122,15 +121,6 @@ function ActiveThreadCollectionRow({
               aria-hidden="true"
               data-task-error-indicator="true"
             />
-          ) : null}
-          {finished ? (
-            <Chip size="sm" color="default" variant="soft">
-              <Chip.Label>
-                <Trans comment="Unread task-entry marker: execution ended, successfully or with an error">
-                  Execution finished
-                </Trans>
-              </Chip.Label>
-            </Chip>
           ) : null}
           {waiting ? (
             <Chip size="sm" color="warning" variant="soft">

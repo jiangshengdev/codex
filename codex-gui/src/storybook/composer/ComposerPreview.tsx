@@ -5,7 +5,6 @@ import { StrictMode, useState, useSyncExternalStore, type ReactNode } from "reac
 import type { ActiveThreadSessionSnapshot } from "@/features/activeThreadSession/activeThreadSession";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
 import { baseTurn } from "@/features/projection/__tests__/projectionTestBuilders";
-import { TaskCompletionNotifications } from "@/features/taskNotifications/taskCompletionNotifications";
 import { DevOnly } from "../environment/DevOnly";
 import { PendingInputPreview } from "./pendingInput/PendingInputScenarioView";
 import { definiteFailure } from "./pendingInput/recovery/recoveryScenario";
@@ -47,7 +46,6 @@ export function ComposerSimulation({
   );
   const requests = useSyncExternalStore(scenario.starts.subscribe, scenario.starts.getSnapshot);
   const [activeTurnId, setActiveTurnId] = useState(scenario.initialActiveTurnId);
-  const [completions] = useState(() => new TaskCompletionNotifications(null));
   const [questions] = useState(
     () =>
       new AsyncQuestions(
@@ -72,7 +70,6 @@ export function ComposerSimulation({
   const snapshot: Extract<ActiveThreadSessionSnapshot, { phase: "active" }> = {
     phase: "active",
     questions,
-    completions,
     revision: 1,
     identity: scenario.identity,
     threadId: "thread-1",

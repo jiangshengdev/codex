@@ -36,11 +36,7 @@ export const reduceTranscriptReadModelFact = (
         return;
       }
 
-      if (
-        notification.event.type === "tokenUsageUpdated" ||
-        notification.event.type === "goalUpdated" ||
-        notification.event.type === "goalCleared"
-      ) {
+      if (notification.event.type === "tokenUsageUpdated") {
         return;
       }
 

@@ -18729,6 +18729,7 @@
       "type": "object"
     },
     "ThreadGoalClearedNotification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "properties": {
         "threadId": {
           "type": "string"
@@ -18737,6 +18738,7 @@
       "required": [
         "threadId"
       ],
+      "title": "ThreadGoalClearedNotification",
       "type": "object"
     },
     "ThreadGoalGetParams": {
@@ -18833,6 +18835,7 @@
       "type": "string"
     },
     "ThreadGoalUpdatedNotification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "properties": {
         "goal": {
           "$ref": "#/definitions/ThreadGoal"
@@ -18851,6 +18854,7 @@
         "goal",
         "threadId"
       ],
+      "title": "ThreadGoalUpdatedNotification",
       "type": "object"
     },
     "ThreadHistoryMode": {
@@ -20438,46 +20442,6 @@
           ],
           "title": "TokenUsageUpdatedThreadProjectionEvent",
           "type": "object"
-        },
-        {
-          "properties": {
-            "notification": {
-              "$ref": "#/definitions/ThreadGoalUpdatedNotification"
-            },
-            "type": {
-              "enum": [
-                "goalUpdated"
-              ],
-              "title": "GoalUpdatedThreadProjectionEventType",
-              "type": "string"
-            }
-          },
-          "required": [
-            "notification",
-            "type"
-          ],
-          "title": "GoalUpdatedThreadProjectionEvent",
-          "type": "object"
-        },
-        {
-          "properties": {
-            "notification": {
-              "$ref": "#/definitions/ThreadGoalClearedNotification"
-            },
-            "type": {
-              "enum": [
-                "goalCleared"
-              ],
-              "title": "GoalClearedThreadProjectionEventType",
-              "type": "string"
-            }
-          },
-          "required": [
-            "notification",
-            "type"
-          ],
-          "title": "GoalClearedThreadProjectionEvent",
-          "type": "object"
         }
       ]
     },
@@ -20514,16 +20478,6 @@
     },
     "ThreadProjectionSnapshot": {
       "properties": {
-        "goal": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ThreadGoal"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "headCommitId": {
           "type": [
             "string",
@@ -20545,7 +20499,6 @@
         }
       },
       "required": [
-        "goal",
         "thread"
       ],
       "type": "object"

@@ -10,11 +10,6 @@ import { selectGuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import { TaskNotificationContext } from "./taskNotificationContext";
 import { TaskNotificationMarkers } from "./taskNotificationMarkers";
 import { connectBrowserTaskNotifications } from "./browserTaskNotifications";
-import {
-  notificationPreview,
-  type TaskCompletion,
-  type TaskCompletionNotifications,
-} from "./taskCompletionNotifications";
 
 export function TaskNotifications({ children }: Readonly<{ children: ReactNode }>) {
   const { activeThreadSession: session } = useAppCapabilities();
@@ -32,32 +27,18 @@ export function TaskNotifications({ children }: Readonly<{ children: ReactNode }
     const count = questions.length;
     if (count > 1)
       return t`${plural(count, { one: "# question needs a response", other: "# questions need a response" })}`;
-    const preview = notificationPreview(questions[0]?.title ?? "", 30);
+    const preview = Array.from(
+      new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(
+        questions[0]?.title.trim() ?? "",
+      ),
+    )
+      .slice(0, 30)
+      .map((part) => part.segment)
+      .join("");
     return t({
       message: `Question: ${preview}`,
       comment: "Browser notification body; preview is the agent's question title",
     });
-  });
-  const describeCompletion = useEffectEvent((completion: TaskCompletion) => {
-    if (completion.failed) {
-      const error = notificationPreview(completion.error ?? "", 200);
-      return error
-        ? t({
-            message: `Execution failed: ${error}`,
-            comment: "Browser notification; error is the failed turn's error summary",
-          })
-        : t({
-            message: "Execution failed",
-            comment: "Browser notification when the turn failed without an error summary",
-          });
-    }
-    return (
-      completion.preview ||
-      t({
-        message: "Execution finished",
-        comment: "Browser notification when execution completed without a final answer",
-      })
-    );
   });
   const select = useEffectEvent((threadId: string) => {
     navigation.select(threadId);
@@ -65,7 +46,7 @@ export function TaskNotifications({ children }: Readonly<{ children: ReactNode }
 
   useEffect(() => {
     if (session == null) return;
-    const observed = new Map<AsyncQuestions | TaskCompletionNotifications, () => void>();
+    const observed = new Map<AsyncQuestions, { count: number; unsubscribe(): void }>();
     const notifications = connectBrowserTaskNotifications((threadId) => {
       if (!session.getCollectionSnapshot().members.some((member) => member.threadId === threadId))
         return false;
@@ -90,47 +71,36 @@ export function TaskNotifications({ children }: Readonly<{ children: ReactNode }
     };
     const receive = (threadId: string, questions: readonly AsyncQuestion[]) => {
       if (viewing() === threadId) return;
-      markers.mark(threadId, "waiting");
+      markers.mark(threadId);
       if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
       const title = titleFor(threadId);
       const body = describe(questions);
       void notifications?.show(threadId, title, body);
     };
-    const receiveCompletion = (threadId: string, completion: TaskCompletion) => {
-      if (viewing() === threadId) return;
-      markers.mark(threadId, "finished");
-      if (document.visibilityState === "visible" && document.hasFocus()) return;
-      if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-      void notifications?.show(threadId, titleFor(threadId), describeCompletion(completion));
-    };
     const sync = () => {
-      const current = new Set<AsyncQuestions | TaskCompletionNotifications>();
+      const current = new Set<AsyncQuestions>();
       const members = session.getCollectionSnapshot().members;
       for (const member of members) {
         const snapshot = member.snapshot;
         if (snapshot?.phase !== "active" && snapshot?.phase !== "projectionUnavailable") continue;
-        const completions = snapshot.completions;
-        current.add(completions);
-        if (!observed.has(completions))
-          observed.set(
-            completions,
-            subscribeReceived(completions.getReceived, completions.subscribe, (completion) => {
-              receiveCompletion(member.threadId, completion);
-            }),
-          );
         const questions = snapshot.questions;
         current.add(questions);
         if (observed.has(questions)) continue;
-        observed.set(
-          questions,
-          subscribeReceived(questions.getReceived, questions.subscribe, (batch) => {
-            receive(member.threadId, batch);
-          }),
-        );
+        const observation = { count: 0, unsubscribe: (): void => undefined };
+        const consume = () => {
+          const batches = questions.getReceived();
+          while (observation.count < batches.length) {
+            const batch = batches[observation.count++];
+            if (batch != null) receive(member.threadId, batch);
+          }
+        };
+        observed.set(questions, observation);
+        observation.unsubscribe = questions.subscribe(consume);
+        consume();
       }
       for (const [questions, observation] of observed) {
         if (current.has(questions)) continue;
-        observation();
+        observation.unsubscribe();
         observed.delete(questions);
       }
       markers.retain(new Set(members.map((member) => member.threadId)));
@@ -146,28 +116,10 @@ export function TaskNotifications({ children }: Readonly<{ children: ReactNode }
       unsubscribeRoute();
       window.removeEventListener("focus", clearViewed);
       document.removeEventListener("visibilitychange", clearViewed);
-      for (const unsubscribe of observed.values()) unsubscribe();
+      for (const observation of observed.values()) observation.unsubscribe();
       notifications?.dispose();
     };
   }, [session, router, markers]);
 
   return <TaskNotificationContext value={unread}>{children}</TaskNotificationContext>;
-}
-
-function subscribeReceived<Batch>(
-  getReceived: () => readonly Batch[],
-  subscribe: (listener: () => void) => () => void,
-  receive: (batch: Batch) => void,
-): () => void {
-  let count = 0;
-  const consume = () => {
-    const batches = getReceived();
-    while (count < batches.length) {
-      const batch = batches[count++];
-      if (batch != null) receive(batch);
-    }
-  };
-  const unsubscribe = subscribe(consume);
-  consume();
-  return unsubscribe;
 }

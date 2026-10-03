@@ -73,7 +73,6 @@
         "reasoningOutputTokens": 5
       },
       "modelContextWindow": 258400
-    },
-    "goal": null
+    }
   }
 }

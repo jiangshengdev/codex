@@ -1,6 +1,5 @@
 import type { AppDispatch } from "@/app/store";
 import { AsyncQuestions } from "@/features/asyncQuestions/asyncQuestions";
-import { TaskCompletionNotifications } from "@/features/taskNotifications/taskCompletionNotifications";
 import { capturePlainTextDraft } from "@/features/composerEditor/composerDraft";
 import type { ActiveThreadConnection } from "./activeThreadConnection";
 import {
@@ -74,7 +73,6 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       ).type === "accepted",
   );
   readonly identity: ActiveThreadSessionIdentity;
-  readonly completions: TaskCompletionNotifications;
   private readonly threadId: string;
   private subscriptionId: string;
   private projection: ActiveThreadProjection;
@@ -138,8 +136,6 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     this.dispatch = dispatch;
     this.revision = sessionRevision;
     this.activeTurnId = activeTurnIdFromTurns(thread.turns);
-    this.completions = new TaskCompletionNotifications(attachResponse.snapshot.goal);
-    this.completions.rebase(attachResponse.snapshot.goal, thread.turns);
     this.queue = createComposerInputQueueCoordinator({
       threadId: this.threadId,
       activeTurnId: this.activeTurnId,
@@ -320,12 +316,10 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       }
       if (this.isDisposed()) return { type: "unavailable" };
       this.activeTurnId = activeTurnIdFromTurns(response.snapshot.thread.turns);
-      this.completions.rebase(response.snapshot.goal, response.snapshot.thread.turns);
       this.compaction.reconcileSnapshot(response.snapshot.thread.turns);
       this.threadStatus.rebase(response.snapshot.thread.status);
       if (!drainCandidate()) return { type: "unavailable" };
       this.applyOwnerFacts(queueFacts);
-      for (const fact of queueFacts) this.completions.observe(fact, true);
       this.projection = projection;
       this.subscriptionId = response.subscriptionId;
     } finally {
@@ -347,7 +341,6 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
           if (this.isDisposed()) return { type: "unavailable" };
           if (result.type !== "committed") return fail(result);
           this.applyOwnerFacts(next.acceptedQueueFacts);
-          for (const fact of next.acceptedQueueFacts) this.completions.observe(fact, true);
         } finally {
           if (!this.isDisposed()) this.transactionDepth -= 1;
           this.childChanged = false;
@@ -766,7 +759,6 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private applyQueueFacts(facts: readonly ActiveThreadProjectionAcceptedEvent[]): void {
     for (const fact of facts) {
       this.queue.observeAcceptedEvent(fact);
-      this.completions.observe(fact, this.queue.getSnapshot().executionContinuing);
     }
     this.applyOwnerFacts(facts);
   }
@@ -787,8 +779,6 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
           case "itemStarted":
           case "itemCompleted":
           case "tokenUsageUpdated":
-          case "goalUpdated":
-          case "goalCleared":
             break;
         }
       }
@@ -824,13 +814,6 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     if (this.isDisposed()) return;
     this.revision = revision;
     this.snapshot = this.buildSnapshot();
-    this.completions.settle(
-      this.queue.getSnapshot().executionContinuing ||
-        this.connectionClosed ||
-        this.projectionUnavailableReason != null ||
-        this.projectionRecovery.pending ||
-        this.connectionRecovery.pending,
-    );
     this.notifyListeners();
   }
 

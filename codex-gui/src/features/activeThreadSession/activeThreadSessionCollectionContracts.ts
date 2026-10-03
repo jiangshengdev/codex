@@ -49,7 +49,6 @@ export type ActiveThreadCompactionRole = Readonly<
 
 export type ActiveThreadSessionRoles = Readonly<{
   questions: LiveActiveThreadSession["questions"];
-  completions: LiveActiveThreadSession["completions"];
   compactionRole: ActiveThreadCompactionRole;
   composerRole: ActiveThreadComposerRole;
   skillsRole: ActiveThreadSkillsRole;
