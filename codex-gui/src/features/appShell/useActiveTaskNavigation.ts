@@ -1,22 +1,14 @@
 import { useNavigate } from "@tanstack/react-router";
-import {
-  CURRENT_TASK_ROUTE_PATH,
-  type TurnPosition,
-} from "@/features/browserLaunch/guiRouteTarget";
+import { CURRENT_TASK_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
 import { useActiveThreadCollectionSnapshot, useAppCapabilities } from "./AppCapabilities";
 
 export function useActiveTaskNavigation(close: () => void) {
   const navigate = useNavigate();
   const { activeThreadSession } = useAppCapabilities();
   const collection = useActiveThreadCollectionSnapshot();
-  const select = (
-    threadId: string,
-    message?: Omit<Extract<TurnPosition, { position: "start" }>, "position">,
-  ): void => {
+  const select = (threadId: string): void => {
     close();
-    const search: TurnPosition | Record<string, never> =
-      message == null ? {} : { ...message, position: "start" };
-    void navigate({ to: CURRENT_TASK_ROUTE_PATH, params: { threadId }, search }).then(
+    void navigate({ to: CURRENT_TASK_ROUTE_PATH, params: { threadId } }).then(
       () => activeThreadSession?.setOperationError(threadId, "navigation", null),
       (error: unknown) => activeThreadSession?.setOperationError(threadId, "navigation", error),
     );

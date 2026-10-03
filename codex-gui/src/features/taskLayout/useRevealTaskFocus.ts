@@ -1,5 +1,5 @@
 import { useEffect, type RefObject } from "react";
-import { readTaskBottomRegionViewport, readTaskTopRegionViewport } from "./taskBottomRegionLayout";
+import { readTaskBottomRegionViewport } from "./taskBottomRegionLayout";
 
 const FOCUS_CLEARANCE_PX = 12;
 
@@ -32,7 +32,20 @@ export function useRevealTaskFocus(regionRef: RefObject<HTMLElement | null>): vo
       const obstruction = region.getBoundingClientRect();
       if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) return;
 
-      const top = readTaskTopRegionViewport(main, bounds);
+      const top = topRegions.reduce((boundary, element) => {
+        const rect = element.getBoundingClientRect();
+        const { position } = getComputedStyle(element);
+        if (
+          (position !== "fixed" && position !== "sticky") ||
+          rect.height === 0 ||
+          rect.top >= window.innerHeight ||
+          rect.right <= bounds.left ||
+          rect.left >= bounds.right
+        ) {
+          return boundary;
+        }
+        return Math.max(boundary, rect.bottom);
+      }, 0);
       const visibleBottom =
         bounds.right > obstruction.left && bounds.left < obstruction.right
           ? bottom

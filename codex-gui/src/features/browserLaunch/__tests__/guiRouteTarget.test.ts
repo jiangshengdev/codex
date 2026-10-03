@@ -97,16 +97,6 @@ describe("validateTurnPositionSearch", () => {
     });
   });
 
-  it("accepts a stable message start position", () => {
-    expect(
-      validateTurnPositionSearch({ turnId: "turn-1", itemId: "question-1", position: "start" }),
-    ).toEqual({
-      turnId: "turn-1",
-      itemId: "question-1",
-      position: "start",
-    });
-  });
-
   it.each([
     { turnId: "turn-1" },
     { position: "end" },
@@ -115,8 +105,6 @@ describe("validateTurnPositionSearch", () => {
     { turnId: "turn-1", position: "start" },
     { turnId: ["first", "second"], position: "end" },
     { turnId: "turn-1", position: ["end", "end"] },
-    { turnId: "turn-1", itemId: "", position: "start" },
-    { turnId: "turn-1", itemId: "message", position: "end" },
   ])("rejects invalid positioning %j", (search) => {
     expect(() => validateTurnPositionSearch(search)).toThrow("Invalid turn positioning parameters");
   });

@@ -184,7 +184,6 @@ export const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView 
 
       return (
         <Card
-          data-transcript-entry-id={transcriptEntryIdFor(entry.turnId, entry.id)}
           className={
             isStreaming
               ? "committed-transcript-live-entry committed-transcript-live-assistant-message min-w-0"

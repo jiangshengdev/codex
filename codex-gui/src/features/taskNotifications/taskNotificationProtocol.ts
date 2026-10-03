@@ -2,7 +2,6 @@
 export type TaskNotificationTarget = {
   tabId: string;
   threadId: string;
-  message?: Readonly<{ turnId: string; itemId: string }>;
 };
 
 export type TaskNotificationClick = {

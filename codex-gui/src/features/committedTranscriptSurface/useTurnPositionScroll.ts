@@ -2,11 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import { toast } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositionRequest";
-import {
-  readTaskBottomRegionViewport,
-  readTaskTopRegionViewport,
-} from "@/features/taskLayout/taskBottomRegionLayout";
-import { transcriptEntryIdFor } from "@/features/transcriptState/transcriptStateSlice";
+import { readTaskBottomRegionViewport } from "@/features/taskLayout/taskBottomRegionLayout";
 
 export function useTurnPositionScroll({
   request,
@@ -26,28 +22,10 @@ export function useTurnPositionScroll({
     if (request == null || completedRef.current === request) return;
     const surface = surfaceRef.current;
     if (surface == null || (targetFound && targetRef.current == null)) return;
-    if (request.position === "start" && !targetFound) {
-      completedRef.current = request;
-      onComplete?.(request);
-      return;
-    }
     const align = () => {
       if (targetFound) {
         const target = targetRef.current;
         if (target == null) return;
-        if (request.position === "start") {
-          const entryId = transcriptEntryIdFor(request.turnId, request.itemId);
-          const message = Array.from(
-            target.querySelectorAll<HTMLElement>("[data-transcript-entry-id]"),
-          ).find((element) => element.dataset.transcriptEntryId === entryId);
-          if (message == null) return;
-          const bounds = message.getBoundingClientRect();
-          window.scrollBy({
-            top: bounds.top - readTaskTopRegionViewport(surface.closest("main"), bounds) - 12,
-            behavior: "instant",
-          });
-          return;
-        }
         const { bottom } = readTaskBottomRegionViewport(surface.closest("main"));
         window.scrollBy({
           top: target.getBoundingClientRect().bottom - bottom + 12,

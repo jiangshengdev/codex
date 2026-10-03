@@ -16,12 +16,10 @@ import type { TurnPositionRequest } from "@/features/browserLaunch/useTurnPositi
 import { useTurnPositionScroll } from "./useTurnPositionScroll";
 import { hasTranscriptFragmentContent } from "@/features/transcriptState/transcriptFragmentVisibility";
 import { AppShellNotice } from "@/features/appShell/AppShellNotices";
-import { transcriptEntryIdFor } from "@/features/transcriptState/transcriptStateSlice";
 
 export type CommittedTranscriptTurnFragmentRendererProps = Readonly<{
   fragmentId: string;
   lastFragmentIdsByTurnId: Record<string, string>;
-  messagePosition?: TurnPositionRequest | null;
 }>;
 
 type CommittedTranscriptSurfaceRendererProps = Readonly<{
@@ -55,18 +53,10 @@ export const CommittedTranscriptSurfaceRenderer = ({
   const targetFound = useTranscriptSelector(
     (state) =>
       turnPosition != null &&
-      (turnPosition.position === "start"
-        ? state.entriesById[transcriptEntryIdFor(turnPosition.turnId, turnPosition.itemId)]
-            ?.type === "message"
-        : selectTranscriptTurnFromTranscriptState(state, turnPosition.turnId) != null),
+      selectTranscriptTurnFromTranscriptState(state, turnPosition.turnId) != null,
   );
   const targetFragmentId = useTranscriptSelector((state) => {
     if (turnPosition == null || !targetFound) return undefined;
-    if (turnPosition.position === "start") {
-      return state.entryFragmentById[
-        transcriptEntryIdFor(turnPosition.turnId, turnPosition.itemId)
-      ];
-    }
     const fragmentId = lastFragmentIdsByTurnId[turnPosition.turnId];
     if (fragmentId != null) return fragmentId;
     // A turn with no entries still exists. Its end is the boundary immediately
@@ -196,11 +186,6 @@ export const CommittedTranscriptSurfaceRenderer = ({
               <TurnFragmentRenderer
                 fragmentId={fragmentId}
                 lastFragmentIdsByTurnId={lastFragmentIdsByTurnId}
-                messagePosition={
-                  fragmentId === targetFragmentId && turnPosition?.position === "start"
-                    ? turnPosition
-                    : null
-                }
               />
             </div>
           ))}
