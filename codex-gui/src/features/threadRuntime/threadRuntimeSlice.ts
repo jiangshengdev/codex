@@ -55,12 +55,24 @@ const applyRuntimeFact = (
     }
     case "eventAccepted": {
       const { notification, replay } = fact.payload;
-      if (
-        replay === "live" &&
-        notification.event.type === "tokenUsageUpdated" &&
-        state.current?.threadId === notification.threadId
-      ) {
-        state.current.tokenUsage = notification.event.notification.tokenUsage;
+      if (replay !== "live" || state.current?.threadId !== notification.threadId) return;
+      switch (notification.event.type) {
+        case "tokenUsageUpdated":
+          state.current.tokenUsage = notification.event.notification.tokenUsage;
+          break;
+        case "goalUpdated":
+          state.current.goal = notification.event.notification.goal;
+          break;
+        case "goalCleared":
+          state.current.goal = null;
+          break;
+        case "turnStarted":
+        case "turnCompleted":
+        case "itemStarted":
+        case "itemCompleted":
+          break;
+        default:
+          notification.event satisfies never;
       }
       return;
     }

@@ -779,6 +779,8 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
           case "itemStarted":
           case "itemCompleted":
           case "tokenUsageUpdated":
+          case "goalUpdated":
+          case "goalCleared":
             break;
         }
       }

@@ -252,6 +252,25 @@ export const attachWithGoal = (
   snapshot: { ...attach.snapshot, goal },
 });
 
+export const goalEvent = (
+  attach: ThreadProjectionAttachResponse,
+  commitId: string,
+  parentCommitId: string | null,
+  goal: ThreadGoal | null,
+): ThreadProjectionEventNotification => ({
+  threadId: attach.snapshot.thread.id,
+  subscriptionId: attach.subscriptionId,
+  commitId,
+  parentCommitId,
+  event:
+    goal == null
+      ? { type: "goalCleared", notification: { threadId: attach.snapshot.thread.id } }
+      : {
+          type: "goalUpdated",
+          notification: { threadId: attach.snapshot.thread.id, turnId: null, goal },
+        },
+});
+
 export const attachWithSnapshotThread = (
   attach: ThreadProjectionAttachResponse,
   thread: ThreadProjectionAttachResponse["snapshot"]["thread"],

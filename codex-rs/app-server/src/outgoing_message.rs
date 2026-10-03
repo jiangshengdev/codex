@@ -697,6 +697,15 @@ impl OutgoingMessageSender {
     }
 
     pub(crate) async fn send_server_notification(&self, notification: ServerNotification) {
+        let goal_thread_id = match &notification {
+            ServerNotification::ThreadGoalUpdated(notification) => Some(&notification.thread_id),
+            ServerNotification::ThreadGoalCleared(notification) => Some(&notification.thread_id),
+            _ => None,
+        };
+        if let Some(thread_id) = goal_thread_id.and_then(|id| ThreadId::from_string(id).ok()) {
+            self.send_thread_projection_notification(thread_id, &notification)
+                .await;
+        }
         if matches!(
             notification,
             ServerNotification::ThreadArchived(_) | ServerNotification::ThreadUnarchived(_)

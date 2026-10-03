@@ -965,6 +965,95 @@
       ],
       "type": "object"
     },
+    "ThreadGoal": {
+      "properties": {
+        "createdAt": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/ThreadGoalStatus"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "timeUsedSeconds": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "tokenBudget": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "tokensUsed": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "updatedAt": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "createdAt",
+        "objective",
+        "status",
+        "threadId",
+        "timeUsedSeconds",
+        "tokensUsed",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
+    "ThreadGoalClearedNotification": {
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId"
+      ],
+      "type": "object"
+    },
+    "ThreadGoalStatus": {
+      "enum": [
+        "active",
+        "paused",
+        "blocked",
+        "usageLimited",
+        "budgetLimited",
+        "complete"
+      ],
+      "type": "string"
+    },
+    "ThreadGoalUpdatedNotification": {
+      "properties": {
+        "goal": {
+          "$ref": "#/definitions/ThreadGoal"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "goal",
+        "threadId"
+      ],
+      "type": "object"
+    },
     "ThreadItem": {
       "oneOf": [
         {
@@ -1911,6 +2000,46 @@
             "type"
           ],
           "title": "TokenUsageUpdatedThreadProjectionEvent",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ThreadGoalUpdatedNotification"
+            },
+            "type": {
+              "enum": [
+                "goalUpdated"
+              ],
+              "title": "GoalUpdatedThreadProjectionEventType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "GoalUpdatedThreadProjectionEvent",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ThreadGoalClearedNotification"
+            },
+            "type": {
+              "enum": [
+                "goalCleared"
+              ],
+              "title": "GoalClearedThreadProjectionEventType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "GoalClearedThreadProjectionEvent",
           "type": "object"
         }
       ]

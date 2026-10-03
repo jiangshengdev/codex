@@ -24,6 +24,8 @@ export function runtimeObservationFromAcceptedProjectionEvent(
     }
     case "itemCompleted":
     case "tokenUsageUpdated":
+    case "goalUpdated":
+    case "goalCleared":
       return null;
   }
   event satisfies never;

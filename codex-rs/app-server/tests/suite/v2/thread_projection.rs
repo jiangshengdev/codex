@@ -218,6 +218,181 @@ async fn thread_projection_attach_returns_snapshot_and_detach_status() -> Result
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn thread_projection_delivers_goal_changes_and_refreshes_after_clear() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let server = responses::start_mock_server().await;
+    app_test_support::MockResponsesConfig::new(&server.uri())
+        .enable_feature(codex_features::Feature::Goals)
+        .write(codex_home.path())?;
+    let mut app_server = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
+        .await?;
+    let thread = app_server
+        .start_thread(ThreadStartParams::default())
+        .await?
+        .thread;
+    let request = app_server
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+            thread_id: thread.id.clone(),
+        })
+        .await?;
+    let attached: ThreadProjectionAttachResponse = app_server.read_response(request).await?;
+    let mut head = attached.snapshot.head_commit_id;
+    for objective in ["Initial objective", "Updated objective"] {
+        let request = app_server
+            .send_raw_request(
+                "thread/goal/set",
+                Some(serde_json::json!({
+                    "threadId": thread.id,
+                    "objective": objective,
+                    "status": "paused",
+                })),
+            )
+            .await?;
+        let goal: codex_app_server_protocol::ThreadGoalSetResponse =
+            app_server.read_response(request).await?;
+        let event: serde_json::Value = timeout(
+            DEFAULT_READ_TIMEOUT,
+            app_server.read_notification("thread/projection/event"),
+        )
+        .await??;
+        assert_eq!(event["subscriptionId"], attached.subscription_id);
+        assert_eq!(event["parentCommitId"], serde_json::to_value(&head)?);
+        assert_eq!(event["event"]["type"], "goalUpdated");
+        assert_eq!(
+            event["event"]["notification"]["goal"],
+            serde_json::to_value(goal.goal)?
+        );
+        head = Some(event["commitId"].as_str().expect("commit id").to_string());
+    }
+    let request = app_server
+        .send_raw_request(
+            "thread/goal/clear",
+            Some(serde_json::json!({
+                "threadId": thread.id,
+            })),
+        )
+        .await?;
+    let _: codex_app_server_protocol::ThreadGoalClearResponse =
+        app_server.read_response(request).await?;
+    let event: serde_json::Value = timeout(
+        DEFAULT_READ_TIMEOUT,
+        app_server.read_notification("thread/projection/event"),
+    )
+    .await??;
+    assert_eq!(event["event"]["type"], "goalCleared");
+    assert_eq!(event["parentCommitId"], serde_json::to_value(head)?);
+    let request = app_server
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+            thread_id: thread.id,
+        })
+        .await?;
+    let recovered: ThreadProjectionAttachResponse = app_server.read_response(request).await?;
+    assert_eq!(recovered.snapshot.goal, None);
+    assert_eq!(
+        serde_json::to_value(recovered.snapshot.head_commit_id)?,
+        event["commitId"]
+    );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn thread_projection_delivers_running_goal_status_and_usage() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let server = responses::start_mock_server().await;
+    responses::mount_sse_sequence(
+        &server,
+        vec![
+            responses::sse(vec![
+                responses::ev_response_created("create-goal"),
+                responses::ev_function_call(
+                    "create",
+                    "create_goal",
+                    r#"{"objective":"Complete a runtime goal"}"#,
+                ),
+                responses::ev_completed_with_tokens("create-goal", 10),
+            ]),
+            responses::sse(vec![
+                responses::ev_response_created("read-goal"),
+                responses::ev_function_call("read", "get_goal", "{}"),
+                responses::ev_completed_with_tokens("read-goal", 15),
+            ]),
+            responses::sse(vec![
+                responses::ev_response_created("finish-goal"),
+                responses::ev_function_call("finish", "update_goal", r#"{"status":"complete"}"#),
+                responses::ev_completed_with_tokens("finish-goal", 25),
+            ]),
+            responses::sse(vec![
+                responses::ev_assistant_message("done", "Done"),
+                responses::ev_completed("done"),
+            ]),
+        ],
+    )
+    .await;
+    app_test_support::MockResponsesConfig::new(&server.uri())
+        .enable_feature(codex_features::Feature::Goals)
+        .write(codex_home.path())?;
+    let mut app_server = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
+        .await?;
+    let thread = app_server
+        .start_thread(ThreadStartParams::default())
+        .await?
+        .thread;
+    let request = app_server
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+            thread_id: thread.id.clone(),
+        })
+        .await?;
+    let attached: ThreadProjectionAttachResponse = app_server.read_response(request).await?;
+    let request = app_server
+        .send_turn_start_request(TurnStartParams {
+            thread_id: thread.id.clone(),
+            input: vec![UserInput::Text {
+                text: "Create and complete a goal".to_string(),
+                text_elements: Vec::new(),
+            }],
+            ..Default::default()
+        })
+        .await?;
+    let turn: TurnStartResponse = app_server.read_response(request).await?;
+    timeout(DEFAULT_READ_TIMEOUT, async {
+        let mut saw_active = false;
+        let mut saw_complete = false;
+        let mut head = attached.snapshot.head_commit_id;
+        loop {
+            let event: ThreadProjectionEventNotification = app_server
+                .read_notification("thread/projection/event")
+                .await?;
+            assert_eq!(event.parent_commit_id, head);
+            assert_eq!(event.subscription_id, attached.subscription_id);
+            head = Some(event.commit_id);
+            if let ThreadProjectionEvent::TurnCompleted { .. } = &event.event {
+                assert!(saw_complete);
+                return Ok::<_, anyhow::Error>(());
+            }
+            if let ThreadProjectionEvent::GoalUpdated { notification } = event.event {
+                assert_eq!(notification.thread_id, thread.id);
+                assert_eq!(notification.turn_id, Some(turn.turn.id.clone()));
+                saw_active |=
+                    notification.goal.status == codex_app_server_protocol::ThreadGoalStatus::Active;
+                if notification.goal.status == codex_app_server_protocol::ThreadGoalStatus::Complete
+                {
+                    assert!(saw_active);
+                    assert_eq!(notification.goal.objective, "Complete a runtime goal");
+                    assert!(notification.goal.tokens_used > 0);
+                    saw_complete = true;
+                }
+            }
+        }
+    })
+    .await??;
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn thread_projection_attach_includes_token_usage_baseline() -> Result<()> {
     let codex_home = TempDir::new()?;

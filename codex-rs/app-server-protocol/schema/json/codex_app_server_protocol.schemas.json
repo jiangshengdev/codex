@@ -21015,7 +21015,6 @@
         "type": "object"
       },
       "ThreadGoalClearedNotification": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {
           "threadId": {
             "type": "string"
@@ -21024,7 +21023,6 @@
         "required": [
           "threadId"
         ],
-        "title": "ThreadGoalClearedNotification",
         "type": "object"
       },
       "ThreadGoalGetParams": {
@@ -21121,7 +21119,6 @@
         "type": "string"
       },
       "ThreadGoalUpdatedNotification": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {
           "goal": {
             "$ref": "#/definitions/v2/ThreadGoal"
@@ -21140,7 +21137,6 @@
           "goal",
           "threadId"
         ],
-        "title": "ThreadGoalUpdatedNotification",
         "type": "object"
       },
       "ThreadHistoryMode": {
@@ -22727,6 +22723,46 @@
               "type"
             ],
             "title": "TokenUsageUpdatedThreadProjectionEvent",
+            "type": "object"
+          },
+          {
+            "properties": {
+              "notification": {
+                "$ref": "#/definitions/v2/ThreadGoalUpdatedNotification"
+              },
+              "type": {
+                "enum": [
+                  "goalUpdated"
+                ],
+                "title": "GoalUpdatedThreadProjectionEventType",
+                "type": "string"
+              }
+            },
+            "required": [
+              "notification",
+              "type"
+            ],
+            "title": "GoalUpdatedThreadProjectionEvent",
+            "type": "object"
+          },
+          {
+            "properties": {
+              "notification": {
+                "$ref": "#/definitions/v2/ThreadGoalClearedNotification"
+              },
+              "type": {
+                "enum": [
+                  "goalCleared"
+                ],
+                "title": "GoalClearedThreadProjectionEventType",
+                "type": "string"
+              }
+            },
+            "required": [
+              "notification",
+              "type"
+            ],
+            "title": "GoalClearedThreadProjectionEvent",
             "type": "object"
           }
         ]

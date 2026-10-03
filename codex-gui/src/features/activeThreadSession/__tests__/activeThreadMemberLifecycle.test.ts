@@ -21,6 +21,7 @@ import {
   closedWithEnvelope,
   attachWithGoal,
   threadGoal,
+  goalEvent,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 const threadId = attachBaseline.snapshot.thread.id;
@@ -59,6 +60,54 @@ function createHarness(
 }
 
 describe("active thread member lifecycle", () => {
+  it.each([false, true])(
+    "applies goals received during attach (recovery: %s)",
+    async (recovery) => {
+      const h = createHarness();
+      if (recovery) await h.member.initialize();
+      const initial = h.member.getState().snapshot;
+      const response = attachWithGoal(
+        attachWithSnapshotThread(attachBaseline, attachBaseline.snapshot.thread, "goal-attach"),
+        threadGoal(threadId),
+      );
+      const attached = createDeferred<typeof response>();
+      const started = createDeferred<undefined>();
+      vi.mocked(h.commands.attachThreadProjection).mockImplementation(() => {
+        started.resolve(undefined);
+        return attached.promise;
+      });
+      if (recovery) {
+        h.member.connectionUnavailable();
+        h.connection.replace(h.commands);
+      }
+      const pending =
+        recovery && initial?.phase === "active"
+          ? h.member.recoverConnection(initial.identity)
+          : h.member.initialize();
+      await started.promise;
+      h.member.handleProjectionEvent(
+        goalEvent(
+          response,
+          "created-during-attach",
+          response.snapshot.headCommitId,
+          threadGoal(threadId, { objective: "New objective" }),
+        ),
+      );
+      h.member.handleProjectionEvent(
+        goalEvent(response, "cleared-during-attach", "created-during-attach", null),
+      );
+      attached.resolve(response);
+      await pending;
+      expect(selectThreadRuntimeRecord(h.store.getState(), threadId)).toMatchObject({ goal: null });
+      h.member.handleProjectionEvent(
+        goalEvent(attachBaseline, "stale-goal", null, threadGoal(threadId)),
+      );
+      for (const callback of h.frames.values()) callback();
+      expect(selectThreadRuntimeRecord(h.store.getState(), threadId)).toMatchObject({ goal: null });
+      h.member.dispose();
+    },
+  );
+
   it.each([true, false])("reads the goal when opening a task (loaded: %s)", async (loaded) => {
     const h = createHarness();
     const goal = threadGoal(threadId);

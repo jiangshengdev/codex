@@ -6,6 +6,8 @@ use super::ReasoningSummaryTextDeltaNotification;
 use super::ReasoningTextDeltaNotification;
 use super::Thread;
 use super::ThreadGoal;
+use super::ThreadGoalClearedNotification;
+use super::ThreadGoalUpdatedNotification;
 use super::ThreadTokenUsage;
 use super::ThreadTokenUsageUpdatedNotification;
 use super::TurnCompletedNotification;
@@ -117,6 +119,12 @@ pub enum ThreadProjectionEvent {
     },
     TokenUsageUpdated {
         notification: ThreadTokenUsageUpdatedNotification,
+    },
+    GoalUpdated {
+        notification: ThreadGoalUpdatedNotification,
+    },
+    GoalCleared {
+        notification: ThreadGoalClearedNotification,
     },
 }
 
