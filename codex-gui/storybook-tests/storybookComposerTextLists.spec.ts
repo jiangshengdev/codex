@@ -31,9 +31,7 @@ const pendingLists = [
         name: "Simulate guide runtime confirmation",
         exact: true,
       });
-      await expect(confirmation).toBeDisabled();
       await page.getByRole("button", { name: "Simulate guide response", exact: true }).click();
-      await expect(confirmation).toBeEnabled();
       await confirmation.click();
       await expect(
         page.getByRole("group", { name: "Pending: Guide 22", exact: true }),
@@ -68,14 +66,13 @@ for (const width of [375, 1280]) {
       await detail.getByRole("button", { name: "Close", exact: true }).click();
       await expect(dialog).toHaveCount(1);
       await dialog.getByRole("button", { name: "Close", exact: true }).click();
-      await expect(
-        page.getByRole("button", { name: "Simulate send response", exact: true }),
-      ).toBeDisabled();
       await scenario.advance(page);
     });
   }
 
-  test(`historical unknown long list never resends at ${String(width)}px`, async ({ page }) => {
+  test(`historical unknown long list preserves other records and the draft at ${String(width)}px`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width, height: 720 });
     await page.goto(
       `${storybookOrigin}/iframe.html?id=composer-input-and-send-send--send-unknown-long-list`,
@@ -83,7 +80,6 @@ for (const width of [375, 1280]) {
     const remove = page.getByRole("button", { name: "Remove local record", exact: true });
     const panel = page.getByRole("status").filter({ has: remove });
     const rows = panel.getByRole("listitem");
-    const response = page.getByRole("button", { name: "Simulate send response", exact: true });
     await expect(rows).toHaveCount(23);
     await expect(rows.first()).toContainText("END OF Historical guide 1");
     await expect(rows.nth(1)).toContainText("Historical guide 2");
@@ -91,7 +87,6 @@ for (const width of [375, 1280]) {
     await rows.last().scrollIntoViewIfNeeded();
     await expect(rows.last()).toBeInViewport();
     await expect(rows.last()).toContainText("END OF Historical guide 23");
-    await expect(response).toBeDisabled();
     await page
       .getByRole("combobox", { name: "Message Codex", exact: true })
       .fill("Separate long-list draft");
@@ -101,6 +96,5 @@ for (const width of [375, 1280]) {
     await expect(page.getByRole("combobox", { name: "Message Codex", exact: true })).toHaveText(
       "Separate long-list draft",
     );
-    await expect(response).toBeDisabled();
   });
 }

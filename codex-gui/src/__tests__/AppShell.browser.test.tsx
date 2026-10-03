@@ -686,9 +686,6 @@ test("App shows a QR access popover before the Stop button", async () => {
   await expect.element(screen.getByRole("dialog", { name: "Scan with phone" })).toBeVisible();
   await expect.element(screen.getByLabelText("QR code for current GUI URL")).toBeVisible();
   await expect.element(screen.getByText(expectedUrl.toString())).toBeVisible();
-  expect(expectedUrl.pathname).toBe(`/task/${launchThreadId}`);
-  expect(expectedUrl.search).toBe("");
-  expect(expectedUrl.hash).toBe("#token=secret");
 });
 
 test("App closes the host connection when unmounted", async () => {

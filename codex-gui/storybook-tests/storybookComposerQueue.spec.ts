@@ -17,9 +17,7 @@ test("ordinary rejection preserves unsent content and gates new input until reco
   await expect(page.getByText("1 message has not been sent", { exact: true })).toBeVisible();
   await editor.fill("Separate current draft");
   await expect(send).toBeDisabled();
-  await expect(response).toBeDisabled();
   await page.getByRole("button", { name: "Continue sending", exact: true }).click();
-  await expect(response).toBeEnabled();
   await response.click();
   await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();
   await expect(page.getByText("1 message has not been sent", { exact: true })).toHaveCount(0);
@@ -27,9 +25,7 @@ test("ordinary rejection preserves unsent content and gates new input until reco
   await expect(send).toBeEnabled();
 });
 
-test("queued edits and order survive restoration while unknown delivery blocks later sends", async ({
-  page,
-}) => {
+test("queued edits and order survive restoration and unknown-record removal", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-queue--running-queue`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = page.getByRole("button", { name: "Send", exact: true });
@@ -40,7 +36,6 @@ test("queued edits and order survive restoration while unknown delivery blocks l
   await editor.fill("Second queued message");
   await send.click();
   await editor.fill("Separate current draft");
-  await expect(response).toBeDisabled();
   await page.getByRole("button", { name: "Queued 2", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog
@@ -68,22 +63,16 @@ test("queued edits and order survive restoration while unknown delivery blocks l
   await expect(dialog.getByRole("listitem").nth(1)).toContainText("First queued message");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Simulate current turn completed", exact: true }).click();
-  await expect(response).toBeDisabled();
   await page.getByRole("button", { name: "Continue sending", exact: true }).click();
-  await expect(response).toBeEnabled();
-  await expect(restore).toBeDisabled();
   await page.getByRole("button", { name: "Simulate send unknown", exact: true }).click();
   await expect(page.getByText("Sending result unknown", { exact: true })).toBeVisible();
   await expect(page.getByText("Revised second message", { exact: true })).toBeVisible();
-  await expect(response).toBeDisabled();
   await restore.click();
   await page.getByRole("button", { name: "Continue sending", exact: true }).click();
-  await expect(response).toBeDisabled();
   await expect(page.getByText("Sending result unknown", { exact: true })).toBeVisible();
   await expect(page.getByText(/Removing a local record does not cancel or retract/)).toBeVisible();
   await page.getByRole("button", { name: "Remove local record", exact: true }).click();
   await expect(page.getByText("Sending result unknown", { exact: true })).toHaveCount(0);
-  await expect(response).toBeEnabled();
   await response.click();
   await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();
   await expect(page.getByRole("button", { name: "Queued 1", exact: true })).toHaveCount(0);

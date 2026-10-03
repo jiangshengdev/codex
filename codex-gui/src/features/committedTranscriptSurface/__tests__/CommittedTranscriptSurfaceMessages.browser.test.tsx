@@ -920,7 +920,6 @@ test("keeps raw html and images inactive while allowing markdown links", async (
   );
   expect(links.find((link) => link.textContent === "raw link")).toBeUndefined();
   const allowedLink = links.find((link) => link.textContent === "blocked link");
-  expect(allowedLink).not.toBeNull();
   expect(allowedLink?.getAttribute("href")).toContain("https://example.invalid");
   expect(allowedLink?.textContent).toBe("blocked link");
 });

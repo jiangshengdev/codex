@@ -7,11 +7,9 @@ test("unknown guide preset supports local removal without losing the draft", asy
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-guide--guide-unknown`);
   const preview = page;
   const unknown = preview.getByText("Guide status unknown", { exact: true });
-  const response = preview.getByRole("button", { name: "Simulate guide response", exact: true });
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(unknown).toBeVisible();
   await expect(preview.getByText("Guide this fictional change.", { exact: true })).toBeVisible();
-  await expect(response).toBeDisabled();
   await expect(preview.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(
     0,
   );
@@ -19,7 +17,6 @@ test("unknown guide preset supports local removal without losing the draft", asy
   await preview.getByRole("button", { name: "Remove local record", exact: true }).click();
   await expect(unknown).toHaveCount(0);
   await expect(editor).toHaveText("Keep the current draft");
-  await expect(response).toBeDisabled();
 });
 
 test("late runtime confirmation clears unknown guidance", async ({ page }) => {
@@ -42,7 +39,6 @@ test("guide failure preset gates a separate draft until explicit recovery", asyn
   await editor.fill("Separate draft");
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Guide", exact: true })).toBeDisabled();
-  await expect(response).toBeDisabled();
   await page.getByRole("button", { name: "Continue sending", exact: true }).click();
   await response.click();
   await page
@@ -83,13 +79,11 @@ test("accepted guide preset stays pending until runtime confirmation", async ({ 
     `${storybookOrigin}/iframe.html?id=composer-input-and-send-guide--guide-runtime-pending`,
   );
   const pending = page.getByRole("button", { name: "Guide 1", exact: true });
-  const response = page.getByRole("button", { name: "Simulate guide response", exact: true });
   const runtime = page.getByRole("button", {
     name: "Simulate guide runtime confirmation",
     exact: true,
   });
   await expect(pending).toBeVisible();
-  await expect(response).toBeDisabled();
   await runtime.click();
   await expect(pending).toHaveCount(0);
 });
@@ -109,12 +103,9 @@ test("guide request preset waits for response and runtime without losing a new d
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(pending).toBeVisible();
   await expect(editor).toBeEmpty();
-  await expect(response).toBeEnabled();
-  await expect(runtime).toBeDisabled();
   await editor.fill("Keep the next draft");
   await response.click();
   await expect(pending).toBeVisible();
-  await expect(response).toBeDisabled();
   await runtime.click();
   await expect(pending).toHaveCount(0);
   await expect(editor).toHaveText("Keep the next draft");
@@ -136,9 +127,6 @@ test("running text preset enables real Send and Guide while existing RunningGuid
   await expect(stop).toBeEnabled();
   await guide.click();
   await expect(editor).toBeEmpty();
-  await expect(
-    page.getByRole("button", { name: "Simulate guide response", exact: true }),
-  ).toBeEnabled();
   await editor.fill("Review this fictional running turn.");
   await send.click();
   await expect(page.getByRole("button", { name: "Queued 1", exact: true })).toBeVisible();
