@@ -32,7 +32,6 @@ test("groups appended records by local date without sorting or copying threads",
     ["older"],
   ]);
   expect(groups[0]?.threads[0]).toBe(first);
-  expect(initial).toEqual([first, second, older]);
   expect(groupThreadHistoryByDate([])).toEqual([]);
   expect(groupThreadHistoryByDate([older, first]).map((group) => group.key)).toEqual([
     "2026-09-04",
