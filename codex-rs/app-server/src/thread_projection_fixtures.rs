@@ -172,6 +172,7 @@ fn attach_baseline() -> Result<ThreadProjectionAttachResponse> {
             )?,
             head_commit_id: None,
             token_usage: Some(fixture_token_usage()),
+            goal: None,
         },
     })
 }
@@ -191,6 +192,7 @@ fn attach_replacement() -> Result<ThreadProjectionAttachResponse> {
             )?,
             head_commit_id: Some(REPLACEMENT_HEAD_COMMIT_ID.to_string()),
             token_usage: None,
+            goal: None,
         },
     })
 }

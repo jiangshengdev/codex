@@ -340,9 +340,17 @@ mod tests {
         _store_guard: InMemoryThreadStoreId,
     }
 
+    #[derive(Clone, Copy)]
+    enum GoalSnapshotScenario {
+        Disabled,
+        MissingDatabase,
+        Ephemeral,
+    }
+
     async fn projection_runtime_harness(
         outgoing: Arc<OutgoingMessageSender>,
         thread_state_manager: ThreadStateManager,
+        goal_scenario: GoalSnapshotScenario,
     ) -> anyhow::Result<ProjectionRuntimeHarness> {
         let temp_dir = TempDir::new()?;
         let store_id = uuid::Uuid::new_v4().to_string();
@@ -351,14 +359,27 @@ mod tests {
             store_id: store_id.clone(),
         };
         let loader_overrides = LoaderOverrides::without_managed_config_for_tests();
-        let config = Arc::new(
-            ConfigBuilder::default()
-                .codex_home(temp_dir.path().to_path_buf())
-                .fallback_cwd(Some(temp_dir.path().to_path_buf()))
-                .loader_overrides(loader_overrides.clone())
-                .build()
-                .await?,
-        );
+        let mut config = ConfigBuilder::default()
+            .codex_home(temp_dir.path().to_path_buf())
+            .fallback_cwd(Some(temp_dir.path().to_path_buf()))
+            .loader_overrides(loader_overrides.clone())
+            .build()
+            .await?;
+        config.features.disable(codex_features::Feature::Sqlite)?;
+        match goal_scenario {
+            GoalSnapshotScenario::Disabled => {
+                config.features.disable(codex_features::Feature::Goals)?;
+            }
+            GoalSnapshotScenario::MissingDatabase => {
+                config.features.enable(codex_features::Feature::Goals)?;
+                config.experimental_thread_store = codex_core::config::ThreadStoreConfig::Local;
+            }
+            GoalSnapshotScenario::Ephemeral => {
+                config.features.enable(codex_features::Feature::Goals)?;
+                config.ephemeral = true;
+            }
+        }
+        let config = Arc::new(config);
         let auth_manager = AuthManager::from_auth_for_testing(CodexAuth::from_api_key("dummy"));
         let thread_store = codex_core::thread_store_from_config(&config, /*state_db*/ None);
         let thread_manager = Arc::new(ThreadManager::new(
@@ -503,6 +524,10 @@ stream_max_retries = 0
 
     impl ProjectionAttachHarness {
         async fn new() -> anyhow::Result<Self> {
+            Self::with_goal_scenario(GoalSnapshotScenario::Disabled).await
+        }
+
+        async fn with_goal_scenario(goal_scenario: GoalSnapshotScenario) -> anyhow::Result<Self> {
             let connection_id = ConnectionId(1);
             let request_id = ConnectionRequestId {
                 connection_id,
@@ -518,8 +543,12 @@ stream_max_retries = 0
                 outgoing_tx,
                 codex_analytics::AnalyticsEventsClient::disabled(),
             ));
-            let runtime =
-                projection_runtime_harness(outgoing.clone(), thread_state_manager.clone()).await?;
+            let runtime = projection_runtime_harness(
+                outgoing.clone(),
+                thread_state_manager.clone(),
+                goal_scenario,
+            )
+            .await?;
             thread_state_manager
                 .try_begin_projection_attach(runtime.thread_id, connection_id)
                 .await
@@ -691,6 +720,47 @@ stream_max_retries = 0
                     .await
             );
         }
+    }
+
+    #[tokio::test]
+    async fn attach_goal_unavailable_fails_and_releases_lease() -> anyhow::Result<()> {
+        let mut harness =
+            ProjectionAttachHarness::with_goal_scenario(GoalSnapshotScenario::MissingDatabase)
+                .await?;
+        harness.handle_attach().await;
+        assert_eq!(
+            harness.recv_attach_error_message().await,
+            "sqlite state db unavailable for thread goals"
+        );
+        harness.assert_no_projection_attach_lease().await;
+        assert_eq!(harness.remove_projection_connection().await, Vec::new());
+        harness.assert_no_projection_delivery().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn attach_goal_disabled_succeeds_without_database() -> anyhow::Result<()> {
+        let mut harness = ProjectionAttachHarness::new().await?;
+        harness.handle_attach().await;
+        assert_eq!(harness.recv_attach_response().await?.snapshot.goal, None);
+        harness.assert_no_projection_attach_lease().await;
+        harness.assert_one_projection_delivery().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn attach_goal_ephemeral_preserves_unsupported_history_error() -> anyhow::Result<()> {
+        let mut harness =
+            ProjectionAttachHarness::with_goal_scenario(GoalSnapshotScenario::Ephemeral).await?;
+        harness.handle_attach().await;
+        assert_eq!(
+            harness.recv_attach_error_message().await,
+            "ephemeral threads do not support thread/turns/list"
+        );
+        harness.assert_no_projection_attach_lease().await;
+        assert_eq!(harness.remove_projection_connection().await, Vec::new());
+        harness.assert_no_projection_delivery().await;
+        Ok(())
     }
 
     #[tokio::test]

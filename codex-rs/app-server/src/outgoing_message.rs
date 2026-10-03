@@ -704,8 +704,21 @@ impl OutgoingMessageSender {
             self.analytics_events_client
                 .track_notification(&notification);
         }
-        self.send_server_notification_to_connections(&[], notification)
+        let projection_thread_id = match &notification {
+            ServerNotification::ThreadGoalUpdated(notification) => {
+                ThreadId::from_string(&notification.thread_id).ok()
+            }
+            ServerNotification::ThreadGoalCleared(notification) => {
+                ThreadId::from_string(&notification.thread_id).ok()
+            }
+            _ => None,
+        };
+        self.send_server_notification_to_connections(&[], notification.clone())
             .await;
+        if let Some(thread_id) = projection_thread_id {
+            self.send_thread_projection_notification(thread_id, &notification)
+                .await;
+        }
     }
 
     pub(crate) async fn send_server_notification_to_connections(
@@ -1473,6 +1486,99 @@ mod tests {
             .expect("wait should not time out")
             .expect("waiter should receive a callback");
         assert_eq!(result, Err(error));
+    }
+
+    #[tokio::test]
+    async fn global_goal_notifications_preserve_broadcast_and_projection_order() {
+        use codex_app_server_protocol::ThreadGoal;
+        use codex_app_server_protocol::ThreadGoalClearedNotification;
+        use codex_app_server_protocol::ThreadGoalStatus;
+        use codex_app_server_protocol::ThreadGoalUpdatedNotification;
+
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(8);
+        let outgoing =
+            OutgoingMessageSender::new(tx, codex_analytics::AnalyticsEventsClient::disabled());
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(2);
+        let attach = outgoing
+            .thread_projection_manager()
+            .attach(thread_id, connection_id)
+            .await;
+        let updated = ThreadGoalUpdatedNotification {
+            thread_id: thread_id.to_string(),
+            turn_id: None,
+            goal: ThreadGoal {
+                thread_id: thread_id.to_string(),
+                objective: "Finish the task".to_string(),
+                status: ThreadGoalStatus::Active,
+                token_budget: None,
+                tokens_used: 0,
+                time_used_seconds: 0,
+                created_at: 1,
+                updated_at: 1,
+            },
+        };
+        let cleared = ThreadGoalClearedNotification {
+            thread_id: thread_id.to_string(),
+        };
+        let notifications = [
+            ServerNotification::ThreadGoalUpdated(updated.clone()),
+            ServerNotification::ThreadGoalCleared(cleared.clone()),
+        ];
+        for notification in &notifications {
+            outgoing
+                .send_server_notification(notification.clone())
+                .await;
+        }
+        let mut broadcasts = Vec::new();
+        let mut events = Vec::new();
+        for _ in 0..4 {
+            match timeout(Duration::from_secs(1), rx.recv())
+                .await
+                .expect("goal delivery should not time out")
+                .expect("goal delivery should exist")
+            {
+                OutgoingEnvelope::Broadcast {
+                    message: OutgoingMessage::AppServerNotification(envelope),
+                } => broadcasts.push(envelope.notification),
+                OutgoingEnvelope::ToConnection {
+                    connection_id: delivered_connection,
+                    message:
+                        OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+                            notification: ServerNotification::ThreadProjectionEvent(event),
+                            ..
+                        }),
+                    ..
+                } => {
+                    assert_eq!(delivered_connection, connection_id);
+                    assert_eq!(event.subscription_id, attach.subscription_id);
+                    events.push(event);
+                }
+                _ => panic!("expected goal broadcast or projection event"),
+            }
+        }
+        assert_eq!(
+            serde_json::to_value(broadcasts).unwrap(),
+            serde_json::to_value(notifications).unwrap()
+        );
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].parent_commit_id, None);
+        assert_eq!(
+            events[1].parent_commit_id,
+            Some(events[0].commit_id.clone())
+        );
+        assert_eq!(
+            events[0].event,
+            ThreadProjectionEvent::GoalUpdated {
+                notification: updated
+            }
+        );
+        assert_eq!(
+            events[1].event,
+            ThreadProjectionEvent::GoalCleared {
+                notification: cleared
+            }
+        );
     }
 
     #[tokio::test]

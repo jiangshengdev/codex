@@ -84,6 +84,7 @@ describe("ComposerInputQueueCoordinator", () => {
       hasUnknownSteer: false,
       canStop: false,
       interrupt: { phase: "issuing" },
+      executionContinuing: true,
       pendingInputManagementOutcome: null,
     });
     expect(coordinator.getReleaseReadiness()).toEqual({
@@ -145,6 +146,7 @@ describe("ComposerInputQueueCoordinator", () => {
       recoveryCount: 3,
       recovery: { reason: "userStopped", count: 3 },
       isRecovering: true,
+      executionContinuing: false,
       persistence: { error: null, restoredPaused: false, revision: null, unknownMessages: [] },
       rejectedSteers: [],
       hasUnknownSteer: false,
@@ -323,6 +325,8 @@ describe("ComposerInputQueueCoordinator", () => {
     const listener = vi.fn<() => void>();
     coordinator.subscribe(listener);
     coordinator.submit(input("first"));
+    expect(listener).toHaveBeenCalledOnce();
+    listener.mockClear();
     coordinator.observeAcceptedEvent({
       notification: { ...eventItemStarted, threadId: "thread-2" },
       replay: "live",

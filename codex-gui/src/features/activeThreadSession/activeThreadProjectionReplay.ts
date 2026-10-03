@@ -45,6 +45,8 @@ export const replayForProjectionEvent = (
         ? "snapshotDuplicate"
         : "live";
     case "tokenUsageUpdated":
+    case "goalUpdated":
+    case "goalCleared":
       return "live";
   }
   notification.event satisfies never;

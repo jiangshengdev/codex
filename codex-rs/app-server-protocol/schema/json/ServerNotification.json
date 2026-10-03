@@ -5581,6 +5581,46 @@
           ],
           "title": "TokenUsageUpdatedThreadProjectionEvent",
           "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ThreadGoalUpdatedNotification"
+            },
+            "type": {
+              "enum": [
+                "goalUpdated"
+              ],
+              "title": "GoalUpdatedThreadProjectionEventType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "GoalUpdatedThreadProjectionEvent",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ThreadGoalClearedNotification"
+            },
+            "type": {
+              "enum": [
+                "goalCleared"
+              ],
+              "title": "GoalClearedThreadProjectionEventType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "GoalClearedThreadProjectionEvent",
+          "type": "object"
         }
       ]
     },

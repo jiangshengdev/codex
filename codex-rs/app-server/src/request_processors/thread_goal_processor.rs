@@ -83,6 +83,26 @@ impl ThreadGoalRequestProcessor {
         self.emit_thread_goal_snapshot(thread_id).await;
     }
 
+    pub(super) async fn read_projection_goal(
+        &self,
+        thread_id: ThreadId,
+    ) -> Result<Option<ThreadGoal>, JSONRPCErrorError> {
+        if !self.config.features.enabled(Feature::Goals) {
+            return Ok(None);
+        }
+        if let Ok(thread) = self.thread_manager.get_thread(thread_id).await
+            && thread.rollout_path().is_none()
+        {
+            return Ok(None);
+        }
+        let state_db = self
+            .state_db_for_materialized_thread(thread_id, GoalAccess::Read)
+            .await?;
+        read_thread_goal_snapshot(&state_db, thread_id)
+            .await
+            .map_err(|err| internal_error(format!("failed to read thread goal: {err}")))
+    }
+
     pub(crate) async fn pending_resume_goal_state(
         &self,
         thread: &CodexThread,
@@ -493,7 +513,18 @@ fn thread_settings_applied_item(
     ))
 }
 
-pub(super) fn api_thread_goal_from_state(goal: codex_state::ThreadGoal) -> ThreadGoal {
+pub(super) async fn read_thread_goal_snapshot(
+    state_db: &StateDbHandle,
+    thread_id: ThreadId,
+) -> anyhow::Result<Option<ThreadGoal>> {
+    state_db
+        .thread_goals()
+        .get_thread_goal(thread_id)
+        .await
+        .map(|goal| goal.map(api_thread_goal_from_state))
+}
+
+fn api_thread_goal_from_state(goal: codex_state::ThreadGoal) -> ThreadGoal {
     ThreadGoal {
         thread_id: goal.thread_id.to_string(),
         objective: goal.objective,

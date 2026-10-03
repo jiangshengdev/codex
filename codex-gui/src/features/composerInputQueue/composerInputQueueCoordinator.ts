@@ -84,6 +84,8 @@ export type ComposerInputQueueCoordinatorSnapshot = Readonly<{
   isRecovering: boolean;
   rejectedSteers: readonly ComposerRejectedSteerView[];
   hasUnknownSteer: boolean;
+  /** A turn is running, or a submitted start has not been conclusively settled. */
+  executionContinuing: boolean;
   canStop: boolean;
   interrupt: Readonly<{ phase: InterruptPhase | "definitelyNotAccepted" }> | null;
   pendingInputManagementOutcome: ComposerPendingInputLiveInvalidation | null;
@@ -360,6 +362,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       isRecovering: false,
       rejectedSteers: [],
       hasUnknownSteer: false,
+      executionContinuing: this.queue.executionContinuing(),
       canStop: input.activeTurnId != null,
       interrupt: null,
       pendingInputManagementOutcome: null,
@@ -904,6 +907,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.liveManagement.dispose(this.ownerGoneResult());
     this.snapshot = {
       ...this.snapshot,
+      executionContinuing: false,
       canStop: false,
       interrupt: null,
       pendingInputManagementOutcome: null,
@@ -1139,6 +1143,10 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       isRecovering: this.isRecovering,
       rejectedSteers: queueView.rejectedSteers,
       hasUnknownSteer: queueView.hasUnknownSteer,
+      executionContinuing:
+        currentTurnId != null ||
+        (this.queue.executionContinuing() &&
+          !this.deferredEffects.some((effect) => effect.type === "performStart")),
       canStop: this.canInterruptForSnapshot(currentTurnId),
       interrupt: interruptPhase == null ? null : { phase: interruptPhase },
       pendingInputManagementOutcome: this.liveManagement.outcome(),

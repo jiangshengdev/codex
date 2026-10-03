@@ -213,6 +213,7 @@ export type ComposerInputQueue = Readonly<{
   movePendingInput(request: ComposerPendingInputMoveRequest): ComposerPendingInputMoveResult;
   drainPendingInput(intent: ComposerPendingInputDrainIntent): ComposerInputQueueTransition;
   currentTurnId(): TurnIdentity | null;
+  executionContinuing(): boolean;
   submit(message: ComposerQueueMessage): ComposerInputQueueTransition;
   submitSteer(message: ComposerQueueMessage): ComposerInputQueueTransition;
   promoteOrdinaryFrontToSteer(): ComposerInputQueueTransition;
@@ -775,6 +776,9 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   };
 
   public currentTurnId = (): TurnIdentity | null => this.activeTurnId;
+
+  public executionContinuing = (): boolean =>
+    this.activeTurnId != null || this.startState.hasPending();
 
   public readPendingInputMovement = (
     request: ComposerPendingInputManagementRequest,

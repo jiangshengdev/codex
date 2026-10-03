@@ -2,6 +2,7 @@ import { vi, type Mock } from "vitest";
 import { AsyncQuestions } from "@/features/asyncQuestions/asyncQuestions";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
+import { TaskCompletionNotifications } from "@/features/taskNotifications/taskCompletionNotifications";
 import type {
   ActiveThreadActivationOutcome,
   ActiveThreadCompactionRole,
@@ -74,6 +75,7 @@ const emptyComposerSnapshot: ComposerInputQueueCoordinatorSnapshot = {
   rejectedSteers: [],
   hasUnknownSteer: false,
   canStop: false,
+  executionContinuing: false,
   interrupt: null,
   pendingInputManagementOutcome: null,
   persistence: { error: null, restoredPaused: false, revision: null, unknownMessages: [] },
@@ -176,6 +178,7 @@ export const activeThreadSessionSnapshot = (
     composerRole: createComposerRole(),
     compactionRole: createCompactionRole(() => revision),
     skillsRole: createSkillsRole(),
+    completions: new TaskCompletionNotifications(null),
     questions: new AsyncQuestions(
       () => false,
       () => false,
@@ -205,6 +208,7 @@ export const projectionUnavailableActiveThreadSessionSnapshot = (
     composerRole: createComposerRole(),
     compactionRole: createCompactionRole(() => revision),
     skillsRole: createSkillsRole(),
+    completions: new TaskCompletionNotifications(null),
     questions: new AsyncQuestions(
       () => false,
       () => false,

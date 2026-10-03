@@ -852,14 +852,14 @@ pub(super) async fn send_thread_goal_snapshot_notification(
     thread_id: ThreadId,
     state_db: &StateDbHandle,
 ) {
-    match state_db.thread_goals().get_thread_goal(thread_id).await {
+    match read_thread_goal_snapshot(state_db, thread_id).await {
         Ok(Some(goal)) => {
             outgoing
                 .send_server_notification(ServerNotification::ThreadGoalUpdated(
                     ThreadGoalUpdatedNotification {
                         thread_id: thread_id.to_string(),
                         turn_id: None,
-                        goal: api_thread_goal_from_state(goal),
+                        goal,
                     },
                 ))
                 .await;

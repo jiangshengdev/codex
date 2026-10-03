@@ -1,5 +1,6 @@
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
 import type { AsyncQuestions } from "@/features/asyncQuestions/asyncQuestions";
+import type { TaskCompletionNotifications } from "@/features/taskNotifications/taskCompletionNotifications";
 import type {
   ComposerInputQueueCoordinator,
   ComposerInputQueueCoordinatorSnapshot,
@@ -111,6 +112,7 @@ export type ActiveThreadReserveReleaseResult =
 
 export type LiveActiveThreadSession = Readonly<{
   questions: AsyncQuestions;
+  completions: TaskCompletionNotifications;
   identity: ActiveThreadSessionIdentity;
   getSnapshot(): LiveActiveThreadSessionSnapshot;
   subscribe(listener: () => void): () => void;

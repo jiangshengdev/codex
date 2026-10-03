@@ -1,7 +1,11 @@
 import { createContext, use } from "react";
+import type {
+  TaskNotificationMarker,
+  TaskNotificationMarkerSnapshot,
+} from "./taskNotificationMarkers";
 
-export const TaskNotificationContext = createContext<ReadonlySet<string>>(new Set());
+export const TaskNotificationContext = createContext<TaskNotificationMarkerSnapshot>(new Map());
 
-export function useTaskWaitingMarker(threadId: string): boolean {
-  return use(TaskNotificationContext).has(threadId);
+export function useTaskNotificationMarker(threadId: string, kind: TaskNotificationMarker): boolean {
+  return use(TaskNotificationContext).get(threadId)?.has(kind) ?? false;
 }

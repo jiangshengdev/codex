@@ -96,6 +96,7 @@ async fn thread_projection_attach_returns_snapshot_and_detach_status() -> Result
     assert!(!attach.subscription_id.is_empty());
     assert_eq!(thread.id, attach.snapshot.thread.id);
     assert_eq!(None, attach.snapshot.head_commit_id);
+    assert_eq!(None, attach.snapshot.goal);
 
     let detach_id = mcp
         .send_thread_projection_detach_request(ThreadProjectionDetachParams {
@@ -109,6 +110,107 @@ async fn thread_projection_attach_returns_snapshot_and_detach_status() -> Result
     .await??;
     let detach: ThreadProjectionDetachResponse = to_response(detach_response)?;
     assert_eq!(ThreadProjectionDetachStatus::Detached, detach.status);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn thread_projection_goal_baseline_updates_and_clear() -> Result<()> {
+    use codex_app_server_protocol::ThreadGoalClearResponse;
+    use codex_app_server_protocol::ThreadGoalSetResponse;
+    use serde_json::json;
+
+    let codex_home = TempDir::new()?;
+    let server = create_mock_responses_server_sequence_unchecked(Vec::new()).await;
+    write_mock_responses_config_toml(
+        codex_home.path(),
+        &server.uri(),
+        &BTreeMap::new(),
+        /*auto_compact_limit*/ 1024,
+        /*requires_openai_auth*/ None,
+        "mock_provider",
+        "compact",
+    )?;
+    let config_path = codex_home.path().join("config.toml");
+    let config = std::fs::read_to_string(&config_path)?;
+    std::fs::write(
+        config_path,
+        config.replace("personality = true\n", "personality = true\ngoals = true\n"),
+    )?;
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .without_auto_env()
+        .build_initialized()
+        .await?;
+    let thread = start_thread(&mut mcp).await?;
+    let set_id = mcp
+        .send_raw_request(
+            "thread/goal/set",
+            Some(json!({
+                "threadId": thread.id,
+                "objective": "Initial objective",
+                "status": "paused",
+            })),
+        )
+        .await?;
+    let initial: ThreadGoalSetResponse =
+        timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(set_id)).await??;
+    timeout(
+        DEFAULT_READ_TIMEOUT,
+        mcp.read_stream_until_notification_message("thread/goal/updated"),
+    )
+    .await??;
+    let attach = attach_projection(&mut mcp, &thread.id).await?;
+    assert_eq!(attach.snapshot.goal, Some(initial.goal));
+
+    let set_id = mcp
+        .send_raw_request(
+            "thread/goal/set",
+            Some(json!({
+                "threadId": thread.id,
+                "objective": "Updated objective",
+                "status": "paused",
+            })),
+        )
+        .await?;
+    let updated: ThreadGoalSetResponse =
+        timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(set_id)).await??;
+    let update_event = read_projection_event(&mut mcp).await?;
+    assert_eq!(update_event.subscription_id, attach.subscription_id);
+    assert_eq!(
+        update_event.parent_commit_id,
+        attach.snapshot.head_commit_id
+    );
+    assert_eq!(
+        update_event.event,
+        ThreadProjectionEvent::GoalUpdated {
+            notification: codex_app_server_protocol::ThreadGoalUpdatedNotification {
+                thread_id: thread.id.clone(),
+                turn_id: None,
+                goal: updated.goal,
+            },
+        }
+    );
+    let clear_id = mcp
+        .send_raw_request("thread/goal/clear", Some(json!({ "threadId": thread.id })))
+        .await?;
+    let cleared: ThreadGoalClearResponse =
+        timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(clear_id)).await??;
+    assert!(cleared.cleared);
+    let clear_event = read_projection_event(&mut mcp).await?;
+    assert_eq!(clear_event.subscription_id, attach.subscription_id);
+    assert_eq!(clear_event.parent_commit_id, Some(update_event.commit_id));
+    assert_eq!(
+        clear_event.event,
+        ThreadProjectionEvent::GoalCleared {
+            notification: codex_app_server_protocol::ThreadGoalClearedNotification {
+                thread_id: thread.id.clone(),
+            },
+        }
+    );
+    assert_eq!(
+        attach_projection(&mut mcp, &thread.id).await?.snapshot.goal,
+        None
+    );
     Ok(())
 }
 

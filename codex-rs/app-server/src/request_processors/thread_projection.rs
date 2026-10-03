@@ -291,10 +291,16 @@ impl ThreadRequestProcessor {
             }
         }
         thread.status = thread_status;
+        let goal = self
+            .thread_goal_processor
+            .read_projection_goal(thread_id)
+            .await
+            .map_err(ThreadReadViewError::JsonRpc)?;
         Ok(ThreadProjectionSnapshot {
             thread,
             head_commit_id: cut.head_commit_id,
             token_usage,
+            goal,
         })
     }
 

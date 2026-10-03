@@ -55,6 +55,7 @@
       ]
     },
     "headCommitId": "commit-replacement-head",
-    "tokenUsage": null
+    "tokenUsage": null,
+    "goal": null
   }
 }

@@ -1,5 +1,6 @@
 import type {
   ThreadItem,
+  ThreadGoal,
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
@@ -229,6 +230,44 @@ export const attachWithHeadCommitId = (
     ...attach.snapshot,
     headCommitId,
   },
+});
+
+export const threadGoal = (threadId: string, status: ThreadGoal["status"]): ThreadGoal => ({
+  threadId,
+  objective: "Finish the task",
+  status,
+  tokenBudget: null,
+  tokensUsed: 0,
+  timeUsedSeconds: 0,
+  createdAt: 1,
+  updatedAt: 1,
+});
+
+export const attachWithGoal = (
+  attach: ThreadProjectionAttachResponse,
+  goal: ThreadProjectionAttachResponse["snapshot"]["goal"],
+): ThreadProjectionAttachResponse => ({
+  ...attach,
+  snapshot: { ...attach.snapshot, goal },
+});
+
+export const goalUpdated = (
+  baseline: ThreadProjectionEventNotification,
+  commitId: string,
+  goal: ThreadGoal,
+): ThreadProjectionEventNotification => ({
+  ...baseline,
+  commitId,
+  event: { type: "goalUpdated", notification: { threadId: goal.threadId, turnId: null, goal } },
+});
+
+export const goalCleared = (
+  baseline: ThreadProjectionEventNotification,
+  commitId: string,
+): ThreadProjectionEventNotification => ({
+  ...baseline,
+  commitId,
+  event: { type: "goalCleared", notification: { threadId: baseline.threadId } },
 });
 
 export const attachWithSnapshotThread = (
