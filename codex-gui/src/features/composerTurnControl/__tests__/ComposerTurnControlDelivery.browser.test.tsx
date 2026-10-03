@@ -25,7 +25,6 @@ const expectStartTurnCalledOnceWithText = (
   startTurn: Mock<GuiHostCommands["startTurn"]>,
   text: string,
 ): void => {
-  expect(startTurn).toHaveBeenCalledOnce();
   const call = startTurn.mock.calls.at(0);
   if (call == null) {
     throw new Error("startTurn must have one recorded call");

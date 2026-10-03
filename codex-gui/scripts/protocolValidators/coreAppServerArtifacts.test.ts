@@ -219,7 +219,6 @@ describe("protocol validator artifacts", () => {
       const raw = artifacts[fileName];
       expect(raw).toMatch(/^\/\/.*generated.*\n/i);
       expect(raw.endsWith(opaqueSource)).toBe(true);
-      expect(raw.slice(raw.length - opaqueSource.length)).toBe(opaqueSource);
     }
   });
 
@@ -282,7 +281,6 @@ describe("protocol validator artifacts", () => {
     const artifacts = await generate();
 
     expect(Object.keys(artifacts).sort()).toEqual([...APP_SERVER_ARTIFACTS]);
-    expect(artifacts).not.toHaveProperty("validatorRegistry.ts");
   });
 
   test("is byte-for-byte deterministic across complete generations", async () => {

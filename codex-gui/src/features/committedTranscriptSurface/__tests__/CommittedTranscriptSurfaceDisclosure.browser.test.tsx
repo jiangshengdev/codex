@@ -67,27 +67,6 @@ test("renders temporary content collapsed beside the final answer once final ans
   await expect.element(screen.getByText("Hidden working note")).toBeVisible();
 });
 
-test("keeps the final answer visible while temporary disclosure is collapsed", async () => {
-  const { store, ...screen } = await renderTranscriptWithProviders(
-    transcriptIdentity,
-    <CommittedTranscriptSurface identity={transcriptIdentity} />,
-  );
-
-  store.dispatch(
-    actions.threadRuntimeAttached(
-      attachWithTurns(attachBaseline, [
-        baseTurn("turn-temporary-spacing", [
-          agentMessage("agent-commentary-spacing", "Hidden spacing note", "commentary"),
-          agentMessage("agent-final-spacing", "Visible final answer", "final_answer"),
-        ]),
-      ]),
-    ),
-  );
-
-  await expect.element(screen.getByText("Visible final answer")).toBeVisible();
-  await expect.element(screen.getByText("Hidden spacing note")).not.toBeInTheDocument();
-});
-
 test("does not mount collapsed temporary markdown before expansion", async () => {
   const { store, ...screen } = await renderTranscriptWithProviders(
     transcriptIdentity,

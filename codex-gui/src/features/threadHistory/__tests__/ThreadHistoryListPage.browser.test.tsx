@@ -206,11 +206,6 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
   await namedCard.getByText("Named task", { exact: true }).click();
   await expect.element(screen.getByRole("main", { name: "History detail" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe(`/history/${namedThreadId}`);
-  expect(
-    router.state.location.pathname.match(
-      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
-    ),
-  ).toStrictEqual([namedThreadId]);
   expect(router.state.location.search).toEqual({});
   expect(router.state.location.hash).toBe("");
 });

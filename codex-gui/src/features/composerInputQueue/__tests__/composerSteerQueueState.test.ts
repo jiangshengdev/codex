@@ -741,7 +741,6 @@ describe("composer steer queue state", () => {
     ]);
     const restored = issue(recovery);
     expect(restored.intent).toBe(required.transfer.intents[0]);
-    expect(restored.intent).toEqual(required.transfer.intents[0]);
   });
 
   it("owns the complete captured message independently of the enqueue container", () => {

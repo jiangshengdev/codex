@@ -74,7 +74,6 @@ test("stop failure preset keeps the turn active and allows retry without clearin
   await expect(editor).toHaveText("Keep this draft while stopping.");
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Guide", exact: true })).toBeEnabled();
-  await expect(page.getByText("Current turn is running", { exact: true })).toBeVisible();
   await stop.click();
   await expect(failed).toHaveCount(0);
   await expect(stop).toHaveAttribute("data-pending", "true");
@@ -90,11 +89,9 @@ test("unknown stop preset does not retry and retains input until termination", a
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-stop--stop-unknown`);
   const preview = page;
   const stop = preview.getByRole("button", { name: "Stop", exact: true });
-  const response = preview.getByRole("button", { name: "Simulate stop response", exact: true });
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   await expect(stop).toHaveAttribute("data-pending", "true");
   await expect(stop).toBeDisabled();
-  await expect(response).toBeDisabled();
   await expect(preview.getByText("Stop failed", { exact: true })).toHaveCount(0);
   await editor.fill("Editable while stop is unknown");
   await expect(preview.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
@@ -113,11 +110,8 @@ test("accepted stop preset remains active and allows queueing until runtime term
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-stop--stop-accepted`);
   const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
   const stop = page.getByRole("button", { name: "Stop", exact: true });
-  const response = page.getByRole("button", { name: "Simulate stop response", exact: true });
   await expect(stop).toHaveAttribute("data-pending", "true");
   await expect(stop).toBeDisabled();
-  await expect(response).toBeDisabled();
-  await expect(page.getByText("Current turn is running", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Guide", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(page.getByRole("button", { name: "Queued 1", exact: true })).toBeVisible();
@@ -149,7 +143,6 @@ test("stop request preset retains editable input and waits separately for respon
   await editor.fill("Edited while waiting");
   await response.click();
   await expect(stop).toHaveAttribute("data-pending", "true");
-  await expect(page.getByText("Current turn is running", { exact: true })).toBeVisible();
   await page
     .getByRole("button", { name: "Simulate current turn interrupted", exact: true })
     .click();

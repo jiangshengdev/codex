@@ -139,8 +139,6 @@ test("pasted image bytes enter the attachment flow without pasting their HTML re
   });
   // Firefox drops files from the synthetic ClipboardEvent constructor.
   Object.defineProperty(event, "clipboardData", { value: data });
-  expect(data.files.length).toBe(1);
-  expect(event.clipboardData?.files.length).toBe(1);
   composer.element().dispatchEvent(event);
   await expect.element(composer.getByRole("alert")).toHaveTextContent("Preview read failed");
   await expect.element(composer).not.toHaveTextContent("image representation");

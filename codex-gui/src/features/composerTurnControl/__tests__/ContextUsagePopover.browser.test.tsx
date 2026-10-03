@@ -194,7 +194,6 @@ describe("ContextUsagePopover", () => {
 
     await expect.element(trigger).toBeVisible();
     expect(trigger.element().textContent).toBe("");
-    expect(trigger.element().textContent).not.toMatch(/149k|58%/);
     await trigger.click();
 
     const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
@@ -259,7 +258,6 @@ describe("ContextUsagePopover", () => {
     });
 
     expect(trigger.element().textContent).toBe("");
-    expect(trigger.element().textContent).not.toMatch(/300k|100%/);
     await trigger.click();
 
     const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
@@ -278,7 +276,6 @@ describe("ContextUsagePopover", () => {
 
     await expect.element(trigger).toBeVisible();
     expect(trigger.element().textContent).toBe("");
-    expect(trigger.element().textContent).not.toMatch(/149k|58%/);
     await trigger.click();
 
     const dialog = screen.getByRole("dialog", { name: "上下文用量", exact: true });
@@ -302,14 +299,12 @@ describe("ContextUsagePopover", () => {
     });
     await expect.element(trigger).toBeVisible();
     expect(trigger.element().textContent).toBe("");
-    expect(trigger.element().textContent).not.toMatch(/255k|99%/);
     const progressCircle = progressCircleFor(trigger.element());
     const hiddenPresentation = progressCircle.closest('[aria-hidden="true"]');
     if (hiddenPresentation == null) {
       throw new Error("context usage progressbar must have a hidden ancestor");
     }
 
-    expect(hiddenPresentation.getAttribute("aria-hidden")).toBe("true");
     await expect.element(screen.getByRole("progressbar")).not.toBeInTheDocument();
 
     await trigger.click();

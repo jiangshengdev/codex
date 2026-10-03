@@ -317,7 +317,6 @@ describe("guiHostClient commands", () => {
     if (!(error.cause instanceof Error)) {
       throw new Error("Expected GuiHostCommandError cause");
     }
-    expect(error.cause).toBeInstanceOf(Error);
     expect(error.message).toBe(error.cause.message);
     expect(socket.closed).toEqual([]);
     expect(statuses.at(-1)).toBe("initialized");

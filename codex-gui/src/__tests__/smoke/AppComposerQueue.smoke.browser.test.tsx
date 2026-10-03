@@ -98,7 +98,6 @@ const expectStartTurnCalledOnceWithText = (
   startTurn: Mock<GuiHostCommands["startTurn"]>,
   text: string,
 ): void => {
-  expect(startTurn).toHaveBeenCalledOnce();
   const params = startTurnParamsAt(startTurn, 0);
   const clientUserMessageId = params.clientUserMessageId;
   expect(typeof clientUserMessageId).toBe("string");

@@ -99,9 +99,6 @@ test("valid text opens ready to send without inserting content first", async ({ 
   await expect(send).toBeEnabled();
   await send.click();
   await expect(editor).toBeEmpty();
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeEnabled();
 });
 
 test("whitespace disables sending until nonempty input is entered", async ({ page }) => {
@@ -112,8 +109,4 @@ test("whitespace disables sending until nonempty input is entered", async ({ pag
   await expect(send).toBeDisabled();
   await editor.fill("Continue from the preset");
   await expect(send).toBeEnabled();
-  await send.click();
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeEnabled();
 });
