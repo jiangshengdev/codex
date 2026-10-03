@@ -8,6 +8,11 @@ import {
   submit,
 } from "./persistenceHarness";
 
+// Keep HTTP mocks authoritative after reload: a controlling service worker
+// bypasses Playwright request interception in WebKit. Notification coverage
+// retains real service workers in taskNotifications.spec.ts.
+test.use({ serviceWorkers: "block" });
+
 // Ordinary HTTP origins do not expose randomUUID. Exercise the entire
 // persistence flow with that API absent, including after every reload.
 test.beforeEach(async ({ page }) => {
@@ -54,8 +59,12 @@ test("ready file and image attachments survive reload and submit without reuploa
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   await settledRender(page);
+  const restoredPreview = page.waitForResponse(
+    (response) => response.url().includes("/upload/preview?") && response.status() === 200,
+  );
   await page.reload();
   await ready(page);
+  expect((await restoredPreview).headers()["content-type"]).toBe("image/png");
   await expect(composer(page).getByText("notes.txt", { exact: true })).toBeVisible();
   await expect(
     composer(page).getByRole("button", { name: "Preview picture.png", exact: true }),

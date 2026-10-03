@@ -52,7 +52,7 @@ msgstr "{0} skill details"
 msgid "{0} skill details, {1}"
 msgstr "{0} skill details, {1}"
 
-#: src/features/taskNotifications/TaskNotifications.tsx:28
+#: src/features/taskNotifications/TaskNotifications.tsx:29
 msgid "{count, plural, one {# question needs a response} other {# questions need a response}}"
 msgstr "{count, plural, one {# question needs a response} other {# questions need a response}}"
 
@@ -1029,7 +1029,7 @@ msgid "Question skipped"
 msgstr "Question skipped"
 
 #. Browser notification body; preview is the agent's question title
-#: src/features/taskNotifications/TaskNotifications.tsx:37
+#: src/features/taskNotifications/TaskNotifications.tsx:38
 msgid "Question: {preview}"
 msgstr "Question: {preview}"
 
