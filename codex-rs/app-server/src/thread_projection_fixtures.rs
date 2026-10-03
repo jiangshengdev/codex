@@ -469,6 +469,7 @@ fn event_turn_completed() -> Result<ThreadProjectionEventNotification> {
         "commit-turn-completed",
         Some("commit-token-usage-updated"),
         ThreadProjectionEvent::TurnCompleted {
+            goal: codex_app_server_protocol::ThreadGoalStatusSnapshot::Known { status: None },
             notification: TurnCompletedNotification {
                 thread_id: THREAD_ID.to_string(),
                 turn: completed_event_turn("turn-in-progress"),

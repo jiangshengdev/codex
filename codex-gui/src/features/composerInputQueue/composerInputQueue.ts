@@ -193,6 +193,7 @@ export type ComposerInputQueue = Readonly<{
   prepareInterruptedSnapshot(turn: Turn): void;
   unknownMessages(): readonly Readonly<{ id: string; text: string }>[];
   hasPendingMessages(): boolean;
+  isExecutionContinuing(): boolean;
   discardUnknown(id: string): boolean;
   view(): ComposerInputQueueView;
   detailRevision(): number;
@@ -477,6 +478,15 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       steer.queuedCount > 0 ||
       steer.pendingCount > 0 ||
       steer.rejectedSteersQueue.length > 0
+    );
+  }
+
+  public isExecutionContinuing(): boolean {
+    return (
+      this.activeTurnId != null ||
+      this.startState.hasPending() ||
+      this.preparedInterruptedTurnId != null ||
+      (!this.automaticSendingPaused && this.hasPendingMessages())
     );
   }
 

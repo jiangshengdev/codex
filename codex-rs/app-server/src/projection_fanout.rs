@@ -60,6 +60,21 @@ impl ThreadProjectionFacade {
         self.fanout.cancel_thread(thread_id).await;
         self.manager.remove_thread(thread_id).await;
     }
+
+    pub(crate) async fn enqueue_event(
+        &self,
+        sender: mpsc::Sender<OutgoingEnvelope>,
+        thread_id: ThreadId,
+        event: codex_app_server_protocol::ThreadProjectionEvent,
+    ) {
+        let deliveries = self
+            .manager
+            .project_structural_event(thread_id, event)
+            .await;
+        if !deliveries.is_empty() {
+            self.fanout.enqueue(sender, thread_id, deliveries).await;
+        }
+    }
 }
 
 #[derive(Clone)]

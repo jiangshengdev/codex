@@ -240,7 +240,7 @@ impl ThreadProjectionManager {
         Vec::new()
     }
 
-    async fn project_structural_event(
+    pub(crate) async fn project_structural_event(
         &self,
         thread_id: ThreadId,
         event: ThreadProjectionEvent,
@@ -490,11 +490,6 @@ fn projection_event_from_notification(
         ServerNotification::TurnStarted(notification) => Some(ThreadProjectionEvent::TurnStarted {
             notification: notification.clone(),
         }),
-        ServerNotification::TurnCompleted(notification) => {
-            Some(ThreadProjectionEvent::TurnCompleted {
-                notification: notification.clone(),
-            })
-        }
         ServerNotification::ItemStarted(notification) => Some(ThreadProjectionEvent::ItemStarted {
             notification: notification.clone(),
         }),

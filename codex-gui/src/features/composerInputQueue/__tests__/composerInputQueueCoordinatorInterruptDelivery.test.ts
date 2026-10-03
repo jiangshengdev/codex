@@ -83,6 +83,7 @@ describe("ComposerInputQueueCoordinator", () => {
       rejectedSteers: [],
       hasUnknownSteer: false,
       canStop: false,
+      executionContinuing: true,
       interrupt: { phase: "issuing" },
       pendingInputManagementOutcome: null,
     });
@@ -139,6 +140,7 @@ describe("ComposerInputQueueCoordinator", () => {
       input("two").input,
     ]);
     expect(snapshots).toContainEqual({
+      executionContinuing: false,
       ordinaryQueuedCount: 0,
       guidingCount: 0,
       detailRevision: stoppedSnapshot.detailRevision,
@@ -323,6 +325,9 @@ describe("ComposerInputQueueCoordinator", () => {
     const listener = vi.fn<() => void>();
     coordinator.subscribe(listener);
     coordinator.submit(input("first"));
+    expect(listener).toHaveBeenCalledOnce();
+    expect(coordinator.getSnapshot().executionContinuing).toBe(true);
+    listener.mockClear();
     coordinator.observeAcceptedEvent({
       notification: { ...eventItemStarted, threadId: "thread-2" },
       replay: "live",

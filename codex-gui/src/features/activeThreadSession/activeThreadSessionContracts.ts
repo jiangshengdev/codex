@@ -1,5 +1,6 @@
 import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
 import type { AsyncQuestions } from "@/features/asyncQuestions/asyncQuestions";
+import type { TaskCompletion } from "./taskCompletions";
 import type {
   ComposerInputQueueCoordinator,
   ComposerInputQueueCoordinatorSnapshot,
@@ -65,6 +66,7 @@ type ActiveSnapshotContents = Readonly<{
   threadId: string;
   subscriptionId: string;
   activeTurnId: string | null;
+  completion: TaskCompletion | null;
   threadStatus: Thread["status"] | null;
   compaction: ActiveThreadCompactionView;
   composer: ComposerInputQueueCoordinatorSnapshot;

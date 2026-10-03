@@ -41,6 +41,10 @@ pub(crate) use codex_app_server_transport::OutgoingResponse;
 pub(crate) use codex_app_server_transport::QueuedOutgoingMessage;
 
 #[cfg(test)]
+#[path = "completion_goal_tests.rs"]
+mod completion_goal_tests;
+
+#[cfg(test)]
 use codex_protocol::account::PlanType;
 
 pub(crate) type ClientRequestResult = std::result::Result<Result, JSONRPCErrorError>;
@@ -127,6 +131,7 @@ pub(crate) struct ThreadScopedOutgoingMessageSender {
     outgoing: Arc<OutgoingMessageSender>,
     connection_ids: Arc<Vec<ConnectionId>>,
     thread_id: ThreadId,
+    completion_goal: codex_app_server_protocol::ThreadGoalStatusSnapshot,
 }
 
 struct PendingCallbackEntry {
@@ -149,7 +154,16 @@ impl ThreadScopedOutgoingMessageSender {
             outgoing,
             connection_ids: Arc::new(connection_ids),
             thread_id,
+            completion_goal: codex_app_server_protocol::ThreadGoalStatusSnapshot::Unavailable,
         }
+    }
+
+    pub(crate) fn with_completion_goal(
+        mut self,
+        goal: codex_app_server_protocol::ThreadGoalStatusSnapshot,
+    ) -> Self {
+        self.completion_goal = goal;
+        self
     }
 
     pub(crate) async fn send_request(
@@ -191,9 +205,23 @@ impl ThreadScopedOutgoingMessageSender {
                 )
                 .await;
         }
-        self.outgoing
-            .send_thread_projection_notification(self.thread_id, &notification)
-            .await;
+        if let ServerNotification::TurnCompleted(notification) = notification {
+            self.outgoing
+                .thread_projection_facade
+                .enqueue_event(
+                    self.outgoing.sender.clone(),
+                    self.thread_id,
+                    codex_app_server_protocol::ThreadProjectionEvent::TurnCompleted {
+                        notification,
+                        goal: self.completion_goal.clone(),
+                    },
+                )
+                .await;
+        } else {
+            self.outgoing
+                .send_thread_projection_notification(self.thread_id, &notification)
+                .await;
+        }
     }
 
     pub(crate) async fn send_global_server_notification(&self, notification: ServerNotification) {

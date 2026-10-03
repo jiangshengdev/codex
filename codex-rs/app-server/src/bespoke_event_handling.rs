@@ -200,6 +200,9 @@ pub(crate) async fn apply_bespoke_event_handling(
             thread_watch_manager
                 .note_turn_completed(&conversation_id.to_string(), turn_failed)
                 .await;
+            let goal =
+                crate::completion_goal::read_completion_goal(&conversation, conversation_id).await;
+            let outgoing = outgoing.with_completion_goal(goal);
             handle_turn_complete(
                 conversation_id,
                 event_turn_id,

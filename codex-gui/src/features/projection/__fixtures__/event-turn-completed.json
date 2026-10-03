@@ -23,6 +23,10 @@
         "completedAt": 1700000016,
         "durationMs": 6000
       }
+    },
+    "goal": {
+      "type": "known",
+      "status": null
     }
   }
 }

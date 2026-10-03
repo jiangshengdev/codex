@@ -85,6 +85,7 @@ export type ComposerInputQueueCoordinatorSnapshot = Readonly<{
   rejectedSteers: readonly ComposerRejectedSteerView[];
   hasUnknownSteer: boolean;
   canStop: boolean;
+  executionContinuing: boolean;
   interrupt: Readonly<{ phase: InterruptPhase | "definitelyNotAccepted" }> | null;
   pendingInputManagementOutcome: ComposerPendingInputLiveInvalidation | null;
 }>;
@@ -361,6 +362,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       rejectedSteers: [],
       hasUnknownSteer: false,
       canStop: input.activeTurnId != null,
+      executionContinuing: this.queue.isExecutionContinuing(),
       interrupt: null,
       pendingInputManagementOutcome: null,
     };
@@ -1140,6 +1142,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       rejectedSteers: queueView.rejectedSteers,
       hasUnknownSteer: queueView.hasUnknownSteer,
       canStop: this.canInterruptForSnapshot(currentTurnId),
+      executionContinuing: this.queue.isExecutionContinuing(),
       interrupt: interruptPhase == null ? null : { phase: interruptPhase },
       pendingInputManagementOutcome: this.liveManagement.outcome(),
     };

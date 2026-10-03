@@ -52,7 +52,7 @@ msgstr "{0} skill details"
 msgid "{0} skill details, {1}"
 msgstr "{0} skill details, {1}"
 
-#: src/features/taskNotifications/TaskNotifications.tsx:28
+#: src/features/taskNotifications/TaskNotifications.tsx:30
 msgid "{count, plural, one {# question needs a response} other {# questions need a response}}"
 msgstr "{count, plural, one {# question needs a response} other {# questions need a response}}"
 
@@ -510,6 +510,23 @@ msgstr "Error - Agent errored"
 msgid "Error - Agent resume failed"
 msgstr "Error - Agent resume failed"
 
+#. Browser notification for a failed task without error details
+#: src/features/taskNotifications/TaskNotifications.tsx:48
+msgid "Execution failed"
+msgstr "Execution failed"
+
+#. Browser notification body; summary is the failed turn's error message
+#: src/features/taskNotifications/TaskNotifications.tsx:44
+msgid "Execution failed: {summary}"
+msgstr "Execution failed: {summary}"
+
+#. Completed task notification or unread task-entry marker
+#. Completed task notification or unread task-entry marker
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:137
+#: src/features/taskNotifications/TaskNotifications.tsx:56
+msgid "Execution finished"
+msgstr "Execution finished"
+
 #. Close the fullscreen Markdown table dialog.
 #: src/features/committedTranscriptSurface/MarkdownTable.tsx:48
 msgid "Exit fullscreen"
@@ -791,7 +808,7 @@ msgid "More move options for pending message: {previewText}"
 msgstr "More move options for pending message: {previewText}"
 
 #. Accessible name of the active task row actions button; title is the task name or UUID
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:140
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:149
 msgid "More options for {title}"
 msgstr "More options for {title}"
 
@@ -1029,7 +1046,7 @@ msgid "Question skipped"
 msgstr "Question skipped"
 
 #. Browser notification body; preview is the agent's question title
-#: src/features/taskNotifications/TaskNotifications.tsx:37
+#: src/features/taskNotifications/TaskNotifications.tsx:32
 msgid "Question: {preview}"
 msgstr "Question: {preview}"
 
@@ -1094,8 +1111,8 @@ msgid "Remove {name}"
 msgstr "Remove {name}"
 
 #. Remove only from the active GUI task list; history and draft are kept
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:162
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:166
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:171
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:175
 msgid "Remove from list"
 msgstr "Remove from list"
 
@@ -1369,7 +1386,7 @@ msgid "Task action failed"
 msgstr "Task action failed"
 
 #. Accessible label for the active task row dropdown containing Remove from list
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:150
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:159
 msgid "Task actions"
 msgstr "Task actions"
 
@@ -1574,7 +1591,7 @@ msgstr "This task is no longer connected."
 msgid "This task is still running."
 msgstr "This task is still running."
 
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:177
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:186
 msgid "This task needs attention."
 msgstr "This task needs attention."
 

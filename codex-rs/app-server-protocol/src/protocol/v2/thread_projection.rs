@@ -5,6 +5,7 @@ use super::ReasoningSummaryPartAddedNotification;
 use super::ReasoningSummaryTextDeltaNotification;
 use super::ReasoningTextDeltaNotification;
 use super::Thread;
+use super::ThreadGoalStatus;
 use super::ThreadTokenUsage;
 use super::ThreadTokenUsageUpdatedNotification;
 use super::TurnCompletedNotification;
@@ -106,6 +107,7 @@ pub enum ThreadProjectionEvent {
     },
     TurnCompleted {
         notification: TurnCompletedNotification,
+        goal: ThreadGoalStatusSnapshot,
     },
     ItemStarted {
         notification: ItemStartedNotification,
@@ -116,6 +118,15 @@ pub enum ThreadProjectionEvent {
     TokenUsageUpdated {
         notification: ThreadTokenUsageUpdatedNotification,
     },
+}
+
+/// Authoritative goal state read when publishing a completed turn.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(tag = "type", rename_all = "camelCase")]
+#[ts(tag = "type", rename_all = "camelCase", export_to = "v2/")]
+pub enum ThreadGoalStatusSnapshot {
+    Known { status: Option<ThreadGoalStatus> },
+    Unavailable,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

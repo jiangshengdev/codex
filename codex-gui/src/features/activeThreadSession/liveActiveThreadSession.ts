@@ -1,5 +1,6 @@
 import type { AppDispatch } from "@/app/store";
 import { AsyncQuestions } from "@/features/asyncQuestions/asyncQuestions";
+import { TaskCompletions } from "./taskCompletions";
 import { capturePlainTextDraft } from "@/features/composerEditor/composerDraft";
 import type { ActiveThreadConnection } from "./activeThreadConnection";
 import {
@@ -62,6 +63,7 @@ export type CreateLiveActiveThreadSessionInput = Readonly<{
 }>;
 
 class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
+  private readonly completions = new TaskCompletions();
   readonly questions = new AsyncQuestions(
     () => this.operationUnavailable(this.revision) == null,
     (text) =>
@@ -136,6 +138,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     this.dispatch = dispatch;
     this.revision = sessionRevision;
     this.activeTurnId = activeTurnIdFromTurns(thread.turns);
+    this.completions.rebase(thread.turns);
     this.queue = createComposerInputQueueCoordinator({
       threadId: this.threadId,
       activeTurnId: this.activeTurnId,
@@ -316,6 +319,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       }
       if (this.isDisposed()) return { type: "unavailable" };
       this.activeTurnId = activeTurnIdFromTurns(response.snapshot.thread.turns);
+      this.completions.rebase(response.snapshot.thread.turns);
       this.compaction.reconcileSnapshot(response.snapshot.thread.turns);
       this.threadStatus.rebase(response.snapshot.thread.status);
       if (!drainCandidate()) return { type: "unavailable" };
@@ -766,6 +770,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private applyOwnerFacts(facts: readonly ActiveThreadProjectionAcceptedEvent[]): void {
     for (const fact of facts) {
       this.questions.observe(fact);
+      this.completions.observe(fact);
       if (fact.replay === "live") {
         switch (fact.notification.event.type) {
           case "turnStarted":
@@ -825,6 +830,11 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       threadId: this.threadId,
       subscriptionId: this.subscriptionId,
       activeTurnId: this.activeTurnId,
+      completion: this.completions.settle(
+        this.connectionClosed ||
+          this.projectionUnavailableReason != null ||
+          this.queue.getSnapshot().executionContinuing,
+      ),
       threadStatus: this.threadStatus.getSnapshot(),
       compaction: this.compactionView(),
       composer: this.queue.getSnapshot(),
