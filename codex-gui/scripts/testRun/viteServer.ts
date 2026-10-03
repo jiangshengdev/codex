@@ -10,7 +10,7 @@ if (process.env.CI) {
 } else {
   const server = await createServer({
     plugins,
-    server: { ...listener, hmr: { port: run.port, clientPort: run.port } },
+    server: { ...listener, ws: { port: run.port, clientPort: run.port } },
   });
   await server.listen();
 }
