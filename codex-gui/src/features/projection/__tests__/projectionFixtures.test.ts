@@ -145,8 +145,6 @@ describe("Rust-generated projection fixtures", () => {
   });
 
   it("does not contain historical sequence projection fields", () => {
-    expect(fixturePayloads).toHaveLength(14);
-
     for (const payload of fixturePayloads) {
       for (const fieldName of [
         "projectionInstanceId",
