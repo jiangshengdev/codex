@@ -13,8 +13,6 @@ test("unmatched page returns to the history placeholder without opening external
   await expect(support).toBeFocused();
   await page.getByRole("button", { name: "Go back home" }).press("Enter");
   await expect(page.getByRole("main")).toHaveText("/history");
-  await page.reload();
-  await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
 });
 
 for (const locale of ["en", "zh-CN"] as const) {

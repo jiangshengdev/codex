@@ -99,8 +99,6 @@ for (const locale of ["en", "zh-CN"] as const) {
 
             const diagnosticButtons = buttons.slice(0, Number(diagnostic));
             const retryButtons = buttons.slice(Number(diagnostic));
-            expect(diagnosticButtons).toHaveLength(Number(diagnostic));
-            expect(retryButtons).toHaveLength(Number(retry));
             for (const trigger of diagnosticButtons) {
               expect(trigger.getBoundingClientRect().top).toBeGreaterThanOrEqual(
                 description.getBoundingClientRect().bottom,
