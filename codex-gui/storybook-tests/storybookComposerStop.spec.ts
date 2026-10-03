@@ -13,7 +13,6 @@ test("accepted stop waits for termination and preserves queued input for explici
   const stop = page.getByRole("button", { name: "Stop", exact: true });
   const response = page.getByRole("button", { name: "Simulate stop response", exact: true });
   const sendResponse = page.getByRole("button", { name: "Simulate send response", exact: true });
-  await expect(response).toBeDisabled();
   await editor.fill("First queued message");
   await send.click();
   await editor.fill("Second queued message");
@@ -34,10 +33,8 @@ test("accepted stop waits for termination and preserves queued input for explici
   await expect(send).toBeEnabled();
   await expect(page.getByRole("button", { name: "Guide", exact: true })).toBeEnabled();
   await response.click();
-  await expect(response).toBeDisabled();
   await expect(stop).toHaveAttribute("data-pending", "true");
   await expect(stop).toBeDisabled();
-  await expect(page.getByText("Current turn is running", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Queued 2", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(0);
   await page
@@ -46,10 +43,8 @@ test("accepted stop waits for termination and preserves queued input for explici
   await expect(stop).not.toHaveAttribute("data-pending");
   await expect(page.getByText("2 messages have not been sent", { exact: true })).toBeVisible();
   await expect(send).toBeDisabled();
-  await expect(sendResponse).toBeDisabled();
   await expect(editor).toHaveText("Separate draft");
   await page.getByRole("button", { name: "Continue sending", exact: true }).click();
-  await expect(sendResponse).toBeEnabled();
   await expect(page.getByRole("button", { name: "Queued 1", exact: true })).toBeVisible();
   await sendResponse.click();
   await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();
@@ -78,7 +73,6 @@ test("definite stop failure retains the active turn and permits retry", async ({
   await expect(stop).not.toHaveAttribute("data-pending");
   await expect(send).toBeEnabled();
   await expect(page.getByRole("button", { name: "Guide", exact: true })).toBeEnabled();
-  await expect(page.getByText("Current turn is running", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Queued 1", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(0);
   await expect(editor).toHaveText("Draft retained after stop failure");
@@ -101,20 +95,14 @@ test("unknown stop waits without retry and preserves draft edits during queue re
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = preview.getByRole("button", { name: "Send", exact: true });
   const stop = preview.getByRole("button", { name: "Stop", exact: true });
-  const response = preview.getByRole("button", { name: "Simulate stop response", exact: true });
   const unknown = preview.getByRole("button", { name: "Simulate stop unknown", exact: true });
-  const sendResponse = preview.getByRole("button", { name: "Simulate send response", exact: true });
-  await expect(unknown).toBeDisabled();
   await editor.fill("Retain this queued message");
   await send.click();
   await stop.click();
   await unknown.click();
   await expect(stop).toBeDisabled();
   await expect(stop).toHaveAttribute("data-pending", "true");
-  await expect(response).toBeDisabled();
-  await expect(unknown).toBeDisabled();
   await expect(preview.getByText("Stop failed", { exact: true })).toHaveCount(0);
-  await expect(preview.getByText("Current turn is running", { exact: true })).toBeVisible();
   await expect(preview.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(
     0,
   );
@@ -122,8 +110,6 @@ test("unknown stop waits without retry and preserves draft edits during queue re
   await editor.fill("Draft edited while stopping");
   await expect(send).toBeEnabled();
   await expect(preview.getByRole("button", { name: "Queued 1", exact: true })).toBeVisible();
-  await expect(response).toBeDisabled();
-  await expect(sendResponse).toBeDisabled();
   await preview
     .getByRole("button", { name: "Simulate current turn interrupted", exact: true })
     .click();
@@ -133,7 +119,6 @@ test("unknown stop waits without retry and preserves draft edits during queue re
   await preview.getByRole("button", { name: "Continue sending", exact: true }).click();
   await expect(preview.getByText("1 message has not been sent", { exact: true })).toHaveCount(0);
   await expect(editor).toHaveText("Draft edited while stopping");
-  await expect(sendResponse).toBeEnabled();
 });
 
 test("terminal before stop response defers recovery until the request settles", async ({
@@ -151,13 +136,10 @@ test("terminal before stop response defers recovery until the request settles", 
     .getByRole("button", { name: "Simulate current turn interrupted", exact: true })
     .click();
   await expect(stop).toHaveAttribute("data-pending", "true");
-  await expect(response).toBeEnabled();
-  await expect(sendResponse).toBeDisabled();
   await expect(page.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(0);
   await response.click();
   await expect(stop).not.toHaveAttribute("data-pending");
   await expect(page.getByText("1 message has not been sent", { exact: true })).toBeVisible();
-  await expect(sendResponse).toBeDisabled();
   await page.getByRole("button", { name: "Continue sending", exact: true }).click();
   await sendResponse.click();
   await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();

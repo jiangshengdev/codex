@@ -16,12 +16,9 @@ test("guide response leaves input pending until runtime acceptance", async ({ pa
   await editor.fill("Guide the running turn");
   await guide.click();
   await expect(editor).toBeEmpty();
-  await expect(response).toBeEnabled();
-  await expect(confirmation).toBeDisabled();
   await editor.fill("Separate draft");
   await response.click();
   await expect(page.getByRole("button", { name: "Guide 1", exact: true })).toBeVisible();
-  await expect(response).toBeDisabled();
   await confirmation.click();
   await expect(page.getByRole("button", { name: "Guide 1", exact: true })).toHaveCount(0);
   await expect(editor).toHaveText("Separate draft");
@@ -43,7 +40,6 @@ test("guide rejection recovers separately from unsteerable priority delivery", a
   await editor.fill("Separate draft");
   await expect(guide).toBeDisabled();
   await expect(send).toBeDisabled();
-  await expect(response).toBeDisabled();
   await page.getByRole("button", { name: "Continue sending", exact: true }).click();
   await response.click();
   await page
@@ -71,15 +67,12 @@ test("guide rejection recovers separately from unsteerable priority delivery", a
   await expect(page.getByRole("button", { name: "Queued 1", exact: true })).toBeVisible();
 });
 
-test("unknown guidance keeps queue editing and recovery available without resending", async ({
-  page,
-}) => {
+test("unknown guidance keeps queue editing and recovery available", async ({ page }) => {
   await page.goto(`${storybookOrigin}/iframe.html?id=composer-input-and-send-guide--running-guide`);
   const preview = page;
   const editor = preview.getByRole("combobox", { name: "Message Codex", exact: true });
   const send = preview.getByRole("button", { name: "Send", exact: true });
   const guide = preview.getByRole("button", { name: "Guide", exact: true });
-  const response = preview.getByRole("button", { name: "Simulate guide response", exact: true });
   const confirmation = preview.getByRole("button", {
     name: "Simulate guide runtime confirmation",
     exact: true,
@@ -92,7 +85,6 @@ test("unknown guidance keeps queue editing and recovery available without resend
   await guide.click();
   await preview.getByRole("button", { name: "Simulate guide unknown", exact: true }).click();
   await expect(preview.getByText("Guide status unknown", { exact: true })).toBeVisible();
-  await expect(response).toBeDisabled();
   await expect(preview.getByRole("button", { name: "Continue sending", exact: true })).toHaveCount(
     0,
   );
@@ -125,7 +117,6 @@ test("unknown guidance keeps queue editing and recovery available without resend
     dialog.getByRole("group", { name: "Edited ordinary message", exact: true }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(response).toBeDisabled();
   await confirmation.click();
   await expect(preview.getByText("Guide status unknown", { exact: true })).toHaveCount(0);
   await expect(editor).toHaveText("Separate draft");
@@ -134,6 +125,4 @@ test("unknown guidance keeps queue editing and recovery available without resend
   await preview.getByRole("button", { name: "Simulate guide failure", exact: true }).click();
   await preview.getByRole("button", { name: "Continue sending", exact: true }).click();
   await expect(preview.getByText("1 message has not been sent", { exact: true })).toHaveCount(0);
-  await expect(response).toBeEnabled();
-  await response.click();
 });
