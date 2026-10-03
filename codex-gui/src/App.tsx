@@ -21,6 +21,7 @@ import { ConnectionRecoveryNotice } from "./features/appShell/ConnectionRecovery
 import { ConnectionTaskRecoveryNotice } from "./features/currentTask/ConnectionTaskRecoveryNotice";
 import { ThreadForkProvider } from "./features/threadFork/ThreadForkProvider";
 import { ThreadForkNotice } from "./features/threadFork/ThreadForkNotice";
+import { TaskNotifications } from "./features/taskNotifications/TaskNotifications";
 
 function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
   const router = useRouter();
@@ -85,19 +86,21 @@ function App({ routeTarget }: Readonly<{ routeTarget: GuiRouteTarget }>) {
         newSessionOwner={newSessionOwner}
       />
       <AppCapabilitiesProvider capabilities={capabilities}>
-        <ThreadForkProvider>
-          <ActiveThreadRouteSync routeTarget={routeTarget} />
-          <ComposerPendingInputProvider
-            renderConnectionRecovery={(composerRole) => (
-              <PendingInputConnectionRecovery composerRole={composerRole} />
-            )}
-          >
-            <AppShell>
-              <ThreadForkNotice />
-              <Outlet />
-            </AppShell>
-          </ComposerPendingInputProvider>
-        </ThreadForkProvider>
+        <TaskNotifications>
+          <ThreadForkProvider>
+            <ActiveThreadRouteSync routeTarget={routeTarget} />
+            <ComposerPendingInputProvider
+              renderConnectionRecovery={(composerRole) => (
+                <PendingInputConnectionRecovery composerRole={composerRole} />
+              )}
+            >
+              <AppShell>
+                <ThreadForkNotice />
+                <Outlet />
+              </AppShell>
+            </ComposerPendingInputProvider>
+          </ThreadForkProvider>
+        </TaskNotifications>
       </AppCapabilitiesProvider>
     </>
   );

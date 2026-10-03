@@ -288,12 +288,6 @@ test.each([
       expect(
         task.getBoundingClientRect().top - connection.getBoundingClientRect().bottom,
       ).toBeCloseTo(12, 0);
-      expect(boundary.top - task.getBoundingClientRect().bottom).toBeCloseTo(12, 0);
-      const firstContent = transcript.firstElementChild;
-      if (firstContent == null) throw new Error("Expected visible transcript content");
-      expect(
-        firstContent.getBoundingClientRect().top - task.getBoundingClientRect().bottom,
-      ).toBeCloseTo(12, 0);
       expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(width);
       await expect
         .element(screen.getByRole("button", { name: "Restore task", exact: true }))

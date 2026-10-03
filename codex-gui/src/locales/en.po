@@ -52,6 +52,10 @@ msgstr "{0} skill details"
 msgid "{0} skill details, {1}"
 msgstr "{0} skill details, {1}"
 
+#: src/features/taskNotifications/TaskNotifications.tsx:29
+msgid "{count, plural, one {# question needs a response} other {# questions need a response}}"
+msgstr "{count, plural, one {# question needs a response} other {# questions need a response}}"
+
 #. Turn duration; subordinate minutes and seconds have two digits
 #: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:39
 msgid "{hours}h {paddedMinutes}m {seconds}s"
@@ -107,7 +111,7 @@ msgid "Active"
 msgstr "Active"
 
 #. Tasks kept open in this GUI, including idle tasks; not only running turns
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:28
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:29
 msgid "Active tasks"
 msgstr "Active tasks"
 
@@ -153,6 +157,10 @@ msgstr "Attachments are not ready"
 #: src/features/appShell/AppShellTopBar.tsx:231
 msgid "Browse task history"
 msgstr "Browse task history"
+
+#: src/features/taskNotifications/BrowserNotificationPermission.tsx:53
+msgid "Browser notifications are unavailable. Task markers remain enabled."
+msgstr "Browser notifications are unavailable. Task markers remain enabled."
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:328
 msgid "Cancel"
@@ -212,7 +220,7 @@ msgstr "Closed {receiver}"
 msgid "Code copied"
 msgstr "Code copied"
 
-#: src/features/appShell/AppShell.tsx:35
+#: src/features/appShell/AppShell.tsx:36
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:54
 msgid "Codex GUI could not be started."
 msgstr "Codex GUI could not be started."
@@ -465,6 +473,11 @@ msgstr "Edit pending message"
 #: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:59
 msgid "Elapsed {duration}"
 msgstr "Elapsed {duration}"
+
+#. Explicit user action that requests the browser's notification permission
+#: src/features/taskNotifications/BrowserNotificationPermission.tsx:47
+msgid "Enable browser notifications"
+msgstr "Enable browser notifications"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:542
 msgid "Enter a message before saving."
@@ -778,7 +791,7 @@ msgid "More move options for pending message: {previewText}"
 msgstr "More move options for pending message: {previewText}"
 
 #. Accessible name of the active task row actions button; title is the task name or UUID
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:129
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:140
 msgid "More options for {title}"
 msgstr "More options for {title}"
 
@@ -1015,6 +1028,11 @@ msgstr "QR code for current GUI URL"
 msgid "Question skipped"
 msgstr "Question skipped"
 
+#. Browser notification body; preview is the agent's question title
+#: src/features/taskNotifications/TaskNotifications.tsx:38
+msgid "Question: {preview}"
+msgstr "Question: {preview}"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:483
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:198
 msgid "Queued"
@@ -1076,8 +1094,8 @@ msgid "Remove {name}"
 msgstr "Remove {name}"
 
 #. Remove only from the active GUI task list; history and draft are kept
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:151
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:155
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:162
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:166
 msgid "Remove from list"
 msgstr "Remove from list"
 
@@ -1351,7 +1369,7 @@ msgid "Task action failed"
 msgstr "Task action failed"
 
 #. Accessible label for the active task row dropdown containing Remove from list
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:139
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:150
 msgid "Task actions"
 msgstr "Task actions"
 
@@ -1498,7 +1516,7 @@ msgstr "The task could not be removed."
 msgid "The task could not be resumed."
 msgstr "The task could not be resumed."
 
-#: src/features/appShell/AppShell.tsx:94
+#: src/features/appShell/AppShell.tsx:96
 msgid "The task list could not be updated."
 msgstr "The task list could not be updated."
 
@@ -1556,7 +1574,7 @@ msgstr "This task is no longer connected."
 msgid "This task is still running."
 msgstr "This task is still running."
 
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:166
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:177
 msgid "This task needs attention."
 msgstr "This task needs attention."
 
@@ -1623,7 +1641,7 @@ msgstr "Unable to recover the current task"
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "Unable to retry this task. Review its current state and try again."
 
-#: src/features/appShell/AppShell.tsx:32
+#: src/features/appShell/AppShell.tsx:33
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:45
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
@@ -1637,7 +1655,7 @@ msgstr "Unable to start the conversation"
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
-#: src/features/appShell/AppShell.tsx:91
+#: src/features/appShell/AppShell.tsx:93
 msgid "Unable to update the task list"
 msgstr "Unable to update the task list"
 
@@ -1784,6 +1802,11 @@ msgstr "Waiting for approval"
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:55
 msgid "Waiting for input"
 msgstr "Waiting for input"
+
+#. Unread task-entry marker: an agent question needs the user's response
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:128
+msgid "Waiting for response"
+msgstr "Waiting for response"
 
 #. Explains why sending stays blocked after requesting context compression
 #: src/features/composerTurnControl/ContextUsagePopover.tsx:122

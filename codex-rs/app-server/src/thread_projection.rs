@@ -508,6 +508,16 @@ fn projection_event_from_notification(
                 notification: notification.clone(),
             })
         }
+        ServerNotification::ThreadGoalUpdated(notification) => {
+            Some(ThreadProjectionEvent::GoalUpdated {
+                notification: notification.clone(),
+            })
+        }
+        ServerNotification::ThreadGoalCleared(notification) => {
+            Some(ThreadProjectionEvent::GoalCleared {
+                notification: notification.clone(),
+            })
+        }
         _ => None,
     }
 }

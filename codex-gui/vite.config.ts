@@ -78,7 +78,7 @@ export default defineConfig({
     watch: {
       ignored: generatedArtifactWatchIgnored,
     },
-    hmr: {
+    ws: {
       ...(viteHmrHost ? { host: viteHmrHost } : {}),
       port: viteHmrPort,
       clientPort: viteHmrPort,

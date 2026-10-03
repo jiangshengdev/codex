@@ -5,6 +5,9 @@ use super::ReasoningSummaryPartAddedNotification;
 use super::ReasoningSummaryTextDeltaNotification;
 use super::ReasoningTextDeltaNotification;
 use super::Thread;
+use super::ThreadGoal;
+use super::ThreadGoalClearedNotification;
+use super::ThreadGoalUpdatedNotification;
 use super::ThreadTokenUsage;
 use super::ThreadTokenUsageUpdatedNotification;
 use super::TurnCompletedNotification;
@@ -36,6 +39,7 @@ pub struct ThreadProjectionSnapshot {
     pub thread: Thread,
     pub head_commit_id: Option<String>,
     pub token_usage: Option<ThreadTokenUsage>,
+    pub goal: Option<ThreadGoal>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
@@ -115,6 +119,12 @@ pub enum ThreadProjectionEvent {
     },
     TokenUsageUpdated {
         notification: ThreadTokenUsageUpdatedNotification,
+    },
+    GoalUpdated {
+        notification: ThreadGoalUpdatedNotification,
+    },
+    GoalCleared {
+        notification: ThreadGoalClearedNotification,
     },
 }
 

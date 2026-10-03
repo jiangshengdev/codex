@@ -52,6 +52,10 @@ msgstr "{0} 技能详情"
 msgid "{0} skill details, {1}"
 msgstr "{0} 技能详情，{1}"
 
+#: src/features/taskNotifications/TaskNotifications.tsx:29
+msgid "{count, plural, one {# question needs a response} other {# questions need a response}}"
+msgstr "{count, plural, other {# 个问题等待回应}}"
+
 #. Turn duration; subordinate minutes and seconds have two digits
 #: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:39
 msgid "{hours}h {paddedMinutes}m {seconds}s"
@@ -107,7 +111,7 @@ msgid "Active"
 msgstr "活动中"
 
 #. Tasks kept open in this GUI, including idle tasks; not only running turns
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:28
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:29
 msgid "Active tasks"
 msgstr "已激活任务"
 
@@ -153,6 +157,10 @@ msgstr "附件尚未就绪"
 #: src/features/appShell/AppShellTopBar.tsx:231
 msgid "Browse task history"
 msgstr "浏览历史任务"
+
+#: src/features/taskNotifications/BrowserNotificationPermission.tsx:53
+msgid "Browser notifications are unavailable. Task markers remain enabled."
+msgstr "浏览器通知不可用，仍会显示任务提醒标记。"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:328
 msgid "Cancel"
@@ -212,7 +220,7 @@ msgstr "已关闭 {receiver}"
 msgid "Code copied"
 msgstr "代码已复制"
 
-#: src/features/appShell/AppShell.tsx:35
+#: src/features/appShell/AppShell.tsx:36
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:54
 msgid "Codex GUI could not be started."
 msgstr "Codex GUI 未能启动。"
@@ -465,6 +473,11 @@ msgstr "编辑待处理消息"
 #: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:59
 msgid "Elapsed {duration}"
 msgstr "已用时 {duration}"
+
+#. Explicit user action that requests the browser's notification permission
+#: src/features/taskNotifications/BrowserNotificationPermission.tsx:47
+msgid "Enable browser notifications"
+msgstr "开启浏览器通知"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:542
 msgid "Enter a message before saving."
@@ -778,7 +791,7 @@ msgid "More move options for pending message: {previewText}"
 msgstr "待处理消息的更多移动选项：{previewText}"
 
 #. Accessible name of the active task row actions button; title is the task name or UUID
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:129
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:140
 msgid "More options for {title}"
 msgstr "{title} 的更多操作"
 
@@ -1015,6 +1028,11 @@ msgstr "当前 GUI URL 的二维码。"
 msgid "Question skipped"
 msgstr "问题已跳过"
 
+#. Browser notification body; preview is the agent's question title
+#: src/features/taskNotifications/TaskNotifications.tsx:38
+msgid "Question: {preview}"
+msgstr "提问：{preview}"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:483
 #: src/features/composerTurnControl/ComposerPendingInputList.tsx:198
 msgid "Queued"
@@ -1076,8 +1094,8 @@ msgid "Remove {name}"
 msgstr "移除 {name}"
 
 #. Remove only from the active GUI task list; history and draft are kept
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:151
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:155
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:162
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:166
 msgid "Remove from list"
 msgstr "移出列表"
 
@@ -1351,7 +1369,7 @@ msgid "Task action failed"
 msgstr "任务操作失败"
 
 #. Accessible label for the active task row dropdown containing Remove from list
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:139
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:150
 msgid "Task actions"
 msgstr "任务操作"
 
@@ -1498,7 +1516,7 @@ msgstr "任务未能移出列表。"
 msgid "The task could not be resumed."
 msgstr "无法恢复任务。"
 
-#: src/features/appShell/AppShell.tsx:94
+#: src/features/appShell/AppShell.tsx:96
 msgid "The task list could not be updated."
 msgstr "任务列表未能更新。"
 
@@ -1556,7 +1574,7 @@ msgstr "此任务已断开连接。"
 msgid "This task is still running."
 msgstr "此任务仍在运行。"
 
-#: src/features/appShell/ActiveThreadCollectionMenu.tsx:166
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:177
 msgid "This task needs attention."
 msgstr "此任务存在待处理的异常。"
 
@@ -1623,7 +1641,7 @@ msgstr "无法恢复当前任务"
 msgid "Unable to retry this task. Review its current state and try again."
 msgstr "无法重试此任务。请检查当前状态后再试。"
 
-#: src/features/appShell/AppShell.tsx:32
+#: src/features/appShell/AppShell.tsx:33
 #: src/features/appShell/ConnectionRecoveryNotice.tsx:45
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
@@ -1637,7 +1655,7 @@ msgstr "无法开始对话"
 msgid "Unable to switch tasks yet"
 msgstr "暂时无法切换任务"
 
-#: src/features/appShell/AppShell.tsx:91
+#: src/features/appShell/AppShell.tsx:93
 msgid "Unable to update the task list"
 msgstr "无法更新任务列表"
 
@@ -1784,6 +1802,11 @@ msgstr "等待批准"
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:55
 msgid "Waiting for input"
 msgstr "等待输入"
+
+#. Unread task-entry marker: an agent question needs the user's response
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:128
+msgid "Waiting for response"
+msgstr "等待回应"
 
 #. Explains why sending stays blocked after requesting context compression
 #: src/features/composerTurnControl/ContextUsagePopover.tsx:122
