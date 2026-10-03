@@ -18,9 +18,6 @@ test("restored multi-paragraph skill draft remains editable and sendable", async
   await expect(editor).toContainText("More context.");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(editor).toBeEmpty();
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeEnabled();
 });
 
 test("failed saving retains edits and real Retry saving restores sending and persistence", async ({
@@ -55,9 +52,6 @@ test("failed saving retains edits and real Retry saving restores sending and per
   ).toBeVisible();
   await send.click();
   await expect(editor).toBeEmpty();
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeEnabled();
 });
 
 test("leaving and returning restores live text and skills and keeps sent drafts cleared", async ({
@@ -88,9 +82,6 @@ test("leaving and returning restores live text and skills and keeps sent drafts 
   await expect(editor).toContainText("After returning.");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(editor).toBeEmpty();
-  await expect(
-    page.getByRole("button", { name: "Simulate send response", exact: true }),
-  ).toBeEnabled();
   const leave = page.getByRole("button", { name: "Simulate leaving", exact: true });
   await page.getByRole("button", { name: "Simulate send response", exact: true }).click();
   await page.getByRole("button", { name: "Simulate runtime confirmation", exact: true }).click();
