@@ -218,6 +218,21 @@ impl ThreadRequestProcessor {
             .read_thread_view(thread_id, /*include_turns*/ false)
             .await?;
         let loaded_thread = self.thread_manager.get_thread(thread_id).await.ok();
+        let goal = if self.config.features.enabled(Feature::Goals)
+            && loaded_thread
+                .as_ref()
+                .is_some_and(|thread| thread.rollout_path().is_some())
+        {
+            self.thread_goal_processor
+                .thread_goal_get_inner(ThreadGoalGetParams {
+                    thread_id: thread_id.to_string(),
+                })
+                .await
+                .map_err(ThreadReadViewError::JsonRpc)?
+                .goal
+        } else {
+            None
+        };
         let token_usage = match loaded_thread.as_ref() {
             Some(thread) => thread.token_usage_info().await.map(Into::into),
             None => None,
@@ -295,6 +310,7 @@ impl ThreadRequestProcessor {
             thread,
             head_commit_id: cut.head_commit_id,
             token_usage,
+            goal,
         })
     }
 

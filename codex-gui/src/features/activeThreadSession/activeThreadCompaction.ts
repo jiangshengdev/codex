@@ -169,6 +169,8 @@ class ActiveThreadCompactionImpl implements ActiveThreadCompaction {
           ? this.observeCompactionCompleted(event.notification.turnId, event.notification.item.id)
           : { type: "unchanged" };
       case "tokenUsageUpdated":
+      case "goalUpdated":
+      case "goalCleared":
         return { type: "unchanged" };
     }
     event satisfies never;

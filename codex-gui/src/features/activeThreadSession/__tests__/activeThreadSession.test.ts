@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createPersistenceTestContext } from "@/features/composerInputQueue/__tests__/composerInputQueueCoordinatorTestFixtures";
 import { makeStore, type AppDispatch } from "@/app/store";
+import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import { createDeferred, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import type { BrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
@@ -23,6 +24,9 @@ import {
   eventWithEnvelope,
   inProgressTurn,
   turnStarted,
+  attachWithGoal,
+  goalEvent,
+  threadGoal,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import type { UnknownAction } from "@reduxjs/toolkit";
 import {
@@ -113,6 +117,66 @@ const activateInitial = async (harness: ReturnType<typeof createHarness>) => {
     warnings: [],
   });
 };
+
+it("keeps background goals current and isolated through creation, updates, clear and removal", async () => {
+  const initialId = attachBaseline.snapshot.thread.id;
+  const firstGoal = threadGoal(initialId);
+  const secondGoal = threadGoal(replacementThreadId, { objective: "Other task" });
+  const h = createHarness();
+  vi.mocked(h.commands.attachThreadProjection).mockResolvedValueOnce(
+    attachWithGoal(attachBaseline, firstGoal),
+  );
+  await activateInitial(h);
+  queueReplacementActivation(h.commands);
+  await h.session.activate(replacementThreadId);
+  h.controller.handleProjectionEvent(
+    goalEvent(
+      replacementAttach,
+      "goal-created",
+      replacementAttach.snapshot.headCommitId,
+      secondGoal,
+    ),
+  );
+  const flush = () => {
+    for (const callback of h.frames.values()) callback();
+    h.frames.clear();
+  };
+  flush();
+  expect(selectThreadRuntimeRecord(h.store.getState(), replacementThreadId)).toMatchObject({
+    goal: secondGoal,
+  });
+  const updated = threadGoal(initialId, {
+    objective: "Finished in the background",
+    status: "complete",
+    tokensUsed: 500,
+    timeUsedSeconds: 15,
+    updatedAt: 102,
+  });
+  h.controller.handleProjectionEvent(
+    goalEvent(attachBaseline, "goal-updated", attachBaseline.snapshot.headCommitId, updated),
+  );
+  flush();
+  expect(selectThreadRuntimeRecord(h.store.getState(), initialId)).toMatchObject({ goal: updated });
+  expect(selectThreadRuntimeRecord(h.store.getState(), replacementThreadId)).toMatchObject({
+    goal: secondGoal,
+  });
+  await h.session.view(initialId);
+  h.controller.handleProjectionEvent(
+    goalEvent(replacementAttach, "goal-cleared", "goal-created", null),
+  );
+  flush();
+  expect(selectThreadRuntimeRecord(h.store.getState(), replacementThreadId)).toMatchObject({
+    goal: null,
+  });
+  await expect(h.session.remove(replacementThreadId)).resolves.toMatchObject({ type: "removed" });
+  h.controller.handleProjectionEvent(
+    goalEvent(replacementAttach, "late-goal", "goal-cleared", secondGoal),
+  );
+  flush();
+  expect(selectThreadRuntimeRecord(h.store.getState(), replacementThreadId)).toBeNull();
+  expect(selectThreadRuntimeRecord(h.store.getState(), initialId)).toMatchObject({ goal: updated });
+  h.controller.dispose();
+});
 
 it("restores every member independently while preserving navigation made during recovery", async () => {
   const h = createHarness();

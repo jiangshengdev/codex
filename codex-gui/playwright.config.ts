@@ -8,6 +8,9 @@ const run = currentRunContext();
 export default defineConfig(shared, {
   testDir: "./e2e",
   outputDir: `${run.artifactsDirectory}/test-results`,
-  reporter: [["html", { outputFolder: `${run.artifactsDirectory}/report`, open: "never" }]],
+  reporter: [
+    ["dot"],
+    ["html", { outputFolder: `${run.artifactsDirectory}/report`, open: "never" }],
+  ],
   use: { baseURL: guiOrigin },
 });

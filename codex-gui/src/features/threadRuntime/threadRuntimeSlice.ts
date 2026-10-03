@@ -6,13 +6,14 @@ import {
 } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type { ActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
 import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
-import type { Thread, ThreadTokenUsage } from "@codex-protocol/v2";
+import type { Thread, ThreadGoal, ThreadTokenUsage } from "@codex-protocol/v2";
 
 export type ThreadRuntimeRecord = {
   sessionRevision: number;
   threadId: string;
   thread: Omit<Thread, "turns" | "status">;
   tokenUsage: ThreadTokenUsage | null;
+  goal: ThreadGoal | null;
 };
 
 export type ThreadRuntimeSlot = {
@@ -48,17 +49,30 @@ const applyRuntimeFact = (
         threadId: thread.id,
         thread,
         tokenUsage: fact.response.snapshot.tokenUsage,
+        goal: fact.response.snapshot.goal,
       };
       return;
     }
     case "eventAccepted": {
       const { notification, replay } = fact.payload;
-      if (
-        replay === "live" &&
-        notification.event.type === "tokenUsageUpdated" &&
-        state.current?.threadId === notification.threadId
-      ) {
-        state.current.tokenUsage = notification.event.notification.tokenUsage;
+      if (replay !== "live" || state.current?.threadId !== notification.threadId) return;
+      switch (notification.event.type) {
+        case "tokenUsageUpdated":
+          state.current.tokenUsage = notification.event.notification.tokenUsage;
+          break;
+        case "goalUpdated":
+          state.current.goal = notification.event.notification.goal;
+          break;
+        case "goalCleared":
+          state.current.goal = null;
+          break;
+        case "turnStarted":
+        case "turnCompleted":
+        case "itemStarted":
+        case "itemCompleted":
+          break;
+        default:
+          notification.event satisfies never;
       }
       return;
     }

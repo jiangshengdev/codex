@@ -1,4 +1,5 @@
 import type {
+  ThreadGoal,
   ThreadItem,
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
@@ -229,6 +230,45 @@ export const attachWithHeadCommitId = (
     ...attach.snapshot,
     headCommitId,
   },
+});
+
+export const threadGoal = (threadId: string, overrides: Partial<ThreadGoal> = {}): ThreadGoal => ({
+  threadId,
+  objective: "Finish the task",
+  status: "paused",
+  tokenBudget: 1000,
+  tokensUsed: 20,
+  timeUsedSeconds: 3,
+  createdAt: 100,
+  updatedAt: 101,
+  ...overrides,
+});
+
+export const attachWithGoal = (
+  attach: ThreadProjectionAttachResponse,
+  goal: ThreadGoal | null,
+): ThreadProjectionAttachResponse => ({
+  ...attach,
+  snapshot: { ...attach.snapshot, goal },
+});
+
+export const goalEvent = (
+  attach: ThreadProjectionAttachResponse,
+  commitId: string,
+  parentCommitId: string | null,
+  goal: ThreadGoal | null,
+): ThreadProjectionEventNotification => ({
+  threadId: attach.snapshot.thread.id,
+  subscriptionId: attach.subscriptionId,
+  commitId,
+  parentCommitId,
+  event:
+    goal == null
+      ? { type: "goalCleared", notification: { threadId: attach.snapshot.thread.id } }
+      : {
+          type: "goalUpdated",
+          notification: { threadId: attach.snapshot.thread.id, turnId: null, goal },
+        },
 });
 
 export const attachWithSnapshotThread = (
