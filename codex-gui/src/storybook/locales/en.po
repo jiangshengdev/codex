@@ -18,11 +18,6 @@ msgstr ""
 msgid "A Skill node is selected. Press Cmd/Ctrl+C or X. This story makes document.execCommand('copy') return false. The Composer displays a failure toast and preserves the content. Switching stories restores the browser method."
 msgstr "A Skill node is selected. Press Cmd/Ctrl+C or X. This story makes document.execCommand('copy') return false. The Composer displays a failure toast and preserves the content. Switching stories restores the browser method."
 
-#. Story-only instructions for reproducing the Composer clipboard defect
-#: src/storybook/composer/ClipboardFailurePreview.tsx:39
-#~ msgid "A Skill node is selected. Press Cmd/Ctrl+C or X. This story makes document.execCommand('copy') return false. The Composer shows no failure feedback; the DEV area only observes and displays unhandledrejection. A failed cut should preserve the content. Switching stories restores the browser method."
-#~ msgstr "A Skill node is selected. Press Cmd/Ctrl+C or X. This story makes document.execCommand('copy') return false. The Composer shows no failure feedback; the DEV area only observes and displays unhandledrejection. A failed cut should preserve the content. Switching stories restores the browser method."
-
 #. Insert fictional files and a PNG together through the Composer file input
 #: src/storybook/composer/ComposerAttachmentsPreview.tsx:203
 msgid "Add mixed sample"
@@ -393,11 +388,6 @@ msgstr "Step {step} / {lastStep}"
 #: src/storybook/history/HistoryContinuation.stories.tsx:54
 msgid "The projection closes before publication during the first activation, and detach also fails. Both the first diagnostic and the diagnostic after continuing again retain the initialization and cleanup errors. The real session owner produces these failures."
 msgstr "The projection closes before publication during the first activation, and detach also fails. Both the first diagnostic and the diagnostic after continuing again retain the initialization and cleanup errors. The real session owner produces these failures."
-
-#. Story-only explanation of lost diagnostics after continuing again
-#: src/storybook/history/HistoryContinuation.stories.tsx:52
-#~ msgid "The projection closes before publication during the first activation, and detach also fails. The first diagnostic shows both causes; continuing again shows only the AggregateError summary. The real session owner produces these failures. This story reproduces the defect without fixing product behavior."
-#~ msgstr "The projection closes before publication during the first activation, and detach also fails. The first diagnostic shows both causes; continuing again shows only the AggregateError summary. The real session owner produces these failures. This story reproduces the defect without fixing product behavior."
 
 #: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:117
 msgid "This control injects a lost editing-session result for previewing content protection."
