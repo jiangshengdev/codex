@@ -312,17 +312,17 @@ async fn thread_projection_delivers_running_goal_status_and_usage() -> Result<()
                     "create_goal",
                     r#"{"objective":"Complete a runtime goal"}"#,
                 ),
-                responses::ev_completed_with_tokens("create-goal", 10),
+                responses::ev_completed_with_tokens("create-goal", /*total_tokens*/ 10),
             ]),
             responses::sse(vec![
                 responses::ev_response_created("read-goal"),
                 responses::ev_function_call("read", "get_goal", "{}"),
-                responses::ev_completed_with_tokens("read-goal", 15),
+                responses::ev_completed_with_tokens("read-goal", /*total_tokens*/ 15),
             ]),
             responses::sse(vec![
                 responses::ev_response_created("finish-goal"),
                 responses::ev_function_call("finish", "update_goal", r#"{"status":"complete"}"#),
-                responses::ev_completed_with_tokens("finish-goal", 25),
+                responses::ev_completed_with_tokens("finish-goal", /*total_tokens*/ 25),
             ]),
             responses::sse(vec![
                 responses::ev_assistant_message("done", "Done"),

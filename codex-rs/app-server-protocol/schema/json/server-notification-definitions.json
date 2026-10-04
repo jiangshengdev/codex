@@ -1,5 +1,9 @@
 [
   {
+    "method": "account/gatewayOAuth/changed",
+    "paramsSchema": "v2/GatewayOAuthChangedNotification"
+  },
+  {
     "method": "account/login/completed",
     "paramsSchema": "v2/AccountLoginCompletedNotification"
   },
@@ -162,6 +166,10 @@
   {
     "method": "thread/archived",
     "paramsSchema": "v2/ThreadArchivedNotification"
+  },
+  {
+    "method": "thread/attachment/updated",
+    "paramsSchema": "v2/ThreadAttachmentUpdatedNotification"
   },
   {
     "method": "thread/closed",

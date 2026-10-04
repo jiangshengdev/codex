@@ -189,6 +189,7 @@ export async function createMultiSessionHarness(
               model: "test-model",
               modelProvider: value.modelProvider,
               serviceTier: null,
+              disabledPluginIds: [],
               cwd: value.cwd,
               instructionSources: [],
               approvalPolicy: "never",

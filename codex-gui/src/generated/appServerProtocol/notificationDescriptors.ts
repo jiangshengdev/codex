@@ -36,6 +36,8 @@ export type ServerNotificationClassification =
     };
 function isKnownServerNotificationMethod(method: string): boolean {
   switch (method) {
+    case "account/gatewayOAuth/changed":
+      return true;
     case "account/login/completed":
       return true;
     case "account/rateLimits/updated":
@@ -117,6 +119,8 @@ function isKnownServerNotificationMethod(method: string): boolean {
     case "skills/changed":
       return true;
     case "thread/archived":
+      return true;
+    case "thread/attachment/updated":
       return true;
     case "thread/closed":
       return true;

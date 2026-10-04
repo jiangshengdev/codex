@@ -73,6 +73,7 @@ function creationResponse(): Awaited<ReturnType<GuiHostCommands["startThread"]>>
     model: "gpt-5",
     modelProvider: "openai",
     serviceTier: null,
+    disabledPluginIds: [],
     cwd,
     instructionSources: [],
     approvalPolicy: "on-request",

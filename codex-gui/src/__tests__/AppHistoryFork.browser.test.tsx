@@ -51,6 +51,7 @@ const forkResponse = (): Awaited<ReturnType<GuiHostCommands["forkThread"]>> => (
   model: "gpt-5",
   modelProvider: "openai",
   serviceTier: null,
+  disabledPluginIds: [],
   cwd: forkProjection.snapshot.thread.cwd,
   instructionSources: [],
   approvalPolicy: "on-request",
