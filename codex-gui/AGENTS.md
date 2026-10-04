@@ -17,6 +17,13 @@ Use `$codex-gui-toolchain` to select and run frontend formatters, package script
 - Use `$heroui-react` for HeroUI v3 documentation, package, and API details, and `$redux-toolkit` for Redux Toolkit documentation, API, and architecture rules.
 - Use `$lingui-catalog-workflow` when Lingui message extraction, catalog diffs, catalog translation changes, or extraction stability are in scope.
 
+## UI Copy Localization
+
+- Do not hardcode Chinese UI copy. All new or modified UI copy must use English as the source language and provide English and Simplified Chinese translations through the project's existing Lingui mechanism. Replacing Chinese with hardcoded English alone does not satisfy this requirement.
+- This rule covers product UI, Storybook, and buttons, prompts, instructions, and error feedback in DEV controls.
+- Demo data, such as fictional conversations and task titles, may retain a specified language. Preserve real user content, raw errors, code identifiers, commands, and protocol fields as-is; they are outside the scope of UI translation.
+- Reuse existing messages and catalogs, and follow the project's extraction, translation, and verification workflows.
+
 ## Frontend Engineering Constraints
 
 - Each production Modal or Drawer must establish an explicit initial focus target on every opening and verify its observable focus behavior. Reading dialogs focus their heading without adding it to the normal Tab order; action-oriented overlays use the appropriate control. Preserve existing designated-group and editor focus semantics.
