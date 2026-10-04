@@ -70,6 +70,21 @@
     "responseSchema": "v2/ThreadMetadataUpdateResponse"
   },
   {
+    "method": "thread/attachment/add",
+    "paramsSchema": "v2/ThreadAttachmentAddParams",
+    "responseSchema": "v2/ThreadAttachmentAddResponse"
+  },
+  {
+    "method": "thread/attachment/list",
+    "paramsSchema": "v2/ThreadAttachmentListParams",
+    "responseSchema": "v2/ThreadAttachmentListResponse"
+  },
+  {
+    "method": "thread/attachment/remove",
+    "paramsSchema": "v2/ThreadAttachmentRemoveParams",
+    "responseSchema": "v2/ThreadAttachmentRemoveResponse"
+  },
+  {
     "method": "thread/section/move",
     "paramsSchema": "v2/ThreadSectionMoveParams",
     "responseSchema": "v2/ThreadSectionMoveResponse"
@@ -93,11 +108,6 @@
     "method": "thread/approveGuardianDeniedAction",
     "paramsSchema": "v2/ThreadApproveGuardianDeniedActionParams",
     "responseSchema": "v2/ThreadApproveGuardianDeniedActionResponse"
-  },
-  {
-    "method": "thread/rollback",
-    "paramsSchema": "v2/ThreadRollbackParams",
-    "responseSchema": "v2/ThreadRollbackResponse"
   },
   {
     "method": "thread/revert",
@@ -333,6 +343,21 @@
     "method": "model/list",
     "paramsSchema": "v2/ModelListParams",
     "responseSchema": "v2/ModelListResponse"
+  },
+  {
+    "method": "account/gatewayOAuth/read",
+    "paramsSchema": null,
+    "responseSchema": "v2/GatewayOAuthReadResponse"
+  },
+  {
+    "method": "account/gatewayOAuth/login",
+    "paramsSchema": null,
+    "responseSchema": "v2/GatewayOAuthLoginResponse"
+  },
+  {
+    "method": "account/gatewayOAuth/cancel",
+    "paramsSchema": null,
+    "responseSchema": "v2/GatewayOAuthCancelResponse"
   },
   {
     "method": "modelProvider/capabilities/read",

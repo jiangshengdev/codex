@@ -428,6 +428,15 @@ mod tests {
             codex_analytics::AnalyticsEventsClient::disabled(),
         ));
         let thread_state_manager = ThreadStateManager::new();
+        let config_manager = ConfigManager::new(
+            temp_dir.path().to_path_buf(),
+            Vec::new(),
+            loader_overrides,
+            /*strict_config*/ false,
+            CloudConfigBundleLoader::default(),
+            Arg0DispatchPaths::default(),
+            Arc::new(NoopThreadConfigLoader),
+        );
         let thread_goal_processor = ThreadGoalRequestProcessor::new(
             thread_manager.clone(),
             outgoing.clone(),
@@ -435,6 +444,7 @@ mod tests {
             thread_state_manager.clone(),
             /*state_db*/ None,
             Arc::new(GoalService::new()),
+            config_manager.clone(),
         );
         let skills_watcher = SkillsWatcher::new(
             thread_manager.skills_service(),
@@ -447,15 +457,7 @@ mod tests {
             outgoing,
             Arg0DispatchPaths::default(),
             config.clone(),
-            ConfigManager::new(
-                temp_dir.path().to_path_buf(),
-                Vec::new(),
-                loader_overrides,
-                /*strict_config*/ false,
-                CloudConfigBundleLoader::default(),
-                Arg0DispatchPaths::default(),
-                Arc::new(NoopThreadConfigLoader),
-            ),
+            config_manager,
             thread_store,
             Arc::new(Mutex::new(HashSet::new())),
             thread_state_manager.clone(),
@@ -486,6 +488,7 @@ mod tests {
                 "live-turn",
                 &EventMsg::TurnStarted(codex_protocol::protocol::TurnStartedEvent {
                     turn_id: "live-turn".to_string(),
+                    root_turn_id: None,
                     trace_id: None,
                     started_at: None,
                     model_context_window: None,
@@ -570,7 +573,9 @@ mod tests {
                         text_elements: Vec::new(),
                     },
                     V2UserInput::Image {
-                        url: "https://example.com/projection.png".to_string(),
+                        image: codex_app_server_protocol::ImageReference::Inline {
+                            url: "https://example.com/projection.png".to_string(),
+                        },
                         detail: Some(ImageDetail::Original),
                     },
                     V2UserInput::LocalImage {
@@ -592,6 +597,7 @@ mod tests {
             RolloutItem::EventMsg(EventMsg::TurnStarted(
                 codex_protocol::protocol::TurnStartedEvent {
                     turn_id: "turn-visible".to_string(),
+                    root_turn_id: None,
                     trace_id: None,
                     started_at: Some(1),
                     model_context_window: None,
@@ -601,6 +607,7 @@ mod tests {
             RolloutItem::EventMsg(EventMsg::TurnStarted(
                 codex_protocol::protocol::TurnStartedEvent {
                     turn_id: "turn-pending".to_string(),
+                    root_turn_id: None,
                     trace_id: None,
                     started_at: Some(2),
                     model_context_window: None,
@@ -644,6 +651,7 @@ mod tests {
             RolloutItem::EventMsg(EventMsg::TurnStarted(
                 codex_protocol::protocol::TurnStartedEvent {
                     turn_id: "turn-final".to_string(),
+                    root_turn_id: None,
                     trace_id: None,
                     started_at: Some(1),
                     model_context_window: None,
@@ -754,6 +762,15 @@ mod tests {
             codex_analytics::AnalyticsEventsClient::disabled(),
         ));
         let thread_state_manager = ThreadStateManager::new();
+        let config_manager = ConfigManager::new(
+            temp_dir.path().to_path_buf(),
+            Vec::new(),
+            loader_overrides,
+            /*strict_config*/ false,
+            CloudConfigBundleLoader::default(),
+            Arg0DispatchPaths::default(),
+            Arc::new(NoopThreadConfigLoader),
+        );
         let thread_goal_processor = ThreadGoalRequestProcessor::new(
             thread_manager.clone(),
             outgoing.clone(),
@@ -761,6 +778,7 @@ mod tests {
             thread_state_manager.clone(),
             /*state_db*/ None,
             Arc::new(GoalService::new()),
+            config_manager.clone(),
         );
         let skills_watcher = SkillsWatcher::new(
             thread_manager.skills_service(),
@@ -773,15 +791,7 @@ mod tests {
             outgoing,
             Arg0DispatchPaths::default(),
             config.clone(),
-            ConfigManager::new(
-                temp_dir.path().to_path_buf(),
-                Vec::new(),
-                loader_overrides,
-                /*strict_config*/ false,
-                CloudConfigBundleLoader::default(),
-                Arg0DispatchPaths::default(),
-                Arc::new(NoopThreadConfigLoader),
-            ),
+            config_manager,
             thread_store,
             Arc::new(Mutex::new(HashSet::new())),
             thread_state_manager,
@@ -819,6 +829,7 @@ mod tests {
             RolloutItem::EventMsg(EventMsg::TurnStarted(
                 codex_protocol::protocol::TurnStartedEvent {
                     turn_id: turn_id.to_string(),
+                    root_turn_id: None,
                     trace_id: None,
                     started_at: None,
                     model_context_window: None,
@@ -831,6 +842,9 @@ mod tests {
                     message: message.to_string(),
                     images: Some(vec!["https://example.com/projection.png".to_string()]),
                     image_details: vec![Some(ImageDetail::Original)],
+                    file_ids: None,
+                    file_id_details: Vec::new(),
+                    image_order: Vec::new(),
                     local_images: vec![PathBuf::from("/tmp/projection-local.png")],
                     local_image_details: vec![Some(ImageDetail::Original)],
                     audio: None,
