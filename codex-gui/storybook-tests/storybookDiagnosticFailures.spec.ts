@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test.use({ locale: "en" });
 
-test("history repeated continue hides the retained primary and cleanup errors", async ({
+test("history repeated continue preserves the primary and cleanup diagnostics", async ({
   page,
 }) => {
   await page.goto(
@@ -16,19 +16,18 @@ test("history repeated continue hides the retained primary and cleanup errors", 
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Continue this task", exact: true }).click();
   await diagnostic.click();
-  // Characterization of the current defect, not the desired repaired behavior.
-  await expect(dialog).toContainText("Multiple active thread activation errors");
-  await expect(dialog).not.toContainText(
-    "Candidate projection became unavailable before publication",
-  );
-  await expect(dialog).not.toContainText("STORYBOOK_CONTINUE_CLEANUP_FAILED");
+  await expect(dialog).toContainText("Candidate projection became unavailable before publication");
+  await expect(dialog).toContainText("STORYBOOK_CONTINUE_CLEANUP_FAILED");
 });
 
-test("repeated continue story opens the degraded diagnostic", async ({ page }) => {
+test("repeated continue story opens the complete diagnostic", async ({ page }) => {
   await page.goto(
     "/iframe.html?id=history-continuation--repeated-continue-loses-diagnostics&viewMode=story",
   );
-  await expect(page.getByRole("dialog")).toContainText("Multiple active thread activation errors");
+  await expect(page.getByRole("dialog")).toContainText(
+    "Candidate projection became unavailable before publication",
+  );
+  await expect(page.getByRole("dialog")).toContainText("STORYBOOK_CONTINUE_CLEANUP_FAILED");
 });
 
 for (const key of ["c", "x"]) {

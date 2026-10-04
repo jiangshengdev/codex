@@ -43,17 +43,18 @@ export const InitializationAndCleanupFailed: Story = {
 };
 
 export const RepeatedContinueLosesDiagnostics: Story = {
+  // Preserve the existing direct link to this regression scenario.
+  name: "Repeated Continue Preserves Diagnostics",
   args: { continuation: "cleanupPending" },
   decorators: [
     (Story) => (
       <>
         <DevOnly>
           <p>
-            <Trans comment="Story-only explanation of lost diagnostics after continuing again">
+            <Trans comment="Story-only explanation of retained diagnostics after continuing again">
               The projection closes before publication during the first activation, and detach also
-              fails. The first diagnostic shows both causes; continuing again shows only the
-              AggregateError summary. The real session owner produces these failures. This story
-              reproduces the defect without fixing product behavior.
+              fails. Both the first diagnostic and the diagnostic after continuing again retain the
+              initialization and cleanup errors. The real session owner produces these failures.
             </Trans>
           </p>
         </DevOnly>
@@ -75,8 +76,10 @@ export const RepeatedContinueLosesDiagnostics: Story = {
         name: /^(View diagnostic information|查看诊断信息)$/,
       }),
     );
-    await expect(
-      await within(canvasElement.ownerDocument.body).findByRole("dialog"),
-    ).toHaveTextContent("Multiple active thread activation errors");
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole("dialog");
+    await expect(dialog).toHaveTextContent(
+      "Candidate projection became unavailable before publication",
+    );
+    await expect(dialog).toHaveTextContent("STORYBOOK_CONTINUE_CLEANUP_FAILED");
   },
 };

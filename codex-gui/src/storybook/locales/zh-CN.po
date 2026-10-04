@@ -379,10 +379,15 @@ msgstr "演示处于空闲状态"
 msgid "Step {step} / {lastStep}"
 msgstr "步骤 {step} / {lastStep}"
 
+#. Story-only explanation of retained diagnostics after continuing again
+#: src/storybook/history/HistoryContinuation.stories.tsx:54
+msgid "The projection closes before publication during the first activation, and detach also fails. Both the first diagnostic and the diagnostic after continuing again retain the initialization and cleanup errors. The real session owner produces these failures."
+msgstr "首次激活时，projection 在发布前关闭，detach 也失败。首次诊断和再次继续后的诊断均保留初始化与清理错误。这些失败由真实 session owner 产生。"
+
 #. Story-only explanation of lost diagnostics after continuing again
 #: src/storybook/history/HistoryContinuation.stories.tsx:52
-msgid "The projection closes before publication during the first activation, and detach also fails. The first diagnostic shows both causes; continuing again shows only the AggregateError summary. The real session owner produces these failures. This story reproduces the defect without fixing product behavior."
-msgstr "首次激活时，projection 在发布前关闭，detach 同时失败。首次诊断显示两个原因；再次继续后只显示 AggregateError 摘要。这些失败由真实 session owner 产生。此 Story 复现缺陷，未修复产品行为。"
+#~ msgid "The projection closes before publication during the first activation, and detach also fails. The first diagnostic shows both causes; continuing again shows only the AggregateError summary. The real session owner produces these failures. This story reproduces the defect without fixing product behavior."
+#~ msgstr "首次激活时，projection 在发布前关闭，detach 同时失败。首次诊断显示两个原因；再次继续后只显示 AggregateError 摘要。这些失败由真实 session owner 产生。此 Story 复现缺陷，未修复产品行为。"
 
 #: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:117
 msgid "This control injects a lost editing-session result for previewing content protection."

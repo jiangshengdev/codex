@@ -379,10 +379,15 @@ msgstr "Simulation is idle"
 msgid "Step {step} / {lastStep}"
 msgstr "Step {step} / {lastStep}"
 
+#. Story-only explanation of retained diagnostics after continuing again
+#: src/storybook/history/HistoryContinuation.stories.tsx:54
+msgid "The projection closes before publication during the first activation, and detach also fails. Both the first diagnostic and the diagnostic after continuing again retain the initialization and cleanup errors. The real session owner produces these failures."
+msgstr "The projection closes before publication during the first activation, and detach also fails. Both the first diagnostic and the diagnostic after continuing again retain the initialization and cleanup errors. The real session owner produces these failures."
+
 #. Story-only explanation of lost diagnostics after continuing again
 #: src/storybook/history/HistoryContinuation.stories.tsx:52
-msgid "The projection closes before publication during the first activation, and detach also fails. The first diagnostic shows both causes; continuing again shows only the AggregateError summary. The real session owner produces these failures. This story reproduces the defect without fixing product behavior."
-msgstr "The projection closes before publication during the first activation, and detach also fails. The first diagnostic shows both causes; continuing again shows only the AggregateError summary. The real session owner produces these failures. This story reproduces the defect without fixing product behavior."
+#~ msgid "The projection closes before publication during the first activation, and detach also fails. The first diagnostic shows both causes; continuing again shows only the AggregateError summary. The real session owner produces these failures. This story reproduces the defect without fixing product behavior."
+#~ msgstr "The projection closes before publication during the first activation, and detach also fails. The first diagnostic shows both causes; continuing again shows only the AggregateError summary. The real session owner produces these failures. This story reproduces the defect without fixing product behavior."
 
 #: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:117
 msgid "This control injects a lost editing-session result for previewing content protection."
