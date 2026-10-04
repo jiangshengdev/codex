@@ -24,17 +24,17 @@ msgstr "已选中一个 Skill 节点。请按 Cmd/Ctrl+C 或 X。此 Story 让 d
 #~ msgstr "已选中 Skill 节点，按 Cmd/Ctrl+C 或 X。此 Story 让 document.execCommand('copy') 返回 false。Composer 没有失败提示；DEV 区仅观察并展示 unhandledrejection。剪切失败应保留内容。切换 Story 后恢复浏览器方法。"
 
 #. Insert fictional files and a PNG together through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:193
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:203
 msgid "Add mixed sample"
 msgstr "添加混合示例"
 
 #. Insert a fictional local file through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:201
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:211
 msgid "Add sample file"
 msgstr "添加示例文件"
 
 #. Insert a fictional PNG through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:197
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:207
 msgid "Add sample image"
 msgstr "添加示例图片"
 
@@ -42,14 +42,19 @@ msgstr "添加示例图片"
 msgid "Click inside the preview before pressing keys. This story waits for manual input. Local simulation only; reload or restart to restore the preset. Safari system shortcuts, native focus and real IME behavior require separate manual acceptance."
 msgstr "按键前请先点击预览区域。本场景等待手动操作，仅进行本地模拟；刷新页面或重新开始演示可恢复预设状态。Safari 系统快捷键、原生焦点和真实输入法行为需要另行手动验收。"
 
+#. Storybook instructions for retrying an attachment preview; DEV refers to the simulation controls
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:178
+msgid "Click the attachment's retry preview icon, then use the DEV controls to complete the preview or simulate another read failure or a decode failure. The failure message remains visible while retrying; the upload status and eligibility to send remain unchanged."
+msgstr "点击附件的重试预览图标，再通过 DEV 控制区完成预览、模拟再次读取失败或解码失败。重试期间保留失败提示，上传状态与发送资格不变。"
+
 #. Return the selected image bytes to the real preview component
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:210
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:220
 msgid "Complete preview {name}"
 msgstr "完成 {name} 的预览读取"
 
 #. Resolve the simulated upload for the named file, including a response arriving after removal
 #. Resolve the simulated upload for the named file, including a response arriving after removal
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:214
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:224
 #: src/storybook/newSession/NewSessionAttachments.tsx:101
 msgid "Complete upload {name}"
 msgstr "完成 {name} 的上传"
@@ -66,17 +71,17 @@ msgid "Current turn is running"
 msgstr "当前轮次正在运行"
 
 #. Return invalid bytes so the browser cannot decode the uploaded image
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:237
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:247
 msgid "Fail preview decode {name}"
 msgstr "模拟 {name} 预览解码失败"
 
 #. Simulate a failure reading the uploaded image without changing upload status
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:226
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:236
 msgid "Fail preview read {name}"
 msgstr "模拟 {name} 预览读取失败"
 
 #. Return a simulated upload failure for the named file
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:230
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:240
 msgid "Fail upload {name}"
 msgstr "模拟 {name} 上传失败"
 
@@ -187,7 +192,7 @@ msgstr "Redux 槽位：{count}；路由：{pathname}"
 msgid "Release recovery display"
 msgstr "结束恢复状态展示"
 
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:244
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:254
 msgid "Removed; a late result must not restore this attachment."
 msgstr "已移除；迟到的结果不应恢复此附件。"
 

@@ -173,6 +173,16 @@ function AttachmentSimulation({
           never contacts a model.
         </Trans>
       </p>
+      {previewPreset === "readFailure" ? (
+        <p className="text-sm text-muted">
+          <Trans comment="Storybook instructions for retrying an attachment preview; DEV refers to the simulation controls">
+            Click the attachment's retry preview icon, then use the DEV controls to complete the
+            preview or simulate another read failure or a decode failure. The failure message
+            remains visible while retrying; the upload status and eligibility to send remain
+            unchanged.
+          </Trans>
+        </p>
+      ) : null}
       {connected ? (
         <ComposerSimulation
           key={composerGeneration}
