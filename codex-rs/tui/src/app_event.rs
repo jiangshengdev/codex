@@ -277,6 +277,11 @@ pub(crate) struct AgentsOverviewThreadRefresh {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, IntoStaticStr)]
 pub(crate) enum AppEvent {
+    SecuritySetupLoaded {
+        request_id: uuid::Uuid,
+        identity: crate::security_setup::Identity,
+        notice: crate::security_setup::Notice,
+    },
     OpenDaemonMenu,
     ConfirmDaemonUpdate(crate::update_action::DaemonUpdateSource),
     RunDaemonUpdate(crate::update_action::DaemonUpdateSource),
@@ -436,6 +441,12 @@ pub(crate) enum AppEvent {
     OpenWarnings,
     /// Copy a diagnostic and acknowledge in the footer, without appending history.
     CopyWarning(String),
+    /// Apply the user's decisions for the frozen warning details, in viewer-close order.
+    UpdateWarnings {
+        transcript: Arc<()>,
+        dismissed: Vec<crate::history_cell::WarningEntry>,
+        kept: Vec<crate::history_cell::WarningEntry>,
+    },
 
     /// Export all current-thread history to the selected destination.
     ExportTranscript {

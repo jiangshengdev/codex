@@ -51,7 +51,7 @@ pub(super) async fn reconnect(
     // Connecting already has transport deadlines. Give healthy history/inventory hydration one
     // shared budget instead of repeatedly discarding its progress on a short per-attempt timer.
     let deadline = tokio::time::Instant::now() + Duration::from_secs(/*secs*/ 120);
-    for delay in [0, 1, 2, 4, 8] {
+    for delay in [0, 1, 2, 4].into_iter().chain(std::iter::repeat(/*elt*/ 8)) {
         let attempt = async {
             tokio::time::sleep(Duration::from_secs(delay)).await;
             let client = crate::app_server_connection::connect(&target).await?;
@@ -478,6 +478,12 @@ impl App {
             matches!(bootstrap.auth_mode, Some(TelemetryAuthMode::Chatgpt)),
         );
         if self.chat_widget.has_chatgpt_account() {
+            crate::security_setup::prefetch(
+                &self.config,
+                app_server,
+                self.app_event_tx.clone(),
+                self.chat_widget.security_setup_request_id,
+            );
             crate::daybreak::prefetch_notice(
                 &self.config,
                 app_server,

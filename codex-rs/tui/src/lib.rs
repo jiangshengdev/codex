@@ -52,7 +52,7 @@ use codex_config::LoaderOverrides;
 use codex_config::format_config_error_with_source;
 use codex_config::types::ResumeCwdMode;
 use codex_exec_server::EnvironmentManager;
-use codex_exec_server::ExecServerRuntimePaths;
+use codex_exec_server::ExecServerRuntimeOptions;
 use codex_features::Feature;
 use codex_login::AuthConfig;
 use codex_login::default_client::originator;
@@ -131,6 +131,7 @@ mod experimental_features;
 mod markdown_copy;
 mod permission_discovery;
 mod pets;
+mod security_setup;
 mod worktree_browser;
 pub use custom_terminal::Terminal;
 mod assistant_directives;
@@ -2624,7 +2625,7 @@ requires_openai_auth = {requires_openai_auth}
                 .cloud_config_bundle(cloud_config_bundle)
                 .build()
                 .await?;
-            let runtime_paths = ExecServerRuntimePaths::new(
+            let runtime_paths = ExecServerRuntimeOptions::new(
                 std::env::current_exe()?,
                 /*codex_linux_sandbox_exe*/ None,
             )?;
@@ -3637,7 +3638,7 @@ requires_openai_auth = {requires_openai_auth}
         let target = AppServerTarget::Embedded;
         let environment_manager = EnvironmentManager::create_for_tests(
             Some("ws://127.0.0.1:8765".to_string()),
-            Some(ExecServerRuntimePaths::new(
+            Some(ExecServerRuntimeOptions::new(
                 std::env::current_exe().expect("current exe"),
                 /*codex_linux_sandbox_exe*/ None,
             )?),
