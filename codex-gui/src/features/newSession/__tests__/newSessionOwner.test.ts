@@ -55,6 +55,24 @@ function setup() {
 }
 
 describe("NewSessionOwner", () => {
+  it("reports the actual snapshot when activation does not leave an active input target", async () => {
+    const h = setup();
+    const snapshot = {
+      phase: "failed",
+      threadId: h.target.threadId,
+      revision: 2,
+      error: new Error("Projection lost"),
+    } as const;
+    vi.mocked(h.session.getSnapshot).mockReturnValue(snapshot);
+    await h.owner.submit(h.capture);
+    const error = h.owner.getSnapshot()?.failure?.error;
+    expect(error).toBeInstanceOf(Error);
+    expect(error?.message).toContain("phase: failed");
+    expect(error?.message).toContain("Projection lost");
+    expect(error?.cause).toBe(snapshot);
+    expect(h.target.composerRole.submit).not.toHaveBeenCalled();
+  });
+
   it("does not create a session until attachments finish uploading", async () => {
     const h = setup();
     expect(await h.owner.submit({ ...h.capture, attachmentsReady: false })).toEqual({

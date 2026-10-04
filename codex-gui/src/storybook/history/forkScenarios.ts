@@ -57,6 +57,7 @@ export const forkSnapshots = {
   creationFailure,
   resultUnknown,
   createdUnopened,
+  activationFailed: createdUnopened,
   openFailed,
   pending,
   unavailable,

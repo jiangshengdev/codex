@@ -13,18 +13,28 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#. Story-only instructions for exercising Composer clipboard failure feedback
+#: src/storybook/composer/ClipboardFailurePreview.tsx:27
+msgid "A Skill node is selected. Press Cmd/Ctrl+C or X. This story makes document.execCommand('copy') return false. The Composer displays a failure toast and preserves the content. Switching stories restores the browser method."
+msgstr "A Skill node is selected. Press Cmd/Ctrl+C or X. This story makes document.execCommand('copy') return false. The Composer displays a failure toast and preserves the content. Switching stories restores the browser method."
+
+#. Story-only instructions for reproducing the Composer clipboard defect
+#: src/storybook/composer/ClipboardFailurePreview.tsx:39
+#~ msgid "A Skill node is selected. Press Cmd/Ctrl+C or X. This story makes document.execCommand('copy') return false. The Composer shows no failure feedback; the DEV area only observes and displays unhandledrejection. A failed cut should preserve the content. Switching stories restores the browser method."
+#~ msgstr "A Skill node is selected. Press Cmd/Ctrl+C or X. This story makes document.execCommand('copy') return false. The Composer shows no failure feedback; the DEV area only observes and displays unhandledrejection. A failed cut should preserve the content. Switching stories restores the browser method."
+
 #. Insert fictional files and a PNG together through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:193
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:203
 msgid "Add mixed sample"
 msgstr "Add mixed sample"
 
 #. Insert a fictional local file through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:201
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:211
 msgid "Add sample file"
 msgstr "Add sample file"
 
 #. Insert a fictional PNG through the Composer file input
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:197
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:207
 msgid "Add sample image"
 msgstr "Add sample image"
 
@@ -32,14 +42,19 @@ msgstr "Add sample image"
 msgid "Click inside the preview before pressing keys. This story waits for manual input. Local simulation only; reload or restart to restore the preset. Safari system shortcuts, native focus and real IME behavior require separate manual acceptance."
 msgstr "Click inside the preview before pressing keys. This story waits for manual input. Local simulation only; reload or restart to restore the preset. Safari system shortcuts, native focus and real IME behavior require separate manual acceptance."
 
+#. Storybook instructions for retrying an attachment preview; DEV refers to the simulation controls
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:178
+msgid "Click the attachment's retry preview icon, then use the DEV controls to complete the preview or simulate another read failure or a decode failure. The failure message remains visible while retrying; the upload status and eligibility to send remain unchanged."
+msgstr "Click the attachment's retry preview icon, then use the DEV controls to complete the preview or simulate another read failure or a decode failure. The failure message remains visible while retrying; the upload status and eligibility to send remain unchanged."
+
 #. Return the selected image bytes to the real preview component
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:210
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:220
 msgid "Complete preview {name}"
 msgstr "Complete preview {name}"
 
 #. Resolve the simulated upload for the named file, including a response arriving after removal
 #. Resolve the simulated upload for the named file, including a response arriving after removal
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:214
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:224
 #: src/storybook/newSession/NewSessionAttachments.tsx:101
 msgid "Complete upload {name}"
 msgstr "Complete upload {name}"
@@ -56,17 +71,17 @@ msgid "Current turn is running"
 msgstr "Current turn is running"
 
 #. Return invalid bytes so the browser cannot decode the uploaded image
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:237
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:247
 msgid "Fail preview decode {name}"
 msgstr "Fail preview decode {name}"
 
 #. Simulate a failure reading the uploaded image without changing upload status
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:226
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:236
 msgid "Fail preview read {name}"
 msgstr "Fail preview read {name}"
 
 #. Return a simulated upload failure for the named file
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:230
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:240
 msgid "Fail upload {name}"
 msgstr "Fail upload {name}"
 
@@ -177,7 +192,7 @@ msgstr "Redux slots: {count}; route: {pathname}"
 msgid "Release recovery display"
 msgstr "Release recovery display"
 
-#: src/storybook/composer/ComposerAttachmentsPreview.tsx:244
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:254
 msgid "Removed; a late result must not restore this attachment."
 msgstr "Removed; a late result must not restore this attachment."
 
@@ -373,6 +388,16 @@ msgstr "Simulation is idle"
 #: src/storybook/transcript/TranscriptReplayPreview.tsx:139
 msgid "Step {step} / {lastStep}"
 msgstr "Step {step} / {lastStep}"
+
+#. Story-only explanation of retained diagnostics after continuing again
+#: src/storybook/history/HistoryContinuation.stories.tsx:54
+msgid "The projection closes before publication during the first activation, and detach also fails. Both the first diagnostic and the diagnostic after continuing again retain the initialization and cleanup errors. The real session owner produces these failures."
+msgstr "The projection closes before publication during the first activation, and detach also fails. Both the first diagnostic and the diagnostic after continuing again retain the initialization and cleanup errors. The real session owner produces these failures."
+
+#. Story-only explanation of lost diagnostics after continuing again
+#: src/storybook/history/HistoryContinuation.stories.tsx:52
+#~ msgid "The projection closes before publication during the first activation, and detach also fails. The first diagnostic shows both causes; continuing again shows only the AggregateError summary. The real session owner produces these failures. This story reproduces the defect without fixing product behavior."
+#~ msgstr "The projection closes before publication during the first activation, and detach also fails. The first diagnostic shows both causes; continuing again shows only the AggregateError summary. The real session owner produces these failures. This story reproduces the defect without fixing product behavior."
 
 #: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:117
 msgid "This control injects a lost editing-session result for previewing content protection."

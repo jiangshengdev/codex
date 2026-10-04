@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/tanstack-react";
 import { composerMeta } from "./composerMeta";
+import { userEvent, within } from "storybook/test";
+import { ClipboardFailurePreview } from "./ClipboardFailurePreview";
 
 const meta = {
   ...composerMeta,
@@ -19,5 +21,26 @@ export const LongContent: Story = {
       (_, index) =>
         `Review section ${String(index + 1)}: Keep the input readable while checking the fictional change, its context, and the expected outcome.`,
     ).join("\n\n"),
+  },
+};
+
+export const ClipboardFailure: Story = {
+  decorators: [
+    (Story) => (
+      <ClipboardFailurePreview>
+        <Story />
+      </ClipboardFailurePreview>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole("combobox", { name: /^(Message Codex|向 Codex 发送消息)$/ }),
+    );
+    await userEvent.keyboard("$preview");
+    await userEvent.click(await canvas.findByRole("option", { name: /preview-review/ }));
+    await userEvent.click(await canvas.findByText("$preview-review", { exact: true }));
+    // Leave the real shortcut to the user (and E2E) so the failure toast can be
+    // triggered when the user is ready to inspect it.
   },
 };
