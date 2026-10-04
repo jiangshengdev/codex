@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readTaskBottomRegionViewport } from "../src/features/taskLayout/taskBottomRegionLayout";
 
 test.use({ locale: "en" });
 
@@ -19,6 +20,16 @@ for (const width of [375, 1280]) {
     await expect
       .poll(() => panel.evaluate((element) => element.getBoundingClientRect().height))
       .toBeGreaterThan(initialHeight);
+    // The fixed panel can grow before its measured document spacer is committed.
+    await expect
+      .poll(() =>
+        page
+          .getByRole("main")
+          .evaluate<ReturnType<typeof readTaskBottomRegionViewport>, undefined, HTMLElement>(
+            readTaskBottomRegionViewport,
+          ),
+      )
+      .toMatchObject({ ready: true });
     await page.evaluate(() => {
       window.scrollTo(0, document.documentElement.scrollHeight);
     });
