@@ -13,10 +13,15 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#. Story-only instructions for exercising Composer clipboard failure feedback
+#: src/storybook/composer/ClipboardFailurePreview.tsx:27
+msgid "A Skill node is selected. Press Cmd/Ctrl+C or X. This story makes document.execCommand('copy') return false. The Composer displays a failure toast and preserves the content. Switching stories restores the browser method."
+msgstr "已选中一个 Skill 节点。请按 Cmd/Ctrl+C 或 X。此 Story 让 document.execCommand('copy') 返回 false。Composer 会显示失败提示并保留内容。切换 Story 后会恢复浏览器方法。"
+
 #. Story-only instructions for reproducing the Composer clipboard defect
 #: src/storybook/composer/ClipboardFailurePreview.tsx:39
-msgid "A Skill node is selected. Press Cmd/Ctrl+C or X. This story makes document.execCommand('copy') return false. The Composer shows no failure feedback; the DEV area only observes and displays unhandledrejection. A failed cut should preserve the content. Switching stories restores the browser method."
-msgstr "已选中 Skill 节点，按 Cmd/Ctrl+C 或 X。此 Story 让 document.execCommand('copy') 返回 false。Composer 没有失败提示；DEV 区仅观察并展示 unhandledrejection。剪切失败应保留内容。切换 Story 后恢复浏览器方法。"
+#~ msgid "A Skill node is selected. Press Cmd/Ctrl+C or X. This story makes document.execCommand('copy') return false. The Composer shows no failure feedback; the DEV area only observes and displays unhandledrejection. A failed cut should preserve the content. Switching stories restores the browser method."
+#~ msgstr "已选中 Skill 节点，按 Cmd/Ctrl+C 或 X。此 Story 让 document.execCommand('copy') 返回 false。Composer 没有失败提示；DEV 区仅观察并展示 unhandledrejection。剪切失败应保留内容。切换 Story 后恢复浏览器方法。"
 
 #. Insert fictional files and a PNG together through the Composer file input
 #: src/storybook/composer/ComposerAttachmentsPreview.tsx:193

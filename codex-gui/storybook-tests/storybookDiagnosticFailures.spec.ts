@@ -31,28 +31,41 @@ test("repeated continue story opens the complete diagnostic", async ({ page }) =
 });
 
 for (const key of ["c", "x"]) {
-  test(`composer node selection ${key === "c" ? "copy" : "cut"} failure escapes without product feedback`, async ({
-    page,
-    browserName,
-  }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto(
-      "/iframe.html?id=composer-input-and-send-input--clipboard-failure&viewMode=story",
-    );
-    const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
-    const skill = editor.getByRole("group", { name: /preview-review/ });
-    await expect(skill).toHaveAttribute("data-selected");
-    await expect(editor).toBeFocused();
-    await page.keyboard.press(`ControlOrMeta+${key}`);
-    // WebKit includes the Error name in the message of an unhandled rejection.
-    await expect
-      .poll(() => errors)
-      .toEqual([
-        `${browserName === "webkit" ? "Error: " : ""}Unable to copy the composer selection`,
-      ]);
-    await expect(editor).toContainText("$preview-review");
-    await expect(page.getByRole("alert")).toHaveCount(0);
-    // No assertions on the Story-only diagnostic observer or simulation controls.
-  });
+  for (const failure of ["false", "reject"] as const) {
+    test(`composer node selection ${key === "c" ? "copy" : "cut"} ${failure} shows failure feedback and preserves content`, async ({
+      page,
+    }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.goto(
+        "/iframe.html?id=composer-input-and-send-input--clipboard-failure&viewMode=story",
+      );
+      const editor = page.getByRole("combobox", { name: "Message Codex", exact: true });
+      const skill = editor.getByRole("group", { name: /preview-review/ });
+      await expect(skill).toHaveAttribute("data-selected");
+      await expect(editor).toBeFocused();
+      await page.evaluate((mode) => {
+        // Inject at the browser API used by Lexical; each test owns a fresh page.
+        const failures = {
+          false: () => false,
+          reject: () => {
+            throw new Error("Clipboard unavailable");
+          },
+        };
+        Object.defineProperty(document, "execCommand", {
+          configurable: true,
+          value: failures[mode],
+        });
+      }, failure);
+      await page.keyboard.press(`ControlOrMeta+${key}`);
+      await expect(page.getByRole("alert")).toContainText(
+        key === "c"
+          ? "Copy failed. Please try again."
+          : "Cut failed. Your content has been preserved.",
+      );
+      await expect(editor).toContainText("$preview-review");
+      await expect(editor).toBeFocused();
+      expect(errors).toEqual([]);
+    });
+  }
 }

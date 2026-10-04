@@ -40,7 +40,7 @@ export const ClipboardFailure: Story = {
     await userEvent.keyboard("$preview");
     await userEvent.click(await canvas.findByRole("option", { name: /preview-review/ }));
     await userEvent.click(await canvas.findByText("$preview-review", { exact: true }));
-    // Leave the real shortcut to the user (and E2E), so loading a story does not
-    // produce an intentional unhandled rejection in the Storybook scene runner.
+    // Leave the real shortcut to the user (and E2E) so the failure toast can be
+    // triggered when the user is ready to inspect it.
   },
 };

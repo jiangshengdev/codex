@@ -339,6 +339,10 @@ msgstr "复制修改内容"
 msgid "Copy code"
 msgstr "复制代码"
 
+#: src/features/composerEditor/ComposerClipboardPlugin.tsx:46
+msgid "Copy failed. Please try again."
+msgstr "复制失败，请重试。"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:306
 msgid "Copy failed. Select the text and copy it manually."
 msgstr "复制失败。请选中文字并手动复制。"
@@ -414,6 +418,10 @@ msgstr "当前无法引导，已加入队列"
 #: src/features/asyncQuestions/AsyncQuestionCard.tsx:91
 msgid "Custom answer"
 msgstr "自定义回答"
+
+#: src/features/composerEditor/ComposerClipboardPlugin.tsx:58
+msgid "Cut failed. Your content has been preserved."
+msgstr "剪切失败，内容已保留。"
 
 #. Accessible name of the explicit dark appearance option
 #: src/app/ThemePreferenceControl.tsx:21
