@@ -2,6 +2,8 @@ import type { Meta, StoryObj } from "@storybook/tanstack-react";
 import { expect, userEvent, within } from "storybook/test";
 import flow from "./HistoryFlow.stories";
 import { HistoryPreview } from "./HistoryPreview";
+import { Trans } from "@lingui/react/macro";
+import { DevOnly } from "../environment/DevOnly";
 
 const meta = {
   ...flow,
@@ -42,14 +44,23 @@ export const InitializationAndCleanupFailed: Story = {
 
 export const RepeatedContinueLosesDiagnostics: Story = {
   args: { continuation: "cleanupPending" },
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "复现当前缺陷：首次激活在 projection 发布前关闭，detach 同时失败。首次诊断有两个原因；再次继续后只显示 AggregateError 摘要。使用真实 session owner 生成失败，未修复产品行为。",
-      },
-    },
-  },
+  decorators: [
+    (Story) => (
+      <>
+        <DevOnly>
+          <p>
+            <Trans comment="Story-only explanation of lost diagnostics after continuing again">
+              The projection closes before publication during the first activation, and detach also
+              fails. The first diagnostic shows both causes; continuing again shows only the
+              AggregateError summary. The real session owner produces these failures. This story
+              reproduces the defect without fixing product behavior.
+            </Trans>
+          </p>
+        </DevOnly>
+        <Story />
+      </>
+    ),
+  ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const continueTask = await canvas.findByRole("button", {

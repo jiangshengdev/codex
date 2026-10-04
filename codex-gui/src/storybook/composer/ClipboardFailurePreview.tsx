@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PropsWithChildren } from "react";
 import { DevOnly } from "../environment/DevOnly";
+import { Trans } from "@lingui/react/macro";
 
 /* eslint-disable @typescript-eslint/no-deprecated -- Inject failure at the execCommand boundary used by the installed Lexical clipboard implementation. */
 /** Story-only browser failure injection; the Composer and its error handling stay unchanged. */
@@ -33,11 +34,19 @@ export function ClipboardFailurePreview({ children }: PropsWithChildren) {
   return (
     <div ref={root}>
       {children}
-      {diagnostic == null ? null : (
-        <DevOnly>
+      <DevOnly>
+        <p>
+          <Trans comment="Story-only instructions for reproducing the Composer clipboard defect">
+            A Skill node is selected. Press Cmd/Ctrl+C or X. This story makes
+            document.execCommand('copy') return false. The Composer shows no failure feedback; the
+            DEV area only observes and displays unhandledrejection. A failed cut should preserve the
+            content. Switching stories restores the browser method.
+          </Trans>
+        </p>
+        {diagnostic == null ? null : (
           <pre className="whitespace-pre-wrap break-words">{diagnostic}</pre>
-        </DevOnly>
-      )}
+        )}
+      </DevOnly>
     </div>
   );
 }

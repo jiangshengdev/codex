@@ -32,14 +32,6 @@ export const ClipboardFailure: Story = {
       </ClipboardFailurePreview>
     ),
   ],
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "复现当前缺陷：已选中 Skill 节点，按 Cmd/Ctrl+C 或 X。Story 让 document.execCommand('copy') 返回 false；真实 Composer 无失败提示，DEV 区仅观察并展示 unhandledrejection。剪切失败应保留内容。切换 Story 后恢复浏览器方法。",
-      },
-    },
-  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(
