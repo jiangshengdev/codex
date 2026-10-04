@@ -393,13 +393,14 @@ macro_rules! client_request_definitions {
             pub fn into_jsonrpc_parts(
                 self,
             ) -> std::result::Result<(RequestId, crate::Result), serde_json::Error> {
-                match self {
+                let (request_id, response) = match self {
                     $(
                         Self::$variant { request_id, response } => {
-                            serde_json::to_value(response).map(|result| (request_id, result))
+                            (request_id, ClientResponsePayload::$variant(response))
                         }
                     )*
-                }
+                };
+                serde_json::to_value(response).map(|result| (request_id, result))
             }
         }
 
@@ -437,16 +438,7 @@ macro_rules! client_request_definitions {
                 &self,
                 request_id: RequestId,
             ) -> std::result::Result<(RequestId, crate::Result), serde_json::Error> {
-                match self {
-                    $(
-                        Self::$variant(response) => {
-                            serde_json::to_value(response).map(|result| (request_id, result))
-                        }
-                    )*
-                    Self::InterruptConversation(response) => {
-                        serde_json::to_value(response).map(|result| (request_id, result))
-                    }
-                }
+                serde_json::to_value(self).map(|result| (request_id, result))
             }
         }
 
@@ -1228,6 +1220,21 @@ client_request_definitions! {
         params: v2::ModelListParams,
         serialization: None,
         response: v2::ModelListResponse,
+    },
+    GatewayOAuthRead => "account/gatewayOAuth/read" {
+        params: #[ts(type = "undefined")] #[serde(skip_serializing_if = "Option::is_none")] Option<()>,
+        serialization: None,
+        response: v2::GatewayOAuthReadResponse,
+    },
+    GatewayOAuthLogin => "account/gatewayOAuth/login" {
+        params: #[ts(type = "undefined")] #[serde(skip_serializing_if = "Option::is_none")] Option<()>,
+        serialization: None,
+        response: v2::GatewayOAuthLoginResponse,
+    },
+    GatewayOAuthCancel => "account/gatewayOAuth/cancel" {
+        params: #[ts(type = "undefined")] #[serde(skip_serializing_if = "Option::is_none")] Option<()>,
+        serialization: None,
+        response: v2::GatewayOAuthCancelResponse,
     },
     ModelProviderCapabilitiesRead => "modelProvider/capabilities/read" {
         params: v2::ModelProviderCapabilitiesReadParams,
@@ -2127,6 +2134,7 @@ server_notification_definitions! {
     #[experimental("mcpServer/event/stream/notification")]
     McpServerEventStream => "mcpServer/event/stream/notification" (v2::McpServerEventStreamNotification),
     AccountUpdated => "account/updated" (v2::AccountUpdatedNotification),
+    GatewayOAuthChanged => "account/gatewayOAuth/changed" (v2::GatewayOAuthChangedNotification),
     AccountRateLimitsUpdated => "account/rateLimits/updated" (v2::AccountRateLimitsUpdatedNotification),
     AppListUpdated => "app/list/updated" (v2::AppListUpdatedNotification),
     RemoteControlStatusChanged => "remoteControl/status/changed" (v2::RemoteControlStatusChangedNotification),
@@ -2615,6 +2623,7 @@ mod tests {
                 server: "server-a".to_string(),
                 uri: "file:///tmp/resource".to_string(),
                 connector_id: None,
+                target: None,
             },
         };
         assert_eq!(
@@ -2804,6 +2813,7 @@ mod tests {
                 server: "server-a".to_string(),
                 uri: "file:///tmp/resource".to_string(),
                 connector_id: None,
+                target: None,
             },
         };
         assert_eq!(mcp_resource_read.serialization_scope(), None);
@@ -2888,6 +2898,7 @@ mod tests {
                     version: "0.1.0".to_string(),
                 },
                 capabilities: Some(v1::InitializeCapabilities {
+                    explicit_gateway_oauth: false,
                     experimental_api: true,
                     request_attestation: true,
                     mcp_server_openai_form_elicitation: true,
@@ -2975,6 +2986,7 @@ mod tests {
                         version: "0.1.0".to_string(),
                     },
                     capabilities: Some(v1::InitializeCapabilities {
+                        explicit_gateway_oauth: false,
                         experimental_api: true,
                         request_attestation: true,
                         mcp_server_openai_form_elicitation: true,
@@ -4151,6 +4163,7 @@ mod tests {
                 codex_responses_as_items: None,
                 codex_response_item_prefix: None,
                 codex_response_handoff_mode: Some(CodexResponseHandoffMode::BemTags),
+                backend_reasoning_status: false,
                 codex_response_handoff_channel_prefixes: Some(std::collections::BTreeMap::from([
                     ("analysis".to_string(), vec!["[THINKING]".to_string()]),
                     (
@@ -4237,6 +4250,7 @@ mod tests {
                 codex_responses_as_items: None,
                 codex_response_item_prefix: None,
                 codex_response_handoff_mode: None,
+                backend_reasoning_status: false,
                 codex_response_handoff_channel_prefixes: None,
                 thread_id: "thr_123".to_string(),
                 model: None,
@@ -4289,6 +4303,7 @@ mod tests {
                 codex_responses_as_items: None,
                 codex_response_item_prefix: None,
                 codex_response_handoff_mode: None,
+                backend_reasoning_status: false,
                 codex_response_handoff_channel_prefixes: None,
                 thread_id: "thr_123".to_string(),
                 model: None,
@@ -4541,6 +4556,7 @@ mod tests {
                 codex_responses_as_items: None,
                 codex_response_item_prefix: None,
                 codex_response_handoff_mode: None,
+                backend_reasoning_status: false,
                 codex_response_handoff_channel_prefixes: None,
                 thread_id: "thr_123".to_string(),
                 model: None,

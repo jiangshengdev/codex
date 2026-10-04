@@ -345,6 +345,21 @@
     "responseSchema": "v2/ModelListResponse"
   },
   {
+    "method": "account/gatewayOAuth/read",
+    "paramsSchema": null,
+    "responseSchema": "v2/GatewayOAuthReadResponse"
+  },
+  {
+    "method": "account/gatewayOAuth/login",
+    "paramsSchema": null,
+    "responseSchema": "v2/GatewayOAuthLoginResponse"
+  },
+  {
+    "method": "account/gatewayOAuth/cancel",
+    "paramsSchema": null,
+    "responseSchema": "v2/GatewayOAuthCancelResponse"
+  },
+  {
     "method": "modelProvider/capabilities/read",
     "paramsSchema": "v2/ModelProviderCapabilitiesReadParams",
     "responseSchema": "v2/ModelProviderCapabilitiesReadResponse"

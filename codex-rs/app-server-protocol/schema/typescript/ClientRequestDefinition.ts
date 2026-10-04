@@ -57,6 +57,9 @@ import type { FsWriteFileParams } from "./v2/FsWriteFileParams";
 import type { FsWriteFileResponse } from "./v2/FsWriteFileResponse";
 import type { FuzzyFileSearchParams } from "./FuzzyFileSearchParams";
 import type { FuzzyFileSearchResponse } from "./FuzzyFileSearchResponse";
+import type { GatewayOAuthCancelResponse } from "./v2/GatewayOAuthCancelResponse";
+import type { GatewayOAuthLoginResponse } from "./v2/GatewayOAuthLoginResponse";
+import type { GatewayOAuthReadResponse } from "./v2/GatewayOAuthReadResponse";
 import type { GetAccountParams } from "./v2/GetAccountParams";
 import type { GetAccountRateLimitsParams } from "./v2/GetAccountRateLimitsParams";
 import type { GetAccountRateLimitsResponse } from "./v2/GetAccountRateLimitsResponse";
@@ -276,6 +279,9 @@ export type ClientRequestDefinition =
   | { method: "turn/interrupt"; params: TurnInterruptParams; response: TurnInterruptResponse; }
   | { method: "review/start"; params: ReviewStartParams; response: ReviewStartResponse; }
   | { method: "model/list"; params: ModelListParams; response: ModelListResponse; }
+  | { method: "account/gatewayOAuth/read"; params: undefined; response: GatewayOAuthReadResponse; }
+  | { method: "account/gatewayOAuth/login"; params: undefined; response: GatewayOAuthLoginResponse; }
+  | { method: "account/gatewayOAuth/cancel"; params: undefined; response: GatewayOAuthCancelResponse; }
   | { method: "modelProvider/capabilities/read"; params: ModelProviderCapabilitiesReadParams; response: ModelProviderCapabilitiesReadResponse; }
   | { method: "experimentalFeature/list"; params: ExperimentalFeatureListParams; response: ExperimentalFeatureListResponse; }
   | { method: "permissionProfile/list"; params: PermissionProfileListParams; response: PermissionProfileListResponse; }

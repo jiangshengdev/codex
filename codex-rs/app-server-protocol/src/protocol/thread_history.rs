@@ -2382,6 +2382,7 @@ mod tests {
             window_id: None,
             compaction_response_id: None,
             latest_token_usage_record: None,
+            resume_metadata: None,
         }));
         builder.handle_event(&context_compacted());
         builder.handle_event(&turn_completed("turn-1"));
@@ -4792,6 +4793,7 @@ mod tests {
                 window_id: None,
                 compaction_response_id: None,
                 latest_token_usage_record: None,
+                resume_metadata: None,
             }),
             RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
                 turn_id: "turn-compact".into(),
