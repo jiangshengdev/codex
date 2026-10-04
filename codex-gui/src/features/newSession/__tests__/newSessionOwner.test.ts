@@ -17,6 +17,7 @@ function setup() {
     model: "gpt-5",
     modelProvider: "openai",
     serviceTier: null,
+    disabledPluginIds: [],
     cwd: attachResponse.snapshot.thread.cwd,
     instructionSources: [],
     approvalPolicy: "on-request",

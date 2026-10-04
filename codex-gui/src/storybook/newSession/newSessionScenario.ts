@@ -96,6 +96,7 @@ export function createNewSessionScenario(dispatch: AppDispatch, options: NewSess
         model: "storybook-model",
         modelProvider: "storybook",
         serviceTier: null,
+        disabledPluginIds: [],
         cwd: newSessionCwd,
         instructionSources: [],
         approvalPolicy: "on-request",

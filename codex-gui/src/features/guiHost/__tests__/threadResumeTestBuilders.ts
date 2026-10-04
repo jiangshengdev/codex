@@ -7,11 +7,13 @@ export const createThreadResumeResponse = (
 ): ThreadResumeResponse => ({
   thread,
   serviceTier: null,
+  disabledPluginIds: [],
   cwd: thread.cwd,
   instructionSources: [],
   approvalsReviewer: "user",
   sandbox: { type: "dangerFullAccess" },
   reasoningEffort: null,
+  collaborationMode: null,
   turnsBackwardsCursor: null,
   itemsBackwardsCursor: null,
   ...options,

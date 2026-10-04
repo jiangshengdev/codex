@@ -223,6 +223,7 @@ test("hands the first send to a fresh task composer without retaining old viewpo
       model: "gpt-5",
       modelProvider: "openai",
       serviceTier: null,
+      disabledPluginIds: [],
       cwd: attachResponse.snapshot.thread.cwd,
       instructionSources: [],
       approvalPolicy: "on-request",
