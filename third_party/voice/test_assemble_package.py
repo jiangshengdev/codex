@@ -283,7 +283,12 @@ class AssembleTests(unittest.TestCase):
         staged = self.root / "staged"
         stage(runtime, staged, target)
         seal(staged, target)
-        for version in ("0.154.0-alpha.8", "0.154.0-beta.2", "0.154.0"):
+        for version in (
+            "0.154.0-alpha.8",
+            "0.154.0-beta.2",
+            "0.154.0",
+            "0.160.0-cdx.1",
+        ):
             with self.subTest(version=version):
                 self.metadata["version"] = version
                 (self.package / "codex-package.json").write_text(
@@ -301,12 +306,37 @@ class AssembleTests(unittest.TestCase):
                 )
                 voice = output / "codex-resources/voice"
                 manifest = json.loads((voice / "manifest.json").read_text())
+                self.assertEqual(manifest["appVersion"], version)
                 self.assertEqual(manifest["appTarget"], "aarch64-unknown-linux-musl")
                 self.assertEqual(manifest["voiceTarget"], target)
                 self.assertEqual(
                     manifest["sha256"]["codex-resources/voice/runtime.json"],
                     digest(staged / "runtime.json"),
                 )
+
+    def test_cdx_release_rejects_invalid_or_mismatched_versions(self):
+        for package_version, release_version in (
+            ("0.160.0-cdx.1", "0.160.0-cdx.2"),
+            ("0.160.0-cdx", "0.160.0-cdx"),
+            ("0.160.0-cdx.x", "0.160.0-cdx.x"),
+            ("0.160.0-cdx.1.2", "0.160.0-cdx.1.2"),
+        ):
+            with self.subTest(package=package_version, release=release_version):
+                self.metadata["version"] = package_version
+                (self.package / "codex-package.json").write_text(
+                    json.dumps(self.metadata)
+                )
+                with self.assertRaisesRegex(ValueError, "package version"):
+                    assemble(
+                        self.package,
+                        self.helper,
+                        "aarch64-unknown-linux-gnu",
+                        self.commit,
+                        self.output,
+                        runtime=self.root / "unused-runtime",
+                        release_version=release_version,
+                    )
+                self.assertFalse(self.output.exists())
 
     def test_windows_release_packages_signed_receipt_and_exe_helper(self):
         self.commit = "b" * 40

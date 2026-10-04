@@ -796,6 +796,24 @@ test("new-session directory follows the viewed task when persisting its selectio
   }
 });
 
+test("activation failure exposes the original diagnostic and retains input for retry", async () => {
+  const { commands } = await mount("/new");
+  vi.mocked(commands.attachThreadProjection).mockRejectedValueOnce(
+    new Error("New session attach failed"),
+  );
+  await page.getByRole("combobox", { name: "Message Codex" }).fill("retained input");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name: "View diagnostic information", exact: true }).click();
+  await expect
+    .element(page.getByRole("dialog", { name: "Diagnostic information" }))
+    .toHaveTextContent("New session attach failed");
+  expect(commands.startTurn).not.toHaveBeenCalled();
+  await page.getByRole("button", { name: "Close diagnostics" }).click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.poll(() => commands.startTurn).toHaveBeenCalledTimes(1);
+  expect(commands.startThread).toHaveBeenCalledTimes(1);
+});
+
 test("navigation failure after queue acceptance leaves no resendable draft and exposes the created session", async () => {
   const { router, commands } = await mount("/new");
   await page.getByRole("combobox", { name: "Message Codex" }).fill("accepted before navigation");

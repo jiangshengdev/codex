@@ -24,6 +24,8 @@ import {
   PASTE_TAG,
 } from "lexical";
 import { useEffect } from "react";
+import { toast } from "@heroui/react";
+import { useLingui } from "@lingui/react/macro";
 import { $getComposerText } from "./composerText";
 import { ADD_ATTACHMENTS_COMMAND } from "./AttachmentNode";
 import { isImageFile } from "./attachmentMedia";
@@ -32,22 +34,33 @@ const LEXICAL_MIME_TYPE = "application/x-lexical-editor";
 
 export function ComposerClipboardPlugin() {
   const [editor] = useLexicalComposerContext();
+  const { t } = useLingui();
 
   useEffect(
     () =>
       mergeRegister(
         editor.registerCommand(
           COPY_COMMAND,
-          (event) => copySelection(editor, event) !== "unavailable",
+          (event) =>
+            copySelection(editor, event, () => {
+              toast.danger(t`Copy failed. Please try again.`);
+            }) !== "unavailable",
           COMMAND_PRIORITY_HIGH,
         ),
         editor.registerCommand(
           CUT_COMMAND,
           (event) => {
             const selectionToDelete = $getSelection()?.clone() ?? null;
-            const copyResult = copySelection(editor, event, () => {
-              deleteCopiedSelection(editor, selectionToDelete);
-            });
+            const copyResult = copySelection(
+              editor,
+              event,
+              () => {
+                toast.danger(t`Cut failed. Your content has been preserved.`);
+              },
+              () => {
+                deleteCopiedSelection(editor, selectionToDelete);
+              },
+            );
             if (copyResult === "copied") {
               deleteCopiedSelection(editor, selectionToDelete);
             }
@@ -80,7 +93,7 @@ export function ComposerClipboardPlugin() {
           COMMAND_PRIORITY_HIGH,
         ),
       ),
-    [editor],
+    [editor, t],
   );
 
   return null;
@@ -89,6 +102,7 @@ export function ComposerClipboardPlugin() {
 function copySelection(
   editor: LexicalEditor,
   event: ClipboardEvent | KeyboardEvent | null,
+  onFailure: () => void,
   onCopied?: () => void,
 ): "copied" | "pending" | "unavailable" {
   const selection = $getSelection();
@@ -107,18 +121,13 @@ function copySelection(
     setLexicalClipboardDataTransfer(clipboardData, data);
     return "copied";
   } else {
-    void copyToClipboard(editor, null, data).then(
-      (copied) => {
-        if (copied) {
-          onCopied?.();
-        } else {
-          reportClipboardCopyFailure(editor);
-        }
-      },
-      (error: unknown) => {
-        reportClipboardCopyFailure(editor, error);
-      },
-    );
+    void copyToClipboard(editor, null, data).then((copied) => {
+      if (copied) {
+        onCopied?.();
+      } else {
+        onFailure();
+      }
+    }, onFailure);
     return "pending";
   }
 }
@@ -166,14 +175,6 @@ function normalizeSelectionForClipboardProjection(selection: BaseSelection): Bas
   const nodeSelection = $createNodeSelection();
   for (const node of selectedNodes) nodeSelection.add(node.getKey());
   return nodeSelection;
-}
-
-function reportClipboardCopyFailure(editor: LexicalEditor, error?: unknown): void {
-  const clipboardError =
-    error instanceof Error ? error : new Error("Unable to copy the composer selection");
-  editor.update(() => {
-    throw clipboardError;
-  });
 }
 
 function dataTransferFromPasteEvent(

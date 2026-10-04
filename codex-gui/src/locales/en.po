@@ -339,6 +339,10 @@ msgstr "Copy changes"
 msgid "Copy code"
 msgstr "Copy code"
 
+#: src/features/composerEditor/ComposerClipboardPlugin.tsx:46
+msgid "Copy failed. Please try again."
+msgstr "Copy failed. Please try again."
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:306
 msgid "Copy failed. Select the text and copy it manually."
 msgstr "Copy failed. Select the text and copy it manually."
@@ -414,6 +418,10 @@ msgstr "Currently unable to guide; added to queue"
 #: src/features/asyncQuestions/AsyncQuestionCard.tsx:91
 msgid "Custom answer"
 msgstr "Custom answer"
+
+#: src/features/composerEditor/ComposerClipboardPlugin.tsx:58
+msgid "Cut failed. Your content has been preserved."
+msgstr "Cut failed. Your content has been preserved."
 
 #. Accessible name of the explicit dark appearance option
 #: src/app/ThemePreferenceControl.tsx:21
