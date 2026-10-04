@@ -9,6 +9,11 @@ import {
   type GuiHostCommands,
 } from "@/features/guiHost/guiHostCommandGateway";
 import { createListenerSet } from "@/subscriptions/listenerSet";
+import {
+  activationOutcomeError,
+  activationSnapshotError,
+} from "@/features/activeThreadSession/activationDiagnostic";
+import { toError } from "@/text/toError";
 
 export type NewSessionConnection = Readonly<{
   commands: Pick<GuiHostCommands, "startThread">;
@@ -18,7 +23,7 @@ export type NewSessionConnection = Readonly<{
 export type NewSessionFailure = Readonly<{
   stage: "create" | "activate" | "handoff";
   delivery: GuiHostCommandError["delivery"];
-  error: unknown;
+  error: Error;
 }>;
 
 export type NewSessionSnapshot = Readonly<{
@@ -129,12 +134,12 @@ export class NewSessionOwner {
       const activation = await connection.session.activate(threadId);
       if (!current()) return { type: "retained" };
       if (activation.type !== "ready" || activation.threadId !== threadId) {
-        this.fail(stage, activation, "definitelyNotAccepted");
+        this.fail(stage, activationOutcomeError(activation, threadId), "definitelyNotAccepted");
         return { type: "retained" };
       }
       const target = connection.session.getSnapshot();
       if (target.phase !== "active" || target.threadId !== threadId) {
-        this.fail(stage, target, "definitelyNotAccepted");
+        this.fail(stage, activationSnapshotError(target, threadId), "definitelyNotAccepted");
         return { type: "retained" };
       }
       const latest = connection.session.getSnapshot();
@@ -168,7 +173,7 @@ export class NewSessionOwner {
             : stage === "create"
               ? "deliveryUnknown"
               : "definitelyNotAccepted";
-      this.fail(stage, error, delivery);
+      this.fail(stage, toError(error), delivery);
       return { type: "retained" };
     } finally {
       this.pending = false;
@@ -179,7 +184,7 @@ export class NewSessionOwner {
 
   private fail(
     stage: NewSessionFailure["stage"],
-    error: unknown,
+    error: Error,
     delivery: NewSessionFailure["delivery"],
   ): void {
     if (this.snapshot === null) return;
