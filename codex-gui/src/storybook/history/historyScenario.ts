@@ -80,6 +80,7 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
   let subscription = 0;
   let activationCount = 0;
   let forkCount = 0;
+  let forkAttachFailed = false;
   const listeners = createListenerSet();
   const commands: GuiHostCommands = {
     ...fallback.commands,
@@ -109,6 +110,17 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
       });
     },
     attachThreadProjection: ({ threadId }) => {
+      if (
+        options.fork === "activationFailed" &&
+        threadId === historyReturnedId &&
+        !forkAttachFailed
+      ) {
+        forkAttachFailed = true;
+        // Let the production session wrap this command failure in its activation outcome.
+        return Promise.reject(
+          new Error("STORYBOOK_FORK_FAILED: The saved fork projection could not be attached."),
+        );
+      }
       const baseline = task(threadId);
       return Promise.resolve(
         attachWithSnapshotThread(
