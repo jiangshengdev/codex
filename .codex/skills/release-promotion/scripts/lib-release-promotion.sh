@@ -298,5 +298,6 @@ rp_print_conflict_guidance() {
 rp_require_staged_diff_check_for_merge() {
   rp_git diff --no-color --cached --check -- . \
     ':(exclude,glob)**/*.snap' \
-    ':(exclude,glob)**/*.patch'
+    ':(exclude,glob)**/*.patch' \
+    ':(exclude,glob)**/*.txt'
 }

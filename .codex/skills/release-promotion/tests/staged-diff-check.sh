@@ -69,6 +69,16 @@ printf 'bad   \n' >"$repo/bad.rs"
 git -C "$repo" add bad.rs
 expect_fail patch-and-source-whitespace "$repo"
 
+repo="$(new_repo txt-whitespace)"
+mkdir -p "$repo/third_party/voice/licenses"
+printf 'text   \n\n' >"$repo/third_party/voice/licenses/license.txt"
+printf 'text   \n\n' >"$repo/root.txt"
+git -C "$repo" add third_party/voice/licenses/license.txt root.txt
+expect_pass txt-whitespace "$repo"
+printf 'bad   \n' >"$repo/bad.rs"
+git -C "$repo" add bad.rs
+expect_fail txt-and-source-whitespace "$repo"
+
 repo="$(new_repo source-whitespace)"
 printf 'bad   \n' >"$repo/bad.rs"
 git -C "$repo" add bad.rs
