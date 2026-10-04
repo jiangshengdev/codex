@@ -341,7 +341,9 @@ impl ExtraConnectionState {
         self.entries.insert(
             opened.connection_id,
             ExtraConnectionEntry {
-                session: Arc::new(ConnectionSessionState::new()),
+                session: Arc::new(ConnectionSessionState::new(
+                    crate::transport::ConnectionOrigin::InProcess,
+                )),
                 outbound_initialized: opened.outbound_initialized,
                 outbound_experimental_api_enabled: opened.outbound_experimental_api_enabled,
                 outbound_opted_out_notification_methods: opened

@@ -136,6 +136,12 @@ import type { ThreadApproveGuardianDeniedActionParams } from "./v2/ThreadApprove
 import type { ThreadApproveGuardianDeniedActionResponse } from "./v2/ThreadApproveGuardianDeniedActionResponse";
 import type { ThreadArchiveParams } from "./v2/ThreadArchiveParams";
 import type { ThreadArchiveResponse } from "./v2/ThreadArchiveResponse";
+import type { ThreadAttachmentAddParams } from "./v2/ThreadAttachmentAddParams";
+import type { ThreadAttachmentAddResponse } from "./v2/ThreadAttachmentAddResponse";
+import type { ThreadAttachmentListParams } from "./v2/ThreadAttachmentListParams";
+import type { ThreadAttachmentListResponse } from "./v2/ThreadAttachmentListResponse";
+import type { ThreadAttachmentRemoveParams } from "./v2/ThreadAttachmentRemoveParams";
+import type { ThreadAttachmentRemoveResponse } from "./v2/ThreadAttachmentRemoveResponse";
 import type { ThreadCompactStartParams } from "./v2/ThreadCompactStartParams";
 import type { ThreadCompactStartResponse } from "./v2/ThreadCompactStartResponse";
 import type { ThreadDeleteParams } from "./v2/ThreadDeleteParams";
@@ -217,6 +223,9 @@ export type ClientRequestDefinition =
   | { method: "thread/goal/get"; params: ThreadGoalGetParams; response: ThreadGoalGetResponse; }
   | { method: "thread/goal/clear"; params: ThreadGoalClearParams; response: ThreadGoalClearResponse; }
   | { method: "thread/metadata/update"; params: ThreadMetadataUpdateParams; response: ThreadMetadataUpdateResponse; }
+  | { method: "thread/attachment/add"; params: ThreadAttachmentAddParams; response: ThreadAttachmentAddResponse; }
+  | { method: "thread/attachment/list"; params: ThreadAttachmentListParams; response: ThreadAttachmentListResponse; }
+  | { method: "thread/attachment/remove"; params: ThreadAttachmentRemoveParams; response: ThreadAttachmentRemoveResponse; }
   | { method: "thread/section/move"; params: ThreadSectionMoveParams; response: ThreadSectionMoveResponse; }
   | { method: "thread/unarchive"; params: ThreadUnarchiveParams; response: ThreadUnarchiveResponse; }
   | { method: "thread/compact/start"; params: ThreadCompactStartParams; response: ThreadCompactStartResponse; }

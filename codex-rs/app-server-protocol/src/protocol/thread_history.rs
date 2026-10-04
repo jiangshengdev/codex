@@ -883,6 +883,7 @@ impl ThreadHistoryBuilder {
             failure: None,
             saved_path: None,
             imagegen_request_id: None,
+            generation_id: None,
         });
         self.upsert_item_in_current_turn(item);
     }
@@ -897,6 +898,7 @@ impl ThreadHistoryBuilder {
             failure: payload.failure.clone(),
             saved_path: payload.saved_path.clone(),
             imagegen_request_id: None,
+            generation_id: None,
         });
         self.upsert_item_in_current_turn(item);
     }
@@ -2463,6 +2465,7 @@ mod tests {
                         failure: None,
                         saved_path: Some(saved_path.clone()),
                         imagegen_request_id: None,
+                        generation_id: None,
                     },
                 )),
                 started_at_ms: Some(0),
@@ -2496,6 +2499,7 @@ mod tests {
                 failure: None,
                 saved_path: Some(saved_path),
                 imagegen_request_id: None,
+                generation_id: None,
             })]
         );
     }
@@ -2826,6 +2830,7 @@ mod tests {
                         ),
                         saved_path: Some(test_path_buf("/tmp/ig_123.png").abs()),
                         imagegen_request_id: None,
+                        generation_id: None,
                     }),
                 ],
             }

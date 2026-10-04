@@ -65,6 +65,7 @@ impl LocalGuiConnectionOpener for TransportLocalGuiOpener {
             .try_send(TransportEvent::ConnectionOpened {
                 connection_id,
                 origin: ConnectionOrigin::InProcess,
+                auth: None,
                 writer,
                 disconnect_sender: Some(disconnect_token.clone()),
             })

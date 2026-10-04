@@ -70,6 +70,21 @@
     "responseSchema": "v2/ThreadMetadataUpdateResponse"
   },
   {
+    "method": "thread/attachment/add",
+    "paramsSchema": "v2/ThreadAttachmentAddParams",
+    "responseSchema": "v2/ThreadAttachmentAddResponse"
+  },
+  {
+    "method": "thread/attachment/list",
+    "paramsSchema": "v2/ThreadAttachmentListParams",
+    "responseSchema": "v2/ThreadAttachmentListResponse"
+  },
+  {
+    "method": "thread/attachment/remove",
+    "paramsSchema": "v2/ThreadAttachmentRemoveParams",
+    "responseSchema": "v2/ThreadAttachmentRemoveResponse"
+  },
+  {
     "method": "thread/section/move",
     "paramsSchema": "v2/ThreadSectionMoveParams",
     "responseSchema": "v2/ThreadSectionMoveResponse"
