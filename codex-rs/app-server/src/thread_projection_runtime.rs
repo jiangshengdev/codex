@@ -378,6 +378,15 @@ mod tests {
             /*attestation_provider*/ None,
             /*external_time_provider*/ None,
         ));
+        let config_manager = ConfigManager::new(
+            temp_dir.path().to_path_buf(),
+            Vec::new(),
+            loader_overrides,
+            /*strict_config*/ false,
+            CloudConfigBundleLoader::default(),
+            Arg0DispatchPaths::default(),
+            Arc::new(NoopThreadConfigLoader),
+        );
         let thread_goal_processor = ThreadGoalRequestProcessor::new(
             thread_manager.clone(),
             outgoing.clone(),
@@ -385,6 +394,7 @@ mod tests {
             thread_state_manager.clone(),
             /*state_db*/ None,
             Arc::new(GoalService::new()),
+            config_manager.clone(),
         );
         let processor = ThreadRequestProcessor::new(
             auth_manager,
@@ -392,15 +402,7 @@ mod tests {
             outgoing.clone(),
             Arg0DispatchPaths::default(),
             config.clone(),
-            ConfigManager::new(
-                temp_dir.path().to_path_buf(),
-                Vec::new(),
-                loader_overrides,
-                /*strict_config*/ false,
-                CloudConfigBundleLoader::default(),
-                Arg0DispatchPaths::default(),
-                Arc::new(NoopThreadConfigLoader),
-            ),
+            config_manager,
             thread_store,
             Arc::new(Mutex::new(HashSet::new())),
             thread_state_manager,
@@ -470,6 +472,7 @@ stream_max_retries = 0
         RolloutItem::EventMsg(EventMsg::TurnStarted(
             codex_protocol::protocol::TurnStartedEvent {
                 turn_id: "turn-visible".to_string(),
+                root_turn_id: None,
                 trace_id: None,
                 started_at: Some(1),
                 model_context_window: None,
@@ -482,6 +485,7 @@ stream_max_retries = 0
         RolloutItem::EventMsg(EventMsg::TurnStarted(
             codex_protocol::protocol::TurnStartedEvent {
                 turn_id: "turn-pending".to_string(),
+                root_turn_id: None,
                 trace_id: None,
                 started_at: Some(2),
                 model_context_window: None,
@@ -732,6 +736,7 @@ stream_max_retries = 0
                 RolloutItem::EventMsg(EventMsg::TurnStarted(
                     codex_protocol::protocol::TurnStartedEvent {
                         turn_id: turn_id.clone(),
+                        root_turn_id: None,
                         trace_id: None,
                         started_at: Some(1),
                         model_context_window: None,

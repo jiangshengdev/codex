@@ -174,8 +174,6 @@ import type { ThreadResumeParams } from "./v2/ThreadResumeParams";
 import type { ThreadResumeResponse } from "./v2/ThreadResumeResponse";
 import type { ThreadRevertParams } from "./v2/ThreadRevertParams";
 import type { ThreadRevertResponse } from "./v2/ThreadRevertResponse";
-import type { ThreadRollbackParams } from "./v2/ThreadRollbackParams";
-import type { ThreadRollbackResponse } from "./v2/ThreadRollbackResponse";
 import type { ThreadSectionCreateParams } from "./v2/ThreadSectionCreateParams";
 import type { ThreadSectionCreateResponse } from "./v2/ThreadSectionCreateResponse";
 import type { ThreadSectionDeleteParams } from "./v2/ThreadSectionDeleteParams";
@@ -231,7 +229,6 @@ export type ClientRequestDefinition =
   | { method: "thread/compact/start"; params: ThreadCompactStartParams; response: ThreadCompactStartResponse; }
   | { method: "thread/shellCommand"; params: ThreadShellCommandParams; response: ThreadShellCommandResponse; }
   | { method: "thread/approveGuardianDeniedAction"; params: ThreadApproveGuardianDeniedActionParams; response: ThreadApproveGuardianDeniedActionResponse; }
-  | { method: "thread/rollback"; params: ThreadRollbackParams; response: ThreadRollbackResponse; }
   | { method: "thread/revert"; params: ThreadRevertParams; response: ThreadRevertResponse; }
   | { method: "thread/list"; params: ThreadListParams; response: ThreadListResponse; }
   | { method: "threadSection/list"; params: ThreadSectionListParams; response: ThreadSectionListResponse; }

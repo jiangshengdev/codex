@@ -110,11 +110,6 @@
     "responseSchema": "v2/ThreadApproveGuardianDeniedActionResponse"
   },
   {
-    "method": "thread/rollback",
-    "paramsSchema": "v2/ThreadRollbackParams",
-    "responseSchema": "v2/ThreadRollbackResponse"
-  },
-  {
     "method": "thread/revert",
     "paramsSchema": "v2/ThreadRevertParams",
     "responseSchema": "v2/ThreadRevertResponse"
