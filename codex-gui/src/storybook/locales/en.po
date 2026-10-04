@@ -1,0 +1,393 @@
+msgid ""
+msgstr ""
+"POT-Creation-Date: 2026-09-14 10:22+0800\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: @lingui/cli\n"
+"Language: en\n"
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Plural-Forms: \n"
+
+#. Insert fictional files and a PNG together through the Composer file input
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:193
+msgid "Add mixed sample"
+msgstr "Add mixed sample"
+
+#. Insert a fictional local file through the Composer file input
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:201
+msgid "Add sample file"
+msgstr "Add sample file"
+
+#. Insert a fictional PNG through the Composer file input
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:197
+msgid "Add sample image"
+msgstr "Add sample image"
+
+#: src/storybook/shared/ShortcutInstructions.tsx:27
+msgid "Click inside the preview before pressing keys. This story waits for manual input. Local simulation only; reload or restart to restore the preset. Safari system shortcuts, native focus and real IME behavior require separate manual acceptance."
+msgstr "Click inside the preview before pressing keys. This story waits for manual input. Local simulation only; reload or restart to restore the preset. Safari system shortcuts, native focus and real IME behavior require separate manual acceptance."
+
+#. Return the selected image bytes to the real preview component
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:210
+msgid "Complete preview {name}"
+msgstr "Complete preview {name}"
+
+#. Resolve the simulated upload for the named file, including a response arriving after removal
+#. Resolve the simulated upload for the named file, including a response arriving after removal
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:214
+#: src/storybook/newSession/NewSessionAttachments.tsx:101
+msgid "Complete upload {name}"
+msgstr "Complete upload {name}"
+
+#. Storybook test action: creates an empty local Redux read-model slot without connecting to a backend.
+#: src/storybook/environment/Stateful.stories.tsx:37
+msgid "Create read-model slot"
+msgstr "Create read-model slot"
+
+#. A simulated assistant turn blocks automatic dispatch of ordinary queued messages
+#: src/storybook/composer/ComposerPreview.tsx:199
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:252
+msgid "Current turn is running"
+msgstr "Current turn is running"
+
+#. Return invalid bytes so the browser cannot decode the uploaded image
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:237
+msgid "Fail preview decode {name}"
+msgstr "Fail preview decode {name}"
+
+#. Simulate a failure reading the uploaded image without changing upload status
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:226
+msgid "Fail preview read {name}"
+msgstr "Fail preview read {name}"
+
+#. Return a simulated upload failure for the named file
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:230
+msgid "Fail upload {name}"
+msgstr "Fail upload {name}"
+
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:171
+msgid "Files stay in this browser. Uploads are simulated; sending leaves the draft unchanged and never contacts a model."
+msgstr "Files stay in this browser. Uploads are simulated; sending leaves the draft unchanged and never contacts a model."
+
+#: src/storybook/appShell/ShortcutFocus.stories.tsx:28
+msgid "Focus Menu, then press the shortcut. Focus moves into the editable Composer with a visible focus frame. When the input is unavailable or this page has no Composer, focus stays on Menu."
+msgstr "Focus Menu, then press the shortcut. Focus moves into the editable Composer with a visible focus frame. When the input is unavailable or this page has no Composer, focus stays on Menu."
+
+#: src/storybook/composer/ShortcutGuide.stories.tsx:21
+msgid "Focus the input and press Command+Enter. During a running turn, the draft becomes a Guide message. Use the simulated guide response and runtime confirmation to observe completion; a separate later draft is retained. Empty input with an ordinary queue promotes its first message to Guide even though the Guide button is disabled. Empty input without a queue, no active turn, unavailable input, or a recovery blocker does not submit. Hover or Tab to Guide to inspect its Tooltip. On Safari, check real IME composition and the immediate post-composition Enter separately; this story uses the production runtime guard."
+msgstr "Focus the input and press Command+Enter. During a running turn, the draft becomes a Guide message. Use the simulated guide response and runtime confirmation to observe completion; a separate later draft is retained. Empty input with an ordinary queue promotes its first message to Guide even though the Guide button is disabled. Empty input without a queue, no active turn, unavailable input, or a recovery blocker does not submit. Hover or Tab to Guide to inspect its Tooltip. On Safari, check real IME composition and the immediate post-composition Enter separately; this story uses the production runtime guard."
+
+#: src/storybook/composer/ShortcutSend.stories.tsx:17
+msgid "Focus the input. Enter sends the prepared text once and clears the draft; Shift+Enter inserts a newline at the caret without sending. Empty or whitespace-only input does not send. Unavailable input cannot be edited or sent. During a running turn, Enter adds an ordinary queued message. Hover or Tab to Send to inspect its Tooltip. Simulation controls can advance the response and runtime confirmation. On Safari, confirm real IME candidates: composing Enter and the immediate post-composition Enter must not send."
+msgstr "Focus the input. Enter sends the prepared text once and clears the draft; Shift+Enter inserts a newline at the caret without sending. Empty or whitespace-only input does not send. Unavailable input cannot be edited or sent. During a running turn, Enter adds an ordinary queued message. Hover or Tab to Send to inspect its Tooltip. Simulation controls can advance the response and runtime confirmation. On Safari, confirm real IME candidates: composing Enter and the immediate post-composition Enter must not send."
+
+#: src/storybook/appShell/ShortcutFocus.stories.tsx:22
+msgid "Focus the message input or Menu button, then toggle the menu. Keyboard opening shows one themed close-button ring; mouse opening is the comparison. Escape or the shortcut closes the menu and restores focus. Hover or Tab to Menu to inspect its Tooltip."
+msgstr "Focus the message input or Menu button, then toggle the menu. Keyboard opening shows one themed close-button ring; mouse opening is the comparison. Escape or the shortcut closes the menu and restores focus. Hover or Tab to Menu to inspect its Tooltip."
+
+#. Explains that only post-move page reads are injected in this Story
+#: src/storybook/composer/pendingInput/reordering/PendingInputReorderingPreview.tsx:95
+msgid "Injected feedback: the first move changes the real queue, then its refreshed list cannot load. Close and reopen the queue to read the updated order."
+msgstr "Injected feedback: the first move changes the real queue, then its refreshed list cannot load. Close and reopen the queue to read the updated order."
+
+#. Explains the bounded role-interface failure in the queue sorting Story
+#: src/storybook/composer/pendingInput/reordering/PendingInputReorderingPreview.tsx:90
+msgid "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
+msgstr "Injected feedback: the first move is rejected without changing the queue. Later moves use the real queue."
+
+#: src/storybook/appShell/ShortcutTasks.stories.tsx:21
+msgid "K selects the previous task; J selects the next. The displayed order is Shell task one, Shell task 2, Shell task 3. Initially task one is selected: previous wraps to task 3; next selects task 2. Keep typing separate drafts to check retention. With one task, navigation stays on that task; with none, it does nothing. From History, cycling starts from the last viewed task (task one), not from the page route. Held keys and composition do not switch."
+msgstr "K selects the previous task; J selects the next. The displayed order is Shell task one, Shell task 2, Shell task 3. Initially task one is selected: previous wraps to task 3; next selects task 2. Keep typing separate drafts to check retention. With one task, navigation stays on that task; with none, it does nothing. From History, cycling starts from the last viewed task (task one), not from the page route. Held keys and composition do not switch."
+
+#: src/storybook/composer/ComposerDraftPreview.tsx:74
+msgid "Leaving keeps the saved draft. Restarting resets it. Finish simulated sending and save changes before leaving."
+msgstr "Leaving keeps the saved draft. Restarting resets it. Finish simulated sending and save changes before leaving."
+
+#: src/storybook/newSession/NewSessionPreview.tsx:100
+msgid "Local simulation. No real sessions, uploads or model responses."
+msgstr "Local simulation. No real sessions, uploads or model responses."
+
+#: src/storybook/composer/ComposerPreview.tsx:101
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:81
+msgid "Local simulation. Requests and runtime events advance only when you use the simulation controls."
+msgstr "Local simulation. Requests and runtime events advance only when you use the simulation controls."
+
+#: src/storybook/asyncQuestions/QuestionPagePreview.tsx:31
+msgid "Local simulation. Submit an answer, then confirm it to show the runtime user message."
+msgstr "Local simulation. Submit an answer, then confirm it to show the runtime user message."
+
+#: src/storybook/composer/ComposerDraftPreview.tsx:23
+msgid "Local simulation. The composer is unmounted; its saved draft is kept until you return or restart the simulation."
+msgstr "Local simulation. The composer is unmounted; its saved draft is kept until you return or restart the simulation."
+
+#: src/storybook/transcript/TranscriptReplayPreview.tsx:79
+msgid "Local transcript replay. No model, tool or upload requests are made."
+msgstr "Local transcript replay. No model, tool or upload requests are made."
+
+#. Storybook control that locates the end of an earlier conversation turn containing code
+#: src/storybook/transcript/MixedTranscriptPreview.tsx:29
+msgid "Locate code turn"
+msgstr "Locate code turn"
+
+#. Accessible name for the separate main composer draft in the pending-input Storybook simulation
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:88
+msgid "Main draft"
+msgstr "Main draft"
+
+#. Storybook test action: navigates only the isolated in-memory preview router.
+#: src/storybook/environment/Stateful.stories.tsx:50
+msgid "Navigate to details"
+msgstr "Navigate to details"
+
+#. Advances one fixed frame in the Storybook transcript timeline
+#: src/storybook/transcript/TranscriptReplayPreview.tsx:111
+msgid "Next step"
+msgstr "Next step"
+
+#: src/storybook/newSession/NewSessionPreview.tsx:105
+msgid "Only for scenario preparation, not a product recovery entry point."
+msgstr "Only for scenario preparation, not a product recovery entry point."
+
+#: src/storybook/newSession/Shortcut.stories.tsx:18
+msgid "Open the unsent new-session draft. Repeating the shortcut retains its text without sending. With no current task, the configured directory still permits a new draft. With neither a directory nor an existing draft, the shortcut does nothing. An existing draft can reopen even without a directory in the launch context. Holding the keys or composing text must not navigate."
+msgstr "Open the unsent new-session draft. Repeating the shortcut retains its text without sending. With no current task, the configured directory still permits a new draft. With neither a directory nor an existing draft, the shortcut does nothing. An existing draft can reopen even without a directory in the launch context. Holding the keys or composing text must not navigate."
+
+#. Pauses the Storybook transcript timeline
+#: src/storybook/transcript/TranscriptReplayPreview.tsx:90
+msgid "Pause replay"
+msgstr "Pause replay"
+
+#. Plays the Storybook transcript timeline
+#: src/storybook/transcript/TranscriptReplayPreview.tsx:92
+msgid "Play replay"
+msgstr "Play replay"
+
+#. Storybook environment check: count is the number of Redux read-model slots; pathname is an isolated preview route.
+#: src/storybook/environment/Stateful.stories.tsx:23
+msgid "Redux slots: {count}; route: {pathname}"
+msgstr "Redux slots: {count}; route: {pathname}"
+
+#. Stop freezing the captured recovery notification and show live coordinator state
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:88
+msgid "Release recovery display"
+msgstr "Release recovery display"
+
+#: src/storybook/composer/ComposerAttachmentsPreview.tsx:244
+msgid "Removed; a late result must not restore this attachment."
+msgstr "Removed; a late result must not restore this attachment."
+
+#. Returns the Storybook transcript timeline to its first frame
+#: src/storybook/transcript/TranscriptReplayPreview.tsx:133
+msgid "Reset replay"
+msgstr "Reset replay"
+
+#. The request succeeded but the simulated runtime acceptance event has not been injected
+#: src/storybook/composer/ComposerPreview.tsx:197
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:244
+msgid "Response received; waiting for runtime confirmation"
+msgstr "Response received; waiting for runtime confirmation"
+
+#. Reset the local pending-input Storybook scenario to its initial state
+#. Storybook control that resets the local connection recovery demo
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:137
+#: src/storybook/recovery/ConnectionRecoverySimulation.tsx:41
+msgid "Restart simulation"
+msgstr "Restart simulation"
+
+#. Return the fictional skill to the local catalog
+#: src/storybook/composer/ComposerPreview.tsx:188
+msgid "Restore simulated skill"
+msgstr "Restore simulated skill"
+
+#. Make local storage writes available again; the product Retry saving action still must be used
+#: src/storybook/composer/ComposerDraftPreview.tsx:97
+msgid "Restore simulated storage"
+msgstr "Restore simulated storage"
+
+#. The preview injected the runtime acceptance event for the queued message
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:248
+msgid "Runtime confirmation received"
+msgstr "Runtime confirmation received"
+
+#. Accessible name of the Storybook keyboard shortcut instructions section.
+#: src/storybook/shared/ShortcutInstructions.tsx:13
+msgid "Shortcut instructions"
+msgstr "Shortcut instructions"
+
+#. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
+#. Inject the terminal event for the current simulated assistant turn; queued input may then start sending
+#: src/storybook/composer/ComposerPreview.tsx:174
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:204
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:105
+msgid "Simulate current turn completed"
+msgstr "Simulate current turn completed"
+
+#. Inject the interrupted terminal event for the current simulated turn, separately from the stop request response
+#: src/storybook/composer/ComposerPreview.tsx:170
+msgid "Simulate current turn interrupted"
+msgstr "Simulate current turn interrupted"
+
+#. Inject a failed save in the local pending-message editor simulation
+#: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:132
+msgid "Simulate editing session lost"
+msgstr "Simulate editing session lost"
+
+#. Reject the simulated Guide request as definitely not accepted
+#: src/storybook/composer/ComposerGuidePreview.tsx:81
+msgid "Simulate guide failure"
+msgstr "Simulate guide failure"
+
+#. Reject guidance because the simulated active turn cannot be steered
+#. Reject guidance because the simulated active turn cannot be steered
+#: src/storybook/composer/ComposerGuidePreview.tsx:72
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:43
+msgid "Simulate guide refusal"
+msgstr "Simulate guide refusal"
+
+#. Resolve a simulated Guide request without confirming runtime acceptance
+#: src/storybook/composer/ComposerGuidePreview.tsx:34
+msgid "Simulate guide response"
+msgstr "Simulate guide response"
+
+#. Inject the runtime user-message event confirming accepted guide delivery
+#. Inject the runtime user-message event confirming accepted guide delivery
+#: src/storybook/composer/ComposerGuidePreview.tsx:63
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:34
+msgid "Simulate guide runtime confirmation"
+msgstr "Simulate guide runtime confirmation"
+
+#. Resolve the local guide request as accepted by the active turn
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:25
+msgid "Simulate guide success"
+msgstr "Simulate guide success"
+
+#. Leave delivery of the local guide request uncertain
+#. Leave delivery of the local guide request uncertain
+#: src/storybook/composer/ComposerGuidePreview.tsx:96
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:52
+msgid "Simulate guide unknown"
+msgstr "Simulate guide unknown"
+
+#. Unmount the local Composer while preserving this simulation's saved draft
+#: src/storybook/composer/ComposerDraftPreview.tsx:84
+msgid "Simulate leaving"
+msgstr "Simulate leaving"
+
+#. Remount the local Composer with a new session that reads the same isolated draft storage
+#: src/storybook/composer/ComposerDraftPreview.tsx:35
+msgid "Simulate returning"
+msgstr "Simulate returning"
+
+#. Inject the runtime acceptance event for the next answer in the local question preview
+#. Inject the runtime turn-started event that confirms the simulated queued message was accepted
+#. Inject the runtime turn-started event that confirms the simulated queued message was accepted
+#: src/storybook/asyncQuestions/QuestionPagePreview.tsx:42
+#: src/storybook/composer/ComposerPreview.tsx:155
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:234
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:141
+msgid "Simulate runtime confirmation"
+msgstr "Simulate runtime confirmation"
+
+#. Remount the Composer using its isolated saved queue and current simulated runtime
+#: src/storybook/composer/ComposerPreview.tsx:215
+msgid "Simulate saved queue restore"
+msgstr "Simulate saved queue restore"
+
+#. Make isolated draft storage writes fail and attempt saving through the real coordinator
+#: src/storybook/composer/ComposerDraftPreview.tsx:101
+msgid "Simulate saving failure"
+msgstr "Simulate saving failure"
+
+#. Reject the simulated ordinary send as definitely not accepted
+#. Reject the simulated sending request with definite non-delivery
+#: src/storybook/composer/ComposerPreview.tsx:132
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:127
+msgid "Simulate send failure"
+msgstr "Simulate send failure"
+
+#. Resolve the local start-turn request without injecting a runtime event
+#. Resolve the pending local start-turn request without injecting a runtime event
+#: src/storybook/composer/ComposerPreview.tsx:125
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:219
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:118
+msgid "Simulate send response"
+msgstr "Simulate send response"
+
+#. Settle the simulated ordinary send without knowing whether it was accepted
+#: src/storybook/composer/ComposerPreview.tsx:141
+msgid "Simulate send unknown"
+msgstr "Simulate send unknown"
+
+#. Remove the fictional skill from the local catalog to exercise selected-skill validation
+#: src/storybook/composer/ComposerPreview.tsx:184
+msgid "Simulate skill unavailable"
+msgstr "Simulate skill unavailable"
+
+#. Reject the simulated stop request as definitely not accepted
+#: src/storybook/composer/ComposerStopPreview.tsx:32
+msgid "Simulate stop failure"
+msgstr "Simulate stop failure"
+
+#. Accept the simulated stop request without ending the running turn
+#: src/storybook/composer/ComposerStopPreview.tsx:23
+msgid "Simulate stop response"
+msgstr "Simulate stop response"
+
+#. Leave acceptance of the simulated stop request uncertain while waiting for a runtime terminal event
+#: src/storybook/composer/ComposerStopPreview.tsx:41
+msgid "Simulate stop unknown"
+msgstr "Simulate stop unknown"
+
+#. Clear the simulated storage fault and invoke existing persistence recovery before retrying on the new-session page
+#: src/storybook/newSession/NewSessionPreview.tsx:113
+msgid "Simulate storage recovery"
+msgstr "Simulate storage recovery"
+
+#. Complete the simulated target turn while its guiding message is being edited
+#: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:144
+msgid "Simulate target turn closed"
+msgstr "Simulate target turn closed"
+
+#. Complete the simulated backend attachment after connection recovery
+#: src/storybook/asyncQuestions/QuestionPagePreview.tsx:53
+msgid "Simulate task attachment"
+msgstr "Simulate task attachment"
+
+#. Inject a completed turn event in the local question preview
+#: src/storybook/asyncQuestions/QuestionPagePreview.tsx:69
+msgid "Simulate turn completion"
+msgstr "Simulate turn completion"
+
+#. No simulated assistant turn or start-turn request remains active
+#: src/storybook/composer/ComposerPreview.tsx:201
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:256
+msgid "Simulation is idle"
+msgstr "Simulation is idle"
+
+#. Current frame number and last frame number in the Storybook timeline
+#: src/storybook/transcript/TranscriptReplayPreview.tsx:139
+msgid "Step {step} / {lastStep}"
+msgstr "Step {step} / {lastStep}"
+
+#: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:117
+msgid "This control injects a lost editing-session result for previewing content protection."
+msgstr "This control injects a lost editing-session result for previewing content protection."
+
+#: src/storybook/composer/pendingInput/editing/PendingInputEditingPreview.tsx:112
+msgid "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
+msgstr "This fixture injects a sending-conflict result when editing is requested. It does not simulate queue dispatch."
+
+#: src/storybook/composer/pendingInput/recovery/PendingInputRecoveryPreview.tsx:78
+msgid "This preview freezes the brief recovery notification. Release it to inspect the pending send request."
+msgstr "This preview freezes the brief recovery notification. Release it to inspect the pending send request."
+
+#. The local start-turn request remains unresolved until the preview response control is used
+#: src/storybook/composer/ComposerPreview.tsx:195
+#: src/storybook/composer/pendingInput/PendingInputScenarioView.tsx:240
+msgid "Waiting for send response"
+msgstr "Waiting for send response"

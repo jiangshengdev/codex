@@ -373,6 +373,7 @@ first\r\n",
 
         let gui_handle = GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: format!("http://{upstream_addr}"),
                 }),
@@ -490,6 +491,7 @@ hop headers\r\n\
 
         let gui_handle = GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: format!("http://{upstream_addr}"),
                 }),
@@ -612,6 +614,7 @@ impl TestServers {
 
         let gui_handle = GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: format!("http://{upstream_addr}"),
                 }),
@@ -740,9 +743,5 @@ fn combine_test_and_cleanup<T>(
 }
 
 fn local_origin(handle: &GuiHostHandle) -> Result<String> {
-    let url = handle.launch_url_for_thread("test-thread");
-    let (origin, _) = url
-        .split_once("/?")
-        .context("launch URL should include query")?;
-    Ok(origin.to_string())
+    Ok(format!("http://127.0.0.1:{}", handle.local_addr().port()))
 }

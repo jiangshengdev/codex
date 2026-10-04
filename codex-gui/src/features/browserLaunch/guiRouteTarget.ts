@@ -1,0 +1,111 @@
+import type { MakeRouteMatchUnion } from "@tanstack/react-router";
+import { CURRENT_TASK_PATH_SEGMENT } from "@codex-gui-host-contract";
+
+export const CURRENT_TASK_ROUTE_PATH = `/${CURRENT_TASK_PATH_SEGMENT}/$threadId` as const;
+export const HISTORY_LIST_ROUTE_PATH = "/history";
+export const HISTORY_DETAIL_ROUTE_PATH = `${HISTORY_LIST_ROUTE_PATH}/$threadId` as const;
+export const NEW_TASK_ROUTE_PATH = "/new";
+export const SHORTCUTS_ROUTE_PATH = "/shortcuts";
+
+const threadIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export type TurnPosition = Readonly<{ turnId: string; position: "end" }>;
+
+export type GuiRouteTarget =
+  | Readonly<{ type: "currentTask"; threadId: string; turnPosition?: TurnPosition }>
+  | Readonly<{ type: "historyList" }>
+  | Readonly<{ type: "newTask" }>
+  | Readonly<{ type: "shortcuts" }>
+  | Readonly<{ type: "historyDetail"; threadId: string; turnPosition?: TurnPosition }>;
+
+type GuiRouteMatch = MakeRouteMatchUnion;
+
+export function selectGuiRouteTarget(matches: readonly GuiRouteMatch[]): GuiRouteTarget | null {
+  if (
+    matches.some(
+      (match) =>
+        match.status !== "success" ||
+        match._notFound === true ||
+        match.error != null ||
+        match.paramsError != null ||
+        match.searchError != null,
+    )
+  ) {
+    return null;
+  }
+
+  const match = matches.at(-1);
+  if (match == null) {
+    return null;
+  }
+
+  switch (match.fullPath) {
+    case CURRENT_TASK_ROUTE_PATH: {
+      const threadId = threadIdFromParams(match.params);
+      const search = match.search;
+      return threadId == null
+        ? null
+        : {
+            type: "currentTask",
+            threadId,
+            ...(search.turnId != null ? { turnPosition: search } : {}),
+          };
+    }
+    case HISTORY_LIST_ROUTE_PATH:
+      return { type: "historyList" };
+    case NEW_TASK_ROUTE_PATH:
+      return { type: "newTask" };
+    case SHORTCUTS_ROUTE_PATH:
+      return { type: "shortcuts" };
+    case HISTORY_DETAIL_ROUTE_PATH: {
+      const threadId = threadIdFromParams(match.params);
+      const search = match.search;
+      return threadId == null
+        ? null
+        : {
+            type: "historyDetail",
+            threadId,
+            ...(search.turnId != null ? { turnPosition: search } : {}),
+          };
+    }
+    default:
+      return null;
+  }
+}
+
+export function validateEmptyRouteSearch(search: Record<string, unknown>): Record<string, never> {
+  if (Object.keys(search).length > 0) {
+    throw new Error("Query parameters are not supported");
+  }
+  return {};
+}
+
+export function validateTurnPositionSearch(
+  search: Record<string, unknown>,
+): TurnPosition | Readonly<{ turnId?: never; position?: never }> {
+  const keys = Object.keys(search);
+  if (keys.length === 0) return {};
+  if (keys.some((key) => key !== "turnId" && key !== "position")) {
+    return validateEmptyRouteSearch(search);
+  }
+  if (
+    keys.length !== 2 ||
+    !keys.includes("turnId") ||
+    !keys.includes("position") ||
+    typeof search.turnId !== "string" ||
+    search.turnId.trim().length === 0 ||
+    search.position !== "end"
+  ) {
+    throw new Error("Invalid turn positioning parameters");
+  }
+  return { turnId: search.turnId, position: "end" };
+}
+
+export function isValidThreadId(value: unknown): value is string {
+  return typeof value === "string" && threadIdPattern.test(value);
+}
+
+function threadIdFromParams(params: Readonly<Record<string, unknown>>): string | null {
+  const threadId = params.threadId;
+  return isValidThreadId(threadId) ? threadId : null;
+}

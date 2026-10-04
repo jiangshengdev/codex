@@ -123,7 +123,8 @@ function getGroup(path: string): keyof LargeFilesReport["groups"] {
     path.endsWith(".test.tsx") ||
     path.endsWith(".browser.test.ts") ||
     path.endsWith(".browser.test.tsx") ||
-    path.startsWith("e2e/")
+    path.startsWith("e2e/") ||
+    path.startsWith("storybook-tests/")
   ) {
     return "test";
   }

@@ -16,13 +16,32 @@ export type RequestResponse<M extends ClientRequestDefinition["method"]> =
 
 export const APP_SERVER_REQUEST_METHODS = [
   "initialize",
+  "skills/list",
+  "thread/compact/start",
   "thread/projection/attach",
+  "thread/projection/detach",
+  "thread/list",
+  "thread/loaded/list",
+  "thread/read",
+  "thread/resume",
+  "thread/start",
+  "thread/fork",
   "turn/start",
+  "turn/steer",
   "turn/interrupt",
 ] as const satisfies readonly ClientRequestDefinition["method"][];
 
 export const APP_SERVER_NOTIFICATION_METHODS = [
+  "skills/changed",
+  "thread/status/changed",
   "thread/projection/event",
   "thread/projection/delta",
   "thread/projection/closed",
 ] as const satisfies readonly ServerNotification["method"][];
+
+export const APP_SERVER_AUXILIARY_SCHEMA_IDS = [
+  "v2/TurnError",
+  "v2/TurnInterruptParams",
+  "v2/TurnStartParams",
+  "v2/TurnSteerParams",
+] as const;

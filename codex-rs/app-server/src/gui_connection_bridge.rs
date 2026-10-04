@@ -65,6 +65,7 @@ impl LocalGuiConnectionOpener for TransportLocalGuiOpener {
             .try_send(TransportEvent::ConnectionOpened {
                 connection_id,
                 origin: ConnectionOrigin::InProcess,
+                auth: None,
                 writer,
                 disconnect_sender: Some(disconnect_token.clone()),
             })
@@ -307,7 +308,9 @@ pub(crate) mod test_support {
 
 #[cfg(test)]
 mod tests {
+    use codex_app_server_protocol::ClientResponsePayload;
     use codex_app_server_protocol::JSONRPC_VERSION;
+    use codex_app_server_protocol::ThreadArchiveResponse;
     use codex_gui_host::AuthenticatedGuiConnection;
     use codex_gui_host::GuiBackend;
     use pretty_assertions::assert_eq;
@@ -378,7 +381,9 @@ mod tests {
                 crate::outgoing_message::OutgoingMessage::Response(
                     crate::outgoing_message::OutgoingResponse {
                         id: codex_app_server_protocol::RequestId::Integer(1),
-                        result: serde_json::json!({"ok": true}),
+                        result: Box::new(ClientResponsePayload::ThreadArchive(
+                            ThreadArchiveResponse {},
+                        )),
                     },
                 ),
             ))
@@ -391,7 +396,7 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(&response).expect("valid JSON");
         assert_eq!(value["jsonrpc"], JSONRPC_VERSION);
         assert_eq!(value["id"], 1);
-        assert_eq!(value["result"], serde_json::json!({"ok": true}));
+        assert_eq!(value["result"], serde_json::json!({}));
 
         drop(handle);
         let closed = transport_event_rx

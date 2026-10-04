@@ -5,9 +5,35 @@ use anyhow::Context;
 
 const DEFAULT_VITE_ORIGIN: &str = "http://127.0.0.1:5173";
 
+#[cfg(test)]
+#[path = "config_port_tests.rs"]
+mod port_tests;
+
+fn parse_port(port: Option<OsString>) -> anyhow::Result<u16> {
+    match port {
+        None => Ok(80),
+        Some(port) => port
+            .to_str()
+            .context("invalid CODEX_GUI_PORT value; expected an integer from 0 to 65535")?
+            .parse()
+            .context("invalid CODEX_GUI_PORT value; expected an integer from 0 to 65535"),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuiHostConfig {
     pub mode: GuiHostMode,
+    pub port: u16,
+}
+
+impl GuiHostConfig {
+    pub fn default_for_profile() -> anyhow::Result<Self> {
+        let port = parse_port(std::env::var_os("CODEX_GUI_PORT"))?;
+        Ok(Self {
+            mode: GuiHostMode::default_for_profile()?,
+            port,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,7 +158,14 @@ mod tests {
             vite_origin: "http://localhost:5173".to_string(),
         });
 
-        assert_eq!(GuiHostConfig { mode: mode.clone() }.mode, mode);
+        assert_eq!(
+            GuiHostConfig {
+                mode: mode.clone(),
+                port: 0
+            }
+            .mode,
+            mode
+        );
     }
 
     #[test]

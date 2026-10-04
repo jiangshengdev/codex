@@ -1,3 +1,4 @@
+import path from "node:path";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
@@ -5,6 +6,13 @@ import tailwindcss from "@tailwindcss/vite";
 import { lingui, linguiTransformerBabelPreset } from "@lingui/vite-plugin";
 import compression from "@polka/compression";
 import babel from "@rolldown/plugin-babel";
+import { storybookIsolationReport } from "./scripts/storybookIsolation/buildReport.ts";
+import { generatedArtifactWatchIgnored } from "./scripts/devServerWatch.ts";
+import { currentRunContext } from "./scripts/testRun/resources.ts";
+import {
+  appServerProtocolDirectory,
+  guiHostContractDirectory,
+} from "./scripts/sharedContractPaths.ts";
 
 const viteHost = process.env.CODEX_GUI_VITE_HOST ?? "0.0.0.0";
 const vitePort = Number(process.env.CODEX_GUI_VITE_PORT ?? "5173");
@@ -39,6 +47,13 @@ const viteDevCompression = (): Plugin => ({
 
 // https://vite.dev/config/
 export default defineConfig({
+  ...(process.env.CODEX_GUI_TEST_RUN_DIR
+    ? { cacheDir: `${currentRunContext().cacheDirectory}/vite` }
+    : {}),
+  optimizeDeps: {
+    // Discover the attachment editability hook before browser tests start.
+    include: ["@lexical/react/useLexicalEditable"],
+  },
   plugins: [
     viteDevCompression(),
     react(),
@@ -47,25 +62,30 @@ export default defineConfig({
       presets: [linguiTransformerBabelPreset()],
     }),
     tailwindcss(),
+    storybookIsolationReport(),
   ],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
-      "@codex-gui-host-contract": fileURLToPath(
-        new URL("../codex-rs/gui-host/schema/typescript/browserContract.ts", import.meta.url),
-      ),
-      "@codex-protocol": fileURLToPath(
-        new URL("../codex-rs/app-server-protocol/schema/typescript", import.meta.url),
-      ),
+      "@codex-gui-host-contract": path.join(guiHostContractDirectory, "browserContract.ts"),
+      "@codex-protocol": appServerProtocolDirectory,
     },
   },
   server: {
     host: viteHost,
     port: vitePort,
-    hmr: {
+    strictPort: true,
+    watch: {
+      ignored: generatedArtifactWatchIgnored,
+    },
+    ws: {
       ...(viteHmrHost ? { host: viteHmrHost } : {}),
       port: viteHmrPort,
       clientPort: viteHmrPort,
     },
+  },
+  preview: {
+    port: 4173,
+    strictPort: true,
   },
 });

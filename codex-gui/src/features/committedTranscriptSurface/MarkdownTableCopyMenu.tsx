@@ -1,0 +1,126 @@
+import { Alert, Dropdown, Tooltip, buttonVariants } from "@heroui/react";
+import { useLingui } from "@lingui/react/macro";
+import { Check, Copy } from "lucide-react";
+import { use, type RefObject } from "react";
+import {
+  StreamdownContext,
+  extractTableDataFromElement,
+  tableDataToCSV,
+  tableDataToMarkdown,
+  tableDataToTSV,
+} from "streamdown";
+import { useMarkdownCopyFeedback } from "./useMarkdownCopyFeedback";
+
+export function MarkdownTableCopyMenu({
+  tableRef,
+}: {
+  tableRef: RefObject<HTMLTableElement | null>;
+}) {
+  const { t } = useLingui();
+  const { isAnimating } = use(StreamdownContext);
+  const { status: result, copy: copyWithFeedback } = useMarkdownCopyFeedback();
+
+  const available =
+    typeof window !== "undefined" &&
+    window.isSecureContext &&
+    typeof (navigator as Partial<Pick<Navigator, "clipboard">>).clipboard?.write === "function" &&
+    typeof ClipboardItem === "function";
+  if (!available) return null;
+
+  const copy = async (
+    serialize: (data: ReturnType<typeof extractTableDataFromElement>) => string,
+  ) => {
+    const table = tableRef.current;
+    if (!table) return;
+    await copyWithFeedback(async () => {
+      const content = serialize(extractTableDataFromElement(table));
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([content], { type: "text/plain" }),
+          "text/html": new Blob([table.outerHTML], { type: "text/html" }),
+        }),
+      ]);
+    });
+  };
+
+  return (
+    <div className="flex min-w-0 flex-col items-end gap-1">
+      <Dropdown>
+        <Tooltip>
+          <Dropdown.Trigger
+            data-markdown-action
+            aria-label={t({
+              message: "Copy table",
+              comment: "Opens the Markdown table copy format menu.",
+            })}
+            className={buttonVariants({
+              variant: "ghost",
+              size: "sm",
+              isIconOnly: true,
+              className: "flex",
+            })}
+            isDisabled={isAnimating}
+            isPending={result === "pending"}
+          >
+            {result === "copied" ? (
+              <Check size={16} aria-hidden="true" />
+            ) : (
+              <Copy size={16} aria-hidden="true" />
+            )}
+          </Dropdown.Trigger>
+          <Tooltip.Content>
+            {t({ message: "Copy table", comment: "Opens the Markdown table copy format menu." })}
+          </Tooltip.Content>
+        </Tooltip>
+        <Dropdown.Popover placement="bottom end">
+          <Dropdown.Menu>
+            <Dropdown.Item
+              id="markdown"
+              textValue="Markdown"
+              onAction={() => {
+                void copy(tableDataToMarkdown);
+              }}
+            >
+              Markdown
+            </Dropdown.Item>
+            <Dropdown.Item
+              id="csv"
+              textValue="CSV"
+              onAction={() => {
+                void copy(tableDataToCSV);
+              }}
+            >
+              CSV
+            </Dropdown.Item>
+            <Dropdown.Item
+              id="tsv"
+              textValue="TSV"
+              onAction={() => {
+                void copy(tableDataToTSV);
+              }}
+            >
+              TSV
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
+      {result === "copied" && (
+        <span role="status" className="text-xs text-muted">
+          {t({ message: "Table copied", comment: "Table clipboard write succeeded." })}
+        </span>
+      )}
+      {result === "failed" && (
+        <Alert status="danger" role="alert">
+          <Alert.Content>
+            <Alert.Description>
+              {t({
+                message: "Could not copy table. Try again.",
+                comment: "Table clipboard write failed; the copy menu remains available for retry.",
+              })}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
+    </div>
+  );
+}

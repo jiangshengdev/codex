@@ -1,0 +1,25 @@
+.task-bottom-region {
+  bottom: 0;
+  min-width: 0;
+
+  &[data-task-bottom-region="sticky"] {
+    position: sticky;
+    z-index: 10;
+  }
+
+  &[data-task-bottom-region="fixed"] {
+    position: fixed;
+    inset-inline: 0;
+    z-index: 30;
+    pointer-events: none;
+  }
+}
+
+.task-bottom-region__content {
+  min-width: 0;
+  width: 100%;
+}
+
+[data-task-bottom-region="fixed"] > .task-bottom-region__content > * {
+  pointer-events: auto;
+}

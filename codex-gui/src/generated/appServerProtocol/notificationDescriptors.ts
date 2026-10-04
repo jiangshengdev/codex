@@ -2,6 +2,8 @@
 import type { JSONRPCNotification } from "@codex-protocol/JSONRPCNotification";
 import type { ServerNotification } from "@codex-protocol/ServerNotification";
 import {
+  validateV2SkillsChangedNotification,
+  validateV2ThreadStatusChangedNotification,
   validateV2ThreadProjectionEventNotification,
   validateV2ThreadProjectionDeltaNotification,
   validateV2ThreadProjectionClosedNotification,
@@ -9,7 +11,12 @@ import {
 export type SelectedServerNotification = Extract<
   ServerNotification,
   {
-    method: "thread/projection/event" | "thread/projection/delta" | "thread/projection/closed";
+    method:
+      | "skills/changed"
+      | "thread/status/changed"
+      | "thread/projection/event"
+      | "thread/projection/delta"
+      | "thread/projection/closed";
   }
 >;
 export type ServerNotificationClassification =
@@ -29,6 +36,8 @@ export type ServerNotificationClassification =
     };
 function isKnownServerNotificationMethod(method: string): boolean {
   switch (method) {
+    case "account/gatewayOAuth/changed":
+      return true;
     case "account/login/completed":
       return true;
     case "account/rateLimits/updated":
@@ -99,6 +108,10 @@ function isKnownServerNotificationMethod(method: string): boolean {
       return true;
     case "model/verification":
       return true;
+    case "modelProvider/authRecoveryCompleted":
+      return true;
+    case "modelProvider/authRecoveryStarted":
+      return true;
     case "remoteControl/status/changed":
       return true;
     case "serverRequest/resolved":
@@ -106,6 +119,8 @@ function isKnownServerNotificationMethod(method: string): boolean {
     case "skills/changed":
       return true;
     case "thread/archived":
+      return true;
+    case "thread/attachment/updated":
       return true;
     case "thread/closed":
       return true;
@@ -124,6 +139,8 @@ function isKnownServerNotificationMethod(method: string): boolean {
     case "thread/projection/delta":
       return true;
     case "thread/projection/event":
+      return true;
+    case "thread/reverted":
       return true;
     case "thread/started":
       return true;
@@ -155,6 +172,28 @@ export function classifyServerNotification(
   notification: JSONRPCNotification,
 ): ServerNotificationClassification {
   switch (notification.method) {
+    case "skills/changed":
+      if (!validateV2SkillsChangedNotification(notification.params)) {
+        return { type: "selectedInvalid", method: notification.method };
+      }
+      return {
+        type: "selected",
+        notification: {
+          method: notification.method,
+          params: notification.params,
+        },
+      };
+    case "thread/status/changed":
+      if (!validateV2ThreadStatusChangedNotification(notification.params)) {
+        return { type: "selectedInvalid", method: notification.method };
+      }
+      return {
+        type: "selected",
+        notification: {
+          method: notification.method,
+          params: notification.params,
+        },
+      };
     case "thread/projection/event":
       if (!validateV2ThreadProjectionEventNotification(notification.params)) {
         return { type: "selectedInvalid", method: notification.method };

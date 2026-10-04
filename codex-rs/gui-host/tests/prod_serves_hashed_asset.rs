@@ -1,3 +1,5 @@
+use anyhow::Context;
+use anyhow::Result;
 use codex_gui_host::AuthenticatedGuiConnection;
 use codex_gui_host::GuiBackend;
 use codex_gui_host::GuiHost;
@@ -7,6 +9,9 @@ use codex_gui_host::ProdAssetConfig;
 use pretty_assertions::assert_eq;
 use reqwest::StatusCode;
 use std::path::PathBuf;
+
+const INDEX_HTML: &str = "<html><body><div id=\"root\">prod-spa-test</div></body></html>";
+const THREAD_ID: &str = "019c6e27-e55b-73d1-87d8-4e01f1f75043";
 
 #[derive(Clone)]
 struct NoopBackend;
@@ -37,6 +42,7 @@ async fn prod_serves_hashed_asset_from_package_root() {
 
     let handle = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Prod(ProdAssetConfig {
                 package_root: package_root.path().to_path_buf(),
             }),
@@ -68,6 +74,143 @@ async fn prod_serves_hashed_asset_from_package_root() {
     assert!(!body.is_empty());
 
     handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn prod_spa_navigation_serves_index_without_a_page_registry() -> Result<()> {
+    let (package_root, handle) = start_test_prod_host().await?;
+
+    for path in [
+        format!("/task/{THREAD_ID}"),
+        "/history".to_string(),
+        format!("/history/{THREAD_ID}"),
+        "/new".to_string(),
+        "/shortcuts".to_string(),
+        "/unknown".to_string(),
+        "/task/not-a-uuid".to_string(),
+        "/history/not-a-uuid".to_string(),
+        "/task/invalid.id".to_string(),
+        format!("/task/{THREAD_ID}/extra"),
+    ] {
+        let response = reqwest::Client::new()
+            .get(format!("{}{path}", local_origin(&handle)))
+            .header("accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
+            .header("sec-fetch-dest", "document")
+            .send()
+            .await
+            .expect("SPA route request should succeed");
+        assert_index_response(response).await?;
+    }
+
+    handle.shutdown().await;
+    drop(package_root);
+    Ok(())
+}
+
+#[tokio::test]
+async fn prod_unknown_asset_returns_not_found() -> Result<()> {
+    let (package_root, handle) = start_test_prod_host().await?;
+    let origin = local_origin(&handle);
+
+    let asset_response = reqwest::get(format!("{origin}/assets/index-abc123.js"))
+        .await
+        .expect("known asset request should succeed");
+    assert_eq!(asset_response.status(), StatusCode::OK);
+    assert!(
+        asset_response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.contains("javascript"))
+    );
+    assert_eq!(
+        asset_response
+            .text()
+            .await
+            .expect("known asset body should be readable"),
+        "console.log('prod hashed asset');\n"
+    );
+
+    for path in [
+        "/assets/missing.js",
+        "/assets/missing.css",
+        "/task/missing.js",
+        "/history/missing.css",
+    ] {
+        let response = reqwest::get(format!("{origin}{path}"))
+            .await
+            .expect("unknown route request should complete");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "path: {path}");
+    }
+
+    handle.shutdown().await;
+    drop(package_root);
+    Ok(())
+}
+
+async fn start_test_prod_host() -> Result<(tempfile::TempDir, codex_gui_host::GuiHostHandle)> {
+    let package_root = tempfile::tempdir().context("tempdir should be created")?;
+    let dist_dir = package_root.path().join("dist");
+    let assets_dir = dist_dir.join("assets");
+    tokio::fs::create_dir_all(&assets_dir)
+        .await
+        .context("assets dir should be created")?;
+    tokio::fs::write(dist_dir.join("index.html"), INDEX_HTML)
+        .await
+        .context("index should be written")?;
+    tokio::fs::write(
+        assets_dir.join("index-abc123.js"),
+        "console.log('prod hashed asset');\n",
+    )
+    .await
+    .context("hashed asset should be written")?;
+
+    let handle = GuiHost::start(
+        GuiHostConfig {
+            port: 0,
+            mode: GuiHostMode::Prod(ProdAssetConfig {
+                package_root: package_root.path().to_path_buf(),
+            }),
+        },
+        NoopBackend,
+    )
+    .await
+    .context("host should start")?;
+
+    Ok((package_root, handle))
+}
+
+async fn assert_index_response(response: reqwest::Response) -> Result<()> {
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .get("content-type")
+            .context("content-type header should be present")?,
+        "text/html; charset=utf-8"
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get("x-frame-options")
+            .context("x-frame-options header should be present")?,
+        "DENY"
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get("content-security-policy")
+            .context("content-security-policy header should be present")?,
+        "frame-ancestors 'none'"
+    );
+    assert_eq!(
+        response
+            .text()
+            .await
+            .context("index body should be readable")?,
+        INDEX_HTML
+    );
+    Ok(())
 }
 
 fn first_module_script_src(html: &str) -> Option<String> {
@@ -122,6 +265,7 @@ async fn prod_serves_built_codex_gui_dist_from_package_root_env() {
 
     let handle = GuiHost::start(
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Prod(ProdAssetConfig {
                 package_root: package_root.clone(),
             }),
@@ -154,14 +298,17 @@ async fn prod_serves_built_codex_gui_dist_from_package_root_env() {
             .is_some_and(|value| value.contains("javascript")),
         "built module asset should be served as JavaScript"
     );
+    assert!(
+        !asset_response
+            .bytes()
+            .await
+            .expect("built module body should be readable")
+            .is_empty()
+    );
 
     handle.shutdown().await;
 }
 
 fn local_origin(handle: &codex_gui_host::GuiHostHandle) -> String {
-    let url = handle.launch_url_for_thread("test-thread");
-    match url.split("/?").next() {
-        Some(origin) => origin.to_string(),
-        None => panic!("launch URL should include query"),
-    }
+    format!("http://127.0.0.1:{}", handle.local_addr().port())
 }

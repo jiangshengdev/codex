@@ -3,9 +3,12 @@ use serde::Deserialize;
 use serde::Serialize;
 use ts_rs::TS;
 
-pub(crate) const THREAD_QUERY_KEY: &str = "threadId";
+pub(crate) const CURRENT_TASK_PATH_SEGMENT: &str = "task";
 pub(crate) const TOKEN_FRAGMENT_KEY: &str = "token";
 pub(crate) const WEBSOCKET_PATH: &str = "/ws";
+pub(crate) const UPLOAD_PATH: &str = "/upload";
+pub(crate) const FILE_PREVIEW_PATH: &str = "/upload/preview";
+pub(crate) const MAX_UPLOAD_BYTES: usize = 50 * 1024 * 1024;
 pub(crate) const AUTHENTICATE_METHOD: &str = "gui/authenticate";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
@@ -20,4 +23,14 @@ pub(crate) struct GuiAuthenticateParams {
 #[ts(rename_all = "camelCase")]
 pub(crate) struct GuiAuthenticateResult {
     pub(crate) authenticated: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+pub(crate) struct GuiUploadParams {
+    pub(crate) filename: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+pub(crate) struct GuiFilePreviewParams {
+    pub(crate) path: std::path::PathBuf,
 }

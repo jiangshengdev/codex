@@ -18,7 +18,6 @@ use pretty_assertions::assert_eq;
 use tokio::sync::mpsc;
 
 use super::ThreadExtensionDependencies;
-use super::guardian_agent_spawner;
 use super::thread_extensions;
 
 struct UnusedGuiOpener;
@@ -58,6 +57,7 @@ async fn thread_extensions_install_launch_gui_tool_when_gui_service_available() 
         crate::gui_host::GuiHostManager::new_with_opener(
             Arc::new(UnusedGuiOpener),
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: "http://127.0.0.1:5173".to_string(),
                 }),
@@ -76,7 +76,9 @@ async fn launch_gui_tool_names_for_service(
     gui_launch_service: Arc<crate::gui_launch_service::AppServerGuiLaunchService>,
 ) -> Vec<String> {
     let auth_manager =
-        AuthManager::shared_from_config(config, /*enable_codex_api_key_env*/ false).await;
+        AuthManager::shared_from_config(config, /*enable_codex_api_key_env*/ false)
+            .await
+            .expect("test auth manager");
     let environment_manager = Arc::new(EnvironmentManager::default_for_tests());
     let executor_skill_provider: Arc<dyn codex_skills_extension::SkillProvider> = Arc::new(
         codex_skills_extension::ExecutorSkillProvider::new_with_restriction_product(
@@ -84,23 +86,21 @@ async fn launch_gui_tool_names_for_service(
             SessionSource::Cli.restriction_product(),
         ),
     );
-    let registry = thread_extensions(
-        guardian_agent_spawner(Weak::new()),
-        ThreadExtensionDependencies {
-            event_sink: Arc::new(NoopExtensionEventSink),
-            auth_manager,
-            state_db: None,
-            analytics_events_client: AnalyticsEventsClient::disabled(),
-            thread_manager: Weak::new(),
-            goal_service: Arc::new(codex_goal_extension::GoalService::new()),
-            environment_manager: Arc::clone(&environment_manager),
-            executor_skill_provider,
-            gui_launch_service,
-            git_attribution_base_url: config.chatgpt_base_url.clone(),
-            http_client_factory: config.http_client_factory(),
-            thread_store: codex_core::thread_store_from_config(config, /*state_db*/ None),
-        },
-    );
+    let registry = thread_extensions(ThreadExtensionDependencies {
+        event_sink: Arc::new(NoopExtensionEventSink),
+        auth_manager,
+        state_db: None,
+        analytics_events_client: AnalyticsEventsClient::disabled(),
+        thread_manager: Weak::new(),
+        goal_service: Arc::new(codex_goal_extension::GoalService::new()),
+        environment_manager: Arc::clone(&environment_manager),
+        executor_skill_provider,
+        gui_launch_service,
+        git_attribution_base_url: config.chatgpt_base_url.clone(),
+        http_client_factory: config.http_client_factory(),
+        queue_service: None,
+        turn_start_admission: None,
+    });
     let session_store = ExtensionData::new("session-test");
     let thread_id = ThreadId::default();
     let thread_store = ExtensionData::new(thread_id.to_string());
@@ -114,6 +114,7 @@ async fn launch_gui_tool_names_for_service(
                 persistent_thread_state_available: true,
                 environments: &[],
                 mcp_resource_client: None,
+                extension_metrics: None,
                 session_store: &session_store,
                 thread_store: &thread_store,
             })

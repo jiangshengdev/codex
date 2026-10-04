@@ -37,6 +37,7 @@ coverage
 
 # Vitest
 __screenshots__/
+__traces__/
 .vitest-attachments/
 
 # Vite
@@ -50,3 +51,6 @@ playwright-report/
 
 # redux-toolkit-agents-md
 .redux-toolkit-docs/
+
+*storybook.log
+storybook-static

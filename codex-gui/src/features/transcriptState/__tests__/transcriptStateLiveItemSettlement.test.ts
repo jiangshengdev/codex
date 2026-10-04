@@ -1,0 +1,532 @@
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
+import { makeStore } from "@/app/store";
+import { requiredTranscriptState } from "./requiredTranscriptState";
+import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import {
+  attachBaseline,
+  eventAgentMessageDelta,
+  eventItemCompleted,
+  eventItemStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
+import {
+  agentMessage,
+  agentMessageDelta,
+  attachWithTurns,
+  itemCompleted,
+  itemStarted,
+} from "@/features/projection/__tests__/projectionTestBuilders";
+import {
+  selectCommittedTranscriptScrollCommitKey,
+  selectTranscriptChunk,
+  selectTranscriptEntry,
+  selectTranscriptTurn,
+  transcriptEntryIdFor,
+} from "../transcriptStateSlice";
+
+const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
+
+describe("transcript state live item lifecycle reducer", () => {
+  it("removes the live item after committing the completed agent message", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const initialItem = agentMessage("agent-settled", "", "final_answer");
+    const completedItem = agentMessage("agent-settled", "Completed answer", "final_answer");
+
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-settled-started",
+          "turn-settled",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, "turn-settled")).toStrictEqual(
+      {
+        id: "turn-settled",
+        status: "inProgress",
+        originalFirstItemId: "agent-settled",
+        startedAt: null,
+        completedAt: null,
+        durationMs: null,
+        leadingPromptEntryId: null,
+        middleChunkIds: [],
+        middleEntryCount: 0,
+        finalAssistantEntryIds: [],
+      },
+    );
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-settled")?.middleEntryCount,
+    ).toBe(0);
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-settled:chunk:0"),
+    ).toBeNull();
+    const beforeDuplicateState = requiredTranscriptState(store.getState(), identity.threadId);
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-settled-started-duplicate",
+          "turn-settled",
+          agentMessage("agent-settled", "Updated duplicate", "final_answer"),
+        ),
+        replay: "live",
+      }),
+    );
+    const afterDuplicateState = requiredTranscriptState(store.getState(), identity.threadId);
+    expect(afterDuplicateState.sessionRevision).toBeGreaterThan(
+      beforeDuplicateState.sessionRevision,
+    );
+    expect({
+      ...afterDuplicateState,
+      sessionRevision: beforeDuplicateState.sessionRevision,
+    }).toStrictEqual(beforeDuplicateState);
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-settled-completed",
+          "turn-settled",
+          completedItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        identity.threadId,
+        transcriptEntryIdFor("turn-settled", "agent-settled"),
+      ),
+    ).toStrictEqual({
+      type: "message",
+      id: "agent-settled",
+      turnId: "turn-settled",
+      role: "assistant",
+      rendering: { mode: "staticMarkdown", source: "Completed answer" },
+      revision: 1,
+    });
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, "turn-settled")).toStrictEqual(
+      {
+        id: "turn-settled",
+        status: "inProgress",
+        originalFirstItemId: "agent-settled",
+        startedAt: null,
+        completedAt: null,
+        durationMs: null,
+        leadingPromptEntryId: null,
+        middleChunkIds: [],
+        middleEntryCount: 0,
+        finalAssistantEntryIds: [transcriptEntryIdFor("turn-settled", "agent-settled")],
+      },
+    );
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-settled:chunk:0"),
+    ).toBeNull();
+  });
+
+  it("removes a hidden final slot after an empty completed final message", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+    const turnId = "turn-empty-final-settled";
+    const itemId = "agent-empty-final-settled";
+    const entryId = transcriptEntryIdFor(turnId, itemId);
+    const emptyFinalItem = agentMessage(itemId, "", "final_answer");
+
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-empty-final-settled-started",
+          turnId,
+          emptyFinalItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-empty-final-settled-completed",
+          turnId,
+          emptyFinalItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toBeNull();
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toStrictEqual({
+      id: turnId,
+      status: "inProgress",
+      originalFirstItemId: itemId,
+      startedAt: null,
+      completedAt: null,
+      durationMs: null,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:0`),
+    ).toBeNull();
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId)).toBe(
+      attachKey,
+    );
+  });
+
+  it("reclassifies a visible started final answer as commentary on completion", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+    const turnId = "turn-final-to-commentary";
+    const itemId = "agent-final-to-commentary";
+    const entryId = transcriptEntryIdFor(turnId, itemId);
+    const initialItem = agentMessage(itemId, "", "final_answer");
+
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-final-to-commentary-started",
+          turnId,
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      actions.threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(eventAgentMessageDelta, turnId, itemId, "Visible final draft"),
+        ],
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toMatchObject({
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [entryId],
+    });
+
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-final-to-commentary-completed",
+          turnId,
+          agentMessage(itemId, "Completed commentary", "commentary"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toStrictEqual({
+      type: "message",
+      id: itemId,
+      turnId,
+      role: "assistant",
+      rendering: { mode: "staticMarkdown", source: "Completed commentary" },
+      revision: 2,
+    });
+    expect(
+      requiredTranscriptState(store.getState(), identity.threadId).entriesById[entryId],
+    ).toMatchObject({
+      type: "message",
+      phase: "commentary",
+    });
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toStrictEqual({
+      id: turnId,
+      status: "inProgress",
+      originalFirstItemId: itemId,
+      startedAt: null,
+      completedAt: null,
+      durationMs: null,
+      leadingPromptEntryId: null,
+      middleChunkIds: [`${turnId}:chunk:0`],
+      middleEntryCount: 1,
+      finalAssistantEntryIds: [],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:0`)?.entries.map(
+        ({ id }) => id,
+      ),
+    ).toStrictEqual([itemId]);
+  });
+
+  it("reclassifies a visible phase-null live item as final on completion", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+    const turnId = "turn-phase-null-to-final";
+    const itemId = "agent-phase-null-to-final";
+    const entryId = transcriptEntryIdFor(turnId, itemId);
+    const chunkId = `${turnId}:chunk:0`;
+    const initialItem = agentMessage(itemId, "", null);
+
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-phase-null-to-final-started",
+          turnId,
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      actions.threadRuntimeDeltasAccepted({
+        notifications: [agentMessageDelta(eventAgentMessageDelta, turnId, itemId, "Visible draft")],
+      }),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toStrictEqual({
+      type: "message",
+      id: itemId,
+      turnId,
+      role: "assistant",
+      rendering: { mode: "streamingMarkdown", source: "Visible draft" },
+      revision: 1,
+    });
+    expect(
+      requiredTranscriptState(store.getState(), identity.threadId).entriesById[entryId],
+    ).toMatchObject({
+      type: "live",
+      key: entryId,
+      itemId,
+      status: "streaming",
+      initialItem,
+      transientText: "Visible draft",
+      revision: 1,
+    });
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toStrictEqual({
+      id: turnId,
+      status: "inProgress",
+      originalFirstItemId: itemId,
+      startedAt: null,
+      completedAt: null,
+      durationMs: null,
+      leadingPromptEntryId: null,
+      middleChunkIds: [chunkId],
+      middleEntryCount: 1,
+      finalAssistantEntryIds: [],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, chunkId)?.entries.map(
+        ({ id }) => id,
+      ),
+    ).toStrictEqual([itemId]);
+
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-phase-null-to-final-completed",
+          turnId,
+          agentMessage(itemId, "Completed answer", "final_answer"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), identity.threadId, entryId)).toStrictEqual({
+      type: "message",
+      id: itemId,
+      turnId,
+      role: "assistant",
+      rendering: { mode: "staticMarkdown", source: "Completed answer" },
+      revision: 2,
+    });
+    expect(
+      requiredTranscriptState(store.getState(), identity.threadId).entriesById[entryId],
+    ).toMatchObject({
+      type: "message",
+      phase: "final_answer",
+    });
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toStrictEqual({
+      id: turnId,
+      status: "inProgress",
+      originalFirstItemId: itemId,
+      startedAt: null,
+      completedAt: null,
+      durationMs: null,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [entryId],
+    });
+    expect(selectTranscriptChunk(store.getState(), identity.threadId, chunkId)).toBeNull();
+  });
+
+  it("does not create a live slot when itemCompleted arrives without itemStarted", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-missing-slot-completed",
+          "turn-missing-slot-completed",
+          agentMessage("agent-missing-slot-completed", "Committed without live slot"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-missing-slot-completed"),
+    ).toStrictEqual({
+      id: "turn-missing-slot-completed",
+      status: "inProgress",
+      originalFirstItemId: "agent-missing-slot-completed",
+      startedAt: null,
+      completedAt: null,
+      durationMs: null,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [
+        transcriptEntryIdFor("turn-missing-slot-completed", "agent-missing-slot-completed"),
+      ],
+    });
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        identity.threadId,
+        transcriptEntryIdFor("turn-missing-slot-completed", "agent-missing-slot-completed"),
+      ),
+    ).toStrictEqual({
+      type: "message",
+      id: "agent-missing-slot-completed",
+      turnId: "turn-missing-slot-completed",
+      role: "assistant",
+      rendering: { mode: "staticMarkdown", source: "Committed without live slot" },
+      revision: 0,
+    });
+  });
+
+  it("removes the middle contribution after an empty completed agent message", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const initialItem = agentMessage("agent-empty-settled", "", "commentary");
+    const completedItem = agentMessage("agent-empty-settled", "", "commentary");
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId);
+
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-empty-settled-started",
+          "turn-empty-settled",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-empty-settled")
+        ?.middleEntryCount,
+    ).toBe(0);
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-empty-settled-completed",
+          "turn-empty-settled",
+          completedItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        identity.threadId,
+        transcriptEntryIdFor("turn-empty-settled", "agent-empty-settled"),
+      ),
+    ).toBeNull();
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-empty-settled"),
+    ).toStrictEqual({
+      id: "turn-empty-settled",
+      status: "inProgress",
+      originalFirstItemId: "agent-empty-settled",
+      startedAt: null,
+      completedAt: null,
+      durationMs: null,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-empty-settled:chunk:0"),
+    ).toBeNull();
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId)).toBe(
+      attachKey,
+    );
+  });
+
+  it("counts a non-empty middle completion once when no delta activated its live slot", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+    const initialItem = agentMessage("agent-direct-middle", "", "commentary");
+    const completedItem = agentMessage("agent-direct-middle", "Completed commentary", "commentary");
+
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-direct-middle-started",
+          "turn-direct-middle",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-direct-middle-completed",
+          "turn-direct-middle",
+          completedItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-direct-middle")
+        ?.middleEntryCount,
+    ).toBe(1);
+    expect(
+      selectTranscriptChunk(
+        store.getState(),
+        identity.threadId,
+        "turn-direct-middle:chunk:0",
+      )?.entries.map(({ id }) => id),
+    ).toStrictEqual(["agent-direct-middle"]);
+  });
+});

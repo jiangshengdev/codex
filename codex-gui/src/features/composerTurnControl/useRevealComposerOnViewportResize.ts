@@ -8,13 +8,9 @@ export function useRevealComposerOnViewportResize(
   useEffect(() => {
     const composerShell = composerShellRef.current;
     const visualViewport = window.visualViewport;
-    const textarea = composerShell?.querySelector("textarea") ?? null;
+    const editorRoot = composerShell?.querySelector("[contenteditable]") ?? null;
 
-    if (
-      composerShell == null ||
-      visualViewport == null ||
-      !(textarea instanceof HTMLTextAreaElement)
-    ) {
+    if (composerShell == null || visualViewport == null || !(editorRoot instanceof HTMLElement)) {
       return;
     }
 
@@ -42,7 +38,7 @@ export function useRevealComposerOnViewportResize(
       }
       armed = false;
 
-      if (document.activeElement !== textarea) {
+      if (document.activeElement !== editorRoot) {
         return;
       }
 
@@ -80,13 +76,13 @@ export function useRevealComposerOnViewportResize(
       animationFrameId = requestAnimationFrame(revealIfCovered);
     };
 
-    textarea.addEventListener("focus", onFocus);
-    textarea.addEventListener("blur", onBlur);
+    editorRoot.addEventListener("focus", onFocus);
+    editorRoot.addEventListener("blur", onBlur);
     visualViewport.addEventListener("resize", onVisualViewportResize);
 
     return () => {
-      textarea.removeEventListener("focus", onFocus);
-      textarea.removeEventListener("blur", onBlur);
+      editorRoot.removeEventListener("focus", onFocus);
+      editorRoot.removeEventListener("blur", onBlur);
       visualViewport.removeEventListener("resize", onVisualViewportResize);
       cancelPendingFrame();
     };

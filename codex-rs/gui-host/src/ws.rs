@@ -101,7 +101,10 @@ pub(crate) fn validate_host_and_origin(
     }
 
     advertised_hosts.iter().any(|advertised| {
-        host == advertised.authority(port) && origin == Some(advertised.origin(port).as_str())
+        advertised.matches_authority(port, host)
+            && origin
+                .and_then(|origin| origin.strip_prefix("http://"))
+                .is_some_and(|authority| advertised.matches_authority(port, authority))
     })
 }
 
@@ -474,6 +477,18 @@ mod tests {
         let text = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "thread/projection/event",
+            "params": {},
+        })
+        .to_string();
+
+        assert!(is_allowed_backend_text(&text));
+    }
+
+    #[test]
+    fn allows_backend_skills_changed_notification() {
+        let text = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "skills/changed",
             "params": {},
         })
         .to_string();

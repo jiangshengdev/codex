@@ -1,4 +1,4 @@
-import { render } from "vitest-browser-react";
+import { renderWithProviders as render } from "@/utils/test-utils";
 import { expect, test, vi } from "vitest";
 
 vi.hoisted(() => {
@@ -17,11 +17,11 @@ test("hides code copy when clipboard text writes are unavailable", async () => {
   );
 
   await expect
-    .poll(
-      () =>
-        screen.container.querySelector('[data-streamdown="code-block-download-button"]') !== null,
-    )
+    .poll(() => screen.container.querySelector('[data-streamdown="code-block-body"]') !== null)
     .toBe(true);
+  expect(
+    screen.container.querySelector('[data-streamdown="code-block-download-button"]'),
+  ).toBeNull();
 
   expect(screen.container.querySelector('[data-streamdown="code-block-copy-button"]')).toBeNull();
 });

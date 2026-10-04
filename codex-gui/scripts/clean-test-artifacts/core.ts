@@ -1,7 +1,7 @@
 import { readdir, rm } from "node:fs/promises";
 import path from "node:path";
 
-const ARTIFACT_DIR_NAMES = new Set(["__screenshots__", ".vitest-attachments"]);
+const ARTIFACT_DIR_NAMES = new Set(["__screenshots__", "__traces__", ".vitest-attachments"]);
 const SKIPPED_DIR_NAMES = new Set([
   ".git",
   ".heroui-docs",

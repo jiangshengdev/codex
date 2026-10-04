@@ -1,53 +1,44 @@
 import type { I18n, Messages } from "@lingui/core";
 
-export const defaultLocale = "en";
-export const localeStorageKey = "codex-gui.locale";
+export type AppLocale = "en" | "zh-CN";
 
-export const availableLocales = [
-  { locale: "en", label: "English" },
-  { locale: "zh-CN", label: "简体中文" },
-] as const;
+export const defaultLocale: AppLocale = "en";
 
-export type AppLocale = (typeof availableLocales)[number]["locale"];
-
-export function isAppLocale(locale: string | null | undefined): locale is AppLocale {
-  return availableLocales.some((entry) => entry.locale === locale);
-}
-
-export function toAppLocale(locale: string | null | undefined): AppLocale {
-  return isAppLocale(locale) ? locale : defaultLocale;
-}
-
-function localeFromBrowserLocale(browserLocale: string): AppLocale | undefined {
-  if (isAppLocale(browserLocale)) {
-    return browserLocale;
-  }
-
-  const language = browserLocale.split("-")[0];
-
-  return availableLocales.find((entry) => entry.locale.split("-")[0] === language)?.locale;
-}
-
-export function saveLocale(locale: AppLocale) {
-  localStorage.setItem(localeStorageKey, locale);
-}
-
-export function resolveInitialLocale(): AppLocale {
-  const storedLocale = localStorage.getItem(localeStorageKey);
-
-  if (isAppLocale(storedLocale)) {
-    return storedLocale;
-  }
-
-  const browserLocales =
-    navigator.languages.length > 0 ? navigator.languages : [navigator.language];
-
+export function resolveBrowserLocale(browserLocales: readonly string[]): AppLocale {
   for (const browserLocale of browserLocales) {
-    const locale = localeFromBrowserLocale(browserLocale);
+    let locale: Intl.Locale;
 
-    if (locale) {
-      return locale;
+    try {
+      locale = new Intl.Locale(browserLocale);
+    } catch {
+      continue;
     }
+
+    if (locale.language === "en") {
+      return "en";
+    }
+
+    if (locale.language !== "zh") {
+      continue;
+    }
+
+    if (locale.script === "Hans") {
+      return "zh-CN";
+    }
+
+    if (locale.script === "Hant") {
+      return "en";
+    }
+
+    if (locale.region === "CN" || locale.region === "SG") {
+      return "zh-CN";
+    }
+
+    if (locale.region === "TW" || locale.region === "HK" || locale.region === "MO") {
+      return "en";
+    }
+
+    return locale.maximize().script === "Hans" ? "zh-CN" : "en";
   }
 
   return defaultLocale;

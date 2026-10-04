@@ -1,0 +1,104 @@
+---
+slug: /development/getting-started
+title: 从源码启动 Codex GUI
+description: Codex GUI 贡献者开发环境与首次启动指南
+---
+
+# 从源码启动 Codex GUI
+
+本页带你从全新 clone 开始，启动 Vite 与源码版 Codex，并通过 `/gui` 打开开发页面。
+
+## 1. 准备开发环境
+
+请先安装以下工具：
+
+| 工具 | 版本要求 |
+| --- | --- |
+| Git | 当前稳定版 |
+| Node.js | `^22.18.0` 或 `>=24.12.0` |
+| pnpm | `10.33.0` |
+| Rust | `1.95.0`，由仓库的 `rust-toolchain.toml` 固定 |
+| just | 当前稳定版 |
+| Python | Python 3 |
+
+支持 macOS、Linux，以及运行 WSL2 的 Windows 11。Windows 用户应在 WSL2 发行版中完成下面的 Linux 命令；本流程不支持原生 PowerShell。
+
+## 2. Clone 仓库
+
+```bash
+git clone https://github.com/jiangshengdev/codex.git
+cd codex
+git switch test
+```
+
+## 3. 安装项目依赖
+
+先安装 Codex GUI 的前端依赖：
+
+```bash
+cd codex-gui
+pnpm install --frozen-lockfile
+cd ..
+```
+
+再通过仓库入口准备 Rust 依赖：
+
+```bash
+just install
+```
+
+## 4. 启动 Vite
+
+打开第一个终端，在仓库根目录运行：
+
+```bash
+cd codex-gui
+export CODEX_GUI_VITE_HOST=0.0.0.0
+export CODEX_GUI_VITE_PORT=5173
+pnpm run dev
+```
+
+看到以下地址表示 Vite 已启动：
+
+```text
+Local: http://localhost:5173/
+```
+
+## 5. 启动源码版 Codex
+
+保持 Vite 运行，再打开第二个终端并进入仓库根目录：
+
+```bash
+export CODEX_GUI_HOST_MODE=dev
+export CODEX_GUI_VITE_URL=http://127.0.0.1:5173
+export NO_PROXY=127.0.0.1,localhost
+just c
+```
+
+以上 `export` 命令只对当前终端及其子进程生效；也可以按自己的开发习惯将这些变量写入 shell 配置。`CODEX_GUI_HOST_MODE=dev` 在哪里生效，从那里启动的 Codex 就会使用本地 Vite 开发服务器。
+
+### 环境变量说明
+
+| 变量 | 作用 |
+| --- | --- |
+| `CODEX_GUI_HOST_MODE` | 设为 `dev`，让 GUI Host 代理 Vite 开发服务器。 |
+| `CODEX_GUI_VITE_URL` | GUI Host 访问 Vite 的地址，默认是 `http://127.0.0.1:5173`。 |
+| `CODEX_GUI_VITE_HOST` | Vite 的监听地址，默认是 `0.0.0.0`。 |
+| `CODEX_GUI_VITE_PORT` | Vite 的监听端口，默认是 `5173`；修改后必须同步修改 `CODEX_GUI_VITE_URL`。 |
+| `NO_PROXY` | 避免系统代理拦截对 `127.0.0.1` 和 `localhost` 的请求。 |
+| `CODEX_GUI_VITE_HMR_HOST` | 可选；远程或局域网开发时覆盖 HMR 主机。 |
+| `CODEX_GUI_VITE_HMR_PORT` | 可选；远程或局域网开发时覆盖 HMR 端口。 |
+
+`CODEX_GUI_PACKAGE_ROOT` 只供 `prod` 模式查找已构建的 `dist` 使用，开发启动不需要设置。
+
+## 6. 打开开发版 GUI
+
+在 Codex 中直接输入：
+
+```text
+/gui
+```
+
+无需先发送普通消息。复制输出中的完整 `Local` URL，包括 `/task/...` 和 `#token=...`，再粘贴到浏览器地址栏。
+
+页面成功显示当前任务，并且第一个终端仍保持 Vite 运行，即表示开发环境已经启动完成。

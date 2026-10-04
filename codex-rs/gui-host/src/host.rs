@@ -12,6 +12,7 @@ use axum::middleware;
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::routing::get;
+use axum::routing::post;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
@@ -22,6 +23,8 @@ use crate::GuiHostMode;
 use crate::GuiLaunchUrls;
 use crate::LaunchToken;
 use crate::assets;
+use crate::browser_contract::FILE_PREVIEW_PATH;
+use crate::browser_contract::UPLOAD_PATH;
 use crate::browser_contract::WEBSOCKET_PATH;
 use crate::launch_url_for_thread;
 use crate::launch_urls_for_thread;
@@ -40,6 +43,7 @@ pub struct GuiHostHandle {
 
 #[derive(Clone)]
 pub(crate) struct GuiHostState<B> {
+    pub(crate) shutdown: CancellationToken,
     pub(crate) local_addr: SocketAddr,
     pub(crate) launch_token: LaunchToken,
     pub(crate) advertised_hosts: Vec<AdvertisedHost>,
@@ -124,6 +128,8 @@ where
             let config = config.clone();
             Ok(Router::new()
                 .route(WEBSOCKET_PATH, get(crate::ws::ws_handler::<B>))
+                .route(UPLOAD_PATH, post(crate::upload::upload::<B>))
+                .route(FILE_PREVIEW_PATH, get(crate::file_preview::preview::<B>))
                 .fallback(get(move |request: Request<Body>| {
                     let config = config.clone();
                     async move { assets::proxy_vite(config, request).await }
@@ -136,16 +142,10 @@ where
         }
         GuiHostMode::Prod(config) => {
             assets::prod_dist_dir(config)?;
-            let root_config = config.clone();
             Ok(Router::new()
-                .route(
-                    "/",
-                    get(move || {
-                        let config = root_config.clone();
-                        async move { assets::serve_prod_index(config).await }
-                    }),
-                )
                 .route(WEBSOCKET_PATH, get(crate::ws::ws_handler::<B>))
+                .route(UPLOAD_PATH, post(crate::upload::upload::<B>))
+                .route(FILE_PREVIEW_PATH, get(crate::file_preview::preview::<B>))
                 .fallback_service(assets::prod_assets_service(config))
                 .layer(middleware::map_response(assets::add_security_headers))
                 .layer(middleware::from_fn_with_state(
@@ -187,7 +187,7 @@ pub(crate) fn is_advertised_host(
 ) -> bool {
     advertised_hosts
         .iter()
-        .any(|advertised| host == advertised.authority(port))
+        .any(|advertised| advertised.matches_authority(port, host))
 }
 
 async fn start_with_advertised_hosts<B>(
@@ -199,16 +199,21 @@ where
     B: GuiBackend + Clone,
 {
     let advertised_hosts = ensure_advertised_hosts(advertised_hosts);
-    let listener = TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, 0)).await?;
+    let listener = bind_listener(config.port, |port| {
+        TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, port))
+    })
+    .await?;
     let local_addr = listener.local_addr()?;
     let launch_token = LaunchToken::generate().map_err(io::Error::other)?;
     let state = Arc::new(GuiHostState {
+        shutdown: CancellationToken::new(),
         local_addr,
         launch_token: launch_token.clone(),
         advertised_hosts: advertised_hosts.clone(),
         mode: config.mode,
         backend,
     });
+    let upload_shutdown = state.shutdown.clone();
     let app = router_for_state(state).map_err(io::Error::other)?;
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let cancel_token = CancellationToken::new();
@@ -220,6 +225,7 @@ where
                     _ = shutdown_rx => {}
                     _ = server_cancel.cancelled() => {}
                 }
+                upload_shutdown.cancel();
             })
             .await
     });
@@ -232,6 +238,18 @@ where
         cancel_token,
         server_task,
     })
+}
+
+async fn bind_listener<F, Fut>(preferred_port: u16, mut bind: F) -> io::Result<TcpListener>
+where
+    F: FnMut(u16) -> Fut,
+    Fut: std::future::Future<Output = io::Result<TcpListener>>,
+{
+    match bind(preferred_port).await {
+        Ok(listener) => Ok(listener),
+        Err(error) if error.kind() == io::ErrorKind::AddrInUse => bind(0).await,
+        Err(error) => Err(error),
+    }
 }
 
 fn ensure_advertised_hosts(advertised_hosts: Vec<AdvertisedHost>) -> Vec<AdvertisedHost> {
@@ -247,16 +265,8 @@ fn ensure_advertised_hosts(advertised_hosts: Vec<AdvertisedHost>) -> Vec<Adverti
 }
 
 #[cfg(test)]
-async fn start_with_advertised_hosts_for_test<B>(
-    config: GuiHostConfig,
-    backend: B,
-    advertised_hosts: Vec<AdvertisedHost>,
-) -> io::Result<GuiHostHandle>
-where
-    B: GuiBackend + Clone,
-{
-    start_with_advertised_hosts(config, backend, advertised_hosts).await
-}
+#[path = "port_tests.rs"]
+mod port_tests;
 
 #[cfg(test)]
 mod tests {
@@ -270,7 +280,7 @@ mod tests {
     use tokio_tungstenite::tungstenite::protocol::CloseFrame;
     use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 
-    use super::start_with_advertised_hosts_for_test;
+    use super::start_with_advertised_hosts;
     use crate::AdvertisedHost;
     use crate::GuiHostConfig;
     use crate::GuiHostMode;
@@ -288,6 +298,7 @@ mod tests {
     async fn binds_unspecified_ipv4_ephemeral_port() {
         let handle = GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(crate::DevAssetProxyConfig {
                     vite_origin: "http://127.0.0.1:5173".to_string(),
                 }),
@@ -318,6 +329,7 @@ mod tests {
         .expect("index should be written");
         let handle = GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Prod(ProdAssetConfig {
                     package_root: package_root.path().to_path_buf(),
                 }),
@@ -327,27 +339,160 @@ mod tests {
         .await
         .expect("host should start");
 
-        let response = reqwest::get(format!("http://127.0.0.1:{}/", handle.local_addr().port()))
-            .await
-            .expect("root request should succeed");
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(
-            response
-                .headers()
-                .get("x-frame-options")
-                .expect("x-frame-options header should be present"),
-            "DENY"
-        );
-        assert_eq!(
-            response
-                .headers()
-                .get("content-security-policy")
-                .expect("content-security-policy header should be present"),
-            "frame-ancestors 'none'"
-        );
-        let body = response.text().await.expect("body should be readable");
-        assert!(body.contains("<h1>prod-static-test</h1>"));
+        for path in [
+            "/",
+            "/new",
+            "/shortcuts",
+            "/unknown",
+            "/task/not-a-uuid",
+            "/history/not-a-uuid",
+        ] {
+            let response = reqwest::Client::new()
+                .get(format!(
+                    "http://127.0.0.1:{}{path}",
+                    handle.local_addr().port()
+                ))
+                .header("accept", "text/html")
+                .send()
+                .await
+                .expect("page request should succeed");
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(
+                response
+                    .headers()
+                    .get("x-frame-options")
+                    .expect("x-frame-options header should be present"),
+                "DENY"
+            );
+            assert_eq!(
+                response
+                    .headers()
+                    .get("content-security-policy")
+                    .expect("content-security-policy header should be present"),
+                "frame-ancestors 'none'"
+            );
+            let body = response.text().await.expect("body should be readable");
+            assert!(body.contains("<h1>prod-static-test</h1>"));
+        }
 
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn prod_spa_fallback_preserves_resource_and_endpoint_responses() {
+        let (package_root, config) = prod_config().await;
+        tokio::fs::write(package_root.path().join("dist/app.js"), "export {};")
+            .await
+            .expect("asset should be written");
+        let handle = GuiHost::start(config, NoopBackend)
+            .await
+            .expect("host should start");
+        let client = reqwest::Client::new();
+        for (method, path, accept, expected_status) in [
+            (reqwest::Method::GET, "/app.js", "*/*", StatusCode::OK),
+            (
+                reqwest::Method::GET,
+                "/missing.js",
+                "text/html",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                reqwest::Method::GET,
+                "/assets/missing",
+                "text/html",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                reqwest::Method::GET,
+                "/unknown",
+                "application/json",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                reqwest::Method::GET,
+                "/unknown",
+                "text/html;q=0",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                reqwest::Method::GET,
+                "/upload/unknown",
+                "text/html",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                reqwest::Method::GET,
+                "/ws/unknown",
+                "text/html",
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                reqwest::Method::GET,
+                "/upload",
+                "text/html",
+                StatusCode::METHOD_NOT_ALLOWED,
+            ),
+            (
+                reqwest::Method::GET,
+                "/upload/preview?path=/tmp/example",
+                "text/html",
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                reqwest::Method::POST,
+                "/shortcuts",
+                "text/html",
+                StatusCode::METHOD_NOT_ALLOWED,
+            ),
+        ] {
+            let response = client
+                .request(
+                    method,
+                    format!("http://127.0.0.1:{}{path}", handle.local_addr().port()),
+                )
+                .header("accept", accept)
+                .send()
+                .await
+                .expect("request should succeed");
+            assert_eq!(response.status(), expected_status, "{path} with {accept}");
+            assert!(
+                !response
+                    .text()
+                    .await
+                    .expect("body should be readable")
+                    .contains("prod-static-test")
+            );
+        }
+        for destination in ["script", "style", "empty"] {
+            let response = client
+                .get(format!(
+                    "http://127.0.0.1:{}/unknown",
+                    handle.local_addr().port()
+                ))
+                .header("accept", "text/html")
+                .header("sec-fetch-dest", destination)
+                .send()
+                .await
+                .expect("resource request should succeed");
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
+        let response = client
+            .head(format!(
+                "http://127.0.0.1:{}/shortcuts",
+                handle.local_addr().port()
+            ))
+            .header("accept", "text/html")
+            .send()
+            .await
+            .expect("HEAD request should succeed");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            response
+                .bytes()
+                .await
+                .expect("HEAD body should be readable")
+                .is_empty()
+        );
         handle.shutdown().await;
     }
 
@@ -366,6 +511,7 @@ mod tests {
         .expect("index should be written");
         let handle = GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Prod(ProdAssetConfig {
                     package_root: package_root.path().to_path_buf(),
                 }),
@@ -601,7 +747,7 @@ mod tests {
                 serde_json::json!({
                     "jsonrpc": "2.0",
                     "id": 2,
-                    "method": "thread/list",
+                    "method": "thread/archive",
                     "params": {},
                 })
                 .to_string()
@@ -675,6 +821,15 @@ mod tests {
             ),
             (
                 3,
+                "turn/steer",
+                serde_json::json!({
+                    "threadId": "thread-abc",
+                    "input": [{ "type": "text", "text": "Follow this direction", "text_elements": [] }],
+                    "expectedTurnId": "turn-1",
+                }),
+            ),
+            (
+                4,
                 "turn/interrupt",
                 serde_json::json!({
                     "threadId": "thread-abc",
@@ -699,9 +854,48 @@ mod tests {
 
         assert_eq!(
             backend
-                .wait_for_received(&["turn/start", "turn/interrupt"])
+                .wait_for_received(&["turn/start", "turn/steer", "turn/interrupt"])
                 .await,
-            vec!["turn/start", "turn/interrupt"]
+            vec!["turn/start", "turn/steer", "turn/interrupt"]
+        );
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn browser_skills_list_request_reaches_backend() {
+        let backend = RecordingBackend::new();
+        let handle = start_host(backend.clone()).await;
+        let (mut websocket, _response) = connect_websocket(&handle).await;
+
+        websocket
+            .send(Message::Text(
+                authenticate_request(&handle, /*id*/ 1).into(),
+            ))
+            .await
+            .expect("auth frame should send");
+        let _ = websocket.next().await.expect("auth response should arrive");
+
+        websocket
+            .send(Message::Text(
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "skills/list",
+                    "params": {
+                        "cwds": ["/workspace/project"],
+                        "forceReload": false,
+                    },
+                })
+                .to_string()
+                .into(),
+            ))
+            .await
+            .expect("skills/list request should send");
+
+        assert_eq!(
+            backend.wait_for_received(&["skills/list"]).await,
+            vec!["skills/list"]
         );
 
         handle.shutdown().await;
@@ -738,6 +932,13 @@ mod tests {
                     "limit": null,
                 }),
             ),
+            (
+                4,
+                "thread/start",
+                serde_json::json!({
+                    "cwd": "/workspace/new-session",
+                }),
+            ),
         ] {
             websocket
                 .send(Message::Text(
@@ -756,9 +957,9 @@ mod tests {
 
         assert_eq!(
             backend
-                .wait_for_received(&["thread/read", "thread/loaded/list"])
+                .wait_for_received(&["thread/read", "thread/loaded/list", "thread/start"])
                 .await,
-            vec!["thread/read", "thread/loaded/list"]
+            vec!["thread/read", "thread/loaded/list", "thread/start"]
         );
 
         handle.shutdown().await;
@@ -835,13 +1036,10 @@ mod tests {
 
     #[tokio::test]
     async fn launch_urls_for_thread_uses_advertised_hosts() {
-        let handle = start_with_advertised_hosts_for_test(
-            dev_config(),
-            NoopBackend,
-            advertised_hosts_for_test(),
-        )
-        .await
-        .expect("host should start");
+        let handle =
+            start_with_advertised_hosts(dev_config(), NoopBackend, advertised_hosts_for_test())
+                .await
+                .expect("host should start");
 
         let urls = handle.launch_urls_for_thread("thread abc/#");
         let port = handle.local_addr().port();
@@ -853,7 +1051,7 @@ mod tests {
                     GuiLaunchUrlKind::Local,
                     "Local",
                     format!(
-                        "http://127.0.0.1:{port}/?threadId=thread%20abc%2F%23#token={}",
+                        "http://127.0.0.1:{port}/task/thread%20abc%2F%23#token={}",
                         handle.launch_token().as_str()
                     ),
                 ),
@@ -861,7 +1059,7 @@ mod tests {
                     GuiLaunchUrlKind::Lan,
                     "LAN",
                     format!(
-                        "http://192.168.3.165:{port}/?threadId=thread%20abc%2F%23#token={}",
+                        "http://192.168.3.165:{port}/task/thread%20abc%2F%23#token={}",
                         handle.launch_token().as_str()
                     ),
                 ),
@@ -869,7 +1067,7 @@ mod tests {
                     GuiLaunchUrlKind::Vpn,
                     "VPN",
                     format!(
-                        "http://100.88.28.119:{port}/?threadId=thread%20abc%2F%23#token={}",
+                        "http://100.88.28.119:{port}/task/thread%20abc%2F%23#token={}",
                         handle.launch_token().as_str()
                     ),
                 ),
@@ -885,7 +1083,7 @@ mod tests {
 
     #[tokio::test]
     async fn launch_urls_fall_back_to_local_when_no_hosts_are_advertised() {
-        let handle = start_with_advertised_hosts_for_test(dev_config(), NoopBackend, Vec::new())
+        let handle = start_with_advertised_hosts(dev_config(), NoopBackend, Vec::new())
             .await
             .expect("host should start");
 
@@ -898,7 +1096,7 @@ mod tests {
                 GuiLaunchUrlKind::Local,
                 "Local",
                 format!(
-                    "http://127.0.0.1:{port}/?threadId=thread%20abc%2F%23#token={}",
+                    "http://127.0.0.1:{port}/task/thread%20abc%2F%23#token={}",
                     handle.launch_token().as_str()
                 ),
             )]
@@ -908,7 +1106,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn launch_url_fallback_preserves_thread_id_when_entries_are_empty() {
+    async fn launch_url_fallback_preserves_thread_path_when_entries_are_empty() {
         let (shutdown_tx, _shutdown_rx) = tokio::sync::oneshot::channel();
         let handle = super::GuiHostHandle {
             local_addr: std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 1234)),
@@ -921,17 +1119,16 @@ mod tests {
 
         let url = handle.launch_url_for_thread("thread abc/#");
 
-        assert!(url.contains("threadId=thread%20abc%2F%23"));
+        assert!(url.contains("/task/thread%20abc%2F%23#token="));
         handle.shutdown().await;
     }
 
     #[tokio::test]
     async fn host_rejects_unadvertised_http_host() {
         let (package_root, config) = prod_config().await;
-        let handle =
-            start_with_advertised_hosts_for_test(config, NoopBackend, advertised_hosts_for_test())
-                .await
-                .expect("host should start");
+        let handle = start_with_advertised_hosts(config, NoopBackend, advertised_hosts_for_test())
+            .await
+            .expect("host should start");
         let client = reqwest::Client::new();
         let port = handle.local_addr().port();
 
@@ -1021,6 +1218,7 @@ mod tests {
     {
         GuiHost::start(
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(crate::DevAssetProxyConfig {
                     vite_origin: "http://127.0.0.1:5173".to_string(),
                 }),
@@ -1035,13 +1233,14 @@ mod tests {
     where
         B: crate::GuiBackend + Clone,
     {
-        start_with_advertised_hosts_for_test(dev_config(), backend, advertised_hosts_for_test())
+        start_with_advertised_hosts(dev_config(), backend, advertised_hosts_for_test())
             .await
             .expect("host should start")
     }
 
     fn dev_config() -> GuiHostConfig {
         GuiHostConfig {
+            port: 0,
             mode: GuiHostMode::Dev(crate::DevAssetProxyConfig {
                 vite_origin: "http://127.0.0.1:5173".to_string(),
             }),
@@ -1065,6 +1264,7 @@ mod tests {
         (
             package_root,
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Prod(ProdAssetConfig {
                     package_root: package_root_path,
                 }),

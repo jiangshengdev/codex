@@ -334,6 +334,10 @@ export async function loadAppServerGenerationInputs({
       appServerProtocolModule,
       "APP_SERVER_NOTIFICATION_METHODS",
     ),
+    selectedAuxiliarySchemaIds: stringArrayFromModule(
+      appServerProtocolModule,
+      "APP_SERVER_AUXILIARY_SCHEMA_IDS",
+    ),
   };
 }
 

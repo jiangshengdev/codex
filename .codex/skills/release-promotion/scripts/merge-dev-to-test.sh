@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/lib-release-promotion.sh"
+
+dev_branch="dev"
+test_branch="test"
+message="merge(test): sync dev"
+dry_run=false
+continue_mode=false
+excluded_paths=(CONTEXT.md docs/adr)
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dev)
+      dev_branch="${2:?missing value for --dev}"
+      shift 2
+      ;;
+    --test)
+      test_branch="${2:?missing value for --test}"
+      shift 2
+      ;;
+    --message)
+      message="${2:?missing value for --message}"
+      shift 2
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    --continue)
+      continue_mode=true
+      shift
+      ;;
+    -h | --help)
+      sed -n '1,120p' "$0"
+      exit 0
+      ;;
+    *)
+      rp_die "unknown argument: $1"
+      ;;
+  esac
+done
+
+rp_cd_repo_root
+rp_require_local_branch "$dev_branch"
+rp_require_local_branch "$test_branch"
+rp_require_development_version "$dev_branch"
+rp_require_development_version "$test_branch"
+
+if [[ "$dry_run" == true ]]; then
+  rp_log preflight "dry-run only; no branch switch, merge, stage, or commit"
+  rp_log preflight "dev=$dev_branch $(rp_git rev-parse --short "$dev_branch")"
+  rp_log preflight "test=$test_branch $(rp_git rev-parse --short "$test_branch")"
+  rp_log merge-dev-to-test "diff excluding CONTEXT.md and docs/adr/:"
+  diff_paths=(.)
+  for path in "${excluded_paths[@]}"; do
+    diff_paths+=(":(exclude)$path")
+  done
+  rp_git diff --name-status "$test_branch..$dev_branch" -- "${diff_paths[@]}"
+  rp_log merge-dev-to-test "excluded paths (preserving $test_branch state):"
+  rp_git diff --name-status "$test_branch..$dev_branch" -- "${excluded_paths[@]}"
+  exit 0
+fi
+
+rp_require_no_incompatible_continue_operation() {
+  local git_dir
+  git_dir="$(rp_git_dir)"
+
+  if [[ -e "$git_dir/CHERRY_PICK_HEAD" ]]; then
+    rp_die "cherry-pick is already in progress; resolve it manually first"
+  fi
+
+  if [[ -e "$git_dir/REBASE_HEAD" || -d "$git_dir/rebase-merge" || -d "$git_dir/rebase-apply" ]]; then
+    rp_die "rebase is already in progress; resolve it manually first"
+  fi
+
+  if [[ -e "$git_dir/BISECT_LOG" ]]; then
+    rp_die "bisect is active; finish it before running release promotion"
+  fi
+}
+
+rp_require_continue_merge_state() {
+  local git_dir
+  git_dir="$(rp_git_dir)"
+
+  if [[ ! -e "$git_dir/MERGE_HEAD" ]]; then
+    rp_die "--continue requires an in-progress merge"
+  fi
+
+  local current_branch
+  current_branch="$(rp_git branch --show-current)"
+  if [[ "$current_branch" != "$test_branch" ]]; then
+    rp_die "--continue must run on $test_branch; current branch: ${current_branch:-detached HEAD}"
+  fi
+}
+
+rp_require_merge_head_matches_dev() {
+  local git_dir
+  git_dir="$(rp_git_dir)"
+
+  if [[ ! -e "$git_dir/MERGE_HEAD" ]]; then
+    rp_die "expected MERGE_HEAD before committing merge"
+  fi
+
+  local dev_commit
+  dev_commit="$(rp_git rev-parse "$dev_branch")"
+
+  local merge_head
+  merge_head="$(rp_git rev-parse MERGE_HEAD)"
+
+  if [[ "$merge_head" != "$dev_commit" ]]; then
+    rp_die "MERGE_HEAD does not match $dev_branch: MERGE_HEAD=$merge_head $dev_branch=$dev_commit"
+  fi
+}
+
+rp_require_head_merge_parent_matches_dev() {
+  local dev_commit
+  dev_commit="$(rp_git rev-parse "$dev_branch")"
+
+  local parent_line
+  parent_line="$(rp_git rev-list --parents -n 1 HEAD)"
+
+  local -a commits
+  read -r -a commits <<< "$parent_line"
+  if (( ${#commits[@]} < 3 )); then
+    rp_die "HEAD is not a merge commit: $(rp_git rev-parse --short HEAD)"
+  fi
+
+  local parent
+  for parent in "${commits[@]:1}"; do
+    if [[ "$parent" == "$dev_commit" ]]; then
+      return 0
+    fi
+  done
+
+  rp_die "HEAD merge commit does not include $dev_branch as a parent"
+}
+
+if [[ "$continue_mode" != true ]]; then
+  rp_require_no_in_progress_operation
+  rp_require_clean_worktree
+else
+  rp_require_no_incompatible_continue_operation
+  rp_require_continue_merge_state
+fi
+
+if [[ "$continue_mode" == true ]]; then
+  rp_log merge-dev-to-test "continuing existing merge"
+else
+  rp_log merge-dev-to-test "switching to $test_branch"
+  rp_git switch --no-overwrite-ignore "$test_branch"
+  rp_require_no_ignored_merge_collisions "$dev_branch"
+  rp_log merge-dev-to-test "merging $dev_branch into $test_branch without committing"
+  if ! rp_git merge --no-overwrite-ignore --no-ff --no-commit "$dev_branch"; then
+    if [[ ! -e "$(rp_git_dir)/MERGE_HEAD" ]]; then
+      rp_log error "merge did not start; resolve the reported blocker, then rerun this phase without --continue"
+      exit 1
+    fi
+  fi
+fi
+
+rp_require_merge_head_matches_dev
+rp_log merge-dev-to-test "preserving $test_branch state for CONTEXT.md and docs/adr/"
+for path in "${excluded_paths[@]}"; do
+  while IFS= read -r -d '' changed_path; do
+    if ! rp_git cat-file -e "HEAD:$changed_path" 2>/dev/null &&
+      [[ -n "$(rp_git ls-files -u -- "$changed_path")" ]]; then
+      # Restore cannot resolve an unmerged path absent from its source tree.
+      rp_git rm -- "$changed_path"
+    else
+      rp_git restore --source=HEAD --staged --worktree -- "$changed_path"
+    fi
+  done < <(rp_git diff --cached --name-only -z HEAD -- "$path")
+done
+rp_git diff --cached --exit-code HEAD -- "${excluded_paths[@]}"
+
+if rp_has_unmerged_paths; then
+  rp_unmerged_paths >&2
+  rp_print_conflict_guidance "$0"
+  exit 1
+fi
+
+rp_log verify "checking staged diff"
+rp_require_staged_diff_check_for_merge
+rp_require_staged_development_version
+
+rp_log verify "checking MERGE_HEAD matches $dev_branch"
+rp_require_merge_head_matches_dev
+
+rp_log merge-dev-to-test "committing merge"
+rp_git commit -m "$message"
+
+rp_log verify "checking HEAD merge parent includes $dev_branch"
+rp_require_head_merge_parent_matches_dev
+rp_log verify "dev-to-test merge complete: $(rp_git rev-parse --short HEAD)"

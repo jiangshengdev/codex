@@ -1,0 +1,423 @@
+import { describe, expect, it, vi } from "vitest";
+import { page } from "vitest/browser";
+import type { ActiveThreadCompactionView } from "@/features/activeThreadSession/activeThreadSessionContracts";
+import { renderWithProviders } from "@/utils/test-utils";
+import { ContextUsagePopover } from "../ContextUsagePopover";
+import type { ContextUsageModel } from "../contextUsageModel";
+
+const knownUsage = {
+  usedTokens: 149_000,
+  modelContextWindow: 258_000,
+  percentage: 58,
+  usedTokensCompact: "149k",
+  modelContextWindowCompact: "258k",
+} satisfies ContextUsageModel;
+
+const idleCompaction = {
+  phase: "idle",
+  canRequest: true,
+  startFailure: null,
+} satisfies ActiveThreadCompactionView;
+
+const renderPopover = (
+  usage: ContextUsageModel | null,
+  compaction: ActiveThreadCompactionView = idleCompaction,
+  onRequestCompaction = vi.fn<() => void>(),
+  locale: "en" | "zh-CN" = "en",
+) =>
+  renderWithProviders(
+    <ContextUsagePopover
+      compaction={compaction}
+      onRequestCompaction={onRequestCompaction}
+      usage={usage}
+    />,
+    { locale },
+  );
+
+const progressCircleFor = (button: Element): HTMLElement => {
+  const progressCircle = button.querySelector('[role="progressbar"]');
+  if (!(progressCircle instanceof HTMLElement)) {
+    throw new Error("context usage button must contain a progressbar");
+  }
+  return progressCircle;
+};
+
+describe("ContextUsagePopover", () => {
+  it.each(["light", "dark"])(
+    "preserves the empty track and uses a separate hover border in %s theme",
+    async (theme) => {
+      for (const percentage of [0, 1, 58, 100]) {
+        const screen = await renderWithProviders(
+          <div data-theme={theme} className="bg-field p-4">
+            <ContextUsagePopover
+              compaction={idleCompaction}
+              onRequestCompaction={vi.fn<() => void>()}
+              usage={{ ...knownUsage, percentage }}
+            />
+          </div>,
+        );
+        try {
+          await screen.user.unhover(document.body);
+          const trigger = screen.getByRole("button");
+          const track = trigger.element().querySelector(".progress-circle__track-circle");
+          const fill = trigger.element().querySelector(".progress-circle__fill-circle");
+          const surface = trigger.element().parentElement;
+          if (track == null || fill == null || surface == null) {
+            throw new Error("context usage ring must be rendered inside its surface");
+          }
+          const trackStroke = getComputedStyle(track).stroke;
+          const background = getComputedStyle(trigger.element()).backgroundColor;
+          const idleBorder = getComputedStyle(trigger.element()).borderTopColor;
+          expect(trackStroke).not.toBe(getComputedStyle(fill).stroke);
+          expect(trackStroke).not.toBe(getComputedStyle(surface).backgroundColor);
+          const circumference = Number.parseFloat(getComputedStyle(fill).strokeDasharray);
+          expect(Number.parseFloat(getComputedStyle(fill).strokeDashoffset)).toBeCloseTo(
+            circumference * (1 - percentage / 100),
+          );
+          await trigger.hover();
+          await expect.element(trigger).toHaveAttribute("data-hovered", "true");
+          await expect
+            .poll(() => getComputedStyle(trigger.element()).borderTopColor)
+            .not.toBe(idleBorder);
+          expect(getComputedStyle(trigger.element()).backgroundColor).toBe(background);
+          expect(getComputedStyle(track).stroke).toBe(trackStroke);
+        } finally {
+          await screen.unmount();
+        }
+      }
+    },
+  );
+
+  it("explains an unknown compression result without presenting it as running or retryable", async () => {
+    const onRequestCompaction = vi.fn<() => void>();
+    const screen = await renderPopover(
+      knownUsage,
+      {
+        phase: "deliveryUnknown",
+        canRequest: false,
+        startFailure: null,
+      },
+      onRequestCompaction,
+    );
+    const trigger = screen.getByRole("button", {
+      name: "Compression request result unknown",
+      exact: true,
+    });
+    await expect.element(trigger).toBeEnabled();
+    await trigger.click();
+    const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
+    await expect
+      .element(
+        dialog.getByText(
+          "The compression request result is unknown. Sending and compression remain unavailable until its result is confirmed.",
+          { exact: true },
+        ),
+      )
+      .toBeVisible();
+    await expect
+      .element(dialog.getByRole("button", { name: "Compress context", exact: true }))
+      .toBeDisabled();
+    await expect.element(dialog.getByText("Compressing", { exact: true })).not.toBeInTheDocument();
+    expect(onRequestCompaction).not.toHaveBeenCalled();
+  });
+
+  it.each([414, 240])(
+    "keeps changing context details within a %ipx viewport without resize errors",
+    async (width) => {
+      const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+      const errors = vi.spyOn(console, "error");
+      const onRequestCompaction = vi.fn<() => void>();
+      const frame = () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => {
+            resolve();
+          }),
+        );
+      const content = (compaction: ActiveThreadCompactionView) => (
+        <div className="flex justify-center pt-20">
+          <ContextUsagePopover
+            compaction={compaction}
+            onRequestCompaction={onRequestCompaction}
+            usage={knownUsage}
+          />
+        </div>
+      );
+      try {
+        await page.viewport(width, 600);
+        const screen = await renderWithProviders(content(idleCompaction));
+        try {
+          await screen.getByRole("button").click();
+          const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
+          await expect.element(dialog).toBeVisible();
+          await frame();
+          await frame();
+
+          await screen.rerender(
+            content({ phase: "running", canRequest: false, startFailure: null }),
+          );
+          await expect.element(dialog.getByRole("button", { name: "Compressing" })).toBeDisabled();
+          await frame();
+          await frame();
+
+          await screen.rerender(content({ ...idleCompaction, startFailure: "private failure" }));
+          await expect.element(dialog.getByRole("alert")).toBeVisible();
+          // Allow resize delivery and a subsequent rendering opportunity before unmount.
+          await frame();
+          await frame();
+          const bounds = dialog.element().getBoundingClientRect();
+          expect(bounds.left).toBeGreaterThanOrEqual(0);
+          expect(bounds.right).toBeLessThanOrEqual(width);
+          expect(dialog.element().scrollWidth).toBeLessThanOrEqual(dialog.element().clientWidth);
+          expect(
+            errors.mock.calls.flatMap((args) =>
+              args
+                .map((value) => (value instanceof Error ? value.message : String(value)))
+                .filter((message) => message.includes("ResizeObserver loop")),
+            ),
+          ).toEqual([]);
+        } finally {
+          await screen.unmount();
+        }
+      } finally {
+        errors.mockRestore();
+        await page.viewport(originalViewport.width, originalViewport.height);
+      }
+    },
+  );
+
+  it("opens raw English context usage details with a pointer click", async () => {
+    const screen = await renderPopover(knownUsage);
+    const trigger = screen.getByRole("button", {
+      name: "Context usage details, 58% used, 149k of 258k tokens",
+      exact: true,
+    });
+
+    await expect.element(trigger).toBeVisible();
+    expect(trigger.element().textContent).toBe("");
+    await trigger.click();
+
+    const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
+    await expect.element(dialog).toBeVisible();
+    await expect.element(dialog.getByText("58% used", { exact: true })).toBeVisible();
+    await expect
+      .element(dialog.getByText("149k tokens used of 258k", { exact: true }))
+      .toBeVisible();
+    expect(dialog.element().textContent).not.toContain("remaining");
+  });
+
+  it.each([
+    ["Enter", "{Enter}"],
+    ["Space", " "],
+  ] as const)("opens with %s", async (_keyName, key) => {
+    const screen = await renderPopover(knownUsage);
+    const trigger = screen.getByRole("button", {
+      name: "Context usage details, 58% used, 149k of 258k tokens",
+      exact: true,
+    });
+
+    await expect.element(trigger).toBeVisible();
+    trigger.element().focus();
+    await screen.user.keyboard(key);
+
+    await expect
+      .element(screen.getByRole("dialog", { name: "Context usage", exact: true }))
+      .toBeVisible();
+  });
+
+  it.each([
+    ["usage is unavailable", null],
+    [
+      "context capacity is unavailable",
+      {
+        usedTokens: 32_000,
+        modelContextWindow: null,
+        percentage: null,
+        usedTokensCompact: "32k",
+        modelContextWindowCompact: null,
+      } satisfies ContextUsageModel,
+    ],
+  ])("does not render when percentage data is unavailable because $0", async (_caseName, usage) => {
+    const screen = await renderPopover(usage);
+
+    expect(screen.container).toBeEmptyDOMElement();
+    await expect.element(screen.getByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("shows clamped percentage while retaining raw over-window token values", async () => {
+    const usage = {
+      usedTokens: 300_000,
+      modelContextWindow: 200_000,
+      percentage: 100,
+      usedTokensCompact: "300k",
+      modelContextWindowCompact: "200k",
+    } satisfies ContextUsageModel;
+    const screen = await renderPopover(usage);
+    const trigger = screen.getByRole("button", {
+      name: "Context usage details, 100% used, 300k of 200k tokens",
+      exact: true,
+    });
+
+    expect(trigger.element().textContent).toBe("");
+    await trigger.click();
+
+    const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
+    await expect.element(dialog.getByText("100% used", { exact: true })).toBeVisible();
+    await expect
+      .element(dialog.getByText("300k tokens used of 200k", { exact: true }))
+      .toBeVisible();
+  });
+
+  it("localizes the button and details in Simplified Chinese", async () => {
+    const screen = await renderPopover(knownUsage, idleCompaction, vi.fn<() => void>(), "zh-CN");
+    const trigger = screen.getByRole("button", {
+      name: "上下文用量详情，已用 58%，149k / 258k",
+      exact: true,
+    });
+
+    await expect.element(trigger).toBeVisible();
+    expect(trigger.element().textContent).toBe("");
+    await trigger.click();
+
+    const dialog = screen.getByRole("dialog", { name: "上下文用量", exact: true });
+    await expect.element(dialog.getByText("58% 已用", { exact: true })).toBeVisible();
+    await expect
+      .element(dialog.getByText("已用 149k tokens，共 258k", { exact: true }))
+      .toBeVisible();
+  });
+
+  it("keeps high usage neutral and exposes no second accessible progressbar", async () => {
+    const usage = {
+      ...knownUsage,
+      usedTokens: 255_000,
+      percentage: 99,
+      usedTokensCompact: "255k",
+    } satisfies ContextUsageModel;
+    const screen = await renderPopover(usage);
+    const trigger = screen.getByRole("button", {
+      name: "Context usage details, 99% used, 255k of 258k tokens",
+      exact: true,
+    });
+    await expect.element(trigger).toBeVisible();
+    expect(trigger.element().textContent).toBe("");
+    const progressCircle = progressCircleFor(trigger.element());
+    const hiddenPresentation = progressCircle.closest('[aria-hidden="true"]');
+    if (hiddenPresentation == null) {
+      throw new Error("context usage progressbar must have a hidden ancestor");
+    }
+
+    await expect.element(screen.getByRole("progressbar")).not.toBeInTheDocument();
+
+    await trigger.click();
+    const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
+    await expect.element(dialog).toBeVisible();
+    expect(dialog.element().textContent).not.toMatch(/warning|danger|auto-compact/i);
+  });
+
+  it.each([
+    {
+      phase: "requestPending",
+      canRequest: false,
+      startFailure: null,
+    },
+    {
+      phase: "running",
+      canRequest: false,
+      startFailure: null,
+    },
+  ] satisfies ActiveThreadCompactionView[])(
+    "keeps the trigger available and disables the action while $phase",
+    async (compaction) => {
+      const screen = await renderPopover(knownUsage, compaction);
+      const trigger = screen.getByRole("button", {
+        name: "Context compression in progress",
+        exact: true,
+      });
+
+      await expect.element(trigger).toBeEnabled();
+      expect(trigger.element().textContent).toBe("");
+      await trigger.click();
+
+      const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
+      const action = dialog.getByRole("button", { name: "Compressing", exact: true });
+      await expect.element(action).toBeDisabled();
+      await expect.element(action).toHaveAttribute("data-pending");
+    },
+  );
+
+  it("retains the error and action through retry, failure, and canonical start", async () => {
+    const onRequestCompaction = vi.fn<() => void>();
+    const content = (compaction: ActiveThreadCompactionView) => (
+      <ContextUsagePopover
+        compaction={compaction}
+        onRequestCompaction={onRequestCompaction}
+        usage={knownUsage}
+      />
+    );
+    const screen = await renderWithProviders(
+      content({ ...idleCompaction, startFailure: "first private failure" }),
+    );
+    await screen.getByRole("button").click();
+    const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
+    const action = dialog.getByRole("button", { name: "Compress context", exact: true });
+    await action.click();
+    expect(onRequestCompaction).toHaveBeenCalledTimes(1);
+    const originalButton = action.element();
+
+    for (const phase of ["requestPending", "deliveryUnknown"] as const) {
+      await screen.rerender(
+        content({ phase, canRequest: false, startFailure: "first private failure" }),
+      );
+      const pending = dialog.getByRole("button", {
+        name: phase === "requestPending" ? "Compressing" : "Compress context",
+        exact: true,
+      });
+      await expect.element(pending).toBeDisabled();
+      expect(pending.element()).toBe(originalButton);
+      await expect
+        .element(dialog.getByRole("status"))
+        .toHaveTextContent(
+          phase === "requestPending"
+            ? "Waiting for the compression request result."
+            : "The compression request result is unknown.",
+        );
+      await expect.element(dialog.getByRole("alert")).toBeVisible();
+      expect(dialog.element().textContent).not.toContain("first private failure");
+    }
+
+    await screen.rerender(content({ ...idleCompaction, startFailure: "second private failure" }));
+    await expect.element(action).toBeEnabled();
+    await expect.element(dialog.getByRole("alert")).toBeVisible();
+    await action.click();
+    expect(onRequestCompaction).toHaveBeenCalledTimes(2);
+    await screen.rerender(content({ phase: "running", canRequest: false, startFailure: null }));
+    await expect.element(dialog.getByRole("alert")).not.toBeInTheDocument();
+    await expect
+      .element(dialog.getByRole("button", { name: "Compressing", exact: true }))
+      .toBeDisabled();
+  });
+
+  it("announces a definite start failure without exposing transport detail", async () => {
+    const screen = await renderPopover(knownUsage, {
+      phase: "idle",
+      canRequest: true,
+      startFailure: "private transport detail",
+    });
+
+    await screen
+      .getByRole("button", {
+        name: "Context usage details, 58% used, 149k of 258k tokens",
+        exact: true,
+      })
+      .click();
+
+    const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
+    await expect
+      .element(
+        dialog.getByRole("alert").getByText("Context compression could not be started.", {
+          exact: true,
+        }),
+      )
+      .toBeVisible();
+    expect(dialog.element().textContent).not.toContain("private transport detail");
+  });
+});

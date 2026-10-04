@@ -1,84 +1,50 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useAppDispatch } from "@/app/hooks";
-import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
-import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
-import { startGuiHostConnection } from "@/features/guiHost/guiHostClient";
-import { ProjectionApplicationCoordinator } from "@/features/projectionCoordination/projectionApplicationCoordinator";
+import {
+  startGuiHostConnectionLifecycle,
+  type GuiHostConnectionLifecycleInput,
+} from "./guiHostConnectionLifecycle";
 
-export type GuiHostConnectionBridgeProps = {
-  setStatus: (status: GuiHostStatus) => void;
-  setCommands: (commands: GuiHostCommands | null) => void;
-  setLaunchParams: (params: BrowserLaunchParams | null) => void;
-};
+export type GuiHostConnectionBridgeProps = Omit<
+  GuiHostConnectionLifecycleInput,
+  "dispatch" | "getRouteTarget"
+> & { routeTarget: ReturnType<GuiHostConnectionLifecycleInput["getRouteTarget"]> };
 
 export function GuiHostConnectionBridge({
   setStatus,
   setCommands,
-  setLaunchParams,
+  routeTarget,
+  setAuthorizationToken,
+  setActiveThreadSession,
+  newSessionOwner,
+  setConnectionRecovery,
 }: GuiHostConnectionBridgeProps) {
   const dispatch = useAppDispatch();
-
+  const currentTarget = useRef(routeTarget);
   useEffect(() => {
-    let isMounted = true;
-    let cleanupConnection: (() => void) | undefined;
-    const coordinator = new ProjectionApplicationCoordinator({
+    currentTarget.current = routeTarget;
+  }, [routeTarget]);
+  useEffect(() => {
+    const lifecycle = startGuiHostConnectionLifecycle({
       dispatch,
-      scheduler: {
-        requestFrame: (callback) => window.requestAnimationFrame(callback),
-        cancelFrame: (frameId) => {
-          window.cancelAnimationFrame(frameId);
-        },
-      },
+      getRouteTarget: () => currentTarget.current,
+      newSessionOwner,
+      setStatus,
+      setCommands,
+      setAuthorizationToken,
+      setActiveThreadSession,
+      setConnectionRecovery,
     });
-
-    try {
-      cleanupConnection = startGuiHostConnection({
-        location: new URL(window.location.href),
-        replaceState: window.history.replaceState.bind(window.history),
-        onStatus: setStatus,
-        onLaunchParams: (params) => {
-          setLaunchParams(params);
-          coordinator.handleLaunchThread(params.threadId);
-        },
-        onProjectionAttached: (response) => {
-          coordinator.handleProjectionAttached(response);
-        },
-        onProjectionEvent: (notification) => {
-          coordinator.handleProjectionEvent(notification);
-        },
-        onProjectionDelta: (notification) => {
-          coordinator.handleProjectionDelta(notification);
-        },
-        onProjectionClosed: (notification) => {
-          coordinator.handleProjectionClosed(notification);
-        },
-        onCommandsReady: setCommands,
-        onCommandsUnavailable: () => {
-          setCommands(null);
-        },
-      });
-    } catch (error: unknown) {
-      queueMicrotask(() => {
-        if (!isMounted) {
-          return;
-        }
-
-        setCommands(null);
-        setStatus({
-          label: "error",
-          message: error instanceof Error ? error.message : String(error),
-        });
-      });
-    }
-
-    return () => {
-      isMounted = false;
-      setCommands(null);
-      setLaunchParams(null);
-      coordinator.dispose();
-      cleanupConnection?.();
-    };
-  }, [dispatch, setCommands, setLaunchParams, setStatus]);
+    return lifecycle.dispose;
+  }, [
+    dispatch,
+    newSessionOwner,
+    setActiveThreadSession,
+    setAuthorizationToken,
+    setCommands,
+    setConnectionRecovery,
+    setStatus,
+  ]);
 
   return null;
 }

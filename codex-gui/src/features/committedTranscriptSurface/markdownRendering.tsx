@@ -1,17 +1,22 @@
 import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
+import { createMathPlugin } from "@streamdown/math";
 import { defaultHandlers, type Handler } from "mdast-util-to-hast";
 import { isAbsolute } from "pathe";
 import {
+  defaultRemarkPlugins,
   defaultRehypePlugins,
   type AllowElement,
-  type Components,
   type ControlsConfig,
   type StreamdownProps,
 } from "streamdown";
 import { parse as parseUri } from "uri-js";
+import { remarkBackslashMath } from "./remarkBackslashMath";
+import { MarkdownCode } from "./MarkdownCode";
+import { MarkdownTable } from "./MarkdownTable";
+import { isMarkdownTextCopyAvailable } from "./markdownClipboard";
 
-const isAbsolutePath = isAbsolute as (path: string) => boolean;
+const isAbsolutePath = isAbsolute;
 
 const isProtocolLessFileTarget = (target: string) =>
   isAbsolutePath(target) || parseUri(target).scheme === undefined;
@@ -62,18 +67,20 @@ export const streamdownRemarkRehypeOptions: NonNullable<StreamdownProps["remarkR
 };
 
 export const streamdownPlugins = { code, cjk };
+export const assistantStreamdownPlugins = {
+  ...streamdownPlugins,
+  math: createMathPlugin({ singleDollarTextMath: true }),
+};
+export const assistantRemarkPlugins = [...Object.values(defaultRemarkPlugins), remarkBackslashMath];
 
-const clipboardWriteAvailable =
-  typeof window !== "undefined" &&
-  window.isSecureContext &&
-  typeof (navigator as Partial<Pick<Navigator, "clipboard">>).clipboard?.writeText === "function";
+const clipboardWriteAvailable = isMarkdownTextCopyAvailable();
 
 export const streamdownControls: ControlsConfig = clipboardWriteAvailable
-  ? true
+  ? { code: false, table: false }
   : {
-      code: { copy: false },
+      code: false,
       mermaid: { copy: false },
-      table: { copy: false },
+      table: false,
     };
 
 export const streamdownRehypePlugins = [
@@ -82,22 +89,6 @@ export const streamdownRehypePlugins = [
 ].filter((plugin): plugin is NonNullable<typeof plugin> => plugin != null);
 
 export const allowMarkdownElement: AllowElement = ({ tagName }) => tagName !== "img";
-
-export const streamdownComponents: Components = {
-  inlineCode: ({ children, className, node: _node, ...props }) => (
-    <code
-      className={[
-        "rounded border border-border bg-default px-1 py-0.5 font-mono text-sm text-default-700 wrap-break-word",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      {...props}
-    >
-      {children}
-    </code>
-  ),
-};
 
 export const markdownContainerClassName =
   "committed-transcript-entry-markdown committed-transcript-entry-source grid min-w-0 gap-2 wrap-break-word leading-6";
@@ -119,7 +110,7 @@ export const streamdownCommonProps: Pick<
 > = {
   allowElement: allowMarkdownElement,
   className: markdownStreamdownClassName,
-  components: streamdownComponents,
+  components: { code: MarkdownCode, table: MarkdownTable },
   controls: streamdownControls,
   linkSafety: { enabled: false },
   lineNumbers: false,

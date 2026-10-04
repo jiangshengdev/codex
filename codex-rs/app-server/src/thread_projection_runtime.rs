@@ -278,10 +278,14 @@ mod tests {
     use crate::request_processors::ThreadGoalRequestProcessor;
     use crate::thread_state::ConnectionCapabilities;
     use crate::thread_status::ThreadWatchManager;
+    use codex_app_server_protocol::ClientResponsePayload;
     use codex_app_server_protocol::ConfigWarningNotification;
+    use codex_app_server_protocol::ItemCompletedNotification;
     use codex_app_server_protocol::RequestId;
     use codex_app_server_protocol::ServerNotification;
     use codex_app_server_protocol::ServerNotificationEnvelope;
+    use codex_app_server_protocol::ThreadItem;
+    use codex_app_server_protocol::ThreadProjectionEvent;
     use codex_app_server_protocol::Turn;
     use codex_app_server_protocol::TurnStartedNotification;
     use codex_app_server_protocol::TurnStatus;
@@ -295,9 +299,12 @@ mod tests {
     use codex_login::AuthManager;
     use codex_login::CodexAuth;
     use codex_protocol::ThreadId;
+    use codex_protocol::items::ContextCompactionItem;
+    use codex_protocol::items::TurnItem as ProtocolTurnItem;
     use codex_protocol::protocol::EventMsg;
-    use codex_protocol::protocol::RolloutItem;
+    use codex_protocol::protocol::ItemCompletedEvent;
     use codex_protocol::protocol::SessionSource;
+    use codex_rollout::RolloutItem;
     use codex_thread_store::AppendThreadItemsParams;
     use codex_thread_store::InMemoryThreadStore;
     use codex_thread_store::ThreadStore;
@@ -364,12 +371,22 @@ mod tests {
             Arc::new(codex_extension_api::ExtensionRegistryBuilder::new().build()),
             Arc::new(codex_core::test_support::EmptyUserInstructionsProvider),
             /*analytics_events_client*/ None,
+            codex_core::passthrough_image_store(),
             thread_store.clone(),
             /*agent_graph_store*/ None,
             uuid::Uuid::new_v4().to_string(),
             /*attestation_provider*/ None,
             /*external_time_provider*/ None,
         ));
+        let config_manager = ConfigManager::new(
+            temp_dir.path().to_path_buf(),
+            Vec::new(),
+            loader_overrides,
+            /*strict_config*/ false,
+            CloudConfigBundleLoader::default(),
+            Arg0DispatchPaths::default(),
+            Arc::new(NoopThreadConfigLoader),
+        );
         let thread_goal_processor = ThreadGoalRequestProcessor::new(
             thread_manager.clone(),
             outgoing.clone(),
@@ -377,6 +394,7 @@ mod tests {
             thread_state_manager.clone(),
             /*state_db*/ None,
             Arc::new(GoalService::new()),
+            config_manager.clone(),
         );
         let processor = ThreadRequestProcessor::new(
             auth_manager,
@@ -384,15 +402,7 @@ mod tests {
             outgoing.clone(),
             Arg0DispatchPaths::default(),
             config.clone(),
-            ConfigManager::new(
-                temp_dir.path().to_path_buf(),
-                Vec::new(),
-                loader_overrides,
-                /*strict_config*/ false,
-                CloudConfigBundleLoader::default(),
-                Arg0DispatchPaths::default(),
-                Arc::new(NoopThreadConfigLoader),
-            ),
+            config_manager,
             thread_store,
             Arc::new(Mutex::new(HashSet::new())),
             thread_state_manager,
@@ -406,6 +416,7 @@ mod tests {
                 &config.codex_home,
                 outgoing,
             ),
+            /*turn_cost_worker*/ None,
             /*initial_config_warnings*/ Vec::new(),
         );
         let thread_id = thread_manager
@@ -461,6 +472,7 @@ stream_max_retries = 0
         RolloutItem::EventMsg(EventMsg::TurnStarted(
             codex_protocol::protocol::TurnStartedEvent {
                 turn_id: "turn-visible".to_string(),
+                root_turn_id: None,
                 trace_id: None,
                 started_at: Some(1),
                 model_context_window: None,
@@ -473,6 +485,7 @@ stream_max_retries = 0
         RolloutItem::EventMsg(EventMsg::TurnStarted(
             codex_protocol::protocol::TurnStartedEvent {
                 turn_id: "turn-pending".to_string(),
+                root_turn_id: None,
                 trace_id: None,
                 started_at: Some(2),
                 model_context_window: None,
@@ -628,7 +641,10 @@ stream_max_retries = 0
                 } => response,
                 other => panic!("expected attach response, got {other:?}"),
             };
-            Ok(serde_json::from_value(response.result)?)
+            match *response.result {
+                ClientResponsePayload::ThreadProjectionAttach(response) => Ok(response),
+                other => panic!("expected thread projection attach response, got {other:?}"),
+            }
         }
 
         async fn recv_attach_error_message(&mut self) -> String {
@@ -701,6 +717,84 @@ stream_max_retries = 0
             .collect::<Vec<_>>();
         assert_eq!(turn_ids, vec!["turn-visible", "turn-pending"]);
         assert_eq!(payload.snapshot.head_commit_id, None);
+        harness.assert_no_projection_attach_lease().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn attach_snapshot_compaction_replay_preserves_identity() -> anyhow::Result<()> {
+        let mut harness = ProjectionAttachHarness::new().await?;
+        let thread_id = harness.thread_id();
+        let turn_id = "turn-compaction".to_string();
+        let item_id = "compaction-canonical".to_string();
+        let protocol_item = ProtocolTurnItem::ContextCompaction(ContextCompactionItem {
+            id: item_id.clone(),
+        });
+        let projected_item = ThreadItem::from(protocol_item.clone());
+        harness
+            .append_history(vec![
+                RolloutItem::EventMsg(EventMsg::TurnStarted(
+                    codex_protocol::protocol::TurnStartedEvent {
+                        turn_id: turn_id.clone(),
+                        root_turn_id: None,
+                        trace_id: None,
+                        started_at: Some(1),
+                        model_context_window: None,
+                        collaboration_mode_kind: Default::default(),
+                    },
+                )),
+                RolloutItem::EventMsg(EventMsg::ItemCompleted(ItemCompletedEvent {
+                    thread_id,
+                    turn_id: turn_id.clone(),
+                    item: protocol_item,
+                    started_at_ms: Some(2),
+                    completed_at_ms: 3,
+                })),
+            ])
+            .await?;
+
+        harness.handle_attach().await;
+
+        let payload = harness.recv_attach_response().await?;
+        assert_eq!(payload.snapshot.head_commit_id, None);
+        let snapshot_item = payload
+            .snapshot
+            .thread
+            .turns
+            .iter()
+            .find(|turn| turn.id == turn_id)
+            .and_then(|turn| turn.items.first())
+            .expect("attach snapshot should contain the persisted compaction");
+        assert_eq!(snapshot_item, &projected_item);
+
+        let deliveries = harness
+            .outgoing
+            .thread_projection_manager()
+            .project_notification(
+                thread_id,
+                &ServerNotification::ItemCompleted(ItemCompletedNotification {
+                    thread_id: thread_id.to_string(),
+                    turn_id,
+                    item: projected_item,
+                    completed_at_ms: 3,
+                }),
+            )
+            .await;
+        let [delivery] = deliveries.as_slice() else {
+            panic!("replayed compaction should produce one projection delivery");
+        };
+        assert_eq!(delivery.connection_id, harness.connection_id);
+        let live_event = delivery.event_notification();
+        assert_eq!(live_event.subscription_id, payload.subscription_id);
+        assert_eq!(live_event.parent_commit_id, payload.snapshot.head_commit_id);
+        let ThreadProjectionEvent::ItemCompleted { notification } = &live_event.event else {
+            panic!("replayed compaction should remain an item/completed event");
+        };
+        assert_eq!(notification.item, *snapshot_item);
+        let ThreadItem::ContextCompaction { id: live_item_id } = &notification.item else {
+            panic!("replayed item should remain a context compaction");
+        };
+        assert_eq!(live_item_id, &item_id);
         harness.assert_no_projection_attach_lease().await;
         Ok(())
     }

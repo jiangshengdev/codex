@@ -1,0 +1,233 @@
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
+import { makeStore } from "@/app/store";
+import { requiredTranscriptState } from "./requiredTranscriptState";
+import { activeThreadReadModelSlotCreated } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import {
+  attachBaseline,
+  eventItemCompleted,
+  eventItemStarted,
+  eventReasoningSummaryTextDelta,
+  eventTurnCompleted,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
+import {
+  attachWithTurns,
+  baseTurn,
+  failedTurn,
+  inProgressTurn,
+  itemCompleted,
+  itemStarted,
+  reasoningItem,
+  reasoningSummaryTextDelta,
+  subAgentActivity,
+  turnCompleted,
+  turnStarted,
+} from "@/features/projection/__tests__/projectionTestBuilders";
+import {
+  selectCommittedTranscriptScrollCommitKey,
+  selectTranscriptChunk,
+  selectTranscriptTurn,
+  selectTranscriptTurnIds,
+  transcriptEntryIdFor,
+} from "../transcriptStateSlice";
+
+const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
+
+describe("transcript state committed terminal reducer", () => {
+  it.each(["interrupted", "failed"] as const)(
+    "clears streaming reasoning when a turn is %s",
+    (status) => {
+      const store = makeStore();
+      store.dispatch(activeThreadReadModelSlotCreated(identity));
+      const turnId = "turn-reasoning-" + status;
+      const itemId = "reasoning-" + status;
+      const activity = subAgentActivity("activity-" + status, "interrupted", "agents/worker");
+      const entryId = transcriptEntryIdFor(turnId, itemId);
+      const chunkId = turnId + ":chunk:0";
+      const live = (
+        notification: Parameters<typeof actions.threadRuntimeEventBuffered>[0]["notification"],
+      ) => store.dispatch(actions.threadRuntimeEventBuffered({ notification, replay: "live" }));
+
+      store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+      live(
+        itemStarted(eventItemStarted, "commit-start-" + status, turnId, reasoningItem(itemId, [])),
+      );
+      live(itemCompleted(eventItemCompleted, "commit-activity-" + status, turnId, activity));
+      store.dispatch(
+        actions.threadRuntimeDeltasAccepted({
+          notifications: [
+            reasoningSummaryTextDelta(
+              eventReasoningSummaryTextDelta,
+              turnId,
+              itemId,
+              "**Visible**",
+              0,
+            ),
+          ],
+        }),
+      );
+      expect(
+        selectTranscriptChunk(store.getState(), identity.threadId, chunkId)?.entries.map(
+          ({ id }) => id,
+        ),
+      ).toStrictEqual([itemId, activity.id]);
+
+      live(
+        turnCompleted(eventTurnCompleted, "commit-terminal-" + status, {
+          ...baseTurn(turnId),
+          status,
+        }),
+      );
+      expect({
+        entry: requiredTranscriptState(store.getState(), identity.threadId).entriesById[entryId],
+        mapping: requiredTranscriptState(store.getState(), identity.threadId).entryChunkById[
+          entryId
+        ],
+        rawOrder: requiredTranscriptState(store.getState(), identity.threadId).chunksById[chunkId]
+          ?.entryIds,
+        visibleOrder: selectTranscriptChunk(
+          store.getState(),
+          identity.threadId,
+          chunkId,
+        )?.entries.map(({ id }) => id),
+        turn: selectTranscriptTurn(store.getState(), identity.threadId, turnId),
+        signal: selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId),
+      }).toStrictEqual({
+        entry: undefined,
+        mapping: undefined,
+        rawOrder: [transcriptEntryIdFor(turnId, activity.id)],
+        visibleOrder: [activity.id],
+        turn: {
+          id: turnId,
+          status,
+          originalFirstItemId: itemId,
+          startedAt: 1700000001,
+          completedAt: 1700000005,
+          durationMs: 4000,
+          leadingPromptEntryId: null,
+          middleChunkIds: [chunkId],
+          middleEntryCount: 1,
+          finalAssistantEntryIds: [],
+        },
+        signal: "event:commit-terminal-" + status,
+      });
+    },
+  );
+
+  it("updates turn terminal status from live turnCompleted", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: turnStarted(
+          eventTurnStarted,
+          "commit-start-done",
+          inProgressTurn("turn-done"),
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: turnCompleted(eventTurnCompleted, "commit-complete-done", {
+          ...baseTurn("turn-done", []),
+          status: "completed",
+        }),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, "turn-done")).toStrictEqual({
+      id: "turn-done",
+      status: "completed",
+      originalFirstItemId: null,
+      startedAt: 1700000001,
+      completedAt: 1700000005,
+      durationMs: 4000,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+  });
+
+  it("stores, deduplicates, and clears a live failed turn error without adding entries", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+    const turnId = "turn-live-failed-error";
+    const error = {
+      message:
+        "unexpected status 403 Forbidden: token quota is not enough\n(request id: request-live), url: https://shapi.vip/v1/responses",
+      codexErrorInfo: "usageLimitExceeded",
+      additionalDetails: null,
+      misalignment: null,
+    } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
+    const failedNotification = turnCompleted(
+      eventTurnCompleted,
+      "commit-live-failed-error",
+      failedTurn(turnId, error),
+    );
+
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }),
+    );
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }),
+    );
+
+    expect(selectTranscriptTurnIds(store.getState(), identity.threadId)).toStrictEqual([turnId]);
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toStrictEqual({
+      id: turnId,
+      status: "failed",
+      error,
+      originalFirstItemId: null,
+      startedAt: 1700000001,
+      completedAt: 1700000005,
+      durationMs: 4000,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(requiredTranscriptState(store.getState(), identity.threadId).entriesById).toStrictEqual(
+      {},
+    );
+    expect(requiredTranscriptState(store.getState(), identity.threadId).chunksById).toStrictEqual(
+      {},
+    );
+
+    store.dispatch(
+      actions.threadRuntimeEventBuffered({
+        notification: turnCompleted(
+          eventTurnCompleted,
+          "commit-live-error-cleared",
+          baseTurn(turnId),
+        ),
+        replay: "live",
+      }),
+    );
+
+    const completedTurn = selectTranscriptTurn(store.getState(), identity.threadId, turnId);
+    expect(completedTurn).toStrictEqual({
+      id: turnId,
+      status: "completed",
+      originalFirstItemId: null,
+      startedAt: 1700000001,
+      completedAt: 1700000005,
+      durationMs: 4000,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(completedTurn).not.toHaveProperty("error");
+  });
+});

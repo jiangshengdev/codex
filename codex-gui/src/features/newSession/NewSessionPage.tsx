@@ -1,0 +1,167 @@
+import { Alert, Button } from "@heroui/react";
+import { Trans } from "@lingui/react/macro";
+import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
+import { FailureLayout } from "@/feedback/FailureLayout";
+import { ComposerSendButton } from "@/features/composerTurnControl/ComposerSendButton";
+import {
+  useAppCapabilities,
+  useNewSessionCwd,
+  useNewSessionSnapshot,
+} from "@/features/appShell/AppCapabilities";
+import { CURRENT_TASK_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
+import { type ComposerEditorController } from "@/features/composerEditor/ComposerEditor";
+import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
+import { ComposerSurface } from "@/features/composerTurnControl/ComposerSurface";
+import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import { errorText } from "@/text/errorText";
+import type { NewSessionSnapshot } from "./newSessionOwner";
+import { NewSessionWorkingDirectory } from "./NewSessionWorkingDirectory";
+import { useNewSessionSkillCatalog } from "./useNewSessionSkillCatalog";
+import { isMacAppleWebKitRuntime } from "@/features/composerEditor/composerRuntime";
+
+export function NewSessionPage() {
+  const { newSessionOwner, commands } = useAppCapabilities();
+  const snapshot = useNewSessionSnapshot();
+  const cwd = useNewSessionCwd();
+
+  useEffect(() => {
+    newSessionOwner.open(cwd);
+  }, [cwd, newSessionOwner]);
+
+  return (
+    <main className="app-shell-content-boundary flex min-h-0 flex-1 flex-col justify-end gap-4 pt-3">
+      {snapshot == null ? (
+        <p className="text-muted">
+          <Trans>A working directory is required to start a session.</Trans>
+        </p>
+      ) : (
+        <NewSessionEditor commands={commands} snapshot={snapshot} />
+      )}
+    </main>
+  );
+}
+
+function NewSessionEditor({
+  commands,
+  snapshot,
+}: Readonly<{
+  commands: GuiHostCommands | null;
+  snapshot: NonNullable<NewSessionSnapshot>;
+}>) {
+  const navigate = useNavigate();
+  const { newSessionOwner, activeThreadSession, authorizationToken } = useAppCapabilities();
+  const [controller, setController] = useState<ComposerEditorController | null>(null);
+  const draftText = useSyncExternalStore(
+    controller?.subscribe ?? subscribeUnavailableEditor,
+    () => controller?.getSnapshot().textContent ?? "",
+  );
+  const attachmentsReady = useSyncExternalStore(
+    controller?.subscribe ?? subscribeUnavailableEditor,
+    () => controller?.getSnapshot().attachmentsReady ?? false,
+  );
+  const { skillCatalog, retry } = useNewSessionSkillCatalog(snapshot.cwd, commands);
+  const pending = snapshot.phase === "creating" || snapshot.phase === "activating";
+  const unknownHandoff = snapshot.phase === "handoffUnknown";
+  const submit = async (capture?: ComposerDraftCapture): Promise<void> => {
+    if (commands == null) return;
+    const result = await newSessionOwner.submit(capture);
+    if (result.type !== "accepted") return;
+    try {
+      await navigate({ to: CURRENT_TASK_ROUTE_PATH, params: { threadId: result.threadId } });
+    } catch (error: unknown) {
+      activeThreadSession?.setOperationError(result.threadId, "navigation", error);
+    }
+  };
+
+  return (
+    <ComposerSurface
+      header={<NewSessionWorkingDirectory cwd={snapshot.cwd} />}
+      feedback={
+        snapshot.failure == null ? null : (
+          <Alert role="alert" status="danger">
+            <Alert.Indicator />
+            <FailureLayout
+              actions={
+                unknownHandoff && snapshot.threadId != null ? (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onPress={() => {
+                      const threadId = snapshot.threadId;
+                      if (threadId == null) return;
+                      void navigate({ to: CURRENT_TASK_ROUTE_PATH, params: { threadId } }).catch(
+                        (error: unknown) =>
+                          activeThreadSession?.setOperationError(threadId, "navigation", error),
+                      );
+                    }}
+                  >
+                    <Trans>Open session</Trans>
+                  </Button>
+                ) : null
+              }
+            >
+              <Alert.Content>
+                <Alert.Title>
+                  <Trans>Unable to start the conversation</Trans>
+                </Alert.Title>
+                <Alert.Description>
+                  {unknownHandoff ? (
+                    <Trans comment="Input may already belong to the existing task queue; do not offer another send">
+                      Input handoff could not be confirmed. Open the session to review its queue
+                      before continuing.
+                    </Trans>
+                  ) : snapshot.failure.stage === "create" &&
+                    snapshot.failure.delivery === "deliveryUnknown" ? (
+                    <Trans comment="thread/start may have succeeded without returning an ID; an explicit retry can create another empty session">
+                      The creation result is unknown. Retrying may leave an extra empty session.
+                    </Trans>
+                  ) : (
+                    <Trans>Your input is retained. Retry to continue.</Trans>
+                  )}
+                </Alert.Description>
+                <FailureDiagnosticModal triggerClassName="mt-2 self-start">
+                  {errorText(snapshot.failure.error)}
+                </FailureDiagnosticModal>
+              </Alert.Content>
+            </FailureLayout>
+          </Alert>
+        )
+      }
+      editor={{
+        authorizationToken,
+        onControllerChange: setController,
+        disabled: commands == null || snapshot.isInputLocked,
+        guardCompositionEndEnter: isMacAppleWebKitRuntime(),
+        initialDraft: snapshot.draft,
+        onDraftChange: (draft) => {
+          newSessionOwner.saveDraft(draft);
+        },
+        onRetrySkillCatalog: retry,
+        onSubmit: (capture) => {
+          void submit(capture);
+        },
+        submitIntents: ["ordinary"],
+        skillCatalog,
+      }}
+      actions={
+        <ComposerSendButton
+          isDisabled={
+            commands == null ||
+            pending ||
+            unknownHandoff ||
+            draftText.trim().length === 0 ||
+            !attachmentsReady
+          }
+          isPending={pending}
+          onPress={() => {
+            void submit(snapshot.isInputLocked ? undefined : controller?.capture());
+          }}
+        />
+      }
+    />
+  );
+}
+
+const subscribeUnavailableEditor = (): (() => void) => () => undefined;

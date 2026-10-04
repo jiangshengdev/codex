@@ -3,15 +3,33 @@ import {
   attachBaseline,
   closedBackpressure,
   eventAgentMessageDelta,
+  eventTokenUsageUpdated,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
-import { requestDescriptors } from "@/generated/appServerProtocol";
+import { classifyServerNotification, requestDescriptors } from "@/generated/appServerProtocol";
 import {
   validateV2ThreadProjectionClosedNotification,
   validateV2ThreadProjectionDeltaNotification,
   validateV2ThreadProjectionEventNotification,
+  validateV2ThreadStatusChangedNotification,
 } from "@/generated/appServerProtocol/appServerPayloadValidators.js";
 import { validateJSONRPCMessage } from "@/generated/appServerProtocol/jsonRpcEnvelopeValidators.js";
+import type { RequestResponse } from "../appServerProtocol";
+import { createThreadResumeResponse } from "./threadResumeTestBuilders";
+
+const historyThread = attachBaseline.snapshot.thread;
+
+const threadListResponse = {
+  data: [historyThread],
+  nextCursor: "next-page",
+  backwardsCursor: null,
+} satisfies RequestResponse<"thread/list">;
+
+const threadResumeResponse = createThreadResumeResponse(historyThread, {
+  model: "gpt-5",
+  modelProvider: "openai",
+  approvalPolicy: "on-request",
+});
 
 describe("generated app-server protocol", () => {
   it.each([
@@ -77,8 +95,145 @@ describe("generated app-server protocol", () => {
     ).toBe(false);
   });
 
+  it("validates turn/steer responses with the generated descriptor", () => {
+    expect(requestDescriptors["turn/steer"].validateResponse({ turnId: "turn-active" })).toBe(true);
+    expect(requestDescriptors["turn/steer"].validateResponse({})).toBe(false);
+    expect(requestDescriptors["turn/steer"].validateResponse({ turnId: null })).toBe(false);
+  });
+
+  it("validates thread/compact/start responses with the generated descriptor", () => {
+    const descriptor = requestDescriptors["thread/compact/start"];
+
+    expect(descriptor.validateResponse({})).toBe(true);
+    expect(descriptor.validateResponse({ futureField: true })).toBe(true);
+    expect(descriptor.validateResponse(null)).toBe(false);
+    expect(descriptor.validateResponse([])).toBe(false);
+    expect(descriptor.validateResponse("invalid")).toBe(false);
+  });
+
+  it.each([
+    [
+      "skills/list",
+      {
+        data: [
+          {
+            cwd: "/workspace/project",
+            skills: [
+              {
+                name: "grill-me",
+                description: "Stress-test a plan.",
+                path: "/workspace/project/skills/grill-me/SKILL.md",
+                scope: "repo",
+                enabled: true,
+                pluginId: null,
+              },
+            ],
+            errors: [],
+          },
+        ],
+      } satisfies RequestResponse<"skills/list">,
+      {
+        data: [
+          {
+            cwd: "/workspace/project",
+            skills: [
+              {
+                name: "grill-me",
+                description: "Stress-test a plan.",
+                path: "/workspace/project/skills/grill-me/SKILL.md",
+                scope: "repo",
+                enabled: null,
+              },
+            ],
+            errors: [],
+          },
+        ],
+      },
+    ],
+    ["thread/list", threadListResponse, { data: null, nextCursor: null, backwardsCursor: null }],
+    [
+      "thread/loaded/list",
+      {
+        data: [historyThread.id],
+        nextCursor: "next-page",
+      } satisfies RequestResponse<"thread/loaded/list">,
+      { data: [null], nextCursor: null },
+    ],
+    [
+      "thread/read",
+      { thread: historyThread } satisfies RequestResponse<"thread/read">,
+      { thread: null },
+    ],
+    ["thread/resume", threadResumeResponse, { ...threadResumeResponse, thread: null }],
+    [
+      "thread/projection/detach",
+      { status: "detached" } satisfies RequestResponse<"thread/projection/detach">,
+      { status: "unknown" },
+    ],
+  ] as const)(
+    "validates %s responses with the generated descriptor",
+    (method, response, malformed) => {
+      const descriptor = requestDescriptors[method];
+
+      expect(descriptor.validateResponse(response)).toBe(true);
+      expect(descriptor.validateResponse(malformed)).toBe(false);
+    },
+  );
+
+  it.each([
+    ["thread/list", "nextCursor", { ...threadListResponse, nextCursor: null }],
+    ["thread/loaded/list", "nextCursor", { data: [], nextCursor: null }],
+    ["thread/list", "backwardsCursor", threadListResponse],
+    ["thread/resume", "serviceTier", threadResumeResponse],
+    ["thread/resume", "reasoningEffort", threadResumeResponse],
+  ] as const)(
+    "requires %s response field %s while accepting explicit null",
+    (method, field, responseWithNull) => {
+      const responseWithoutField = { ...responseWithNull };
+      Reflect.deleteProperty(responseWithoutField, field);
+
+      const descriptor = requestDescriptors[method];
+      expect(descriptor.validateResponse(responseWithNull)).toBe(true);
+      expect(descriptor.validateResponse(responseWithoutField)).toBe(false);
+    },
+  );
+
+  it("classifies legal and malformed skills/changed notifications", () => {
+    expect(classifyServerNotification({ method: "skills/changed", params: {} })).toEqual({
+      type: "selected",
+      notification: { method: "skills/changed", params: {} },
+    });
+    expect(classifyServerNotification({ method: "skills/changed", params: null })).toEqual({
+      type: "selectedInvalid",
+      method: "skills/changed",
+    });
+  });
+
+  it("classifies legal and malformed thread/status/changed notifications", () => {
+    const notification = {
+      method: "thread/status/changed",
+      params: { threadId: historyThread.id, status: { type: "idle" } },
+    } as const;
+
+    expect(validateV2ThreadStatusChangedNotification(notification.params)).toBe(true);
+    expect(classifyServerNotification(notification)).toEqual({
+      type: "selected",
+      notification,
+    });
+    expect(
+      classifyServerNotification({
+        method: "thread/status/changed",
+        params: { threadId: historyThread.id, status: { type: "active" } },
+      }),
+    ).toEqual({
+      type: "selectedInvalid",
+      method: "thread/status/changed",
+    });
+  });
+
   it.each([
     ["event", validateV2ThreadProjectionEventNotification, eventTurnStarted],
+    ["token usage event", validateV2ThreadProjectionEventNotification, eventTokenUsageUpdated],
     ["delta", validateV2ThreadProjectionDeltaNotification, eventAgentMessageDelta],
     ["closed", validateV2ThreadProjectionClosedNotification, closedBackpressure],
   ])("validates legal projection %s params", (_, validate, params) => {
@@ -91,5 +246,27 @@ describe("generated app-server protocol", () => {
     ["closed", validateV2ThreadProjectionClosedNotification],
   ])("rejects projection %s params with missing required fields", (_, validate) => {
     expect(validate({})).toBe(false);
+  });
+
+  it("rejects a token usage event with a malformed nested payload", () => {
+    if (eventTokenUsageUpdated.event.type !== "tokenUsageUpdated") {
+      throw new Error("fixture must contain a tokenUsageUpdated projection event");
+    }
+
+    expect(
+      validateV2ThreadProjectionEventNotification({
+        ...eventTokenUsageUpdated,
+        event: {
+          ...eventTokenUsageUpdated.event,
+          notification: {
+            ...eventTokenUsageUpdated.event.notification,
+            tokenUsage: {
+              ...eventTokenUsageUpdated.event.notification.tokenUsage,
+              last: null,
+            },
+          },
+        },
+      }),
+    ).toBe(false);
   });
 });

@@ -1,0 +1,5 @@
+/* Prism's JSX tokens share HeroUI Tag's class name. Keep code tokens inline so
+   whitespace-only tokens preserve indentation and line breaks. */
+.sbdocs-content .prismjs .token.tag {
+  display: inline;
+}

@@ -12,7 +12,11 @@ import {
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import type { InitializeResponse } from "@codex-protocol/InitializeResponse";
-import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
+import type {
+  SkillsListResponse,
+  ThreadLoadedListResponse,
+  ThreadProjectionAttachResponse,
+} from "@codex-protocol/v2";
 
 const threadId = attachBaseline.snapshot.thread.id;
 const subscriptionId = "projection-e2e-subscription";
@@ -35,6 +39,7 @@ type LayoutMetrics = {
   bodyScrollWidth: number;
   clientWidth: number;
   composerRight: number;
+  composerStatusRight: number;
   scrollWidth: number;
   transcriptSurfaceRight: number;
 };
@@ -45,6 +50,15 @@ function rpcParams(request: RpcRequest): Record<string, unknown> {
   }
 
   return {};
+}
+
+function findRpcRequest(requests: readonly RpcRequest[], method: string): RpcRequest {
+  const request = requests.find((candidate) => candidate.method === method);
+  if (request == null) {
+    throw new Error(`${method} request must be recorded`);
+  }
+
+  return request;
 }
 
 const attachResponse: ThreadProjectionAttachResponse = attachWithTurns(
@@ -134,6 +148,15 @@ async function routeGuiHostWebSocket(
         return;
       }
 
+      if (request.method === "thread/loaded/list") {
+        const result = {
+          data: [threadId],
+          nextCursor: null,
+        } satisfies ThreadLoadedListResponse;
+        ws.send(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }));
+        return;
+      }
+
       if (request.method === "thread/projection/attach") {
         const params = rpcParams(request);
         if (params.threadId !== threadId) {
@@ -157,6 +180,27 @@ async function routeGuiHostWebSocket(
             }),
           );
         }
+        return;
+      }
+
+      if (request.method === "skills/list") {
+        const params = rpcParams(request);
+        const cwd = attach.snapshot.thread.cwd;
+        if (!Array.isArray(params.cwds) || params.cwds.length !== 1 || params.cwds[0] !== cwd) {
+          ws.send(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: request.id,
+              error: { code: -32000, message: "unexpected skills/list cwd" },
+            }),
+          );
+          return;
+        }
+
+        const result = {
+          data: [{ cwd, skills: [], errors: [] }],
+        } satisfies SkillsListResponse;
+        ws.send(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }));
         return;
       }
 
@@ -191,27 +235,29 @@ async function routeGuiHostWebSocket(
   return sentRequests;
 }
 
-test("records a launch-param error without rendering host debug UI", async ({ page }) => {
+test("renders not found for the legacy root path without starting the GUI host", async ({
+  page,
+}) => {
   await page.goto("/");
 
-  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "error");
-  await expect(page.getByRole("region", { name: "Committed transcript" })).toBeVisible();
-  await expect(page.getByText("No committed messages yet.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Committed transcript" })).toHaveCount(0);
   await expect(page.getByText("GUI host")).toHaveCount(0);
 });
 
 test("authenticates, attaches, records attach state, and clears token", async ({ page }) => {
   const sentRequests = await routeGuiHostWebSocket(page);
 
-  await page.goto(`/?threadId=${threadId}#token=e2e-secret-token`);
+  await page.goto(`/task/${threadId}#token=e2e-secret-token`);
 
-  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "attached");
+  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "initialized");
   await expect(page.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect(page.getByText("No committed messages yet.")).toBeVisible();
   await expect(page.getByText("GUI host")).toHaveCount(0);
   await expect
-    .poll(() => sentRequests.map((request) => request.method))
-    .toEqual(["gui/authenticate", "initialize", "thread/projection/attach"]);
+    .poll(() => sentRequests.slice(0, 4).map((request) => request.method))
+    .toEqual(["gui/authenticate", "initialize", "thread/loaded/list", "thread/projection/attach"]);
+  expect(sentRequests.some((request) => request.method === "thread/resume")).toBe(false);
   expect(page.url()).not.toContain("#token=");
 });
 
@@ -222,24 +268,34 @@ test("fits committed transcript and composer in a narrow mobile viewport", async
     emitActiveTurnEvent: false,
   });
 
-  await page.goto(`/?threadId=${threadId}#token=e2e-secret-token`);
+  await page.goto(`/task/${threadId}#token=e2e-secret-token`);
 
   await expect(page.getByRole("article", { name: `Turn ${mobileStressTurnId}` })).toBeVisible();
   await expect(page.getByRole("region", { name: "Message composer" })).toBeVisible();
+  await expect(page.getByRole("status", { name: "Current task is idle" })).toHaveText("Idle");
 
   const layout = await page.evaluate<LayoutMetrics>(`(() => {
-    const appSurface = document.querySelector(".surface");
-    const transcriptSurface = document.querySelector(".committed-transcript-surface");
-    const composer = document.querySelector('[aria-label="Message composer"]');
+    const requireElement = (selector) => {
+      const elements = document.querySelectorAll(selector);
+      if (elements.length !== 1) {
+        throw new Error("Expected exactly one layout element for " + selector + ", found " + elements.length);
+      }
+      return elements[0];
+    };
+    const appSurface = requireElement("main > .surface:has(> .committed-transcript-surface)");
+    const transcriptSurface = requireElement(".committed-transcript-surface");
+    const composer = requireElement('[aria-label="Message composer"]');
+    const composerStatus = requireElement(".current-thread-status");
 
     return {
       clientWidth: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
       bodyClientWidth: document.body.clientWidth,
       bodyScrollWidth: document.body.scrollWidth,
-      appSurfaceRight: appSurface?.getBoundingClientRect().right ?? 0,
-      transcriptSurfaceRight: transcriptSurface?.getBoundingClientRect().right ?? 0,
-      composerRight: composer?.getBoundingClientRect().right ?? 0,
+      appSurfaceRight: appSurface.getBoundingClientRect().right,
+      transcriptSurfaceRight: transcriptSurface.getBoundingClientRect().right,
+      composerRight: composer.getBoundingClientRect().right,
+      composerStatusRight: composerStatus.getBoundingClientRect().right,
     };
   })()`);
 
@@ -248,35 +304,41 @@ test("fits committed transcript and composer in a narrow mobile viewport", async
   expect(layout.appSurfaceRight).toBeLessThanOrEqual(layout.clientWidth);
   expect(layout.transcriptSurfaceRight).toBeLessThanOrEqual(layout.clientWidth);
   expect(layout.composerRight).toBeLessThanOrEqual(layout.clientWidth);
+  expect(layout.composerStatusRight).toBeGreaterThan(0);
+  expect(layout.composerStatusRight).toBeLessThanOrEqual(layout.clientWidth);
 });
 
 test("sends plain text through turn/start", async ({ page }) => {
   const sentRequests = await routeGuiHostWebSocket(page, { emitActiveTurnEvent: false });
 
-  await page.goto(`/?threadId=${threadId}#token=e2e-secret-token`);
-  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "attached");
+  await page.goto(`/task/${threadId}#token=e2e-secret-token`);
+  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "initialized");
 
-  await page.getByPlaceholder("Message Codex").fill("Hello from e2e");
+  const composer = page.getByRole("combobox", { name: "Message Codex", exact: true });
+  await composer.fill("Hello from e2e");
   await page.getByRole("button", { name: "Send" }).click();
 
   await expect
     .poll(() => sentRequests.find((request) => request.method === "turn/start"))
     .toBeTruthy();
 
-  const turnStart = sentRequests.find((request) => request.method === "turn/start");
-  expect(turnStart?.params).toEqual({
+  const turnStart = findRpcRequest(sentRequests, "turn/start");
+  const params = rpcParams(turnStart);
+  const clientUserMessageId = params.clientUserMessageId;
+  expect(typeof clientUserMessageId).toBe("string");
+  expect(params).toEqual({
     threadId,
-    clientUserMessageId: null,
+    clientUserMessageId,
     input: [{ type: "text", text: "Hello from e2e", text_elements: [] }],
   });
-  await expect(page.getByPlaceholder("Message Codex")).toHaveValue("");
+  await expect(composer).toHaveText("");
 });
 
 test("interrupts active turn through turn/interrupt", async ({ page }) => {
   const sentRequests = await routeGuiHostWebSocket(page);
 
-  await page.goto(`/?threadId=${threadId}#token=e2e-secret-token`);
-  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "attached");
+  await page.goto(`/task/${threadId}#token=e2e-secret-token`);
+  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "initialized");
 
   await expect(page.getByRole("button", { name: "Stop" })).toBeEnabled();
   await page.getByRole("button", { name: "Stop" }).click();

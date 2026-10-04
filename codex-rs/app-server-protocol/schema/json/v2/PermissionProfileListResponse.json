@@ -42,7 +42,8 @@
     }
   },
   "required": [
-    "data"
+    "data",
+    "nextCursor"
   ],
   "title": "PermissionProfileListResponse",
   "type": "object"

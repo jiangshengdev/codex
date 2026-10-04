@@ -10,6 +10,7 @@ import eventReasoningSummaryPartAddedDeltaJson from "../__fixtures__/event-reaso
 import eventReasoningSummaryTextDeltaJson from "../__fixtures__/event-reasoning-summary-text-delta.json" with { type: "json" };
 import eventReasoningTextDeltaJson from "../__fixtures__/event-reasoning-text-delta.json" with { type: "json" };
 import eventSubscriptionReplacementJson from "../__fixtures__/event-subscription-replacement.json" with { type: "json" };
+import eventTokenUsageUpdatedJson from "../__fixtures__/event-token-usage-updated.json" with { type: "json" };
 import eventTurnCompletedJson from "../__fixtures__/event-turn-completed.json" with { type: "json" };
 import eventTurnStartedJson from "../__fixtures__/event-turn-started.json" with { type: "json" };
 import type {
@@ -34,6 +35,8 @@ export const eventReasoningItemCompleted =
 export const eventTurnCompleted = eventTurnCompletedJson as ThreadProjectionEventNotification;
 export const eventSubscriptionReplacement =
   eventSubscriptionReplacementJson as ThreadProjectionEventNotification;
+export const eventTokenUsageUpdated =
+  eventTokenUsageUpdatedJson as ThreadProjectionEventNotification;
 export const eventReasoningSummaryTextDelta =
   eventReasoningSummaryTextDeltaJson as ThreadProjectionDeltaNotification;
 export const eventReasoningSummaryPartAddedDelta =

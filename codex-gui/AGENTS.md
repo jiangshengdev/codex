@@ -1,5 +1,34 @@
 # codex-gui
 
+## Required Reading Before Frontend Work
+
+- Before starting any frontend work in `codex-gui`, read and apply the local HeroUI [Design Principles](<.heroui-docs/react/getting-started/(overview)/design-principles.mdx>). This requirement covers investigation, design, planning, implementation, review, and verification, not only code edits. Read the principles before proposing a solution; component API documentation does not replace this prerequisite.
+
+## Repository Formatting Scope
+
+- Run repository-level `just fmt` if and only if the task changes at least one file managed by the live `scripts/format.py`, including tasks that also change unmanaged files. Its current scopes are the repository Justfile, Rust files handled by `cargo fmt`, Bazel/Starlark files handled by buildifier, and Python files under `sdk/python` and `scripts`; the live implementation remains authoritative if these scopes change.
+- Changes confined to unmanaged paths, including frontend files under `codex-gui/**`, `docs/**`, or Markdown files, do not trigger `just fmt`. Pure frontend formatting uses the applicable scripts in `codex-gui/package.json`.
+
+Use `$codex-gui-toolchain` to select and run frontend formatters, package scripts, and verification entrypoints.
+
+## Skill Routing
+
+- Use `$gui-launch` for ordinary `GUI 启动`, `启动 GUI`, `/gui`, or URL-only requests. Real GUI debugging and acceptance are routed below.
+- Use `$heroui-react` for HeroUI v3 documentation, package, and API details, and `$redux-toolkit` for Redux Toolkit documentation, API, and architecture rules.
+- Use `$lingui-catalog-workflow` when Lingui message extraction, catalog diffs, catalog translation changes, or extraction stability are in scope.
+
+## Frontend Engineering Constraints
+
+- Each production Modal or Drawer must establish an explicit initial focus target on every opening and verify its observable focus behavior. Reading dialogs focus their heading without adding it to the normal Tab order; action-oriented overlays use the appropriate control. Preserve existing designated-group and editor focus semantics.
+- When an overlay contains a menu, cover menu dismissal, restoration to the surviving trigger, containment, layered Escape, and final restoration to the overlay opener. An `autoFocus` attribute alone is not acceptance evidence. Reuse HeroUI/React Aria focus management; do not add a global recovery owner or a universal overlay wrapper to force focus.
+- For menu restoration races, start with the known mechanism and minimal evidence path in [Overlay focus](../docs/agents/overlay-focus.md). The shared Browser test helper advances dialog timeouts after real menu removal while leaving the actual FocusScope restore frame intact.
+
+- Within `codex-gui/**`, Rust module LoC, changed lines, and TypeScript, TSX, or JavaScript file length measure different objects. Do not convert one into another or use any of them alone as a hard stop.
+- Evaluate frontend structure by responsibilities, state ownership, coupling, function scope, testability, and reviewability. A small public interface or short file does not justify concentrating multiple operations or state-transition families in one function, factory, or closure.
+- Do not split, compress, weaken, or remove frontend tests merely to satisfy a length signal. Add style tests only for stable, user-visible product constraints with a concrete regression risk.
+- Typed in-process boundaries should default to types, ownership, copying, and encapsulation. Runtime defense requires a documented actor, supported path, and failure impact that those boundaries cannot address; do not lock the defensive mechanism into tests unless runtime resistance is itself a product or security requirement.
+- When a metric, historical implementation, or claim that something is “safer” would determine stopping, splitting, defensive machinery, or test scope, use `$evaluating-engineering-constraints`.
+
 ## Authoritative Contract Invariants
 
 - Treat every cross-module or generated contract consumed by `codex-gui` as having a single authoritative source. Use its authoritative artifacts directly or derive from them mechanically.
@@ -12,6 +41,19 @@
 - Frontend-owned domain models are allowed only when they express distinct frontend semantics rather than a renamed, narrowed, or duplicated contract. Their conversion boundary must accept the authoritative type and preserve compile-time exhaustiveness for variants.
 - Compatible upstream additions that are not consumed locally do not need artificial failures. Do not suppress genuine incompatibilities that affect existing consumers.
 - Designs, plans, and reviews must identify the authoritative source and derivation path for affected contracts. If a proposal duplicates a contract or interrupts compile-time failure propagation, stop and redesign before implementation.
+
+## Frontend Evidence Closure
+
+- For high-risk GUI changes, read and apply `$managing-work-stages`'s `references/vertical-impact-closure.md` for all applicable entrypoint, export, consumer, lifecycle, recovery, and verification chains. Include real production and mount entrypoints, dynamic registrations and their indirect consumers, DOM/ARIA selectors, test fixtures, and Browser Mode/E2E verification.
+- For contract-bearing changes, apply the Authoritative Contract Invariants above and trace the authoritative TypeScript contract, runtime validator, schema inputs, generated artifacts, and generated fixtures.
+
+## GUI Acceptance Levels
+
+- Level 1 is automated regression in an isolated or test environment. It covers browser tests, DOM and event assertions, accessibility, screenshots, and geometry checks, but does not substitute for real Codex integration when that integration is affected.
+- Level 2 is headless real-application acceptance against the current Codex runtime, target route, and required real state. Use it for affected layout and responsive geometry; overlays, opening direction, occlusion, clipping, and scrolling; pointer and keyboard interaction and focus flow; component states such as default, hover, disabled, invalid, and `focus-visible`; and other integration behavior observable without a visible desktop window.
+- Level 3 is visible-desktop acceptance and applies only when the result itself depends on operating-system windows, desktop or cross-application focus, DevTools, system IME UI, or another behavior that headless automation cannot prove. Route it to `$debug-responsive-gui`, and obtain separate explicit authorization for the visible-window impact before opening or reusing any visible browser or desktop window.
+- Plans and final reports must record each level's applicability and result separately. When all applicable Level 1 and Level 2 scenarios pass and Level 3 is not applicable, the GUI change may be reported as completely verified. When Level 3 applies but is not executed, report `可见桌面验收未执行` and do not claim complete completion or verification.
+- Pure type changes, generated artifacts, invisible internal logic, and frontend changes with none of these effects do not trigger GUI acceptance merely because they are under `codex-gui/**`.
 
 ## HeroUI Design System Invariants
 
@@ -26,7 +68,24 @@
 - Transcript rendering must preserve chunk-level performance boundaries. Do not flatten all entries for a turn in render paths, selectors, or display grouping unless the design explicitly justifies the bounded cost.
 - UI-only features such as grouping, collapse, disclosure, or labels must not turn chunked transcript data back into full-turn arrays, and must not render every hidden entry while collapsed.
 - Prefer chunk-level selectors and chunk-level React components for transcript hot paths. Unchanged chunks should keep stable selector results and avoid re-rendering old entries when new entries append to later chunks.
-- Changes to transcript rendering or grouping must include regression coverage or an issue-note update that explains the performance impact.
+- Performance verification must target a measurable risk. Regression coverage should encode a stable constraint; the existence of a test or issue note does not by itself establish that the rendering path is performant.
+
+## Storybook Organization
+
+- Organize Storybook sidebar titles as `Module/Feature folder/Story set`, for example `History/List/States`. Keep a feature folder between the top-level module and its story sets; do not place story sets directly under the module. Use existing module and folder names when they fit the capability.
+- When adding, renaming, or moving sidebar groups, update `parameters.options.storySort.order` in `.storybook/preview.tsx` in the same change. Explicitly order the affected top-level modules, feature folders, and story sets using their exact title segments; do not rely on discovery order or default sorting. Preserve unrelated ordering.
+- For organization-only changes, preserve existing story IDs, exported story names, direct links, scenario behavior, and product behavior. If a title change would alter generated IDs, retain the previous IDs through explicit metadata before reorganizing.
+- Verify the resulting Storybook index and sidebar hierarchy/order, and check that existing story IDs and scenario coverage are retained. Use verification scoped to the affected organization; do not introduce a full-suite requirement for title or ordering changes.
+
+## Filtered Test Execution
+
+- Do not write or run tests for debugging support code, including DEV controls, debug panels, and control logic for scenario switching or simulation restarts. Storybook may still be used to test product behavior; debugging operations may serve as test setup, but must not be assertion targets themselves. This restriction takes precedence over general test execution requirements.
+- Default to filtered frontend tests for local development and verification. Select test files from the changed behavior, its consumers, and relevant regression coverage; do not run the entire unit, Browser, E2E, or `ci` suite after every edit.
+- Pass explicit test file paths to the repository-owned scripts through the fnm environment defined by `$codex-gui-toolchain`. For focused diagnosis, additionally use Vitest `-t` to match the full test name (including `describe` names) with a regular expression. Before completing a behavior change, run the affected test files without the name filter so neighboring regressions remain covered.
+- From `codex-gui`, use `/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit <test-file>` for unit tests. For Browser tests, use `/opt/homebrew/bin/fnm exec --using-file pnpm run test:browser:parallel --run <test-file>` or `test:browser:sequential` for files under `src/__tests__/sequential/**`. Do not insert an extra `--` between the script name and its arguments. Do not pass filters to the aggregate `test:browser` script; select the applicable child script directly.
+- Check the actual collected files, executed test count, and skipped tests. Zero matching tests is not a pass; unexpected full-suite collection means the filter must be corrected before continuing. Report the scope actually verified.
+- Broaden testing only when the affected dependency or shared setup/configuration requires it, a failure or new evidence warrants it, or the user or an applicable mandatory gate explicitly requires it. Explain the reason and choose the smallest scope covering that impact. After the relevant checks pass, do not repeat or broaden them without new changes or unresolved evidence.
+- Filtering selects execution scope; it does not authorize deleting coverage, adding `.only` or `.skip`, weakening assertions, suppressing failures, reducing required browser coverage, or changing CI gates. Required type checks, lint, generation checks, and applicable GUI acceptance remain governed by their existing rules.
 
 ## Test Fixture Invariants
 

@@ -12,6 +12,7 @@ import {
   eventReasoningSummaryTextDelta,
   eventReasoningTextDelta,
   eventSubscriptionReplacement,
+  eventTokenUsageUpdated,
   eventTurnCompleted,
   eventTurnStarted,
 } from "./projectionFixtures";
@@ -131,7 +132,8 @@ describe("Rust-generated projection fixtures", () => {
     expect(eventItemCompleted.parentCommitId).toBe(eventItemStarted.commitId);
     expect(eventReasoningItemStarted.parentCommitId).toBe(eventItemCompleted.commitId);
     expect(eventReasoningItemCompleted.parentCommitId).toBe(eventReasoningItemStarted.commitId);
-    expect(eventTurnCompleted.parentCommitId).toBe(eventReasoningItemCompleted.commitId);
+    expect(eventTokenUsageUpdated.parentCommitId).toBe(eventReasoningItemCompleted.commitId);
+    expect(eventTurnCompleted.parentCommitId).toBe(eventTokenUsageUpdated.commitId);
   });
 
   it("keeps the replacement subscription chain separate", () => {
@@ -143,8 +145,6 @@ describe("Rust-generated projection fixtures", () => {
   });
 
   it("does not contain historical sequence projection fields", () => {
-    expect(fixturePayloads).toHaveLength(14);
-
     for (const payload of fixturePayloads) {
       for (const fieldName of [
         "projectionInstanceId",

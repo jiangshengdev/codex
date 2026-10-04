@@ -1,0 +1,97 @@
+import { vi } from "vitest";
+import { createDeferred } from "@/__tests__/testDeferred";
+import type { ActiveThreadProjectionAcceptedEvent } from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import {
+  eventWithEnvelope,
+  userMessage,
+} from "@/features/projection/__tests__/projectionTestBuilders";
+import type { ThreadItem } from "@codex-protocol/v2";
+import {
+  createComposerInputQueueCoordinator,
+  type ComposerInputQueueCoordinator,
+  type CreateComposerInputQueueCoordinatorInput,
+} from "../composerInputQueueCoordinator";
+
+export type StartTurn = CreateComposerInputQueueCoordinatorInput["startTurn"];
+export type SteerTurn = CreateComposerInputQueueCoordinatorInput["steerTurn"];
+export type InterruptTurn = CreateComposerInputQueueCoordinatorInput["interruptTurn"];
+
+type CreateCoordinatorOptions = Omit<
+  CreateComposerInputQueueCoordinatorInput,
+  "interruptTurn" | "persistence"
+> &
+  Partial<Pick<CreateComposerInputQueueCoordinatorInput, "interruptTurn" | "persistence">>;
+
+type StartResponse = Awaited<ReturnType<StartTurn>>;
+type PendingInputPage = Extract<
+  ReturnType<ComposerInputQueueCoordinator["readPendingInputPage"]>,
+  { type: "page" }
+>;
+type UserMessage = Extract<ThreadItem, { type: "userMessage" }>;
+
+export function createCoordinator(
+  options: CreateCoordinatorOptions,
+): ComposerInputQueueCoordinator {
+  return createComposerInputQueueCoordinator({
+    ...options,
+    persistence: options.persistence ?? createPersistenceTestContext(),
+    interruptTurn: options.interruptTurn ?? vi.fn<InterruptTurn>(),
+  });
+}
+
+export function createPersistenceTestContext(): CreateComposerInputQueueCoordinatorInput["persistence"] {
+  const records = new Map<string, string>();
+  return {
+    authorizationContext: crypto.randomUUID(),
+    storage: {
+      getItem: (key) => records.get(key) ?? null,
+      setItem: (key, value) => {
+        records.set(key, value);
+      },
+    },
+  };
+}
+
+export function deferredStart(): {
+  promise: Promise<StartResponse>;
+  resolve: (response: StartResponse) => void;
+  reject: (error: unknown) => void;
+} {
+  return createDeferred<StartResponse>();
+}
+
+export function live(
+  notification: ActiveThreadProjectionAcceptedEvent["notification"],
+): ActiveThreadProjectionAcceptedEvent {
+  return {
+    notification: eventWithEnvelope(notification, { threadId: "thread-1" }),
+    replay: "live",
+  };
+}
+
+export function pendingItem(
+  coordinator: ComposerInputQueueCoordinator,
+  lane: Parameters<ComposerInputQueueCoordinator["readPendingInputPage"]>[0]["lane"],
+  index = 0,
+): PendingInputPage["items"][number] {
+  const page = coordinator.readPendingInputPage({
+    lane,
+    revision: coordinator.getSnapshot().detailRevision,
+    cursor: null,
+    limit: 10,
+  });
+  if (page.type !== "page" || page.items[index] == null) {
+    throw new Error(`expected pending ${lane} item at index ${String(index)}`);
+  }
+  return page.items[index];
+}
+
+export function committedUserMessage(clientId: string): UserMessage {
+  const item = userMessage("item-1", []);
+  if (item.type !== "userMessage") throw new Error("userMessage builder returned another variant");
+  return { ...item, clientId };
+}
+
+export function nextMicrotask(): Promise<void> {
+  return Promise.resolve();
+}

@@ -4,38 +4,15 @@ import type { GuiAuthenticateResult } from "@codex-gui-host-contract";
 import { requestDescriptors } from "@/generated/appServerProtocol";
 import {
   GuiHostTransportSession,
+  type TransportRequestDelivery,
   type TransportRequestFailure,
   type TransportRequestSettlement,
 } from "../guiHostTransportSession";
-
-class RecordingSocket {
-  sent: string[] = [];
-  closed: { code: number | undefined; reason: string | undefined }[] = [];
-  readyState: number = WebSocket.OPEN;
-  onerror: ((event: Event) => void) | null = null;
-  onmessage: ((event: MessageEvent) => void) | null = null;
-  onopen: ((event: Event) => void) | null = null;
-  onclose: ((event: CloseEvent) => void) | null = null;
-
-  send(message: string): void {
-    this.sent.push(message);
-  }
-
-  close(code?: number, reason?: string): void {
-    this.closed.push({ code, reason });
-  }
-}
+import { initializeResponse, RecordingSocket } from "./guiHostTestSupport";
 
 const initializeParams = {
   clientInfo: { name: "codex-gui", title: null, version: "0.0.0" },
   capabilities: null,
-};
-
-const initializeResponse: InitializeResponse = {
-  userAgent: "codex-test",
-  codexHome: "/codex-home",
-  platformFamily: "test",
-  platformOs: "test",
 };
 
 function createSession(
@@ -60,11 +37,12 @@ function requestId(socket: RecordingSocket): number {
 function expectFailure(
   settlement: TransportRequestSettlement<InitializeResponse> | undefined,
   source: TransportRequestFailure["source"],
+  delivery: TransportRequestDelivery,
   message: string,
 ): void {
   expect(settlement).toEqual({
     type: "failure",
-    failure: { source, error: new Error(message) },
+    failure: { source, delivery, error: new Error(message) },
   });
   if (settlement?.type !== "failure") {
     throw new Error("Expected a failed settlement");
@@ -108,7 +86,12 @@ describe("GuiHostTransportSession", () => {
     });
 
     expect(session.settleMissingResult(requestId(socket))).toBe(true);
-    expectFailure(settlement, "missingResult", "initialize returned no result payload");
+    expectFailure(
+      settlement,
+      "missingResult",
+      "deliveryUnknown",
+      "initialize returned no result payload",
+    );
     await expect(promise).rejects.toEqual(new Error("initialize returned no result payload"));
   });
 
@@ -124,6 +107,7 @@ describe("GuiHostTransportSession", () => {
       type: "failure",
       failure: {
         source: "malformedResult",
+        delivery: "deliveryUnknown",
         error: new Error("gui/authenticate returned malformed result payload"),
       },
     });
@@ -140,13 +124,18 @@ describe("GuiHostTransportSession", () => {
     });
 
     expect(session.settleResult(requestId(socket), {})).toBe(true);
-    expectFailure(settlement, "malformedResult", "initialize returned malformed result payload");
+    expectFailure(
+      settlement,
+      "malformedResult",
+      "deliveryUnknown",
+      "initialize returned malformed result payload",
+    );
     await expect(promise).rejects.toEqual(
       new Error("initialize returned malformed result payload"),
     );
   });
 
-  it("rejects a correlated RPC failure with a plain Error, rpc source, and exact text", async () => {
+  it("preserves a correlated RPC error envelope with the existing failure semantics", async () => {
     const { session, socket } = createSession();
     let settlement: TransportRequestSettlement<InitializeResponse> | undefined;
     const promise = session.request(requestDescriptors.initialize, initializeParams, (value) => {
@@ -154,9 +143,31 @@ describe("GuiHostTransportSession", () => {
     });
     const id = requestId(socket);
     const message = `JSON-RPC error (id=${String(id)}, code=-32000): request failed`;
+    const rpcError = {
+      code: -32000,
+      message: "request failed",
+      data: {
+        message: "cannot steer a review turn",
+        codexErrorInfo: { activeTurnNotSteerable: { turnKind: "review" } },
+        additionalDetails: null,
+      },
+    };
 
-    expect(session.settleRpcError(id, { code: -32000, message: "request failed" })).toBe(true);
-    expectFailure(settlement, "rpc", message);
+    expect(session.settleRpcError(id, rpcError)).toBe(true);
+    expect(settlement).toEqual({
+      type: "failure",
+      failure: {
+        source: "rpc",
+        delivery: "definitelyNotAccepted",
+        error: new Error(message),
+        rpcError,
+      },
+    });
+    if (settlement?.type !== "failure" || settlement.failure.source !== "rpc") {
+      throw new Error("Expected an RPC failure settlement");
+    }
+    expect(settlement.failure.error.constructor).toBe(Error);
+    expect(settlement.failure.rpcError).toBe(rpcError);
     await expect(promise).rejects.toEqual(new Error(message));
   });
 
@@ -185,7 +196,10 @@ describe("GuiHostTransportSession", () => {
     expect(sendError.operation).toBe("initialize");
     expect(sendError.cause).toBe(cause);
     expect(settlements).toEqual([
-      { type: "failure", failure: { source: "send", error: sendError } },
+      {
+        type: "failure",
+        failure: { source: "send", delivery: "definitelyNotAccepted", error: sendError },
+      },
     ]);
     expect(settlements[0]?.type === "failure" && settlements[0].failure.error).toBe(sendError);
 
@@ -220,7 +234,12 @@ describe("GuiHostTransportSession", () => {
       settlement = value;
     });
 
-    expectFailure(settlement, "send", "GUI host WebSocket is not available");
+    expectFailure(
+      settlement,
+      "send",
+      "definitelyNotAccepted",
+      "GUI host WebSocket is not available",
+    );
     await expect(promise).rejects.toEqual(new Error("GUI host WebSocket is not available"));
   });
 
@@ -265,7 +284,12 @@ describe("GuiHostTransportSession", () => {
     });
 
     expect(socket.sent).toEqual(sentBeforeRequest);
-    expectFailure(settlement, "unavailable", "GUI host WebSocket is not available");
+    expectFailure(
+      settlement,
+      "unavailable",
+      "definitelyNotAccepted",
+      "GUI host WebSocket is not available",
+    );
     await expect(promise).rejects.toEqual(new Error("GUI host WebSocket is not available"));
 
     const callbackError = new Error("unavailable settlement callback failed");
@@ -303,6 +327,7 @@ describe("GuiHostTransportSession", () => {
 
     expect(failures).toHaveLength(2);
     expect(failures[0]?.source).toBe("unavailable");
+    expect(failures[0]?.delivery).toBe("deliveryUnknown");
     expect(failures[0]?.error).toEqual(new Error("connection lost"));
     expect(failures[0]?.error).toBe(failures[1]?.error);
     await expect(firstPromise).rejects.toBe(failures[0]?.error);
@@ -426,7 +451,12 @@ describe("GuiHostTransportSession", () => {
     session.dispose(1000, "cleanup");
     session.dispose(1000, "cleanup");
 
-    expectFailure(settlement, "unavailable", "GUI host WebSocket is not available");
+    expectFailure(
+      settlement,
+      "unavailable",
+      "deliveryUnknown",
+      "GUI host WebSocket is not available",
+    );
     await expect(promise).rejects.toEqual(new Error("GUI host WebSocket is not available"));
     expect(socket.onopen).toBeNull();
     expect(socket.onmessage).toBeNull();

@@ -13,27 +13,1850 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
-#: src/PluralExample.tsx:17
-msgid "{count, plural, one {# month} other {# months}}"
-msgstr ""
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:259
+msgid "... and {count} more"
+msgstr "... and {count} more"
 
-#: src/MsgExample.tsx:11
-msgid "Blue"
-msgstr "Blue"
+#. placeholder {0}: preview.audioCount
+#: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:23
+msgid "{0, plural, one {# audio item} other {# audio items}}"
+msgstr "{0, plural, one {# audio item} other {# audio items}}"
 
-#: src/PluralExample.tsx:12
-msgid "Click on this button to test plurals"
-msgstr "Click on this button to test plurals"
+#. placeholder {0}: preview.imageCount
+#: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:20
+msgid "{0, plural, one {# image} other {# images}}"
+msgstr "{0, plural, one {# image} other {# images}}"
 
-#: src/LanguageSwitcher.tsx:33
-#: src/LanguageSwitcher.tsx:40
-msgid "Language"
-msgstr "Language"
+#. placeholder {0}: preview.mentionCount
+#: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:29
+msgid "{0, plural, one {# mention} other {# mentions}}"
+msgstr "{0, plural, one {# mention} other {# mentions}}"
 
-#: src/MsgExample.tsx:15
-msgid "Orange"
-msgstr "Orange"
+#. placeholder {0}: snapshot.recoveryCount
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:100
+msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
+msgstr "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 
-#: src/MsgExample.tsx:7
-msgid "Red"
-msgstr "Red"
+#. placeholder {0}: preview.skillCount
+#: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:26
+msgid "{0, plural, one {# skill} other {# skills}}"
+msgstr "{0, plural, one {# skill} other {# skills}}"
+
+#. Accessible name for a selected skill details trigger
+#: src/features/composerEditor/SelectedSkillToken.tsx:54
+msgid "{0} skill details"
+msgstr "{0} skill details"
+
+#. Accessible name for an invalid selected skill details trigger
+#: src/features/composerEditor/SelectedSkillToken.tsx:58
+msgid "{0} skill details, {1}"
+msgstr "{0} skill details, {1}"
+
+#: src/features/taskNotifications/TaskNotifications.tsx:29
+msgid "{count, plural, one {# question needs a response} other {# questions need a response}}"
+msgstr "{count, plural, one {# question needs a response} other {# questions need a response}}"
+
+#. Turn duration; subordinate minutes and seconds have two digits
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:39
+msgid "{hours}h {paddedMinutes}m {seconds}s"
+msgstr "{hours}h {paddedMinutes}m {seconds}s"
+
+#. Disclosure label showing how many intermediate transcript updates it contains
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:100
+msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
+msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
+
+#. Turn duration; seconds have two digits
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:44
+msgid "{minutes}m {seconds}s"
+msgstr "{minutes}m {seconds}s"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:367
+msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
+msgstr "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:93
+msgid "{percentageLabel} used"
+msgstr "{percentageLabel} used"
+
+#. Activity detail showing a raw collaborating-agent thread ID followed by its translated status
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:154
+msgid "{threadId}: {agentState}"
+msgstr "{threadId}: {agentState}"
+
+#. Turn duration in whole seconds
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:48
+msgid "{totalSeconds}s"
+msgstr "{totalSeconds}s"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:96
+msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
+msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:88
+msgid "{usedTokensLabel} tokens used; context window capacity unknown"
+msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
+
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:90
+msgid "A message update is missing its associated turn, so it cannot be fully displayed."
+msgstr "A message update is missing its associated turn, so it cannot be fully displayed."
+
+#: src/features/appShell/AppShellTopBar.tsx:209
+#: src/features/newSession/NewSessionPage.tsx:37
+msgid "A working directory is required to start a session."
+msgstr "A working directory is required to start a session."
+
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:276
+msgid "Active"
+msgstr "Active"
+
+#. Tasks kept open in this GUI, including idle tasks; not only running turns
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:29
+msgid "Active tasks"
+msgstr "Active tasks"
+
+#. Source label for a skill installed by an administrator
+#: src/features/composerEditor/skillSourceMessages.ts:29
+msgid "Admin"
+msgstr "Admin"
+
+#. Status shown when creation of a collaborating agent fails
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:186
+msgid "Agent spawn failed"
+msgstr "Agent spawn failed"
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:47
+msgid "An unexpected error occurred while continuing the task."
+msgstr "An unexpected error occurred while continuing the task."
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:112
+msgid "Another task switch is already in progress. Try again shortly."
+msgstr "Another task switch is already in progress. Try again shortly."
+
+#. Plain-text answer to an agent question
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:99
+msgid "Answer"
+msgstr "Answer"
+
+#. Answer accepted by the local sending queue, not necessarily consumed
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:126
+msgid "Answer submitted"
+msgstr "Answer submitted"
+
+#. Choose local files to attach to the current message
+#: src/features/composerEditor/ComposerAttachmentsPlugin.tsx:154
+msgid "Attach files"
+msgstr "Attach files"
+
+#. Pending message cannot be saved while an attachment is uploading or failed
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:505
+msgid "Attachments are not ready"
+msgstr "Attachments are not ready"
+
+#. Description for the task history destination in the navigation drawer
+#: src/features/appShell/AppShellTopBar.tsx:231
+msgid "Browse task history"
+msgstr "Browse task history"
+
+#: src/features/taskNotifications/BrowserNotificationPermission.tsx:53
+msgid "Browser notifications are unavailable. Task markers remain enabled."
+msgstr "Browser notifications are unavailable. Task markers remain enabled."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:328
+msgid "Cancel"
+msgstr "Cancel"
+
+#. Compact status for a browser image decoding failure
+#: src/features/fileUpload/UploadedImagePreview.tsx:106
+msgid "Cannot display preview"
+msgstr "Cannot display preview"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:304
+msgid "Changes copied"
+msgstr "Changes copied"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:46
+msgid "Changes could not be saved"
+msgstr "Changes could not be saved"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:84
+msgid "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
+msgstr "Check the queue, other open pages, and conversation history before continuing. Messages with an unknown sending result remain blocked."
+
+#: src/features/fileUpload/FileUploadDialog.tsx:73
+msgid "Choose a file"
+msgstr "Choose a file"
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:217
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:245
+msgid "Cleanup diagnostic:"
+msgstr "Cleanup diagnostic:"
+
+#. Accessible label for closing the failure diagnostics dialog
+#: src/feedback/FailureDiagnosticModal.tsx:28
+msgid "Close diagnostics"
+msgstr "Close diagnostics"
+
+#. Closes the attachment failure dialog
+#: src/features/fileUpload/AttachmentFailureDetails.tsx:38
+msgid "Close failure details"
+msgstr "Close failure details"
+
+#: src/features/fileUpload/FileUploadDialog.tsx:59
+msgid "Close file upload"
+msgstr "Close file upload"
+
+#: src/features/fileUpload/UploadedImagePreview.tsx:228
+msgid "Close image preview"
+msgstr "Close image preview"
+
+#. Collaboration activity showing the raw receiver value of the closed agent
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:240
+msgid "Closed {receiver}"
+msgstr "Closed {receiver}"
+
+#. Success label on a Markdown code block copy button.
+#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:21
+msgid "Code copied"
+msgstr "Code copied"
+
+#: src/features/appShell/AppShell.tsx:36
+#: src/features/appShell/ConnectionRecoveryNotice.tsx:54
+msgid "Codex GUI could not be started."
+msgstr "Codex GUI could not be started."
+
+#. Accessible name for the region containing committed transcript turns
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:145
+msgid "Committed transcript"
+msgstr "Committed transcript"
+
+#. Status chip for a completed turn
+#. Status of a collaborating agent that completed its work
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:186
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:97
+msgid "Completed"
+msgstr "Completed"
+
+#. Status of a collaborating agent followed by its raw completion-message preview
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:101
+msgid "Completed - {messagePreview}"
+msgstr "Completed - {messagePreview}"
+
+#. Activity showing sub-agents that completed work and any omitted count
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:405
+msgid "Completed <0/> <1/>"
+msgstr "Completed <0/> <1/>"
+
+#. Button that starts compression for the current conversation context
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:116
+msgid "Compress context"
+msgstr "Compress context"
+
+#. Status shown while the current conversation context is compressed
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:108
+msgid "Compressing"
+msgstr "Compressing"
+
+#. Accessible name for context controls after an uncertain compression request
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:37
+msgid "Compression request result unknown"
+msgstr "Compression request result unknown"
+
+#. GUI connection ended; retained conversations remain read-only
+#: src/features/appShell/ConnectionRecoveryNotice.tsx:41
+msgid "Connection closed"
+msgstr "Connection closed"
+
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:166
+msgid "Connection interrupted. Reconnect required."
+msgstr "Connection interrupted. Reconnect required."
+
+#: src/NotFoundPage.tsx:35
+msgid "Contact support"
+msgstr "Contact support"
+
+#. Shown above retained tasks after the GUI host connection closes
+#: src/features/appShell/ConnectionRecoveryNotice.tsx:50
+msgid "Content may not be up to date. Your conversations and input are still here."
+msgstr "Content may not be up to date. Your conversations and input are still here."
+
+#: src/features/committedTranscriptSurface/TranscriptContextBoundary.tsx:20
+msgid "Context compressed"
+msgstr "Context compressed"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:137
+msgid "Context compression could not be started."
+msgstr "Context compression could not be started."
+
+#. Accessible name for context controls while compression is active
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:42
+msgid "Context compression in progress"
+msgstr "Context compression in progress"
+
+#. Accessible name for a numbered transcript context page button
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:79
+msgid "Context page {item}"
+msgstr "Context page {item}"
+
+#. Accessible label for the context usage progress indicator
+#. Heading for context usage and compression controls
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:62
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:81
+msgid "Context usage"
+msgstr "Context usage"
+
+#. Accessible name for context controls with current token usage
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:30
+msgid "Context usage details, {percentageLabel} used, {usedTokensLabel} of {contextWindowLabel} tokens"
+msgstr "Context usage details, {percentageLabel} used, {usedTokensLabel} of {contextWindowLabel} tokens"
+
+#. Accessible name for context controls when capacity is unknown
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:26
+msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
+msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
+
+#. Resumes sending this page's restored queue; does not open the queue
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:94
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:73
+msgid "Continue sending"
+msgstr "Continue sending"
+
+#: src/features/threadHistory/ContinueTaskAction.tsx:234
+msgid "Continue this task"
+msgstr "Continue this task"
+
+#: src/features/threadHistory/ContinueTaskAction.tsx:228
+msgid "Continuing this task…"
+msgstr "Continuing this task…"
+
+#. Copy the unsaved pending-message edit to the clipboard
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:343
+msgid "Copy changes"
+msgstr "Copy changes"
+
+#. Copy the entire Markdown code block to the clipboard.
+#: src/features/committedTranscriptSurface/MarkdownCodeCopyButton.tsx:25
+msgid "Copy code"
+msgstr "Copy code"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:306
+msgid "Copy failed. Select the text and copy it manually."
+msgstr "Copy failed. Select the text and copy it manually."
+
+#. Opens the Markdown table copy format menu.
+#. Opens the Markdown table copy format menu.
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:52
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:72
+msgid "Copy table"
+msgstr "Copy table"
+
+#: src/features/committedTranscriptSurface/MarkdownCode.tsx:69
+msgid "Could not copy code. Try again."
+msgstr "Could not copy code. Try again."
+
+#. Table clipboard write failed; the copy menu remains available for retry.
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:116
+msgid "Could not copy table. Try again."
+msgstr "Could not copy table. Try again."
+
+#. Uploaded image could not be retrieved; name is its file name
+#: src/features/fileUpload/UploadedImagePreview.tsx:186
+msgid "Could not load the preview of {name}. The file may no longer be available."
+msgstr "Could not load the preview of {name}. The file may no longer be available."
+
+#: src/features/fileUpload/UploadedImagePreview.tsx:154
+msgid "Could not read the image preview. Check the connection and access permissions."
+msgstr "Could not read the image preview. Check the connection and access permissions."
+
+#: src/features/appShell/AppShellTopBar.tsx:69
+#: src/features/appShell/AppShellTopBar.tsx:218
+#: src/features/documentTitle/DocumentTitleOwner.tsx:48
+msgid "Current task"
+msgstr "Current task"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:69
+msgid "Current task has a system error"
+msgstr "Current task has a system error"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:29
+msgid "Current task is idle"
+msgstr "Current task is idle"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:37
+msgid "Current task is in progress"
+msgstr "Current task is in progress"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:21
+msgid "Current task is not loaded"
+msgstr "Current task is not loaded"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:45
+msgid "Current task is waiting for approval"
+msgstr "Current task is waiting for approval"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:61
+msgid "Current task is waiting for approval and input"
+msgstr "Current task is waiting for approval and input"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:53
+msgid "Current task is waiting for input"
+msgstr "Current task is waiting for input"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:13
+msgid "Current task status is unknown"
+msgstr "Current task status is unknown"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:91
+msgid "Currently unable to guide; added to queue"
+msgstr "Currently unable to guide; added to queue"
+
+#. Choose a freely typed answer instead of an agent-provided option
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:91
+msgid "Custom answer"
+msgstr "Custom answer"
+
+#. Accessible name of the explicit dark appearance option
+#: src/app/ThemePreferenceControl.tsx:21
+msgid "Dark theme"
+msgstr "Dark theme"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:385
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:463
+msgid "Delete"
+msgstr "Delete"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:366
+msgid "Delete this pending message?"
+msgstr "Delete this pending message?"
+
+#. Title of the dialog showing raw failure details
+#: src/feedback/FailureDiagnosticModal.tsx:35
+msgid "Diagnostic information"
+msgstr "Diagnostic information"
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:52
+msgid "Diagnostic:"
+msgstr "Diagnostic:"
+
+#. Discard only the unsaved edit, not the original queued message
+#. Discard only the unsaved edit, not the original queued message
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:353
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:393
+msgid "Discard changes"
+msgstr "Discard changes"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:367
+msgid "Discard unsaved changes?"
+msgstr "Discard unsaved changes?"
+
+#. Dismiss the fork creation error notice
+#: src/features/threadFork/ThreadForkNotice.tsx:36
+msgid "Dismiss"
+msgstr "Dismiss"
+
+#. Final authoritative duration below the first user input of a finished turn
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:64
+msgid "Duration {duration}"
+msgstr "Duration {duration}"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:451
+msgid "Edit"
+msgstr "Edit"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:239
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:71
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:80
+msgid "Edit pending message"
+msgstr "Edit pending message"
+
+#. Elapsed wall time below the first user input of a running turn, including waits
+#: src/features/committedTranscriptSurface/TranscriptTurnDuration.tsx:59
+msgid "Elapsed {duration}"
+msgstr "Elapsed {duration}"
+
+#. Explicit user action that requests the browser's notification permission
+#: src/features/taskNotifications/BrowserNotificationPermission.tsx:47
+msgid "Enable browser notifications"
+msgstr "Enable browser notifications"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:542
+msgid "Enter a message before saving."
+msgstr "Enter a message before saving."
+
+#. Status label on a pending message; entered the sending process does not mean delivery succeeded.
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:334
+msgid "Entered sending process"
+msgstr "Entered sending process"
+
+#. Short system-error label for the current task beside the composer QR button
+#. Status of a collaborating agent that failed
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:118
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:71
+msgid "Error"
+msgstr "Error"
+
+#. Status of a collaborating agent followed by its raw error-message preview
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:122
+msgid "Error - {messagePreview}"
+msgstr "Error - {messagePreview}"
+
+#. Status of a collaborating agent that failed without an error preview
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:111
+msgid "Error - Agent errored"
+msgstr "Error - Agent errored"
+
+#. Status shown when resuming a collaborating agent fails
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:248
+msgid "Error - Agent resume failed"
+msgstr "Error - Agent resume failed"
+
+#. Close the fullscreen Markdown table dialog.
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:48
+msgid "Exit fullscreen"
+msgstr "Exit fullscreen"
+
+#. Status chip for a failed turn
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:196
+msgid "Failed"
+msgstr "Failed"
+
+#. Status entry indicating that transcript processing failed
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:107
+msgid "Failed."
+msgstr "Failed."
+
+#. Opens upload or preview failure details for the named draft attachment
+#: src/features/fileUpload/AttachmentFailureDetails.tsx:15
+msgid "Failure details for {name}"
+msgstr "Failure details for {name}"
+
+#: src/features/fileUpload/FileUploadDialog.tsx:110
+msgid "File saved on the Codex machine"
+msgstr "File saved on the Codex machine"
+
+#. Compact attachment upload status; size limit is available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:90
+msgid "File too large"
+msgstr "File too large"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:102
+#: src/features/fileUpload/FileUploadDialog.tsx:95
+msgid "File upload failed."
+msgstr "File upload failed."
+
+#. Recovery guidance in the attachment upload failure details dialog
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:167
+msgid "File upload failed. Retry the upload, or remove and add the file again."
+msgstr "File upload failed. Retry the upload, or remove and add the file again."
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:163
+#: src/features/fileUpload/FileUploadDialog.tsx:93
+msgid "File upload is not authorized. Open the current GUI launch link."
+msgstr "File upload is not authorized. Open the current GUI launch link."
+
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:237
+msgid "Finished waiting"
+msgstr "Finished waiting"
+
+#. Keyboard shortcut to focus the current message composer
+#: src/features/appShell/appShortcuts.ts:14
+msgid "Focus message input"
+msgstr "Focus message input"
+
+#: src/features/appShell/ShortcutHelp.tsx:57
+msgid "Focus the message input only when it is present and editable on the current page."
+msgstr "Focus the message input only when it is present and editable on the current page."
+
+#: src/features/threadFork/ThreadForkNotice.tsx:78
+msgid "Fork created"
+msgstr "Fork created"
+
+#. Button at the end of a chat turn; creates a new conversation including history through this turn
+#: src/features/threadFork/ThreadForkAction.tsx:37
+msgid "Fork from here"
+msgstr "Fork from here"
+
+#: src/NotFoundPage.tsx:32
+msgid "Go back home"
+msgstr "Go back home"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:468
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:267
+msgid "Guide"
+msgstr "Guide"
+
+#. Steer the current running task with a message
+#: src/features/appShell/ShortcutHelp.tsx:73
+msgid "Guide current task"
+msgstr "Guide current task"
+
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:64
+msgid "Guide status unknown"
+msgstr "Guide status unknown"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:198
+msgid "Guiding"
+msgstr "Guiding"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:255
+msgid "Guiding message moved to position {movedPosition} of {movedCount}."
+msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
+
+#: src/features/appShell/AppShellTopBar.tsx:76
+#: src/features/appShell/AppShellTopBar.tsx:229
+#: src/features/documentTitle/DocumentTitleOwner.tsx:49
+msgid "History"
+msgstr "History"
+
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:71
+msgid "History context unavailable"
+msgstr "History context unavailable"
+
+#: src/features/appShell/AppShellTopBar.tsx:71
+#: src/features/documentTitle/DocumentTitleOwner.tsx:50
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:43
+msgid "History detail"
+msgstr "History detail"
+
+#. Short idle-state label for the current task beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:31
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:275
+msgid "Idle"
+msgstr "Idle"
+
+#: src/features/fileUpload/UploadedImagePreview.tsx:147
+#: src/features/fileUpload/UploadedImagePreview.tsx:168
+msgid "Image preview is not authorized. Open the current GUI launch link."
+msgstr "Image preview is not authorized. Open the current GUI launch link."
+
+#. Short in-progress label for the current task beside the composer QR button
+#. Status chip for a turn that is still in progress
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:201
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:39
+msgid "In progress"
+msgstr "In progress"
+
+#. Input may already belong to the existing task queue; do not offer another send
+#: src/features/newSession/NewSessionPage.tsx:111
+msgid "Input handoff could not be confirmed. Open the session to review its queue before continuing."
+msgstr "Input handoff could not be confirmed. Open the session to review its queue before continuing."
+
+#. Activity showing sub-agents that were contacted and any omitted count
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:389
+msgid "Interacted with <0/> <1/>"
+msgstr "Interacted with <0/> <1/>"
+
+#. Status chip for an interrupted turn
+#. Status of a collaborating agent whose work was interrupted
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:191
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:88
+msgid "Interrupted"
+msgstr "Interrupted"
+
+#. Activity showing sub-agents that were interrupted and any omitted count
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:397
+msgid "Interrupted <0/> <1/>"
+msgstr "Interrupted <0/> <1/>"
+
+#. Status entry indicating that transcript processing was interrupted
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:101
+msgid "Interrupted."
+msgstr "Interrupted."
+
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:43
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:93
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:108
+msgid "Invalid skill"
+msgstr "Invalid skill"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:375
+msgid "Keep"
+msgstr "Keep"
+
+#. Navigation entry and page title for the keyboard shortcut reference
+#: src/features/appShell/AppShellTopBar.tsx:75
+#: src/features/appShell/AppShellTopBar.tsx:244
+#: src/features/documentTitle/DocumentTitleOwner.tsx:62
+msgid "Keyboard shortcuts"
+msgstr "Keyboard shortcuts"
+
+#. Accessible name of the explicit light appearance option
+#: src/app/ThemePreferenceControl.tsx:13
+msgid "Light theme"
+msgstr "Light theme"
+
+#. Button to load the historical task list
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:318
+msgid "Load history"
+msgstr "Load history"
+
+#. Button to request another page of historical tasks
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:183
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:314
+msgid "Load more"
+msgstr "Load more"
+
+#: src/features/currentTask/CurrentTaskPage.tsx:268
+#: src/features/currentTask/CurrentTaskPage.tsx:345
+#: src/features/currentTask/CurrentTaskPage.tsx:412
+msgid "Load task"
+msgstr "Load task"
+
+#. Button to read the selected task's historical messages
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:112
+msgid "Load task history"
+msgstr "Load task history"
+
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:194
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:309
+msgid "Loading history…"
+msgstr "Loading history…"
+
+#. Progress while requesting another history page
+#. Progress while requesting another history page
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:178
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:305
+msgid "Loading more…"
+msgstr "Loading more…"
+
+#. Loading an uploaded image preview; name is the original file name
+#: src/features/fileUpload/UploadedImagePreview.tsx:176
+msgid "Loading preview of {name}…"
+msgstr "Loading preview of {name}…"
+
+#. Image preview is loading independently of the completed upload
+#: src/features/fileUpload/UploadedImagePreview.tsx:102
+msgid "Loading preview…"
+msgstr "Loading preview…"
+
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:415
+msgid "Loading skills…"
+msgstr "Loading skills…"
+
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:53
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:110
+msgid "Loading task history…"
+msgstr "Loading task history…"
+
+#: src/features/currentTask/CurrentTaskPage.tsx:261
+#: src/features/currentTask/CurrentTaskPage.tsx:306
+#: src/features/currentTask/CurrentTaskPage.tsx:316
+#: src/features/currentTask/CurrentTaskPage.tsx:331
+#: src/features/currentTask/CurrentTaskPage.tsx:392
+msgid "Loading task…"
+msgstr "Loading task…"
+
+#: src/features/appShell/AppShellTopBar.tsx:197
+msgid "Main navigation"
+msgstr "Main navigation"
+
+#: src/features/appShell/AppShellTopBar.tsx:141
+#: src/features/appShell/AppShellTopBar.tsx:153
+msgid "Menu"
+msgstr "Menu"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:503
+msgid "Message cannot be empty"
+msgstr "Message cannot be empty"
+
+#: src/features/composerTurnControl/ComposerSurface.tsx:99
+#: src/features/composerTurnControl/ComposerSurface.tsx:100
+msgid "Message Codex"
+msgstr "Message Codex"
+
+#: src/features/composerTurnControl/ComposerSurface.tsx:78
+msgid "Message composer"
+msgstr "Message composer"
+
+#. Shortcut help group for focusing and editing the message composer
+#: src/features/appShell/ShortcutHelp.tsx:49
+msgid "Message input"
+msgstr "Message input"
+
+#. Current task message updates are paused, not the task itself
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:55
+msgid "Message synchronization paused"
+msgstr "Message synchronization paused"
+
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:86
+msgid "Message updates arrived out of order, so the conversation may be incomplete."
+msgstr "Message updates arrived out of order, so the conversation may be incomplete."
+
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:83
+msgid "Message updates have piled up, so synchronization has paused."
+msgstr "Message updates have piled up, so synchronization has paused."
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:418
+msgid "More move options for pending message: {previewText}"
+msgstr "More move options for pending message: {previewText}"
+
+#. Accessible name of the active task row actions button; title is the task name or UUID
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:140
+msgid "More options for {title}"
+msgstr "More options for {title}"
+
+#: src/features/appShell/ShortcutHelp.tsx:30
+msgid "Move backward through active tasks in displayed order, wrapping at the beginning. Requires a selected active task."
+msgstr "Move backward through active tasks in displayed order, wrapping at the beginning. Requires a selected active task."
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:405
+msgid "Move down pending message: {previewText}"
+msgstr "Move down pending message: {previewText}"
+
+#: src/features/appShell/ShortcutHelp.tsx:39
+msgid "Move forward through active tasks in displayed order, wrapping at the end. Requires a selected active task."
+msgstr "Move forward through active tasks in displayed order, wrapping at the end. Requires a selected active task."
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:435
+msgid "Move pending message to first"
+msgstr "Move pending message to first"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:440
+msgid "Move pending message to last"
+msgstr "Move pending message to last"
+
+#: src/features/composerTurnControl/__tests__/ComposerPendingInputInitialFocus.browser.test.tsx:44
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:437
+msgid "Move to first"
+msgstr "Move to first"
+
+#: src/features/composerTurnControl/__tests__/ComposerPendingInputInitialFocus.browser.test.tsx:45
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:442
+msgid "Move to last"
+msgstr "Move to last"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:393
+msgid "Move up pending message: {previewText}"
+msgstr "Move up pending message: {previewText}"
+
+#: src/features/appShell/AppShellTopBar.tsx:193
+#: src/features/appShell/ShortcutHelp.tsx:14
+msgid "Navigation"
+msgstr "Navigation"
+
+#. Insert a newline in the message editor
+#: src/features/appShell/ShortcutHelp.tsx:68
+msgid "New line"
+msgstr "New line"
+
+#. Open the unsent new conversation draft
+#: src/features/appShell/AppShellTopBar.tsx:73
+#: src/features/appShell/AppShellTopBar.tsx:204
+#: src/features/appShell/appShortcuts.ts:22
+#: src/features/documentTitle/DocumentTitleOwner.tsx:52
+msgid "New session"
+msgstr "New session"
+
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:112
+msgid "Next"
+msgstr "Next"
+
+#. Accessible name for the next transcript context page button
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:102
+msgid "Next context page"
+msgstr "Next context page"
+
+#. Next task in displayed active-task order, wrapping at the end
+#: src/features/appShell/appShortcuts.ts:35
+msgid "Next task"
+msgstr "Next task"
+
+#. Status shown when waiting finishes before any collaborating agent completes
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:253
+msgid "No agents completed yet"
+msgstr "No agents completed yet"
+
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:178
+msgid "No committed messages yet."
+msgstr "No committed messages yet."
+
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:129
+msgid "No history for the current working directory."
+msgstr "No history for the current working directory."
+
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:277
+msgid "No matching skills"
+msgstr "No matching skills"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:67
+msgid "No pending messages"
+msgstr "No pending messages"
+
+#. Status indicating that a collaborating agent could not be found
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:137
+msgid "Not found"
+msgstr "Not found"
+
+#. Short label for a current task that is not loaded beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:23
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:274
+msgid "Not loaded"
+msgstr "Not loaded"
+
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:74
+msgid "Open an active task in this browser tab before viewing its history."
+msgstr "Open an active task in this browser tab before viewing its history."
+
+#. Description for the current task destination in the navigation drawer
+#: src/features/appShell/AppShellTopBar.tsx:220
+msgid "Open current task"
+msgstr "Open current task"
+
+#. Resume opening an already created fork without creating it again
+#: src/features/threadFork/ThreadForkNotice.tsx:70
+msgid "Open fork"
+msgstr "Open fork"
+
+#: src/features/appShell/ShortcutHelp.tsx:19
+msgid "Open or close the main menu from any page."
+msgstr "Open or close the main menu from any page."
+
+#: src/features/newSession/NewSessionPage.tsx:100
+msgid "Open session"
+msgstr "Open session"
+
+#: src/features/currentTask/CurrentTaskPage.tsx:225
+msgid "Open task"
+msgstr "Open task"
+
+#: src/features/appShell/ShortcutHelp.tsx:24
+msgid "Open the unsent draft when a working directory or draft is available."
+msgstr "Open the unsent draft when a working directory or draft is available."
+
+#: src/features/currentTask/CurrentTaskPage.tsx:211
+msgid "Opening task…"
+msgstr "Opening task…"
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:241
+msgid "Operation diagnostic:"
+msgstr "Operation diagnostic:"
+
+#: src/features/documentTitle/DocumentTitleOwner.tsx:51
+#: src/NotFoundPage.tsx:20
+msgid "Page not found"
+msgstr "Page not found"
+
+#. Accessible name of the scrollable area for page-wide status and recovery actions
+#: src/features/appShell/AppShellNotices.tsx:32
+msgid "Page notices"
+msgstr "Page notices"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:237
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:102
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:342
+msgid "Pending details"
+msgstr "Pending details"
+
+#. Status of a collaborating agent before initialization finishes
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:76
+msgid "Pending init"
+msgstr "Pending init"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:513
+msgid "Pending message changed"
+msgstr "Pending message changed"
+
+#: src/features/composerTurnControl/ComposerPendingInputProvider.tsx:36
+msgid "Pending message editor"
+msgstr "Pending message editor"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:509
+msgid "Pending message was not reordered"
+msgstr "Pending message was not reordered"
+
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:118
+msgid "Pending messages"
+msgstr "Pending messages"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:434
+msgid "Pending: Guide {guidingCount}"
+msgstr "Pending: Guide {guidingCount}"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:432
+msgid "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
+msgstr "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:430
+msgid "Pending: Priority {priorityCount}, Guide {guidingCount}, Queued {ordinaryQueuedCount}"
+msgstr "Pending: Priority {priorityCount}, Guide {guidingCount}, Queued {ordinaryQueuedCount}"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:435
+msgid "Pending: Queued {ordinaryQueuedCount}"
+msgstr "Pending: Queued {ordinaryQueuedCount}"
+
+#. Open the uploaded image at a larger size; name is its file name
+#: src/features/fileUpload/UploadedImagePreview.tsx:206
+msgid "Preview {name}"
+msgstr "Preview {name}"
+
+#. Compact status for a failed image preview request
+#: src/features/fileUpload/UploadedImagePreview.tsx:110
+msgid "Preview read failed"
+msgstr "Preview read failed"
+
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:68
+msgid "Previous"
+msgstr "Previous"
+
+#. Accessible name for the previous transcript context page button
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:57
+msgid "Previous context page"
+msgstr "Previous context page"
+
+#. Previous task in displayed active-task order, wrapping at the beginning
+#: src/features/appShell/appShortcuts.ts:27
+msgid "Previous task"
+msgstr "Previous task"
+
+#. Read-only queue of rejected guidance that will be sent before ordinary queued messages
+#. Read-only queue of rejected guidance that will be sent before ordinary queued messages
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:451
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:81
+msgid "Priority"
+msgstr "Priority"
+
+#: src/features/qrAccess/QrAccessPopover.tsx:46
+msgid "QR access is unavailable until the GUI launch token is ready."
+msgstr "QR access is unavailable until the GUI launch token is ready."
+
+#: src/features/qrAccess/QrAccessPopover.tsx:52
+msgid "QR code for current GUI URL"
+msgstr "QR code for current GUI URL"
+
+#. Question dismissed locally without sending an answer
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:132
+msgid "Question skipped"
+msgstr "Question skipped"
+
+#. Browser notification body; preview is the agent's question title
+#: src/features/taskNotifications/TaskNotifications.tsx:38
+msgid "Question: {preview}"
+msgstr "Question: {preview}"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:483
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:198
+msgid "Queued"
+msgstr "Queued"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:251
+msgid "Queued message moved to position {movedPosition} of {movedCount}."
+msgstr "Queued message moved to position {movedPosition} of {movedCount}."
+
+#. Manually re-establish the shared GUI host connection
+#: src/features/appShell/ConnectionRecoveryNotice.tsx:31
+msgid "Reconnect"
+msgstr "Reconnect"
+
+#. Task removal is blocked while the shared GUI connection is unavailable
+#: src/features/appShell/activeThreadCollectionMessages.ts:18
+msgid "Reconnect before removing this task."
+msgstr "Reconnect before removing this task."
+
+#. Shared GUI connection is being re-established
+#: src/features/appShell/ConnectionRecoveryNotice.tsx:26
+msgid "Reconnecting…"
+msgstr "Reconnecting…"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:16
+msgid "Recover this task's connection before removing it."
+msgstr "Recover this task's connection before removing it."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:546
+msgid "Refresh complete. Try the action again."
+msgstr "Refresh complete. Try the action again."
+
+#. Reload the current task's runtime status
+#: src/features/currentTask/CurrentTaskPage.tsx:414
+msgid "Refresh status"
+msgstr "Refresh status"
+
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:417
+msgid "Refreshing skills…"
+msgstr "Refreshing skills…"
+
+#: src/features/currentTask/CurrentTaskPage.tsx:394
+msgid "Refreshing status…"
+msgstr "Refreshing status…"
+
+#. Button that retries loading the available skill catalog
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:394
+msgid "Reload skills"
+msgstr "Reload skills"
+
+#. Skill catalog reload button while the request is pending
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:387
+msgid "Reloading skills…"
+msgstr "Reloading skills…"
+
+#. Remove the named attachment from the draft
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:107
+msgid "Remove {name}"
+msgstr "Remove {name}"
+
+#. Remove only from the active GUI task list; history and draft are kept
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:162
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:166
+msgid "Remove from list"
+msgstr "Remove from list"
+
+#. Drops only this local unknown-send record, without retracting server work
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:121
+msgid "Remove local record"
+msgstr "Remove local record"
+
+#: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:96
+msgid "Remove or replace invalid skills before saving."
+msgstr "Remove or replace invalid skills before saving."
+
+#. Remove from GUI active task list; keep task history and drafts
+#. Remove from GUI active task list; keep task history and drafts
+#. Remove from GUI active task list; keep task history and drafts
+#: src/features/currentTask/CurrentTaskPage.tsx:221
+#: src/features/currentTask/CurrentTaskPage.tsx:341
+#: src/features/currentTask/CurrentTaskPage.tsx:408
+msgid "Remove task"
+msgstr "Remove task"
+
+#. Leaving GUI active task list; task history and drafts are kept
+#. Leaving GUI active task list; task history and drafts are kept
+#. Leaving GUI active task list; task history and drafts are kept
+#: src/features/currentTask/CurrentTaskPage.tsx:207
+#: src/features/currentTask/CurrentTaskPage.tsx:327
+#: src/features/currentTask/CurrentTaskPage.tsx:388
+msgid "Removing task…"
+msgstr "Removing task…"
+
+#. Source label for a skill provided by the current repository
+#: src/features/composerEditor/skillSourceMessages.ts:15
+msgid "Repository"
+msgstr "Repository"
+
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:152
+msgid "Request failed"
+msgstr "Request failed"
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:98
+msgid "Resolve the task list error above, then try again."
+msgstr "Resolve the task list error above, then try again."
+
+#. Button to restore this task's message synchronization; same label after failure
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:47
+msgid "Restore sync"
+msgstr "Restore sync"
+
+#. Retry restoring this task using the already connected GUI host
+#: src/features/currentTask/ConnectionTaskRecoveryNotice.tsx:39
+msgid "Restore task"
+msgstr "Restore task"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:81
+msgid "Restored messages are paused"
+msgstr "Restored messages are paused"
+
+#. Pending button label while restoring this task's message synchronization
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:39
+msgid "Restoring sync…"
+msgstr "Restoring sync…"
+
+#. Restoring one retained task after the GUI reconnects
+#: src/features/currentTask/ConnectionTaskRecoveryNotice.tsx:32
+msgid "Restoring task…"
+msgstr "Restoring task…"
+
+#. Collaboration activity showing the raw receiver value of the resumed agent
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:231
+msgid "Resumed {receiver}"
+msgstr "Resumed {receiver}"
+
+#. Collaboration activity resuming the agent identified by the raw receiver value
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:165
+msgid "Resuming {receiver}"
+msgstr "Resuming {receiver}"
+
+#. Pending state of Continue sending while recovering previously unsent messages
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:86
+msgid "Resuming sending"
+msgstr "Resuming sending"
+
+#. Retry reading the named uploaded image preview without uploading again
+#: src/features/fileUpload/UploadedImagePreview.tsx:30
+msgid "Retry preview {name}"
+msgstr "Retry preview {name}"
+
+#. Retries saving the composer draft and queue in this browser tab
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:38
+msgid "Retry saving"
+msgstr "Retry saving"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:43
+msgid "Retry saving this task's state before removing it."
+msgstr "Retry saving this task's state before removing it."
+
+#. Manually resend the entire selected file after an upload failure
+#: src/features/fileUpload/FileUploadDialog.tsx:133
+msgid "Retry upload"
+msgstr "Retry upload"
+
+#. Retry uploading the named attachment
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:111
+msgid "Retry upload {name}"
+msgstr "Retry upload {name}"
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:132
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:165
+msgid "Return to current task"
+msgstr "Return to current task"
+
+#. Return to the pending-message edit without discarding it
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:383
+msgid "Return to edit"
+msgstr "Return to edit"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:25
+msgid "Review and continue this task after reload before removing it."
+msgstr "Review and continue this task after reload before removing it."
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:34
+msgid "Review unresolved messages in this task before removing it."
+msgstr "Review unresolved messages in this task before removing it."
+
+#. Status of a collaborating agent that is currently working
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:82
+msgid "Running"
+msgstr "Running"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:331
+msgid "Save"
+msgstr "Save"
+
+#: src/features/fileUpload/FileUploadDialog.tsx:67
+msgid "Save a file on the machine running Codex. Maximum size: 50 MiB. Uploading does not send a message."
+msgstr "Save a file on the machine running Codex. Maximum size: 50 MiB. Uploading does not send a message."
+
+#: src/features/qrAccess/QrAccessPopover.tsx:32
+#: src/features/qrAccess/QrAccessPopover.tsx:42
+msgid "Scan with phone"
+msgstr "Scan with phone"
+
+#: src/features/appShell/ShortcutHelp.tsx:63
+#: src/features/composerTurnControl/ComposerSendButton.tsx:31
+msgid "Send"
+msgstr "Send"
+
+#. Pending state of Send while creating a session and handing off its first message
+#: src/features/composerTurnControl/ComposerSendButton.tsx:25
+msgid "Sending"
+msgstr "Sending"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:98
+#: src/features/composerTurnControl/ComposerUnknownMessagePreview.tsx:36
+msgid "Sending result unknown"
+msgstr "Sending result unknown"
+
+#. Collaboration activity showing the raw receiver value of the agent that received input
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:223
+msgid "Sent input to {receiver}"
+msgstr "Sent input to {receiver}"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:229
+msgid "Show more"
+msgstr "Show more"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:221
+msgid "Show more guiding messages"
+msgstr "Show more guiding messages"
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:221
+msgid "Show more queued messages"
+msgstr "Show more queued messages"
+
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:421
+msgid "Showing saved skills because refresh failed"
+msgstr "Showing saved skills because refresh failed"
+
+#. Status of a collaborating agent that has shut down
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:131
+msgid "Shutdown"
+msgstr "Shutdown"
+
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:419
+msgid "Skills could not be loaded"
+msgstr "Skills could not be loaded"
+
+#. Dismiss this question locally without sending an answer
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:118
+msgid "Skip question"
+msgstr "Skip question"
+
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:424
+msgid "Some skills could not be loaded"
+msgstr "Some skills could not be loaded"
+
+#: src/NotFoundPage.tsx:28
+msgid "Sorry, we couldn’t find the page you’re looking for."
+msgstr "Sorry, we couldn’t find the page you’re looking for."
+
+#. Collaboration activity showing the raw receiver value of a newly created agent
+#. Collaboration activity showing the raw receiver value of a newly created agent
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:194
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:210
+msgid "Spawned {receiver}"
+msgstr "Spawned {receiver}"
+
+#. Collaboration activity showing raw receiver, model, and reasoning-effort values for a newly created agent
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:203
+msgid "Spawned {receiver} ({model} {reasoningEffort})"
+msgstr "Spawned {receiver} ({model} {reasoningEffort})"
+
+#. Collaboration activity showing raw receiver and reasoning-effort values for a newly created agent
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:215
+msgid "Spawned {receiver} ({reasoningEffort})"
+msgstr "Spawned {receiver} ({reasoningEffort})"
+
+#: src/features/appShell/AppShellTopBar.tsx:207
+msgid "Start a conversation"
+msgstr "Start a conversation"
+
+#. Activity showing sub-agents that started and any omitted count
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:381
+msgid "Started <0/> <1/>"
+msgstr "Started <0/> <1/>"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:253
+msgid "Stop"
+msgstr "Stop"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:243
+msgid "Stop failed"
+msgstr "Stop failed"
+
+#: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:33
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:314
+msgid "Structured input"
+msgstr "Structured input"
+
+#. Submit only this agent question's answer
+#: src/features/asyncQuestions/AsyncQuestionCard.tsx:115
+msgid "Submit answer"
+msgstr "Submit answer"
+
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:68
+msgid "Synchronization could not be restored. You can try again."
+msgstr "Synchronization could not be restored. You can try again."
+
+#. Source label for a skill provided by the Codex system
+#: src/features/composerEditor/skillSourceMessages.ts:22
+msgid "System"
+msgstr "System"
+
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:277
+msgid "System error"
+msgstr "System error"
+
+#. Theme preference that follows operating system appearance
+#: src/app/ThemePreferenceControl.tsx:29
+msgid "System theme"
+msgstr "System theme"
+
+#. Table clipboard write succeeded.
+#: src/features/committedTranscriptSurface/MarkdownTableCopyMenu.tsx:109
+msgid "Table copied"
+msgstr "Table copied"
+
+#: src/features/currentTask/CurrentTaskPage.tsx:232
+#: src/features/currentTask/CurrentTaskPage.tsx:455
+msgid "Task action failed"
+msgstr "Task action failed"
+
+#. Accessible label for the active task row dropdown containing Remove from list
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:150
+msgid "Task actions"
+msgstr "Task actions"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:32
+msgid "Task history is unavailable until the connection is restored."
+msgstr "Task history is unavailable until the connection is restored."
+
+#: src/features/threadHistory/ContinueTaskAction.tsx:58
+#: src/features/threadHistory/ContinueTaskAction.tsx:62
+msgid "Task opened"
+msgstr "Task opened"
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:196
+msgid "Task switched, but cannot be opened"
+msgstr "Task switched, but cannot be opened"
+
+#. This retained task has not yet resumed live updates
+#: src/features/currentTask/ConnectionTaskRecoveryNotice.tsx:47
+msgid "Task updates are paused"
+msgstr "Task updates are paused"
+
+#. Accessible description of the navigation menu error dot; task or global errors remain unresolved
+#: src/features/appShell/AppShellTopBar.tsx:168
+msgid "Tasks or the connection need attention."
+msgstr "Tasks or the connection need attention."
+
+#: src/features/fileUpload/UploadedImagePreview.tsx:149
+msgid "The browser could not decode this image. Remove the attachment and choose another file."
+msgstr "The browser could not decode this image. Remove the attachment and choose another file."
+
+#. Browser could not decode the uploaded image; name is its file name
+#: src/features/fileUpload/UploadedImagePreview.tsx:190
+msgid "The browser could not display {name} as an image."
+msgstr "The browser could not display {name} as an image."
+
+#. Explains the independent sending barrier after an uncertain compression request
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:129
+msgid "The compression request result is unknown. Sending and compression remain unavailable until its result is confirmed."
+msgstr "The compression request result is unknown. Sending and compression remain unavailable until its result is confirmed."
+
+#. Shared GUI reconnect failed; retained input remains protected
+#: src/features/appShell/ConnectionRecoveryNotice.tsx:60
+msgid "The connection could not be restored. You can try again."
+msgstr "The connection could not be restored. You can try again."
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:202
+msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
+msgstr "The connection was interrupted before the task switch completed. Reconnect and try again."
+
+#. Other tasks may already be restored; this task keeps its old content
+#: src/features/currentTask/ConnectionTaskRecoveryNotice.tsx:52
+msgid "The content shown here may be out of date. Your input is still here."
+msgstr "The content shown here may be out of date. Your input is still here."
+
+#: src/features/currentTask/ProjectionRecoveryNotice.tsx:61
+msgid "The conversation shown here may be out of date. Restore sync to get the latest content."
+msgstr "The conversation shown here may be out of date. Restore sync to get the latest content."
+
+#. thread/start may have succeeded without returning an ID; an explicit retry can create another empty session
+#: src/features/newSession/NewSessionPage.tsx:117
+msgid "The creation result is unknown. Retrying may leave an extra empty session."
+msgstr "The creation result is unknown. Retrying may leave an extra empty session."
+
+#: src/features/currentTask/CurrentTaskPage.tsx:282
+#: src/features/currentTask/CurrentTaskPage.tsx:360
+msgid "The current task could not be loaded."
+msgstr "The current task could not be loaded."
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:175
+msgid "The current task still has queued or unresolved messages. Return to it before switching."
+msgstr "The current task still has queued or unresolved messages. Return to it before switching."
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:161
+#: src/features/fileUpload/FileUploadDialog.tsx:91
+msgid "The file exceeds the 50 MiB limit."
+msgstr "The file exceeds the 50 MiB limit."
+
+#: src/features/fileUpload/FileUploadDialog.tsx:101
+msgid "The file may already have been saved. Retrying uploads the entire file again and may create another copy."
+msgstr "The file may already have been saved. Retrying uploads the entire file again and may create another copy."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:531
+msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
+msgstr "The message was moved, but repeated queue changes prevented the updated order from loading."
+
+#: src/features/threadFork/ThreadForkNotice.tsx:81
+msgid "The new conversation is saved. Continue opening it without creating another fork."
+msgstr "The new conversation is saved. Continue opening it without creating another fork."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:526
+msgid "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
+msgstr "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:524
+msgid "The pending-message order did not change. Refresh complete; try again."
+msgstr "The pending-message order did not change. Refresh complete; try again."
+
+#: src/features/threadHistory/ContinueTaskAction.tsx:63
+msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
+msgstr "The previous task connection could not be fully cleaned up. Later state may be affected."
+
+#: src/features/threadFork/ThreadForkNotice.tsx:46
+msgid "The result is unknown. Check history before forking again; another click may create an additional conversation."
+msgstr "The result is unknown. Check history before forking again; another click may create an additional conversation."
+
+#. Temporary notification when a URL targets a turn absent from the complete conversation history
+#: src/features/committedTranscriptSurface/useTurnPositionScroll.ts:53
+msgid "The specified turn was not found."
+msgstr "The specified turn was not found."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:536
+msgid "The target turn closed before the edit was saved."
+msgstr "The target turn closed before the edit was saved."
+
+#: src/features/currentTask/CurrentTaskPage.tsx:458
+msgid "The task action could not be completed."
+msgstr "The task action could not be completed."
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:23
+msgid "The task changed. Review its current state and try again."
+msgstr "The task changed. Review its current state and try again."
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:268
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:270
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:272
+msgid "The task connection could not be prepared."
+msgstr "The task connection could not be prepared."
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:68
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:143
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:274
+msgid "The task could not be activated."
+msgstr "The task could not be activated."
+
+#: src/features/currentTask/CurrentTaskPage.tsx:236
+msgid "The task could not be opened."
+msgstr "The task could not be opened."
+
+#: src/features/currentTask/CurrentTaskPage.tsx:238
+msgid "The task could not be removed."
+msgstr "The task could not be removed."
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:266
+msgid "The task could not be resumed."
+msgstr "The task could not be resumed."
+
+#: src/features/appShell/AppShell.tsx:96
+msgid "The task list could not be updated."
+msgstr "The task list could not be updated."
+
+#: src/features/threadHistory/ContinueTaskAction.tsx:59
+msgid "The task opened, but some state synchronization did not finish."
+msgstr "The task opened, but some state synchronization did not finish."
+
+#: src/features/currentTask/CurrentTaskPage.tsx:480
+msgid "The task recovery could not be completed."
+msgstr "The task recovery could not be completed."
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:207
+msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
+msgstr "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
+
+#. Accessible name of the single choice theme control
+#: src/app/ThemePreferenceControl.tsx:37
+msgid "Theme preference"
+msgstr "Theme preference"
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:101
+msgid "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
+msgstr "These messages will not be sent again automatically. Removing a local record does not cancel or retract a message on the server."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:544
+msgid "This editing session is no longer available."
+msgstr "This editing session is no longer available."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:538
+msgid "This message has entered the sending process and can no longer be managed."
+msgstr "This message has entered the sending process and can no longer be managed."
+
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:478
+msgid "This message is being edited."
+msgstr "This message is being edited."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:518
+msgid "This pending message cannot be edited."
+msgstr "This pending message cannot be edited."
+
+#. One task failed to restore; the shared connection remains healthy
+#: src/features/currentTask/ConnectionTaskRecoveryNotice.tsx:59
+msgid "This task could not be restored. You can try again."
+msgstr "This task could not be restored. You can try again."
+
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:67
+msgid "This task has no messages."
+msgstr "This task has no messages."
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:45
+msgid "This task is no longer connected."
+msgstr "This task is no longer connected."
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:12
+msgid "This task is still running."
+msgstr "This task is still running."
+
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:177
+msgid "This task needs attention."
+msgstr "This task needs attention."
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:28
+msgid "This task still has queued messages."
+msgstr "This task still has queued messages."
+
+#. History date group: tasks last active on the current local day
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:135
+msgid "Today"
+msgstr "Today"
+
+#. Transcript time label using today's actual local turn start time
+#: src/features/committedTranscriptSurface/TranscriptTimeLabel.tsx:35
+msgid "Today {time}"
+msgstr "Today {time}"
+
+#. Keyboard shortcut that opens or closes the navigation drawer
+#: src/features/appShell/appShortcuts.ts:6
+msgid "Toggle main menu"
+msgstr "Toggle main menu"
+
+#. Accessible name for pagination between transcript context generations
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:47
+msgid "Transcript context pages"
+msgstr "Transcript context pages"
+
+#. Accessible label for a transcript turn identified by its raw turn ID
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:212
+msgid "Turn {resolvedTurnId}"
+msgstr "Turn {resolvedTurnId}"
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:43
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:65
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:95
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:139
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:194
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:232
+msgid "Unable to continue this task"
+msgstr "Unable to continue this task"
+
+#: src/features/threadFork/ThreadForkNotice.tsx:42
+msgid "Unable to create fork"
+msgstr "Unable to create fork"
+
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:326
+msgid "Unable to load history"
+msgstr "Unable to load history"
+
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:121
+msgid "Unable to load task history"
+msgstr "Unable to load task history"
+
+#: src/features/currentTask/CurrentTaskPage.tsx:279
+#: src/features/currentTask/CurrentTaskPage.tsx:357
+msgid "Unable to load the current task"
+msgstr "Unable to load the current task"
+
+#: src/features/currentTask/CurrentTaskPage.tsx:477
+msgid "Unable to recover the current task"
+msgstr "Unable to recover the current task"
+
+#: src/features/currentTask/CurrentTaskPage.tsx:145
+msgid "Unable to retry this task. Review its current state and try again."
+msgstr "Unable to retry this task. Review its current state and try again."
+
+#: src/features/appShell/AppShell.tsx:33
+#: src/features/appShell/ConnectionRecoveryNotice.tsx:45
+msgid "Unable to start Codex GUI"
+msgstr "Unable to start Codex GUI"
+
+#: src/features/newSession/NewSessionPage.tsx:107
+msgid "Unable to start the conversation"
+msgstr "Unable to start the conversation"
+
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:109
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:171
+msgid "Unable to switch tasks yet"
+msgstr "Unable to switch tasks yet"
+
+#: src/features/appShell/AppShell.tsx:93
+msgid "Unable to update the task list"
+msgstr "Unable to update the task list"
+
+#. Short label for an unknown current task status beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:15
+msgid "Unknown"
+msgstr "Unknown"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:295
+msgid "Unsaved pending message"
+msgstr "Unsaved pending message"
+
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:44
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:220
+msgid "Untitled task"
+msgstr "Untitled task"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:511
+msgid "Updated pending order could not be loaded"
+msgstr "Updated pending order could not be loaded"
+
+#. Send the selected local file to the machine running Codex
+#: src/features/fileUpload/FileUploadDialog.tsx:137
+msgid "Upload"
+msgstr "Upload"
+
+#: src/features/fileUpload/FileUploadDialog.tsx:54
+#: src/features/fileUpload/FileUploadDialog.tsx:62
+msgid "Upload file"
+msgstr "Upload file"
+
+#. Compact attachment upload status; recovery instructions are available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:98
+msgid "Upload interrupted"
+msgstr "Upload interrupted"
+
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:165
+msgid "Upload interrupted. Remove and add the file again."
+msgstr "Upload interrupted. Remove and add the file again."
+
+#. Compact attachment upload status; recovery instructions are available in details
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:94
+msgid "Upload not authorized"
+msgstr "Upload not authorized"
+
+#. Attachment transfer completed; image preview may still be loading or failed
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:86
+msgid "Uploaded"
+msgstr "Uploaded"
+
+#. Attachment is being transferred to the Codex machine
+#: src/features/composerEditor/SelectedAttachmentToken.tsx:84
+msgid "Uploading"
+msgstr "Uploading"
+
+#. Source label for a skill installed by the current user
+#: src/features/composerEditor/skillSourceMessages.ts:8
+msgid "User"
+msgstr "User"
+
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:264
+msgid "View"
+msgstr "View"
+
+#. Opens raw diagnostic details for the associated failure
+#: src/feedback/FailureDiagnosticModal.tsx:20
+msgid "View diagnostic information"
+msgstr "View diagnostic information"
+
+#. Open a dialog containing the complete message shown in a truncated composer preview
+#: src/features/composerTurnControl/ComposerFullMessagePreview.tsx:44
+msgid "View full message"
+msgstr "View full message"
+
+#. Open the Markdown table in a fullscreen dialog.
+#. Open the Markdown table in a fullscreen dialog.
+#. Open the Markdown table in a fullscreen dialog.
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:29
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:37
+#: src/features/committedTranscriptSurface/MarkdownTable.tsx:55
+msgid "View fullscreen"
+msgstr "View fullscreen"
+
+#: src/features/appShell/AppShellTopBar.tsx:248
+msgid "View keyboard shortcuts"
+msgstr "View keyboard shortcuts"
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:14
+msgid "Wait for context compaction to finish."
+msgstr "Wait for context compaction to finish."
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:31
+msgid "Wait for pending message delivery to finish or review its outcome."
+msgstr "Wait for pending message delivery to finish or review its outcome."
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:39
+msgid "Wait for the current task operation to finish."
+msgstr "Wait for the current task operation to finish."
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:41
+msgid "Wait for the stop request to finish or review its outcome."
+msgstr "Wait for the stop request to finish or review its outcome."
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:8
+msgid "Wait for this task to finish loading before removing it."
+msgstr "Wait for this task to finish loading before removing it."
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:36
+msgid "Wait for this task's recovery to finish."
+msgstr "Wait for this task's recovery to finish."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:520
+msgid "Wait for uploads to finish, or retry or remove failed attachments before saving."
+msgstr "Wait for uploads to finish, or retry or remove failed attachments before saving."
+
+#: src/features/appShell/activeThreadCollectionMessages.ts:10
+msgid "Wait until the task's running state is available."
+msgstr "Wait until the task's running state is available."
+
+#. Short label for a current task awaiting approval and input beside the QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:63
+msgid "Waiting"
+msgstr "Waiting"
+
+#. Collaboration activity waiting for the agent identified by the raw receiver value
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:176
+msgid "Waiting for {receiver}"
+msgstr "Waiting for {receiver}"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:183
+msgid "Waiting for {receiverCount} agents"
+msgstr "Waiting for {receiverCount} agents"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:173
+msgid "Waiting for agents"
+msgstr "Waiting for agents"
+
+#. Short label for a current task awaiting approval beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:47
+msgid "Waiting for approval"
+msgstr "Waiting for approval"
+
+#. Short label for a current task awaiting user input beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:55
+msgid "Waiting for input"
+msgstr "Waiting for input"
+
+#. Unread task-entry marker: an agent question needs the user's response
+#: src/features/appShell/ActiveThreadCollectionMenu.tsx:128
+msgid "Waiting for response"
+msgstr "Waiting for response"
+
+#. Explains why sending stays blocked after requesting context compression
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:122
+msgid "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
+msgstr "Waiting for the compression request result. Sending remains unavailable until its result is confirmed."
+
+#: src/features/appShell/ShortcutHelp.tsx:70
+msgid "When the message input is focused and editable."
+msgstr "When the message input is focused and editable."
+
+#: src/features/appShell/ShortcutHelp.tsx:79
+msgid "When the message input is focused and guiding the running task is available."
+msgstr "When the message input is focused and guiding the running task is available."
+
+#: src/features/appShell/ShortcutHelp.tsx:65
+msgid "When the message input is focused and sending is available."
+msgstr "When the message input is focused and sending is available."
+
+#. Accessible name of the popover showing the new-session draft's full path
+#: src/features/newSession/NewSessionWorkingDirectory.tsx:30
+msgid "Working directory"
+msgstr "Working directory"
+
+#. Accessible name of the new-session directory button; opens the full path
+#: src/features/newSession/NewSessionWorkingDirectory.tsx:17
+msgid "Working directory: {directoryName}"
+msgstr "Working directory: {directoryName}"
+
+#. History date group: tasks last active on the previous local day
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:139
+msgid "Yesterday"
+msgstr "Yesterday"
+
+#. Transcript time label using yesterday's actual local turn start time
+#: src/features/committedTranscriptSurface/TranscriptTimeLabel.tsx:40
+msgid "Yesterday {time}"
+msgstr "Yesterday {time}"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:371
+msgid "Your changes have not been saved. Return to copy them, or discard them to continue."
+msgstr "Your changes have not been saved. Return to copy them, or discard them to continue."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:286
+msgid "Your edits are retained below. Copy anything you want to keep before discarding."
+msgstr "Your edits are retained below. Copy anything you want to keep before discarding."
+
+#: src/features/newSession/NewSessionPage.tsx:121
+msgid "Your input is retained. Retry to continue."
+msgstr "Your input is retained. Retry to continue."
+
+#: src/features/composerTurnControl/ComposerPersistenceStatus.tsx:49
+msgid "Your input is still here. Sending is blocked until saving succeeds."
+msgstr "Your input is still here. Sending is blocked until saving succeeds."

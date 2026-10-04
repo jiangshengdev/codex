@@ -8,6 +8,9 @@
       ]
     }
   },
+  "required": [
+    "contents"
+  ],
   "title": "PluginSkillReadResponse",
   "type": "object"
 }

@@ -1,6 +1,7 @@
 use super::thread_processor::ThreadReadViewError;
 use super::thread_processor::preview_from_rollout_items;
 use super::thread_processor::reconstruct_thread_turns_for_turns_list;
+use super::thread_processor::thread_read_history_load_error;
 use super::thread_processor::thread_read_view_error;
 use super::*;
 use crate::thread_projection::ProjectionDetachResult;
@@ -11,6 +12,7 @@ use codex_app_server_protocol::ThreadProjectionDetachStatus;
 use codex_app_server_protocol::ThreadProjectionSnapshot;
 #[cfg(test)]
 use codex_goal_extension::GoalService;
+use codex_thread_store::PersistContext;
 use std::sync::Arc;
 #[cfg(test)]
 use std::sync::OnceLock;
@@ -216,6 +218,25 @@ impl ThreadRequestProcessor {
             .read_thread_view(thread_id, /*include_turns*/ false)
             .await?;
         let loaded_thread = self.thread_manager.get_thread(thread_id).await.ok();
+        let goal = if self.config.features.enabled(Feature::Goals)
+            && loaded_thread
+                .as_ref()
+                .is_some_and(|thread| thread.rollout_path().is_some())
+        {
+            self.thread_goal_processor
+                .thread_goal_get_inner(ThreadGoalGetParams {
+                    thread_id: thread_id.to_string(),
+                })
+                .await
+                .map_err(ThreadReadViewError::JsonRpc)?
+                .goal
+        } else {
+            None
+        };
+        let token_usage = match loaded_thread.as_ref() {
+            Some(thread) => thread.token_usage_info().await.map(Into::into),
+            None => None,
+        };
         let has_live_running_thread = match loaded_thread.as_ref() {
             Some(thread) => matches!(thread.agent_status().await, AgentStatus::Running),
             None => false,
@@ -234,34 +255,62 @@ impl ThreadRequestProcessor {
             .thread_watch_manager
             .loaded_status_for_thread(&thread.id)
             .await;
-        let history_items = match self.load_thread_turns_list_history(thread_id).await {
-            Ok(items) => items,
-            Err(ThreadReadViewError::InvalidRequest(message))
-                if message
-                    == format!(
-                        "thread {thread_id} is not materialized yet; thread/turns/list is unavailable before first user message"
-                    ) =>
-            {
-                Vec::new()
-            }
-            Err(err) => return Err(err),
-        };
         let thread_status = resolve_thread_status(loaded_status.clone(), has_live_in_progress_turn);
 
-        // The thread store only exposes current metadata, so reconcile the
-        // visible preview from the same persisted history used for turns.
-        thread.preview = preview_from_rollout_items(&history_items);
+        match thread.history_mode {
+            codex_app_server_protocol::ThreadHistoryMode::Legacy => {
+                let history_items = match self.load_thread_turns_list_history(thread_id).await {
+                    Ok(items) => items,
+                    Err(ThreadReadViewError::InvalidRequest(message))
+                        if message
+                            == format!(
+                                "thread {thread_id} is not materialized yet; thread/turns/list is unavailable before first user message"
+                            ) =>
+                    {
+                        Vec::new()
+                    }
+                    Err(err) => return Err(err),
+                };
 
-        thread.turns = reconstruct_thread_turns_for_turns_list(
-            &history_items,
-            loaded_status,
-            has_live_running_thread,
-            active_turn,
-        );
+                // The thread store only exposes current metadata, so reconcile the
+                // visible preview from the same persisted history used for turns.
+                thread.preview = preview_from_rollout_items(&history_items);
+
+                thread.turns = reconstruct_thread_turns_for_turns_list(
+                    &history_items,
+                    loaded_status,
+                    has_live_running_thread,
+                    active_turn,
+                );
+            }
+            codex_app_server_protocol::ThreadHistoryMode::Paginated => {
+                let mut turns = if self
+                    .read_stored_thread_for_read(thread_id, /*include_history*/ false)
+                    .await?
+                    .is_some()
+                {
+                    self.thread_store
+                        .persist_thread(thread_id, PersistContext::Standard)
+                        .await
+                        .map_err(|err| thread_read_history_load_error(thread_id, err))?;
+                    self.paginated_thread_full_turns(thread_id)
+                        .await
+                        .map_err(ThreadReadViewError::JsonRpc)?
+                } else {
+                    Vec::new()
+                };
+                if let Some(active_turn) = active_turn {
+                    merge_turn_history_with_active_turn(&mut turns, active_turn);
+                }
+                thread.turns = turns;
+            }
+        }
         thread.status = thread_status;
         Ok(ThreadProjectionSnapshot {
             thread,
             head_commit_id: cut.head_commit_id,
+            token_usage,
+            goal,
         })
     }
 
@@ -366,6 +415,7 @@ mod tests {
             Arc::new(codex_extension_api::ExtensionRegistryBuilder::new().build()),
             Arc::new(codex_core::test_support::EmptyUserInstructionsProvider),
             /*analytics_events_client*/ None,
+            codex_core::passthrough_image_store(),
             thread_store.clone(),
             /*agent_graph_store*/ None,
             uuid::Uuid::new_v4().to_string(),
@@ -378,6 +428,15 @@ mod tests {
             codex_analytics::AnalyticsEventsClient::disabled(),
         ));
         let thread_state_manager = ThreadStateManager::new();
+        let config_manager = ConfigManager::new(
+            temp_dir.path().to_path_buf(),
+            Vec::new(),
+            loader_overrides,
+            /*strict_config*/ false,
+            CloudConfigBundleLoader::default(),
+            Arg0DispatchPaths::default(),
+            Arc::new(NoopThreadConfigLoader),
+        );
         let thread_goal_processor = ThreadGoalRequestProcessor::new(
             thread_manager.clone(),
             outgoing.clone(),
@@ -385,6 +444,7 @@ mod tests {
             thread_state_manager.clone(),
             /*state_db*/ None,
             Arc::new(GoalService::new()),
+            config_manager.clone(),
         );
         let skills_watcher = SkillsWatcher::new(
             thread_manager.skills_service(),
@@ -397,15 +457,7 @@ mod tests {
             outgoing,
             Arg0DispatchPaths::default(),
             config.clone(),
-            ConfigManager::new(
-                temp_dir.path().to_path_buf(),
-                Vec::new(),
-                loader_overrides,
-                /*strict_config*/ false,
-                CloudConfigBundleLoader::default(),
-                Arg0DispatchPaths::default(),
-                Arc::new(NoopThreadConfigLoader),
-            ),
+            config_manager,
             thread_store,
             Arc::new(Mutex::new(HashSet::new())),
             thread_state_manager.clone(),
@@ -415,6 +467,7 @@ mod tests {
             /*state_db*/ None,
             /*log_db*/ None,
             skills_watcher,
+            /*turn_cost_worker*/ None,
             /*initial_config_warnings*/ Vec::new(),
         );
 
@@ -435,6 +488,7 @@ mod tests {
                 "live-turn",
                 &EventMsg::TurnStarted(codex_protocol::protocol::TurnStartedEvent {
                     turn_id: "live-turn".to_string(),
+                    root_turn_id: None,
                     trace_id: None,
                     started_at: None,
                     model_context_window: None,
@@ -443,11 +497,18 @@ mod tests {
             );
         }
 
+        let request_id = ConnectionRequestId {
+            connection_id: ConnectionId(0),
+            request_id: RequestId::Integer(0),
+        };
         let read_response = processor
-            .thread_read(ThreadReadParams {
-                thread_id: thread_id.to_string(),
-                include_turns: true,
-            })
+            .thread_read(
+                &request_id,
+                ThreadReadParams {
+                    thread_id: thread_id.to_string(),
+                    include_turns: true,
+                },
+            )
             .await
             .expect("thread/read should include turns for materialized loaded thread");
         let Some(ClientResponsePayload::ThreadRead(read_response)) = read_response else {
@@ -512,7 +573,9 @@ mod tests {
                         text_elements: Vec::new(),
                     },
                     V2UserInput::Image {
-                        url: "https://example.com/projection.png".to_string(),
+                        image: codex_app_server_protocol::ImageReference::Inline {
+                            url: "https://example.com/projection.png".to_string(),
+                        },
                         detail: Some(ImageDetail::Original),
                     },
                     V2UserInput::LocalImage {
@@ -534,6 +597,7 @@ mod tests {
             RolloutItem::EventMsg(EventMsg::TurnStarted(
                 codex_protocol::protocol::TurnStartedEvent {
                     turn_id: "turn-visible".to_string(),
+                    root_turn_id: None,
                     trace_id: None,
                     started_at: Some(1),
                     model_context_window: None,
@@ -543,6 +607,7 @@ mod tests {
             RolloutItem::EventMsg(EventMsg::TurnStarted(
                 codex_protocol::protocol::TurnStartedEvent {
                     turn_id: "turn-pending".to_string(),
+                    root_turn_id: None,
                     trace_id: None,
                     started_at: Some(2),
                     model_context_window: None,
@@ -586,6 +651,7 @@ mod tests {
             RolloutItem::EventMsg(EventMsg::TurnStarted(
                 codex_protocol::protocol::TurnStartedEvent {
                     turn_id: "turn-final".to_string(),
+                    root_turn_id: None,
                     trace_id: None,
                     started_at: Some(1),
                     model_context_window: None,
@@ -600,6 +666,8 @@ mod tests {
                     message: "final answer".to_string(),
                     phase: None,
                     memory_citation: None,
+                    delivery: None,
+                    questions: None,
                 },
             )),
             RolloutItem::EventMsg(EventMsg::TurnComplete(
@@ -681,6 +749,7 @@ mod tests {
             Arc::new(codex_extension_api::ExtensionRegistryBuilder::new().build()),
             Arc::new(codex_core::test_support::EmptyUserInstructionsProvider),
             /*analytics_events_client*/ None,
+            codex_core::passthrough_image_store(),
             thread_store.clone(),
             /*agent_graph_store*/ None,
             uuid::Uuid::new_v4().to_string(),
@@ -693,6 +762,15 @@ mod tests {
             codex_analytics::AnalyticsEventsClient::disabled(),
         ));
         let thread_state_manager = ThreadStateManager::new();
+        let config_manager = ConfigManager::new(
+            temp_dir.path().to_path_buf(),
+            Vec::new(),
+            loader_overrides,
+            /*strict_config*/ false,
+            CloudConfigBundleLoader::default(),
+            Arg0DispatchPaths::default(),
+            Arc::new(NoopThreadConfigLoader),
+        );
         let thread_goal_processor = ThreadGoalRequestProcessor::new(
             thread_manager.clone(),
             outgoing.clone(),
@@ -700,6 +778,7 @@ mod tests {
             thread_state_manager.clone(),
             /*state_db*/ None,
             Arc::new(GoalService::new()),
+            config_manager.clone(),
         );
         let skills_watcher = SkillsWatcher::new(
             thread_manager.skills_service(),
@@ -712,15 +791,7 @@ mod tests {
             outgoing,
             Arg0DispatchPaths::default(),
             config.clone(),
-            ConfigManager::new(
-                temp_dir.path().to_path_buf(),
-                Vec::new(),
-                loader_overrides,
-                /*strict_config*/ false,
-                CloudConfigBundleLoader::default(),
-                Arg0DispatchPaths::default(),
-                Arc::new(NoopThreadConfigLoader),
-            ),
+            config_manager,
             thread_store,
             Arc::new(Mutex::new(HashSet::new())),
             thread_state_manager,
@@ -730,6 +801,7 @@ mod tests {
             /*state_db*/ None,
             /*log_db*/ None,
             skills_watcher,
+            /*turn_cost_worker*/ None,
             /*initial_config_warnings*/ Vec::new(),
         );
 
@@ -757,6 +829,7 @@ mod tests {
             RolloutItem::EventMsg(EventMsg::TurnStarted(
                 codex_protocol::protocol::TurnStartedEvent {
                     turn_id: turn_id.to_string(),
+                    root_turn_id: None,
                     trace_id: None,
                     started_at: None,
                     model_context_window: None,
@@ -769,6 +842,9 @@ mod tests {
                     message: message.to_string(),
                     images: Some(vec!["https://example.com/projection.png".to_string()]),
                     image_details: vec![Some(ImageDetail::Original)],
+                    file_ids: None,
+                    file_id_details: Vec::new(),
+                    image_order: Vec::new(),
                     local_images: vec![PathBuf::from("/tmp/projection-local.png")],
                     local_image_details: vec![Some(ImageDetail::Original)],
                     audio: None,

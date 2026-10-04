@@ -1,23 +1,25 @@
 import type {
+  SkillsChangedNotification,
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
+  ThreadStatusChangedNotification,
 } from "@codex-protocol/v2";
 import type { JSONRPCMessage } from "@codex-protocol/JSONRPCMessage";
 import { WEBSOCKET_PATH } from "@codex-gui-host-contract";
-import {
-  consumeBrowserLaunchParams,
-  type BrowserLaunchParams,
-} from "@/features/browserLaunch/browserLaunchParams";
 import { classifyServerNotification } from "@/generated/appServerProtocol";
 import { validateJSONRPCMessage } from "@/generated/appServerProtocol/jsonRpcEnvelopeValidators.js";
-import type { RequestResponse } from "./appServerProtocol";
 import { GuiHostCommandGateway, type GuiHostCommands } from "./guiHostCommandGateway";
 import { GuiHostHandshakeController } from "./guiHostHandshakeController";
 import { parseRpcMessage } from "./guiHostProtocol";
 import { GuiHostTransportSession } from "./guiHostTransportSession";
 
-export type { GuiHostCommands } from "./guiHostCommandGateway";
+export {
+  GuiHostCommandError,
+  isGuiHostCommandError,
+  type GuiHostCommandFailureSource,
+  type GuiHostCommands,
+} from "./guiHostCommandGateway";
 
 const unavailableMessage = "GUI host WebSocket is not available";
 
@@ -25,18 +27,16 @@ export type GuiHostStatus =
   | { label: "connecting" }
   | { label: "authenticated" }
   | { label: "initialized" }
-  | { label: "attached" }
   | { label: "closed" }
   | { label: "error"; message: string };
 
 export type StartGuiHostConnectionOptions = {
   location: URL;
-  replaceState: History["replaceState"];
-  tokenStorage?: Pick<Storage, "getItem" | "setItem">;
+  token: string;
   createWebSocket?: (url: string) => WebSocket;
   onStatus?: (status: GuiHostStatus) => void;
-  onLaunchParams?: (params: BrowserLaunchParams) => void;
-  onProjectionAttached?: (response: RequestResponse<"thread/projection/attach">) => void;
+  onSkillsChanged?: (notification: SkillsChangedNotification) => void;
+  onThreadStatusChanged?: (notification: ThreadStatusChangedNotification) => void;
   onProjectionDelta?: (notification: ThreadProjectionDeltaNotification) => void;
   onProjectionEvent?: (notification: ThreadProjectionEventNotification) => void;
   onProjectionClosed?: (notification: ThreadProjectionClosedNotification) => void;
@@ -48,26 +48,17 @@ export type GuiHostConnectionCleanup = () => void;
 
 export function startGuiHostConnection({
   location,
-  replaceState,
-  tokenStorage,
+  token,
   createWebSocket = (url) => new WebSocket(url),
   onStatus,
-  onLaunchParams,
-  onProjectionAttached,
+  onSkillsChanged,
+  onThreadStatusChanged,
   onProjectionDelta,
   onProjectionEvent,
   onProjectionClosed,
   onCommandsReady,
   onCommandsUnavailable,
 }: StartGuiHostConnectionOptions): GuiHostConnectionCleanup {
-  const launchParams = consumeBrowserLaunchParams({
-    location,
-    replaceState,
-    tokenStorage,
-  });
-  const { threadId, token } = launchParams;
-  onLaunchParams?.(launchParams);
-
   const socket = createWebSocket(
     `${webSocketProtocol(location)}://${location.host}${WEBSOCKET_PATH}`,
   );
@@ -145,17 +136,12 @@ export function startGuiHostConnection({
   const handshake = new GuiHostHandshakeController({
     requests: transport,
     token,
-    threadId,
     callbacks: {
       onAuthenticated: () => {
         emit({ label: "authenticated" });
       },
       onInitialized: () => {
         emit({ label: "initialized" });
-      },
-      onAttached: (response) => {
-        onProjectionAttached?.(response);
-        emit({ label: "attached" });
         if (commandGateway.activate()) {
           onCommandsReady?.(commandGateway.commands);
         }
@@ -221,6 +207,12 @@ export function startGuiHostConnection({
       case "selected": {
         const notification = classification.notification;
         switch (notification.method) {
+          case "skills/changed":
+            onSkillsChanged?.(notification.params);
+            return;
+          case "thread/status/changed":
+            onThreadStatusChanged?.(notification.params);
+            return;
           case "thread/projection/event":
             onProjectionEvent?.(notification.params);
             return;

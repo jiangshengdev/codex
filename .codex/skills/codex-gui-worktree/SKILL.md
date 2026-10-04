@@ -5,17 +5,19 @@ description: Create and prepare lightweight sparse git worktrees for codex-gui p
 
 # codex-gui Worktree
 
-Use this skill to create or prepare sparse `codex-gui` worktrees for parallel frontend work in the current Codex checkout.
+## Boundaries
 
-## Rules
-
-- Before creating a worktree or symlink, print the exact command and target paths and wait for user confirmation, unless the user explicitly says to execute directly.
-- Do not install dependencies.
+- Use `$action-authorization` for action scope, `$managing-work-stages` for sequencing and the preparation barrier, and the applicable `AGENTS.md` for installation policy. This skill owns only project-specific worktree creation and verification.
 - Do not download documentation.
-- Do not stage or commit.
-- Do not overwrite existing branches, worktrees, files, directories, or symlinks.
-- Stop on conflicts and print the exact path that blocks progress.
+- Setup ends after creation, link setup, and verification; staging and committing are outside this skill.
+- Before creation, confirm that every default sparse checkout path and every
+  `--include` path exists in the selected base's Git tree.
+- Do not overwrite existing branches, worktrees, files, directories, or symlinks. Stop on conflicts and print the exact blocking path.
 - Creating a worktree from `dev` uses only committed content from the selected base. Uncommitted changes in the current `dev` checkout or any other worktree are not carried into the new worktree and should not be treated as blockers.
+
+## Plan-authoring Preflight
+
+Before writing any exact worktree command into a plan, inspect `$WORKTREE_ROOT/vitest`. If it is already a symlink, record the requested Vitest path, its direct `readlink` target, and its fully resolved physical target separately. Choose `--vitest-root` using the script's `normalize_path_preserving_leaf` and `ensure_symlink` semantics. When multiple paths resolve to the same directory but the script decides compatibility from the direct mapping, the plan must use a parameter that the existing mapping accepts. Resolve any mismatch before requesting plan confirmation; do not defer it to execution. Plan to change the existing link only when the user explicitly requests that migration.
 
 ## Default Layout
 
@@ -31,15 +33,21 @@ base branch: dev
 Default sparse checkout paths:
 
 ```text
+.codex/skills
+.agents/skills
+docs/agents
 codex-gui
 codex-rs/app-server-protocol/schema/typescript
+codex-rs/app-server-protocol/schema/json
+codex-rs/gui-host/schema/typescript
+codex-rs/gui-host/schema/json
 ```
 
-Add task-specific paths with `--include`, for example:
+These paths keep the GUI worktree's skills, CNB workflow configuration, sources, and schemas independent of another checkout. The schemas feed GUI type-checking, Vite, and protocol validators.
 
-```text
-docs/superpowers/plans/2026/06/22/2026-06-22-codex-gui-frontend-refactor
-```
+Root files, including `AGENTS.md` and an existing `CONTEXT.md`, are included by cone-mode sparse checkout. If the selected base contains `docs/adr`, the script includes it too. Domain documents remain optional. The script does not require or copy ignored local historical documents.
+
+Use `--include` only for task-specific source or tool paths outside this fixed set, as in the script example below.
 
 ## Script
 
@@ -50,7 +58,7 @@ bash .codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh \
   --name gui-transcript-state \
   --branch codex/gui-transcript-state \
   --base dev \
-  --include docs/superpowers/plans/2026/06/22/2026-06-22-codex-gui-frontend-refactor
+  --include codex-rs/app-server
 ```
 
 The script creates the sparse worktree, links local dependency and documentation caches, and verifies the result.
@@ -67,6 +75,17 @@ bash .codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh \
 ```
 
 Environment overrides are also supported: `CODEX_GUI_WORKTREE_REPO_ROOT`, `CODEX_GUI_WORKTREE_ROOT`, and `CODEX_GUI_WORKTREE_VITEST_ROOT`.
+
+For a BUG task, pin the starting checkout's `git rev-parse HEAD` and pass that
+commit explicitly as `--base`; pass the chat/task identity as `--task-id`.
+Issue numbers alone are not task identities. Ownership is recorded in the
+worktree's Git administrative directory only after preparation succeeds.
+Reuse requires the same `--name`, `--branch`, `--task-id`, and repository/root
+parameters with `--resume`. The script checks ownership, branch, sparse inputs
+and linked resources, preserves the original base and all investigation changes,
+and rejects resources belonging to another task. A worktree without a successful
+ownership record cannot be resumed through this mode; inspect failed preparation
+without claiming it is ready. Do not rerun create over an existing target.
 
 ## Linked Resources
 
@@ -98,7 +117,18 @@ After running the script, report:
 - worktree path
 - branch
 - sparse checkout list
+- readability of the fixed task control plane, including its key skill
+  entrypoints, applicable `AGENTS.md` files, CNB tracker, triage and domain
+  configuration, existing domain documents, and protocol schemas
 - linked resources
 - `git status --short --branch`
 
 If verification fails, report the failing command and do not continue to implementation work.
+
+Run the script-entrypoint regression tests with:
+
+```bash
+node --test .codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.test.mjs
+```
+
+The tests use isolated Git repositories and fixture resources in the system temporary directory. They verify creation, readable inputs, preservation of local historical documents, and rejection of missing inputs and existing targets. They do not establish readiness of the real checkout's dependencies or create a real project worktree.

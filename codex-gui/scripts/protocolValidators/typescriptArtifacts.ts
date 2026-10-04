@@ -11,6 +11,12 @@ export type NotificationDefinitionMetadata = {
   paramsSchema: string;
 };
 
+export type AuxiliarySchemaMetadata = {
+  schemaId: string;
+  typeName: string;
+  requiredProperties: readonly string[];
+};
+
 export type TypeScriptFormatResult = {
   code: string;
   errors: readonly { message: string | null }[];
@@ -25,6 +31,7 @@ type TypeScriptArtifactOptions = {
   requestDefinitions: readonly RequestDefinitionMetadata[];
   notificationDefinitions: readonly NotificationDefinitionMetadata[];
   selectedNotificationDefinitions: readonly NotificationDefinitionMetadata[];
+  selectedAuxiliarySchemas: readonly AuxiliarySchemaMetadata[];
   envelopeValidatorExports: ReadonlyMap<string, string>;
   payloadValidatorExports: ReadonlyMap<string, string>;
   formatTypeScript: TypeScriptFormatter;
@@ -83,8 +90,25 @@ function validatorType(
   schemaId: string,
   requestDefinitions: readonly RequestDefinitionMetadata[],
   notificationDefinitions: readonly NotificationDefinitionMetadata[],
+  auxiliarySchemas: readonly AuxiliarySchemaMetadata[],
 ): ts.TypeNode {
   if (schemaId === "JSONRPCMessage") return factory.createTypeReferenceNode("JSONRPCMessage");
+
+  const auxiliarySchema = auxiliarySchemas.find((schema) => schema.schemaId === schemaId);
+  if (auxiliarySchema) {
+    const authoritativeType = factory.createTypeReferenceNode(auxiliarySchema.typeName);
+    const partialType = factory.createTypeReferenceNode("Partial", [authoritativeType]);
+    if (auxiliarySchema.requiredProperties.length === 0) return partialType;
+    return factory.createIntersectionTypeNode([
+      partialType,
+      factory.createTypeReferenceNode("Required", [
+        factory.createTypeReferenceNode("Pick", [
+          authoritativeType,
+          stringLiteralUnion(auxiliarySchema.requiredProperties),
+        ]),
+      ]),
+    ]);
+  }
 
   const responseTypes = requestDefinitions
     .filter(({ responseSchema }) => responseSchema === schemaId)
@@ -120,6 +144,7 @@ function standaloneDeclarations(
   validatorExports: ReadonlyMap<string, string>,
   requestDefinitions: readonly RequestDefinitionMetadata[],
   notificationDefinitions: readonly NotificationDefinitionMetadata[],
+  auxiliarySchemas: readonly AuxiliarySchemaMetadata[],
 ): string {
   const needsJsonRpcMessage = validatorExports.has("JSONRPCMessage");
   const needsRequestResponse = requestDefinitions.some(({ responseSchema }) =>
@@ -135,6 +160,15 @@ function standaloneDeclarations(
       : []),
     ...(needsServerNotification
       ? [namedImport("@codex-protocol/ServerNotification", ["ServerNotification"], true)]
+      : []),
+    ...(auxiliarySchemas.length > 0
+      ? [
+          namedImport(
+            "@codex-protocol/v2",
+            [...new Set(auxiliarySchemas.map(({ typeName }) => typeName))].sort(),
+            true,
+          ),
+        ]
       : []),
     namedImport(
       "../../features/guiHost/appServerProtocol",
@@ -153,7 +187,12 @@ function standaloneDeclarations(
               factory.createIdentifier(name),
               undefined,
               factory.createTypeReferenceNode("ProtocolValidator", [
-                validatorType(schemaId, requestDefinitions, notificationDefinitions),
+                validatorType(
+                  schemaId,
+                  requestDefinitions,
+                  notificationDefinitions,
+                  auxiliarySchemas,
+                ),
               ]),
               undefined,
             ),
@@ -596,16 +635,18 @@ export async function generateTypeScriptArtifacts({
   requestDefinitions,
   notificationDefinitions,
   selectedNotificationDefinitions,
+  selectedAuxiliarySchemas,
   envelopeValidatorExports,
   payloadValidatorExports,
   formatTypeScript,
 }: TypeScriptArtifactOptions): Promise<Record<string, string>> {
   const sources: Record<string, string> = {
-    "jsonRpcEnvelopeValidators.d.ts": standaloneDeclarations(envelopeValidatorExports, [], []),
+    "jsonRpcEnvelopeValidators.d.ts": standaloneDeclarations(envelopeValidatorExports, [], [], []),
     "appServerPayloadValidators.d.ts": standaloneDeclarations(
       payloadValidatorExports,
       requestDefinitions,
       selectedNotificationDefinitions,
+      selectedAuxiliarySchemas,
     ),
     "requestDescriptors.ts": requestDescriptors(requestDefinitions, payloadValidatorExports),
     "notificationDescriptors.ts": notificationDescriptors(

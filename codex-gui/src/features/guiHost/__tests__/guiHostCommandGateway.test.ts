@@ -1,14 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
-import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import { inProgressTurn } from "@/features/projection/__tests__/projectionTestBuilders";
-import type { GuiHostCommands } from "../guiHostClient";
+import type { JSONRPCErrorError } from "@codex-protocol/JSONRPCErrorError";
+import {
+  isGuiHostCommandError,
+  type GuiHostCommandFailureSource,
+  type GuiHostCommands,
+} from "../guiHostClient";
 import { GuiHostCommandGateway } from "../guiHostCommandGateway";
-import { GuiHostTransportSession } from "../guiHostTransportSession";
+import { GuiHostTransportSession, type TransportRequestDelivery } from "../guiHostTransportSession";
 import {
   RecordingWebSocket,
   readLatestRpcRequest,
   readRpcRequest,
-  sendAttachResult,
   sendAuthenticateResult,
   sendInitializeResult,
   startGuiHostConnectionWithSocket,
@@ -36,6 +39,59 @@ function setup(socket: RecordingWebSocket = new RecordingWebSocket()) {
   return { gateway: new GuiHostCommandGateway(transport), socket, transport };
 }
 
+const rpcErrorClassificationCases: readonly (readonly [
+  string,
+  JSONRPCErrorError["data"] | undefined,
+  boolean,
+])[] = [
+  [
+    "complete active-turn error",
+    {
+      message: "cannot steer a review turn",
+      codexErrorInfo: { activeTurnNotSteerable: { turnKind: "review" } },
+      additionalDetails: null,
+    },
+    true,
+  ],
+  [
+    "generic turn error",
+    { message: "request failed", codexErrorInfo: "badRequest", additionalDetails: null },
+    false,
+  ],
+  ["message-only turn error", { message: "request failed" }, false],
+  ["null codex error info", { message: "request failed", codexErrorInfo: null }, false],
+  ["string data", "request failed", false],
+  ["unrelated object data", { unrelated: true }, false],
+  [
+    "malformed turn error",
+    {
+      message: 42,
+      codexErrorInfo: { activeTurnNotSteerable: { turnKind: "review" } },
+    },
+    false,
+  ],
+  ["no data", undefined, false],
+];
+
+async function expectCommandFailure(
+  promise: Promise<unknown>,
+  source: GuiHostCommandFailureSource,
+  delivery: TransportRequestDelivery,
+  message: string,
+): Promise<void> {
+  const error: unknown = await promise.catch((failure: unknown) => failure);
+  if (!isGuiHostCommandError(error)) {
+    throw new Error("Expected GuiHostCommandError");
+  }
+  expect(error.source).toBe(source);
+  expect(error.delivery).toBe(delivery);
+  expect(error.message).toContain(message);
+  if (!(error.cause instanceof Error)) {
+    throw new Error("Expected GuiHostCommandError cause");
+  }
+  expect(error.message).toBe(error.cause.message);
+}
+
 async function expectInterruptStillWorks(
   state: ReturnType<typeof setup>,
   turnId: string,
@@ -51,22 +107,51 @@ async function expectInterruptStillWorks(
 }
 
 describe("GuiHostCommandGateway", () => {
+  it("forwards thread/start cwd and classifies an invalid response as unknown delivery", async () => {
+    const { gateway, socket, transport } = setup();
+    gateway.activate();
+    const result = gateway.commands.startThread({ cwd: "/workspace/new" });
+    const request = readLatestRpcRequest(socket, "thread/start");
+    expect(request.params).toEqual({ cwd: "/workspace/new" });
+    transport.settleResult(request.id, {});
+    const error: unknown = await result.catch((failure: unknown) => failure);
+    expect(isGuiHostCommandError(error)).toBe(true);
+    if (!isGuiHostCommandError(error)) throw new Error("Expected command failure");
+    expect(error.delivery).toBe("deliveryUnknown");
+  });
+
   it("publishes one stable handle only after activation", async () => {
     const { gateway, socket } = setup();
     const commands = gateway.commands;
 
-    await expect(
+    await expectCommandFailure(
       commands.interruptTurn({ threadId: "thread-1", turnId: "turn-1" }),
-    ).rejects.toThrow("GUI host WebSocket is not available");
+      "unavailable",
+      "definitelyNotAccepted",
+      "GUI host WebSocket is not available",
+    );
     expect(socket.sent).toEqual([]);
     expect(gateway.activate()).toBe(true);
     expect(gateway.activate()).toBe(false);
     expect(gateway.commands).toBe(commands);
   });
 
-  it("maps startTurn and interruptTurn to their generated descriptors", async () => {
+  it("maps compactThread, startTurn, steerTurn, and interruptTurn to generated descriptors", async () => {
     const { gateway, socket, transport } = setup();
     gateway.activate();
+    const compactParams = { threadId: "thread-1" };
+    const compactPromise = gateway.commands.compactThread(compactParams);
+    const compactRequest = readLatestRpcRequest(socket, "thread/compact/start");
+    expect(compactRequest).toEqual({
+      jsonrpc: "2.0",
+      id: compactRequest.id,
+      method: "thread/compact/start",
+      params: compactParams,
+    });
+    const compactResponse = {};
+    transport.settleResult(compactRequest.id, compactResponse);
+    await expect(compactPromise).resolves.toBe(compactResponse);
+
     const startParams = {
       threadId: "thread-1",
       clientUserMessageId: null,
@@ -84,6 +169,24 @@ describe("GuiHostCommandGateway", () => {
     transport.settleResult(startRequest.id, startResponse);
     await expect(startPromise).resolves.toBe(startResponse);
 
+    const steerParams = {
+      threadId: "thread-1",
+      expectedTurnId: "turn-1",
+      clientUserMessageId: null,
+      input: [{ type: "text" as const, text: "Guide", text_elements: [] }],
+    };
+    const steerPromise = gateway.commands.steerTurn(steerParams);
+    const steerRequest = readLatestRpcRequest(socket, "turn/steer");
+    expect(steerRequest).toEqual({
+      jsonrpc: "2.0",
+      id: steerRequest.id,
+      method: "turn/steer",
+      params: steerParams,
+    });
+    const steerResponse = { turnId: "turn-1" };
+    transport.settleResult(steerRequest.id, steerResponse);
+    await expect(steerPromise).resolves.toBe(steerResponse);
+
     const interruptParams = { threadId: "thread-1", turnId: "turn-1" };
     const interruptPromise = gateway.commands.interruptTurn(interruptParams);
     const interruptRequest = readLatestRpcRequest(socket, "turn/interrupt");
@@ -98,6 +201,35 @@ describe("GuiHostCommandGateway", () => {
     await expect(interruptPromise).resolves.toBe(interruptResponse);
   });
 
+  it.each(rpcErrorClassificationCases)(
+    "classifies %s from validated RPC error data",
+    async (_, data, expected) => {
+      const { gateway, socket, transport } = setup();
+      gateway.activate();
+      const promise = gateway.commands.steerTurn({
+        threadId: "thread-1",
+        expectedTurnId: "turn-1",
+        clientUserMessageId: null,
+        input: [{ type: "text", text: "Guide", text_elements: [] }],
+      });
+      const request = readLatestRpcRequest(socket, "turn/steer");
+      const rpcError: JSONRPCErrorError = {
+        code: -32000,
+        message: "request failed",
+        ...(data === undefined ? {} : { data }),
+      };
+
+      transport.settleRpcError(request.id, rpcError);
+
+      const error: unknown = await promise.catch((failure: unknown) => failure);
+      if (!isGuiHostCommandError(error)) {
+        throw new Error("Expected GuiHostCommandError");
+      }
+      expect(error.rpcError).toBe(rpcError);
+      expect(error.activeTurnNotSteerable).toBe(expected);
+    },
+  );
+
   it("keeps ready state after a single rpc, missing, malformed, or send failure", async () => {
     const rpc = setup();
     rpc.gateway.activate();
@@ -107,7 +239,7 @@ describe("GuiHostCommandGateway", () => {
     });
     const rpcRequest = readRpcRequest(rpc.socket.sent[0] ?? "");
     rpc.transport.settleRpcError(rpcRequest.id, { code: -32000, message: "rejected" });
-    await expect(rpcPromise).rejects.toThrow("rejected");
+    await expectCommandFailure(rpcPromise, "rpc", "definitelyNotAccepted", "rejected");
     expect(rpc.gateway.activate()).toBe(false);
     await expectInterruptStillWorks(rpc, "turn-after-rpc");
 
@@ -119,7 +251,12 @@ describe("GuiHostCommandGateway", () => {
     });
     const missingRequest = readRpcRequest(missing.socket.sent[0] ?? "");
     missing.transport.settleMissingResult(missingRequest.id);
-    await expect(missingPromise).rejects.toThrow("returned no result payload");
+    await expectCommandFailure(
+      missingPromise,
+      "missingResult",
+      "deliveryUnknown",
+      "returned no result payload",
+    );
     expect(missing.gateway.activate()).toBe(false);
     await expectInterruptStillWorks(missing, "turn-after-missing");
 
@@ -132,7 +269,12 @@ describe("GuiHostCommandGateway", () => {
     });
     const malformedRequest = readRpcRequest(malformed.socket.sent[0] ?? "");
     malformed.transport.settleResult(malformedRequest.id, { turn: null });
-    await expect(malformedPromise).rejects.toThrow("returned malformed result payload");
+    await expectCommandFailure(
+      malformedPromise,
+      "malformedResult",
+      "deliveryUnknown",
+      "returned malformed result payload",
+    );
     expect(malformed.gateway.activate()).toBe(false);
     await expectInterruptStillWorks(malformed, "turn-after-malformed");
 
@@ -140,9 +282,12 @@ describe("GuiHostCommandGateway", () => {
     const send = setup(sendSocket);
     send.gateway.activate();
     sendSocket.failNextSend = true;
-    await expect(
+    await expectCommandFailure(
       send.gateway.commands.interruptTurn({ threadId: "thread-1", turnId: "turn-send" }),
-    ).rejects.toThrow("send failed");
+      "send",
+      "definitelyNotAccepted",
+      "send failed",
+    );
     expect(send.gateway.activate()).toBe(false);
     await expectInterruptStillWorks(send, "turn-after-send");
   });
@@ -155,56 +300,44 @@ describe("GuiHostCommandGateway", () => {
     expect(gateway.invalidate()).toBe(false);
     expect(gateway.activate()).toBe(false);
 
-    await expect(
+    await expectCommandFailure(
       commands.interruptTurn({ threadId: "thread-1", turnId: "turn-after-close" }),
-    ).rejects.toThrow("GUI host WebSocket is not available");
+      "unavailable",
+      "definitelyNotAccepted",
+      "GUI host WebSocket is not available",
+    );
     expect(socket.sent).toEqual([]);
   });
 });
 
 describe("GuiHostCommandGateway facade integration", () => {
-  it.each(["projection", "attached status"] as const)(
-    "does not publish commands when %s callback cleans up",
-    (cleanupAt) => {
-      const calls: string[] = [];
-      let cleanup = (): void => undefined;
-      const connection = startGuiHostConnectionWithSocket({
-        attachResponse: attachBaseline,
-        onProjectionAttached: () => {
-          calls.push("projection-attached");
-          if (cleanupAt === "projection") {
-            cleanup();
-          }
-        },
-        onStatus: (status) => {
-          calls.push(`status:${status.label}`);
-          if (cleanupAt === "attached status" && status.label === "attached") {
-            cleanup();
-          }
-        },
-        onCommandsReady: () => {
-          calls.push("commands-ready");
-        },
-        onCommandsUnavailable: () => {
-          calls.push("commands-unavailable");
-        },
-      });
-      cleanup = connection.cleanup;
+  it("does not publish commands when the initialized status callback cleans up", () => {
+    const calls: string[] = [];
+    let cleanup = (): void => undefined;
+    const connection = startGuiHostConnectionWithSocket({
+      onStatus: (status) => {
+        calls.push(`status:${status.label}`);
+        if (status.label === "initialized") {
+          cleanup();
+        }
+      },
+      onCommandsReady: () => {
+        calls.push("commands-ready");
+      },
+      onCommandsUnavailable: () => {
+        calls.push("commands-unavailable");
+      },
+    });
+    cleanup = connection.cleanup;
 
-      connection.socket.onopen?.();
-      sendAuthenticateResult(connection.socket);
-      sendInitializeResult(connection.socket);
-      calls.length = 0;
-      sendAttachResult(connection.socket, attachBaseline);
+    connection.socket.onopen?.();
+    sendAuthenticateResult(connection.socket);
+    calls.length = 0;
+    sendInitializeResult(connection.socket);
 
-      expect(calls).toEqual(
-        cleanupAt === "projection"
-          ? ["projection-attached"]
-          : ["projection-attached", "status:attached"],
-      );
-      expect(connection.socket.sent.map(readRpcRequest)).toHaveLength(3);
-    },
-  );
+    expect(calls).toEqual(["status:initialized"]);
+    expect(connection.socket.sent.map(readRpcRequest)).toHaveLength(2);
+  });
 
   it("invalidates once when onCommandsReady cleans up and reuses the old handle", async () => {
     const calls: string[] = [];
@@ -212,7 +345,6 @@ describe("GuiHostCommandGateway facade integration", () => {
     let commandPromise: Promise<unknown> | undefined;
     let commands: GuiHostCommands | undefined;
     const connection = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onCommandsReady: (readyCommands) => {
         calls.push("commands-ready");
         commands = readyCommands;
@@ -232,11 +364,10 @@ describe("GuiHostCommandGateway facade integration", () => {
     connection.socket.onopen?.();
     sendAuthenticateResult(connection.socket);
     sendInitializeResult(connection.socket);
-    sendAttachResult(connection.socket, attachBaseline);
 
     expect(calls).toEqual(["commands-ready", "commands-unavailable"]);
     expect(commands).toBeDefined();
     await expect(commandPromise).rejects.toThrow("GUI host WebSocket is not available");
-    expect(connection.socket.sent.map(readRpcRequest)).toHaveLength(3);
+    expect(connection.socket.sent.map(readRpcRequest)).toHaveLength(2);
   });
 });

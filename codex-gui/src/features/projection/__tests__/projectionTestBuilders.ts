@@ -1,4 +1,5 @@
 import type {
+  ThreadGoal,
   ThreadItem,
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
@@ -29,14 +30,37 @@ export const localAudioInput = (path: string): UserInput => ({
   path,
 });
 
-export const userMessage = (id: string, content: UserInput[]): ThreadItem => ({
+type UserMessageClientId = Extract<ThreadItem, { type: "userMessage" }>["clientId"];
+
+export const userMessage = (
+  id: string,
+  content: UserInput[],
+  clientId: UserMessageClientId = null,
+): ThreadItem => ({
   type: "userMessage",
   id,
-  clientId: null,
+  clientId,
   content,
 });
 
 type AgentMessagePhase = Extract<ThreadItem, { type: "agentMessage" }>["phase"];
+
+export const asyncQuestionMessage = (
+  id: string,
+  questions: NonNullable<Extract<ThreadItem, { type: "agentMessage" }>["questions"]>,
+): ThreadItem => ({
+  type: "agentMessage",
+  id,
+  text: questions
+    .map((question) =>
+      [question.title, ...(question.options ?? []).map((option) => `- ${option}`)].join("\n"),
+    )
+    .join("\n\n"),
+  phase: "final_answer",
+  memoryCitation: null,
+  delivery: "async",
+  questions,
+});
 
 export const agentMessage = (
   id: string,
@@ -48,6 +72,21 @@ export const agentMessage = (
   text,
   phase,
   memoryCitation: null,
+  delivery: null,
+  questions: null,
+});
+
+type ReasoningItem = Extract<ThreadItem, { type: "reasoning" }>;
+
+export const reasoningItem = (
+  id: string,
+  summary: ReasoningItem["summary"],
+  content: ReasoningItem["content"] = [],
+): ReasoningItem => ({
+  type: "reasoning",
+  id,
+  summary,
+  content,
 });
 
 export const planItem = (id: string): ThreadItem => ({
@@ -60,6 +99,59 @@ export const sleepItem = (id: string): ThreadItem => ({
   type: "sleep",
   id,
   durationMs: 1000,
+});
+
+type ContextCompactionItem = Extract<ThreadItem, { type: "contextCompaction" }>;
+
+export const contextCompaction = (id: string): ContextCompactionItem => ({
+  type: "contextCompaction",
+  id,
+});
+
+type SubAgentActivityItem = Extract<ThreadItem, { type: "subAgentActivity" }>;
+
+export const subAgentActivity = (
+  id: string,
+  kind: SubAgentActivityItem["kind"],
+  agentPath: string,
+  overrides: Partial<Pick<SubAgentActivityItem, "agentThreadId">> = {},
+): SubAgentActivityItem => ({
+  type: "subAgentActivity",
+  id,
+  kind,
+  agentThreadId: "agent-thread-id",
+  agentPath,
+  ...overrides,
+});
+
+type CollabAgentToolCallItem = Extract<ThreadItem, { type: "collabAgentToolCall" }>;
+type CollabAgentToolCallOverrides = Partial<
+  Omit<CollabAgentToolCallItem, "type" | "id" | "tool" | "status">
+>;
+type CollabAgentState = NonNullable<CollabAgentToolCallItem["agentsStates"][string]>;
+
+export const collabAgentState = (
+  status: CollabAgentState["status"],
+  message: CollabAgentState["message"] = null,
+): CollabAgentState => ({ status, message });
+
+export const collabAgentToolCall = (
+  id: string,
+  tool: CollabAgentToolCallItem["tool"],
+  status: CollabAgentToolCallItem["status"],
+  overrides: CollabAgentToolCallOverrides = {},
+): CollabAgentToolCallItem => ({
+  type: "collabAgentToolCall",
+  id,
+  tool,
+  status,
+  senderThreadId: "sender-thread-id",
+  receiverThreadIds: [],
+  prompt: null,
+  model: null,
+  reasoningEffort: null,
+  agentsStates: {},
+  ...overrides,
 });
 
 export const baseTurn = (id: string, items: ThreadItem[] = []): Turn => ({
@@ -78,6 +170,26 @@ export const inProgressTurn = (id: string, items: ThreadItem[] = []): Turn => ({
   status: "inProgress",
   completedAt: null,
   durationMs: null,
+});
+
+export const turnWithTiming = (
+  turn: Turn,
+  timing: Pick<Turn, "startedAt" | "completedAt" | "durationMs">,
+): Turn => ({ ...turn, ...timing });
+
+export const failedTurn = (
+  id: string,
+  error: NonNullable<Turn["error"]>,
+  items: ThreadItem[] = [],
+): Turn => ({
+  ...baseTurn(id, items),
+  status: "failed",
+  error,
+});
+
+export const interruptedTurn = (id: string, items: ThreadItem[] = []): Turn => ({
+  ...baseTurn(id, items),
+  status: "interrupted",
 });
 
 export const turnWithItems = (turn: Turn, items: ThreadItem[]): Turn => ({
@@ -120,6 +232,66 @@ export const attachWithHeadCommitId = (
   },
 });
 
+export const threadGoal = (threadId: string, overrides: Partial<ThreadGoal> = {}): ThreadGoal => ({
+  threadId,
+  objective: "Finish the task",
+  status: "paused",
+  tokenBudget: 1000,
+  tokensUsed: 20,
+  timeUsedSeconds: 3,
+  createdAt: 100,
+  updatedAt: 101,
+  ...overrides,
+});
+
+export const attachWithGoal = (
+  attach: ThreadProjectionAttachResponse,
+  goal: ThreadGoal | null,
+): ThreadProjectionAttachResponse => ({
+  ...attach,
+  snapshot: { ...attach.snapshot, goal },
+});
+
+export const goalEvent = (
+  attach: ThreadProjectionAttachResponse,
+  commitId: string,
+  parentCommitId: string | null,
+  goal: ThreadGoal | null,
+): ThreadProjectionEventNotification => ({
+  threadId: attach.snapshot.thread.id,
+  subscriptionId: attach.subscriptionId,
+  commitId,
+  parentCommitId,
+  event:
+    goal == null
+      ? { type: "goalCleared", notification: { threadId: attach.snapshot.thread.id } }
+      : {
+          type: "goalUpdated",
+          notification: { threadId: attach.snapshot.thread.id, turnId: null, goal },
+        },
+});
+
+export const attachWithSnapshotThread = (
+  attach: ThreadProjectionAttachResponse,
+  thread: ThreadProjectionAttachResponse["snapshot"]["thread"],
+  subscriptionId = attach.subscriptionId,
+): ThreadProjectionAttachResponse => ({
+  ...attach,
+  subscriptionId,
+  snapshot: { ...attach.snapshot, thread },
+});
+
+export const attachWithThreadName = (
+  attach: ThreadProjectionAttachResponse,
+  name: string | null,
+): ThreadProjectionAttachResponse => ({
+  ...attach,
+  snapshot: {
+    ...attach.snapshot,
+    thread: { ...attach.snapshot.thread, name },
+  },
+});
+
 export const attachWithThreadId = (
   attach: ThreadProjectionAttachResponse,
   threadId: string,
@@ -149,6 +321,53 @@ export const eventWithEnvelope = (
   ...overrides,
 });
 
+type ProjectionNotificationOwner = Pick<
+  ThreadProjectionEventNotification,
+  "threadId" | "subscriptionId"
+>;
+
+const projectionPayloadForThread = <T extends { notification: { threadId: string } }>(
+  payload: T,
+  threadId: string,
+): T => ({
+  ...payload,
+  notification: { ...payload.notification, threadId },
+});
+
+export const eventForThreadOwner = (
+  event: ThreadProjectionEventNotification,
+  owner: ProjectionNotificationOwner,
+): ThreadProjectionEventNotification => ({
+  ...event,
+  ...owner,
+  event: projectionPayloadForThread(event.event, owner.threadId),
+});
+
+type TokenUsageUpdatedEvent = Extract<
+  ThreadProjectionEventNotification["event"],
+  { type: "tokenUsageUpdated" }
+>;
+
+export const tokenUsageUpdated = (
+  eventTokenUsageUpdated: ThreadProjectionEventNotification,
+  tokenUsage: TokenUsageUpdatedEvent["notification"]["tokenUsage"],
+): ThreadProjectionEventNotification => {
+  if (eventTokenUsageUpdated.event.type !== "tokenUsageUpdated") {
+    throw new Error("fixture must contain a tokenUsageUpdated projection event");
+  }
+
+  return {
+    ...eventTokenUsageUpdated,
+    event: {
+      ...eventTokenUsageUpdated.event,
+      notification: {
+        ...eventTokenUsageUpdated.event.notification,
+        tokenUsage,
+      },
+    },
+  };
+};
+
 type DeltaEnvelopeOverrides = {
   threadId?: ThreadProjectionDeltaNotification["threadId"];
   subscriptionId?: ThreadProjectionDeltaNotification["subscriptionId"];
@@ -160,6 +379,15 @@ export const deltaWithEnvelope = (
 ): ThreadProjectionDeltaNotification => ({
   ...delta,
   ...overrides,
+});
+
+export const deltaForThreadOwner = (
+  delta: ThreadProjectionDeltaNotification,
+  owner: ProjectionNotificationOwner,
+): ThreadProjectionDeltaNotification => ({
+  ...delta,
+  ...owner,
+  delta: projectionPayloadForThread(delta.delta, owner.threadId),
 });
 
 type ClosedEnvelopeOverrides = {
@@ -199,6 +427,97 @@ export const agentMessageDelta = (
   };
 };
 
+type ReasoningSummaryTextDelta = Extract<
+  ThreadProjectionDeltaNotification["delta"],
+  { type: "reasoningSummaryText" }
+>;
+
+export const reasoningSummaryTextDelta = (
+  eventReasoningSummaryTextDelta: ThreadProjectionDeltaNotification,
+  turnId: ReasoningSummaryTextDelta["notification"]["turnId"],
+  itemId: ReasoningSummaryTextDelta["notification"]["itemId"],
+  delta: ReasoningSummaryTextDelta["notification"]["delta"],
+  summaryIndex: ReasoningSummaryTextDelta["notification"]["summaryIndex"],
+): ThreadProjectionDeltaNotification => {
+  if (eventReasoningSummaryTextDelta.delta.type !== "reasoningSummaryText") {
+    throw new Error("fixture must contain a reasoningSummaryText projection delta");
+  }
+
+  return {
+    ...eventReasoningSummaryTextDelta,
+    delta: {
+      ...eventReasoningSummaryTextDelta.delta,
+      notification: {
+        ...eventReasoningSummaryTextDelta.delta.notification,
+        turnId,
+        itemId,
+        delta,
+        summaryIndex,
+      },
+    },
+  };
+};
+
+type ReasoningSummaryPartAddedDelta = Extract<
+  ThreadProjectionDeltaNotification["delta"],
+  { type: "reasoningSummaryPartAdded" }
+>;
+
+export const reasoningSummaryPartAddedDelta = (
+  eventReasoningSummaryPartAddedDelta: ThreadProjectionDeltaNotification,
+  turnId: ReasoningSummaryPartAddedDelta["notification"]["turnId"],
+  itemId: ReasoningSummaryPartAddedDelta["notification"]["itemId"],
+  summaryIndex: ReasoningSummaryPartAddedDelta["notification"]["summaryIndex"],
+): ThreadProjectionDeltaNotification => {
+  if (eventReasoningSummaryPartAddedDelta.delta.type !== "reasoningSummaryPartAdded") {
+    throw new Error("fixture must contain a reasoningSummaryPartAdded projection delta");
+  }
+
+  return {
+    ...eventReasoningSummaryPartAddedDelta,
+    delta: {
+      ...eventReasoningSummaryPartAddedDelta.delta,
+      notification: {
+        ...eventReasoningSummaryPartAddedDelta.delta.notification,
+        turnId,
+        itemId,
+        summaryIndex,
+      },
+    },
+  };
+};
+
+type ReasoningTextDelta = Extract<
+  ThreadProjectionDeltaNotification["delta"],
+  { type: "reasoningText" }
+>;
+
+export const reasoningTextDelta = (
+  eventReasoningTextDelta: ThreadProjectionDeltaNotification,
+  turnId: ReasoningTextDelta["notification"]["turnId"],
+  itemId: ReasoningTextDelta["notification"]["itemId"],
+  delta: ReasoningTextDelta["notification"]["delta"],
+  contentIndex: ReasoningTextDelta["notification"]["contentIndex"],
+): ThreadProjectionDeltaNotification => {
+  if (eventReasoningTextDelta.delta.type !== "reasoningText") {
+    throw new Error("fixture must contain a reasoningText projection delta");
+  }
+
+  return {
+    ...eventReasoningTextDelta,
+    delta: {
+      ...eventReasoningTextDelta.delta,
+      notification: {
+        ...eventReasoningTextDelta.delta.notification,
+        turnId,
+        itemId,
+        delta,
+        contentIndex,
+      },
+    },
+  };
+};
+
 export const itemCompleted = (
   eventItemCompleted: ThreadProjectionEventNotification,
   commitId: string,
@@ -222,6 +541,14 @@ export const itemCompleted = (
     },
   };
 };
+
+export const contextCompactionCompleted = (
+  eventItemCompleted: ThreadProjectionEventNotification,
+  commitId: string,
+  turnId: string,
+  itemId: string,
+): ThreadProjectionEventNotification =>
+  itemCompleted(eventItemCompleted, commitId, turnId, contextCompaction(itemId));
 
 export const itemStarted = (
   eventItemStarted: ThreadProjectionEventNotification,

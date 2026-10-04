@@ -1,13 +1,10 @@
-import {
-  threadRuntimeAttached,
-  threadRuntimeDeltasAccepted,
-  threadRuntimeEventBuffered,
-  threadRuntimeManualReconnectRequired,
-} from "@/features/threadRuntime/threadRuntimeSlice";
+import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
 import {
   appendStartedTranscriptItem,
   applyAcceptedProjectionDeltaBatch,
   applyCompletedTranscriptItem,
+  clearAllStreamingReasoning,
+  clearStreamingReasoningForTurn,
   hasTranscriptEntry,
   rebuildTranscriptFromSnapshot,
   upsertTranscriptTurn,
@@ -15,30 +12,35 @@ import {
 import { hasAppliedTranscriptEvent, recordAppliedTranscriptEvent } from "./transcriptEventDedup";
 import type { TranscriptState } from "./transcriptStateModel";
 
-type TranscriptInput =
-  | ReturnType<typeof threadRuntimeAttached>
-  | ReturnType<typeof threadRuntimeDeltasAccepted>
-  | ReturnType<typeof threadRuntimeEventBuffered>
-  | ReturnType<typeof threadRuntimeManualReconnectRequired>;
-
-export const reduceTranscriptInput = (state: TranscriptState, action: TranscriptInput): void => {
-  switch (action.type) {
-    case threadRuntimeAttached.type:
+export const reduceTranscriptReadModelFact = (
+  state: TranscriptState,
+  fact: ActiveThreadProjectionReadModelFact,
+): void => {
+  switch (fact.type) {
+    case "baselineAttached":
       rebuildTranscriptFromSnapshot(
         state,
-        action.payload.snapshot.thread.id,
-        action.payload.subscriptionId,
-        action.payload.snapshot.headCommitId,
-        action.payload.snapshot.thread.turns,
+        fact.response.snapshot.thread.id,
+        fact.response.subscriptionId,
+        fact.response.snapshot.headCommitId,
+        fact.response.snapshot.thread.turns,
       );
       return;
-    case threadRuntimeEventBuffered.type: {
-      const { notification, replay } = action.payload;
+    case "eventAccepted": {
+      const { notification, replay } = fact.payload;
       if (replay === "snapshotDuplicate") {
         return;
       }
 
       if (state.threadId !== notification.threadId) {
+        return;
+      }
+
+      if (
+        notification.event.type === "tokenUsageUpdated" ||
+        notification.event.type === "goalUpdated" ||
+        notification.event.type === "goalCleared"
+      ) {
         return;
       }
 
@@ -57,9 +59,19 @@ export const reduceTranscriptInput = (state: TranscriptState, action: Transcript
 
       switch (notification.event.type) {
         case "turnStarted":
-        case "turnCompleted":
           upsertTranscriptTurn(state, notification.event.notification.turn);
           return;
+        case "turnCompleted": {
+          const { turn } = notification.event.notification;
+          upsertTranscriptTurn(state, turn);
+          if (
+            (turn.status === "interrupted" || turn.status === "failed") &&
+            clearStreamingReasoningForTurn(state, turn.id)
+          ) {
+            state.committedScrollCommitKey = `event:${notification.commitId}`;
+          }
+          return;
+        }
         case "itemCompleted": {
           const { item, turnId } = notification.event.notification;
           applyCompletedTranscriptItem(state, turnId, item, notification.commitId);
@@ -67,30 +79,34 @@ export const reduceTranscriptInput = (state: TranscriptState, action: Transcript
         }
         case "itemStarted": {
           const { item, turnId } = notification.event.notification;
-          appendStartedTranscriptItem(state, turnId, item);
+          appendStartedTranscriptItem(state, turnId, item, notification.commitId);
           return;
         }
       }
       notification.event satisfies never;
       return;
     }
-    case threadRuntimeDeltasAccepted.type:
-      applyAcceptedProjectionDeltaBatch(state, action.payload.notifications);
+    case "deltasAccepted":
+      applyAcceptedProjectionDeltaBatch(state, [...fact.notifications]);
       return;
-    case threadRuntimeManualReconnectRequired.type:
-      if (state.threadId !== action.payload.threadId) {
+    case "projectionUnavailable":
+      if (state.threadId !== fact.threadId) {
         return;
+      }
+
+      if (clearAllStreamingReasoning(state)) {
+        state.committedScrollCommitKey = `reconnect:${fact.threadId}:${fact.subscriptionId ?? "none"}:${fact.reason}`;
       }
 
       state.globalStatus = [
         {
-          id: `subscriptionInterrupted:${action.payload.threadId}:${action.payload.subscriptionId ?? "none"}:${action.payload.reason}`,
+          id: `subscriptionInterrupted:${fact.threadId}:${fact.subscriptionId ?? "none"}:${fact.reason}`,
           status: "subscriptionInterrupted",
-          reason: action.payload.reason,
-          subscriptionId: action.payload.subscriptionId,
+          reason: fact.reason,
+          subscriptionId: fact.subscriptionId,
         },
       ];
       return;
   }
-  action satisfies never;
+  fact satisfies never;
 };

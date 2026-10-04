@@ -1,210 +1,135 @@
-import type { PayloadAction } from "@reduxjs/toolkit";
 import { createAppSlice } from "@/app/createAppSlice";
-import type { ProjectionManualReconnectReason } from "@/features/projectionIngress/projectionIngressAdapter";
-import type {
-  Thread,
-  ThreadProjectionAttachResponse,
-  ThreadProjectionDeltaNotification,
-  ThreadProjectionEventNotification,
-  Turn,
-} from "@codex-protocol/v2";
-
-export type ThreadRuntimeSubscription =
-  | { state: "active" }
-  | {
-      state: "manualReconnectRequired";
-      reason: ProjectionManualReconnectReason;
-      subscriptionId: string | null;
-    };
-
-export type ThreadRuntimeEventReplay = "live" | "snapshotDuplicate";
-
-export type ThreadRuntimeProjectionEventPayload = {
-  notification: ThreadProjectionEventNotification;
-  replay: ThreadRuntimeEventReplay;
-};
-
-export type ThreadRuntimeProjectionDeltasPayload = {
-  notifications: ThreadProjectionDeltaNotification[];
-};
-
-export type ThreadRuntimeBufferedEvent = {
-  type: "projectionEvent";
-  notification: ThreadProjectionEventNotification;
-  replay: ThreadRuntimeEventReplay;
-};
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelSlotRemoved,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type { ActiveThreadSessionIdentity } from "@/features/activeThreadSession/activeThreadSessionIdentity";
+import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import type { Thread, ThreadGoal, ThreadTokenUsage } from "@codex-protocol/v2";
 
 export type ThreadRuntimeRecord = {
+  sessionRevision: number;
   threadId: string;
-  sessionId: string;
-  thread: Omit<Thread, "turns">;
-  snapshotTurns: Turn[];
-  eventBuffer: ThreadRuntimeBufferedEvent[];
-  activeTurnId: string | null;
-  subscription: ThreadRuntimeSubscription;
+  thread: Omit<Thread, "turns" | "status">;
+  tokenUsage: ThreadTokenUsage | null;
+  goal: ThreadGoal | null;
 };
 
-export type ThreadRuntimeState = {
+export type ThreadRuntimeSlot = {
+  identity: ActiveThreadSessionIdentity;
+  sessionRevision: number;
   current: ThreadRuntimeRecord | null;
 };
 
-export type ThreadRuntimeManualReconnectPayload = {
-  reason: ProjectionManualReconnectReason;
-  threadId: string;
-  subscriptionId: string | null;
+export type ThreadRuntimeState = {
+  byThreadId: Record<string, ThreadRuntimeSlot>;
 };
 
 const initialState: ThreadRuntimeState = {
-  current: null,
+  byThreadId: {},
 };
 
-const EMPTY_EVENT_BUFFER: ThreadRuntimeBufferedEvent[] = [];
-const MAX_THREAD_RUNTIME_EVENT_BUFFER_LENGTH = 500;
+const threadMetadata = ({
+  turns: _turns,
+  status: _status,
+  ...thread
+}: Thread): Omit<Thread, "turns" | "status"> => thread;
 
-const activeTurnIdFromSnapshot = (turns: Turn[]): string | null =>
-  turns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null;
-
-export type SnapshotReplayIndex = {
-  turnStatusById: Partial<Record<string, Turn["status"]>>;
-  itemIdsById: Record<string, true>;
-};
-
-const idsById = (ids: string[]): Record<string, true> =>
-  Object.fromEntries(ids.map((id) => [id, true]));
-
-export const snapshotReplayIndexFromTurns = (turns: Turn[]): SnapshotReplayIndex => ({
-  turnStatusById: Object.fromEntries(turns.map((turn) => [turn.id, turn.status])),
-  itemIdsById: idsById(turns.flatMap((turn) => turn.items.map((item) => item.id))),
-});
-
-export const replayForProjectionEvent = (
-  index: SnapshotReplayIndex,
-  notification: ThreadProjectionEventNotification,
-): ThreadRuntimeEventReplay => {
-  switch (notification.event.type) {
-    case "turnStarted":
-      return index.turnStatusById[notification.event.notification.turn.id] != null
-        ? "snapshotDuplicate"
-        : "live";
-    case "turnCompleted":
-      return index.turnStatusById[notification.event.notification.turn.id] ===
-        notification.event.notification.turn.status
-        ? "snapshotDuplicate"
-        : "live";
-    case "itemStarted":
-    case "itemCompleted":
-      return index.itemIdsById[notification.event.notification.item.id] === true
-        ? "snapshotDuplicate"
-        : "live";
+const applyRuntimeFact = (
+  state: ThreadRuntimeSlot,
+  sessionRevision: number,
+  fact: ActiveThreadProjectionReadModelFact,
+): void => {
+  switch (fact.type) {
+    case "baselineAttached": {
+      const thread = threadMetadata(fact.response.snapshot.thread);
+      state.current = {
+        sessionRevision,
+        threadId: thread.id,
+        thread,
+        tokenUsage: fact.response.snapshot.tokenUsage,
+        goal: fact.response.snapshot.goal,
+      };
+      return;
+    }
+    case "eventAccepted": {
+      const { notification, replay } = fact.payload;
+      if (replay !== "live" || state.current?.threadId !== notification.threadId) return;
+      switch (notification.event.type) {
+        case "tokenUsageUpdated":
+          state.current.tokenUsage = notification.event.notification.tokenUsage;
+          break;
+        case "goalUpdated":
+          state.current.goal = notification.event.notification.goal;
+          break;
+        case "goalCleared":
+          state.current.goal = null;
+          break;
+        case "turnStarted":
+        case "turnCompleted":
+        case "itemStarted":
+        case "itemCompleted":
+          break;
+        default:
+          notification.event satisfies never;
+      }
+      return;
+    }
+    case "deltasAccepted":
+    case "projectionUnavailable":
+      return;
   }
-  notification.event satisfies never;
+  fact satisfies never;
 };
 
 export const threadRuntimeSlice = createAppSlice({
   name: "threadRuntime",
   initialState,
-  reducers: (create) => ({
-    threadRuntimeAttached: create.reducer(
-      (state, action: PayloadAction<ThreadProjectionAttachResponse>) => {
-        const { turns: snapshotTurns, ...thread } = action.payload.snapshot.thread;
+  reducers: () => ({}),
+  extraReducers: (builder) => {
+    builder.addCase(activeThreadReadModelSlotCreated, (state, { payload: identity }) => {
+      state.byThreadId[identity.threadId] ??= { identity, sessionRevision: 0, current: null };
+    });
+    builder.addCase(activeThreadReadModelSlotRemoved, (state, { payload: identity }) => {
+      if (state.byThreadId[identity.threadId]?.identity.instanceId === identity.instanceId) {
+        const { [identity.threadId]: _removed, ...byThreadId } = state.byThreadId;
+        return { byThreadId };
+      }
+    });
+    builder.addCase(activeThreadReadModelTransitionApplied, (state, action) => {
+      const { identity, facts, sessionRevision } = action.payload;
+      const slot = state.byThreadId[identity.threadId];
+      if (
+        slot?.identity.instanceId !== identity.instanceId ||
+        sessionRevision <= slot.sessionRevision
+      ) {
+        return;
+      }
 
-        state.current = {
-          threadId: thread.id,
-          sessionId: thread.sessionId,
-          thread,
-          snapshotTurns,
-          eventBuffer: [],
-          activeTurnId: activeTurnIdFromSnapshot(snapshotTurns),
-          subscription: { state: "active" },
-        };
-      },
-    ),
-    threadRuntimeDeltasAccepted: create.reducer(
-      // eslint-disable-next-line @typescript-eslint/no-empty-function -- Accepted projection delta batches are a cross-slice signal; runtime intentionally does not mutate buffers.
-      (_state, _action: PayloadAction<ThreadRuntimeProjectionDeltasPayload>) => {},
-    ),
-    threadRuntimeEventBuffered: create.reducer(
-      (state, action: PayloadAction<ThreadRuntimeProjectionEventPayload>) => {
-        const runtime = state.current;
-        if (runtime?.subscription.state !== "active") {
-          return;
-        }
-        const { notification, replay } = action.payload;
-
-        runtime.eventBuffer.push({
-          type: "projectionEvent",
-          notification,
-          replay,
-        });
-
-        if (runtime.eventBuffer.length > MAX_THREAD_RUNTIME_EVENT_BUFFER_LENGTH) {
-          runtime.eventBuffer.splice(
-            0,
-            runtime.eventBuffer.length - MAX_THREAD_RUNTIME_EVENT_BUFFER_LENGTH,
-          );
-        }
-
-        if (replay === "snapshotDuplicate") {
-          return;
-        }
-
-        switch (notification.event.type) {
-          case "turnStarted":
-            runtime.activeTurnId = notification.event.notification.turn.id;
-            return;
-          case "turnCompleted":
-            if (runtime.activeTurnId === notification.event.notification.turn.id) {
-              runtime.activeTurnId = null;
-            }
-            return;
-          case "itemStarted":
-          case "itemCompleted":
-            return;
-        }
-        notification.event satisfies never;
-      },
-    ),
-    threadRuntimeManualReconnectRequired: create.reducer(
-      (state, action: PayloadAction<ThreadRuntimeManualReconnectPayload>) => {
-        const runtime = state.current;
-        if (runtime?.threadId !== action.payload.threadId) {
-          return;
-        }
-
-        runtime.subscription = {
-          state: "manualReconnectRequired",
-          reason: action.payload.reason,
-          subscriptionId: action.payload.subscriptionId,
-        };
-      },
-    ),
-  }),
+      for (const fact of facts) {
+        applyRuntimeFact(slot, sessionRevision, fact);
+      }
+      slot.sessionRevision = sessionRevision;
+      if (slot.current != null) {
+        slot.current.sessionRevision = sessionRevision;
+      }
+    });
+  },
   selectors: {
-    selectThreadRuntimeRecord: (threadRuntime) => threadRuntime.current,
-    selectThreadRuntimeActiveTurnId: (threadRuntime) => threadRuntime.current?.activeTurnId ?? null,
-    selectThreadRuntimeSubscription: (threadRuntime) => threadRuntime.current?.subscription ?? null,
-    selectThreadRuntimeThreadId: (threadRuntime) => threadRuntime.current?.threadId ?? null,
-    selectThreadRuntimeSubscriptionState: (threadRuntime) =>
-      threadRuntime.current?.subscription.state ?? null,
-    selectThreadRuntimeEventBuffer: (threadRuntime) =>
-      threadRuntime.current?.eventBuffer ?? EMPTY_EVENT_BUFFER,
+    selectThreadRuntimeRecord: (threadRuntime, threadId: string) =>
+      threadRuntime.byThreadId[threadId]?.current ?? null,
+    selectThreadRuntimeThreadId: (threadRuntime, threadId: string) =>
+      threadRuntime.byThreadId[threadId]?.current?.threadId ?? null,
+    selectThreadRuntimeTokenUsage: (threadRuntime, threadId: string): ThreadTokenUsage | null =>
+      threadRuntime.byThreadId[threadId]?.current?.tokenUsage ?? null,
   },
 });
 
 export const {
-  threadRuntimeAttached,
-  threadRuntimeDeltasAccepted,
-  threadRuntimeEventBuffered,
-  threadRuntimeManualReconnectRequired,
-} = threadRuntimeSlice.actions;
-
-export const {
-  selectThreadRuntimeActiveTurnId,
-  selectThreadRuntimeEventBuffer,
   selectThreadRuntimeRecord,
-  selectThreadRuntimeSubscription,
-  selectThreadRuntimeSubscriptionState,
   selectThreadRuntimeThreadId,
+  selectThreadRuntimeTokenUsage,
 } = threadRuntimeSlice.selectors;
 
 export default threadRuntimeSlice;

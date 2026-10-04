@@ -17,7 +17,8 @@
     }
   },
   "required": [
-    "data"
+    "data",
+    "nextCursor"
   ],
   "title": "ThreadLoadedListResponse",
   "type": "object"

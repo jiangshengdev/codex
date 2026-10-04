@@ -188,6 +188,9 @@ export class ProjectionIngressAdapter {
     switch (event.type) {
       case "turnStarted":
       case "turnCompleted":
+      case "tokenUsageUpdated":
+      case "goalUpdated":
+      case "goalCleared":
         return false;
       case "itemStarted":
       case "itemCompleted":
@@ -206,6 +209,9 @@ export class ProjectionIngressAdapter {
         return;
       case "itemStarted":
       case "itemCompleted":
+      case "tokenUsageUpdated":
+      case "goalUpdated":
+      case "goalCleared":
         return;
       default:
         event satisfies never;

@@ -1,29 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { InitializeResponse } from "@codex-protocol/InitializeResponse";
-import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import {
   GuiHostHandshakeController,
   type GuiHostHandshakeCallbacks,
   type GuiHostHandshakeTerminalFailure,
 } from "../guiHostHandshakeController";
 import { GuiHostTransportSession } from "../guiHostTransportSession";
-
-class RecordingSocket {
-  sent: string[] = [];
-  readyState: number = WebSocket.OPEN;
-  onerror: ((event: Event) => void) | null = null;
-  onmessage: ((event: MessageEvent) => void) | null = null;
-  onopen: ((event: Event) => void) | null = null;
-  onclose: ((event: CloseEvent) => void) | null = null;
-
-  send(message: string): void {
-    this.sent.push(message);
-  }
-
-  close(): void {
-    this.readyState = WebSocket.CLOSED;
-  }
-}
+import { initializeResponse, RecordingSocket } from "./guiHostTestSupport";
 
 type RpcRequest = {
   jsonrpc: "2.0";
@@ -32,17 +14,9 @@ type RpcRequest = {
   params: unknown;
 };
 
-const initializeResponse: InitializeResponse = {
-  userAgent: "codex-test",
-  codexHome: "/codex-home",
-  platformFamily: "test",
-  platformOs: "test",
-};
-
 const defaultCallbacks: GuiHostHandshakeCallbacks = {
   onAuthenticated: () => undefined,
   onInitialized: () => undefined,
-  onAttached: () => undefined,
   onTerminalFailure: () => undefined,
 };
 
@@ -56,7 +30,6 @@ function createHarness(callbacks: Partial<GuiHostHandshakeCallbacks> = {}): {
   const controller = new GuiHostHandshakeController({
     requests: session,
     token: "secret",
-    threadId: "thread-1",
     callbacks: { ...defaultCallbacks, ...callbacks },
   });
   return { controller, session, socket };
@@ -83,15 +56,11 @@ function settleInitialized(session: GuiHostTransportSession, socket: RecordingSo
 }
 
 describe("GuiHostHandshakeController", () => {
-  it("advances synchronously through authenticate, initialize, and attach with exact params and callback order", () => {
+  it("advances synchronously through authenticate and initialize with exact params and callback order", () => {
     const calls: string[] = [];
     const { controller, session, socket } = createHarness({
       onAuthenticated: () => calls.push("authenticated"),
       onInitialized: () => calls.push("initialized"),
-      onAttached: (response) => {
-        expect(response).toBe(attachBaseline);
-        calls.push("attached");
-      },
     });
 
     controller.start();
@@ -116,15 +85,7 @@ describe("GuiHostHandshakeController", () => {
 
     settleInitialized(session, socket);
     expect(calls).toEqual(["authenticated", "initialized"]);
-    expect(requestAt(socket, 2)).toEqual({
-      jsonrpc: "2.0",
-      id: 3,
-      method: "thread/projection/attach",
-      params: { threadId: "thread-1" },
-    });
-
-    expect(session.settleResult(requestAt(socket, 2).id, attachBaseline)).toBe(true);
-    expect(calls).toEqual(["authenticated", "initialized", "attached"]);
+    expect(socket.sent).toHaveLength(2);
   });
 
   it("starts only once and ignores settlements after stop", () => {
@@ -132,7 +93,6 @@ describe("GuiHostHandshakeController", () => {
     const { controller, session, socket } = createHarness({
       onAuthenticated: () => calls.push("authenticated"),
       onInitialized: () => calls.push("initialized"),
-      onAttached: () => calls.push("attached"),
       onTerminalFailure: () => calls.push("failure"),
     });
 
@@ -163,7 +123,7 @@ describe("GuiHostHandshakeController", () => {
     expect(requestAt(harness.socket, 0).method).toBe("gui/authenticate");
   });
 
-  it("does not attach when the initialized callback stops the controller", () => {
+  it("stops after the initialized callback without starting another request", () => {
     const calls: string[] = [];
     const harness = createHarness({
       onInitialized: () => {
@@ -184,7 +144,6 @@ describe("GuiHostHandshakeController", () => {
   it.each([
     ["authenticate", -32001, "authentication failed"],
     ["initialize", -32002, "initialization failed"],
-    ["thread/projection/attach", -32003, "attachment failed"],
   ])("maps an RPC failure during %s to a handshake terminal failure", (stage, code, message) => {
     const failures: GuiHostHandshakeTerminalFailure[] = [];
     const { controller, session, socket } = createHarness({
@@ -193,9 +152,6 @@ describe("GuiHostHandshakeController", () => {
     controller.start();
     if (stage !== "authenticate") {
       settleAuthenticated(session, socket);
-    }
-    if (stage === "thread/projection/attach") {
-      settleInitialized(session, socket);
     }
     const request = requestAt(socket, socket.sent.length - 1);
 
@@ -228,18 +184,6 @@ describe("GuiHostHandshakeController", () => {
       "malformed",
       "initialize returned malformed result payload",
     ],
-    [
-      "attach missing",
-      "thread/projection/attach",
-      "missing",
-      "thread/projection/attach returned no result payload",
-    ],
-    [
-      "attach malformed",
-      "thread/projection/attach",
-      "malformed",
-      "thread/projection/attach returned malformed result payload",
-    ],
   ])("maps %s to a protocol terminal failure", (_, stage, resultKind, message) => {
     const failures: GuiHostHandshakeTerminalFailure[] = [];
     const { controller, session, socket } = createHarness({
@@ -248,9 +192,6 @@ describe("GuiHostHandshakeController", () => {
     controller.start();
     if (stage !== "authenticate") {
       settleAuthenticated(session, socket);
-    }
-    if (stage === "thread/projection/attach") {
-      settleInitialized(session, socket);
     }
     const request = requestAt(socket, socket.sent.length - 1);
 

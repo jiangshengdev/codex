@@ -1,30 +1,27 @@
 import { Button, Popover, Typography } from "@heroui/react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useMemo } from "react";
-import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
+import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import { buildQrAccessUrl } from "./qrAccessUrl";
 
 export type QrAccessPopoverProps = {
-  launchParams: BrowserLaunchParams | null;
+  authorizationToken: string | null;
   origin?: string;
+  routeTarget: GuiRouteTarget;
 };
 
 export function QrAccessPopover({
-  launchParams,
+  authorizationToken,
   origin = window.location.origin,
+  routeTarget,
 }: QrAccessPopoverProps) {
-  const qrUrl = useMemo(() => {
-    if (launchParams == null) {
-      return null;
-    }
-
-    return buildQrAccessUrl({
-      origin,
-      threadId: launchParams.threadId,
-      token: launchParams.token,
-    });
-  }, [launchParams, origin]);
+  const { t } = useLingui();
+  const qrUrl = useMemo(
+    () => buildQrAccessUrl({ authorizationToken, origin, routeTarget }),
+    [authorizationToken, origin, routeTarget],
+  );
 
   const isDisabled = qrUrl == null;
 
@@ -32,7 +29,7 @@ export function QrAccessPopover({
     <Popover>
       <Button
         isIconOnly
-        aria-label="Scan with phone"
+        aria-label={t`Scan with phone`}
         isDisabled={isDisabled}
         size="sm"
         variant="tertiary"
@@ -41,16 +38,18 @@ export function QrAccessPopover({
       </Button>
       <Popover.Content className="w-72" placement="top" offset={12}>
         <Popover.Dialog>
-          <Popover.Heading>Scan with phone</Popover.Heading>
+          <Popover.Heading>
+            <Trans>Scan with phone</Trans>
+          </Popover.Heading>
           {qrUrl == null ? (
             <Typography.Paragraph color="muted" size="sm">
-              QR access is unavailable until the GUI launch token is ready.
+              <Trans>QR access is unavailable until the GUI launch token is ready.</Trans>
             </Typography.Paragraph>
           ) : (
             <div className="grid gap-3">
               <div className="rounded-lg p-3">
                 <QRCodeSVG
-                  aria-label="QR code for current GUI URL"
+                  aria-label={t`QR code for current GUI URL`}
                   className="h-full w-full"
                   marginSize={4}
                   value={qrUrl}

@@ -1,0 +1,290 @@
+import type { ComposerInputQueueCoordinatorReleaseReservation } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
+import type { Turn } from "@codex-protocol/v2";
+import type { ActiveThreadProjectionAcceptedEvent } from "./activeThreadProjectionFacts";
+
+const compactionClaimCapability: unique symbol = Symbol("ActiveThreadCompactionClaim");
+
+export type ActiveThreadCompactionState =
+  | Readonly<{ phase: "idle"; startFailure: string | null }>
+  | Readonly<{
+      phase: "requestPending";
+      startFailure: string | null;
+      claimId: string;
+      candidateTurnId: string | null;
+    }>
+  | Readonly<{
+      phase: "deliveryUnknown";
+      startFailure: string | null;
+      claimId: string;
+      candidateTurnId: string | null;
+    }>
+  | Readonly<{ phase: "running"; turnId: string; itemId: string }>;
+
+export type ActiveThreadCompactionClaim = Readonly<{
+  id: string;
+  [compactionClaimCapability]: object;
+}>;
+
+export type ActiveThreadCompactionClaimResult =
+  | Readonly<{
+      type: "claimed";
+      claim: ActiveThreadCompactionClaim;
+      state: ActiveThreadCompactionState;
+    }>
+  | Readonly<{
+      type: "blocked";
+      reason: "disposed" | "operationInProgress";
+      state: ActiveThreadCompactionState;
+    }>;
+
+export type ActiveThreadCompactionSettlement =
+  | Readonly<{ type: "accepted" }>
+  | Readonly<{ type: "rejected"; error: GuiHostCommandError }>;
+
+export type ActiveThreadCompactionMutation =
+  | Readonly<{ type: "changed"; state: ActiveThreadCompactionState }>
+  | Readonly<{ type: "unchanged" }>;
+
+export type ActiveThreadCompaction = Readonly<{
+  getState(): ActiveThreadCompactionState;
+  claimRequest(
+    reservation: ComposerInputQueueCoordinatorReleaseReservation,
+  ): ActiveThreadCompactionClaimResult;
+  settleRequest(
+    claim: ActiveThreadCompactionClaim,
+    settlement: ActiveThreadCompactionSettlement,
+  ): ActiveThreadCompactionMutation;
+  observeAcceptedEvent(fact: ActiveThreadProjectionAcceptedEvent): ActiveThreadCompactionMutation;
+  reconcileSnapshot(turns: readonly Turn[]): void;
+  connectionUnavailable(): void;
+  dispose(): ActiveThreadCompactionMutation;
+}>;
+
+type RequestClaimRecord = {
+  claim: ActiveThreadCompactionClaim;
+  reservation: ComposerInputQueueCoordinatorReleaseReservation | null;
+  settlement: "pending" | "accepted" | "deliveryUnknown";
+};
+
+class ActiveThreadCompactionImpl implements ActiveThreadCompaction {
+  private state: ActiveThreadCompactionState = { phase: "idle", startFailure: null };
+  private requestClaim: RequestClaimRecord | null = null;
+  private nextClaimSequence = 0;
+  private disposed = false;
+
+  getState = (): ActiveThreadCompactionState => this.state;
+
+  connectionUnavailable = (): void => {
+    const claim = this.requestClaim;
+    if (claim?.settlement !== "pending") return;
+    this.settleRequest(claim.claim, {
+      type: "rejected",
+      error: new GuiHostCommandError({
+        source: "unavailable",
+        delivery: "deliveryUnknown",
+        error: new Error("Connection closed before compaction was confirmed"),
+      }),
+    });
+  };
+
+  claimRequest = (
+    reservation: ComposerInputQueueCoordinatorReleaseReservation,
+  ): ActiveThreadCompactionClaimResult => {
+    if (this.disposed) {
+      reservation.release();
+      return { type: "blocked", reason: "disposed", state: this.state };
+    }
+    if (this.state.phase !== "idle") {
+      reservation.release();
+      return { type: "blocked", reason: "operationInProgress", state: this.state };
+    }
+
+    this.nextClaimSequence += 1;
+    const claim: ActiveThreadCompactionClaim = {
+      id: `compaction-request-${String(this.nextClaimSequence)}`,
+      [compactionClaimCapability]: {},
+    };
+    this.requestClaim = { claim, reservation, settlement: "pending" };
+    this.state = {
+      phase: "requestPending",
+      startFailure: this.state.startFailure,
+      claimId: claim.id,
+      candidateTurnId: null,
+    };
+    return { type: "claimed", claim, state: this.state };
+  };
+
+  settleRequest = (
+    claim: ActiveThreadCompactionClaim,
+    settlement: ActiveThreadCompactionSettlement,
+  ): ActiveThreadCompactionMutation => {
+    if (
+      this.disposed ||
+      this.requestClaim?.claim !== claim ||
+      this.requestClaim.settlement !== "pending"
+    ) {
+      return { type: "unchanged" };
+    }
+    if (settlement.type === "accepted") {
+      this.requestClaim.settlement = "accepted";
+      return { type: "unchanged" };
+    }
+
+    if (settlement.error.delivery === "deliveryUnknown") {
+      this.requestClaim.settlement = "deliveryUnknown";
+      this.state = {
+        phase: "deliveryUnknown",
+        startFailure: this.state.phase === "requestPending" ? this.state.startFailure : null,
+        claimId: claim.id,
+        candidateTurnId: this.candidateTurnId(),
+      };
+      return { type: "changed", state: this.state };
+    }
+
+    this.releaseRequestClaim();
+    this.state = { phase: "idle", startFailure: settlement.error.message };
+    return { type: "changed", state: this.state };
+  };
+
+  observeAcceptedEvent = (
+    fact: ActiveThreadProjectionAcceptedEvent,
+  ): ActiveThreadCompactionMutation => {
+    if (this.disposed || fact.replay !== "live") return { type: "unchanged" };
+
+    const event = fact.notification.event;
+    switch (event.type) {
+      case "turnStarted":
+        return this.observeTurnStarted(event.notification.turn.id);
+      case "turnCompleted":
+        return event.notification.turn.status === "inProgress"
+          ? { type: "unchanged" }
+          : this.observeTurnCompleted(event.notification.turn.id);
+      case "itemStarted":
+        return event.notification.item.type === "contextCompaction"
+          ? this.observeCompactionStarted(event.notification.turnId, event.notification.item.id)
+          : { type: "unchanged" };
+      case "itemCompleted":
+        return event.notification.item.type === "contextCompaction"
+          ? this.observeCompactionCompleted(event.notification.turnId, event.notification.item.id)
+          : { type: "unchanged" };
+      case "tokenUsageUpdated":
+      case "goalUpdated":
+      case "goalCleared":
+        return { type: "unchanged" };
+    }
+    event satisfies never;
+  };
+
+  dispose = (): ActiveThreadCompactionMutation => {
+    if (this.disposed) return { type: "unchanged" };
+    this.disposed = true;
+    this.releaseRequestClaim();
+    const changed = this.state.phase !== "idle" || this.state.startFailure !== null;
+    this.state = { phase: "idle", startFailure: null };
+    return changed ? { type: "changed", state: this.state } : { type: "unchanged" };
+  };
+
+  reconcileSnapshot = (turns: readonly Turn[]): void => {
+    if (this.disposed) return;
+    const turnId = this.state.phase === "running" ? this.state.turnId : this.candidateTurnId();
+    // An uncorrelated request must keep its claim, even if the snapshot appears idle.
+    if (this.state.phase !== "idle" && turnId == null) return;
+    const turn =
+      turnId == null
+        ? turns.find(
+            (candidate) =>
+              candidate.status === "inProgress" &&
+              candidate.items.some((item) => item.type === "contextCompaction"),
+          )
+        : turns.find((candidate) => candidate.id === turnId);
+    if (turn == null) return;
+    if (turn.status !== "inProgress") {
+      this.observeTurnCompleted(turn.id);
+      return;
+    }
+    const item = turn.items.find((candidate) => candidate.type === "contextCompaction");
+    if (item != null) this.observeCompactionStarted(turn.id, item.id);
+  };
+
+  private observeTurnStarted(turnId: string): ActiveThreadCompactionMutation {
+    if (
+      (this.state.phase !== "requestPending" && this.state.phase !== "deliveryUnknown") ||
+      this.state.candidateTurnId != null
+    ) {
+      return { type: "unchanged" };
+    }
+
+    this.releaseRequestReservation();
+    this.state = { ...this.state, candidateTurnId: turnId };
+    return { type: "changed", state: this.state };
+  }
+
+  private observeTurnCompleted(turnId: string): ActiveThreadCompactionMutation {
+    if (
+      (this.state.phase === "requestPending" || this.state.phase === "deliveryUnknown") &&
+      this.state.candidateTurnId === turnId
+    ) {
+      this.releaseRequestClaim();
+      this.state = { phase: "idle", startFailure: null };
+      return { type: "changed", state: this.state };
+    }
+    if (this.state.phase === "running" && this.state.turnId === turnId) {
+      this.state = { phase: "idle", startFailure: null };
+      return { type: "changed", state: this.state };
+    }
+    return { type: "unchanged" };
+  }
+
+  private observeCompactionStarted(turnId: string, itemId: string): ActiveThreadCompactionMutation {
+    if (this.state.phase === "running") return { type: "unchanged" };
+    if (
+      (this.state.phase === "requestPending" || this.state.phase === "deliveryUnknown") &&
+      this.state.candidateTurnId != null &&
+      this.state.candidateTurnId !== turnId
+    ) {
+      return { type: "unchanged" };
+    }
+
+    this.releaseRequestClaim();
+    this.state = { phase: "running", turnId, itemId };
+    return { type: "changed", state: this.state };
+  }
+
+  private observeCompactionCompleted(
+    turnId: string,
+    itemId: string,
+  ): ActiveThreadCompactionMutation {
+    if (
+      this.state.phase !== "running" ||
+      this.state.turnId !== turnId ||
+      this.state.itemId !== itemId
+    ) {
+      return { type: "unchanged" };
+    }
+    this.state = { phase: "idle", startFailure: null };
+    return { type: "changed", state: this.state };
+  }
+
+  private candidateTurnId(): string | null {
+    return this.state.phase === "requestPending" || this.state.phase === "deliveryUnknown"
+      ? this.state.candidateTurnId
+      : null;
+  }
+
+  private releaseRequestReservation(): void {
+    const requestClaim = this.requestClaim;
+    if (requestClaim?.reservation == null) return;
+    const reservation = requestClaim.reservation;
+    requestClaim.reservation = null;
+    reservation.release();
+  }
+
+  private releaseRequestClaim(): void {
+    this.releaseRequestReservation();
+    this.requestClaim = null;
+  }
+}
+
+export const createActiveThreadCompaction = (): ActiveThreadCompaction =>
+  new ActiveThreadCompactionImpl();

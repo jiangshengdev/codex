@@ -12,6 +12,8 @@ use app_test_support::write_mock_responses_config_toml;
 use codex_app_server_protocol::JSONRPCNotification;
 use codex_app_server_protocol::JSONRPCResponse;
 use codex_app_server_protocol::RequestId;
+use codex_app_server_protocol::ServerRequest;
+use codex_app_server_protocol::ThreadHistoryMode;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadProjectionAttachParams;
 use codex_app_server_protocol::ThreadProjectionAttachResponse;
@@ -24,14 +26,128 @@ use codex_app_server_protocol::ThreadProjectionEvent;
 use codex_app_server_protocol::ThreadProjectionEventNotification;
 use codex_app_server_protocol::ThreadStartParams;
 use codex_app_server_protocol::ThreadStartResponse;
+use codex_app_server_protocol::TurnCompletedNotification;
+use codex_app_server_protocol::TurnItemsView;
 use codex_app_server_protocol::TurnStartParams;
 use codex_app_server_protocol::TurnStartResponse;
+use codex_app_server_protocol::TurnStatus;
 use codex_app_server_protocol::UserInput;
+use codex_protocol::config_types::CollaborationMode;
+use codex_protocol::config_types::ModeKind;
+use codex_protocol::config_types::Settings;
+use codex_protocol::openai_models::ReasoningEffort;
+use codex_utils_absolute_path::test_support::PathExt;
+use core_test_support::responses;
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 use tokio::time::timeout;
 
 const DEFAULT_READ_TIMEOUT: Duration = Duration::from_secs(10);
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn thread_projection_attach_reads_existing_goal() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let server = responses::start_mock_server().await;
+    app_test_support::MockResponsesConfig::new(&server.uri())
+        .enable_feature(codex_features::Feature::Goals)
+        .enable_feature(codex_features::Feature::Sqlite)
+        .write(codex_home.path())?;
+    let mut app_server = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
+        .await?;
+    let thread = app_server
+        .start_thread(ThreadStartParams::default())
+        .await?;
+    let request = app_server
+        .send_raw_request(
+            "thread/goal/set",
+            Some(serde_json::json!({
+                "threadId": thread.thread.id,
+                "objective": "Read the existing goal",
+                "status": "paused",
+                "tokenBudget": 1000,
+            })),
+        )
+        .await?;
+    let goal: codex_app_server_protocol::ThreadGoalSetResponse =
+        timeout(DEFAULT_READ_TIMEOUT, app_server.read_response(request)).await??;
+    let request = app_server
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+            thread_id: thread.thread.id,
+        })
+        .await?;
+    let attached: serde_json::Value =
+        timeout(DEFAULT_READ_TIMEOUT, app_server.read_response(request)).await??;
+    assert_eq!(
+        attached["snapshot"]["goal"],
+        serde_json::to_value(goal.goal)?
+    );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn thread_projection_goal_respects_support_and_read_errors() -> Result<()> {
+    for (goals, broken_database, ephemeral, expected_error) in [
+        (true, false, false, None),
+        (false, false, false, None),
+        (
+            true,
+            false,
+            true,
+            Some("ephemeral threads do not support thread/turns/list"),
+        ),
+        (true, true, false, Some("failed to read thread goal")),
+    ] {
+        let codex_home = TempDir::new()?;
+        let sqlite_home = codex_home.path().to_string_lossy();
+        let server = responses::start_mock_server().await;
+        app_test_support::MockResponsesConfig::new(&server.uri())
+            .with_extra_config(&format!("[features]\ngoals = {goals}\n"))
+            .write(codex_home.path())?;
+        let mut app_server = TestAppServer::builder()
+            .with_codex_home(codex_home.path())
+            .with_env_overrides(&[("CODEX_SQLITE_HOME", Some(sqlite_home.as_ref()))])
+            .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
+            .await?;
+        let thread = app_server
+            .start_thread(ThreadStartParams {
+                ephemeral: Some(ephemeral),
+                ..Default::default()
+            })
+            .await?;
+        if broken_database {
+            let sqlite = codex_state::SqliteConfig::new_for_testing(codex_home.path().abs());
+            let pool = sqlite.open_read_write_pool(&sqlite.goals_db_path()).await?;
+            sqlx::query("DROP TABLE thread_goals")
+                .execute(&pool)
+                .await?;
+            pool.close().await;
+        }
+        let request = app_server
+            .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+                thread_id: thread.thread.id,
+            })
+            .await?;
+        if let Some(expected_error) = expected_error {
+            let error = timeout(
+                DEFAULT_READ_TIMEOUT,
+                app_server.read_stream_until_error_message(RequestId::Integer(request)),
+            )
+            .await??;
+            assert!(
+                error.error.message.contains(expected_error),
+                "{}",
+                error.error.message
+            );
+        } else {
+            let attached: ThreadProjectionAttachResponse =
+                timeout(DEFAULT_READ_TIMEOUT, app_server.read_response(request)).await??;
+            assert_eq!(attached.snapshot.goal, None);
+        }
+    }
+    Ok(())
+}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn thread_projection_attach_returns_snapshot_and_detach_status() -> Result<()> {
@@ -99,6 +215,531 @@ async fn thread_projection_attach_returns_snapshot_and_detach_status() -> Result
     .await??;
     let detach: ThreadProjectionDetachResponse = to_response(detach_response)?;
     assert_eq!(ThreadProjectionDetachStatus::Detached, detach.status);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn thread_projection_delivers_goal_changes_and_refreshes_after_clear() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let server = responses::start_mock_server().await;
+    app_test_support::MockResponsesConfig::new(&server.uri())
+        .enable_feature(codex_features::Feature::Goals)
+        .write(codex_home.path())?;
+    let mut app_server = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
+        .await?;
+    let thread = app_server
+        .start_thread(ThreadStartParams::default())
+        .await?
+        .thread;
+    let request = app_server
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+            thread_id: thread.id.clone(),
+        })
+        .await?;
+    let attached: ThreadProjectionAttachResponse = app_server.read_response(request).await?;
+    let mut head = attached.snapshot.head_commit_id;
+    for objective in ["Initial objective", "Updated objective"] {
+        let request = app_server
+            .send_raw_request(
+                "thread/goal/set",
+                Some(serde_json::json!({
+                    "threadId": thread.id,
+                    "objective": objective,
+                    "status": "paused",
+                })),
+            )
+            .await?;
+        let goal: codex_app_server_protocol::ThreadGoalSetResponse =
+            app_server.read_response(request).await?;
+        let event: serde_json::Value = timeout(
+            DEFAULT_READ_TIMEOUT,
+            app_server.read_notification("thread/projection/event"),
+        )
+        .await??;
+        assert_eq!(event["subscriptionId"], attached.subscription_id);
+        assert_eq!(event["parentCommitId"], serde_json::to_value(&head)?);
+        assert_eq!(event["event"]["type"], "goalUpdated");
+        assert_eq!(
+            event["event"]["notification"]["goal"],
+            serde_json::to_value(goal.goal)?
+        );
+        head = Some(event["commitId"].as_str().expect("commit id").to_string());
+    }
+    let request = app_server
+        .send_raw_request(
+            "thread/goal/clear",
+            Some(serde_json::json!({
+                "threadId": thread.id,
+            })),
+        )
+        .await?;
+    let _: codex_app_server_protocol::ThreadGoalClearResponse =
+        app_server.read_response(request).await?;
+    let event: serde_json::Value = timeout(
+        DEFAULT_READ_TIMEOUT,
+        app_server.read_notification("thread/projection/event"),
+    )
+    .await??;
+    assert_eq!(event["event"]["type"], "goalCleared");
+    assert_eq!(event["parentCommitId"], serde_json::to_value(head)?);
+    let request = app_server
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+            thread_id: thread.id,
+        })
+        .await?;
+    let recovered: ThreadProjectionAttachResponse = app_server.read_response(request).await?;
+    assert_eq!(recovered.snapshot.goal, None);
+    assert_eq!(
+        serde_json::to_value(recovered.snapshot.head_commit_id)?,
+        event["commitId"]
+    );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn thread_projection_delivers_running_goal_status_and_usage() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let server = responses::start_mock_server().await;
+    responses::mount_sse_sequence(
+        &server,
+        vec![
+            responses::sse(vec![
+                responses::ev_response_created("create-goal"),
+                responses::ev_function_call(
+                    "create",
+                    "create_goal",
+                    r#"{"objective":"Complete a runtime goal"}"#,
+                ),
+                responses::ev_completed_with_tokens("create-goal", /*total_tokens*/ 10),
+            ]),
+            responses::sse(vec![
+                responses::ev_response_created("read-goal"),
+                responses::ev_function_call("read", "get_goal", "{}"),
+                responses::ev_completed_with_tokens("read-goal", /*total_tokens*/ 15),
+            ]),
+            responses::sse(vec![
+                responses::ev_response_created("finish-goal"),
+                responses::ev_function_call("finish", "update_goal", r#"{"status":"complete"}"#),
+                responses::ev_completed_with_tokens("finish-goal", /*total_tokens*/ 25),
+            ]),
+            responses::sse(vec![
+                responses::ev_assistant_message("done", "Done"),
+                responses::ev_completed("done"),
+            ]),
+        ],
+    )
+    .await;
+    app_test_support::MockResponsesConfig::new(&server.uri())
+        .enable_feature(codex_features::Feature::Goals)
+        .write(codex_home.path())?;
+    let mut app_server = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
+        .await?;
+    let thread = app_server
+        .start_thread(ThreadStartParams::default())
+        .await?
+        .thread;
+    let request = app_server
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+            thread_id: thread.id.clone(),
+        })
+        .await?;
+    let attached: ThreadProjectionAttachResponse = app_server.read_response(request).await?;
+    let request = app_server
+        .send_turn_start_request(TurnStartParams {
+            thread_id: thread.id.clone(),
+            input: vec![UserInput::Text {
+                text: "Create and complete a goal".to_string(),
+                text_elements: Vec::new(),
+            }],
+            ..Default::default()
+        })
+        .await?;
+    let turn: TurnStartResponse = app_server.read_response(request).await?;
+    timeout(DEFAULT_READ_TIMEOUT, async {
+        let mut saw_active = false;
+        let mut saw_complete = false;
+        let mut head = attached.snapshot.head_commit_id;
+        loop {
+            let event: ThreadProjectionEventNotification = app_server
+                .read_notification("thread/projection/event")
+                .await?;
+            assert_eq!(event.parent_commit_id, head);
+            assert_eq!(event.subscription_id, attached.subscription_id);
+            head = Some(event.commit_id);
+            if let ThreadProjectionEvent::TurnCompleted { .. } = &event.event {
+                assert!(saw_complete);
+                return Ok::<_, anyhow::Error>(());
+            }
+            if let ThreadProjectionEvent::GoalUpdated { notification } = event.event {
+                assert_eq!(notification.thread_id, thread.id);
+                assert_eq!(notification.turn_id, Some(turn.turn.id.clone()));
+                saw_active |=
+                    notification.goal.status == codex_app_server_protocol::ThreadGoalStatus::Active;
+                if notification.goal.status == codex_app_server_protocol::ThreadGoalStatus::Complete
+                {
+                    assert!(saw_active);
+                    assert_eq!(notification.goal.objective, "Complete a runtime goal");
+                    assert!(notification.goal.tokens_used > 0);
+                    saw_complete = true;
+                }
+            }
+        }
+    })
+    .await??;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn thread_projection_attach_includes_token_usage_baseline() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let server = create_mock_responses_server_sequence_unchecked(vec![token_usage_sse_response(
+        "response-1",
+        "message-1",
+        "done",
+        /*total_tokens*/ 120,
+    )])
+    .await;
+    write_mock_responses_config_toml(
+        codex_home.path(),
+        &server.uri(),
+        &BTreeMap::new(),
+        /*auto_compact_limit*/ 1024,
+        /*requires_openai_auth*/ None,
+        "mock_provider",
+        "compact",
+    )?;
+
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .build()
+        .await?;
+    timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
+    let thread = start_thread_with_auto_env(&mut mcp).await?;
+
+    let initial_attach = attach_projection(&mut mcp, &thread.id).await?;
+    assert_eq!(None, initial_attach.snapshot.token_usage);
+
+    send_turn(&mut mcp, &thread.id, "run once").await?;
+    let completed: TurnCompletedNotification = timeout(
+        DEFAULT_READ_TIMEOUT,
+        mcp.read_notification("turn/completed"),
+    )
+    .await??;
+    assert_eq!(TurnStatus::Completed, completed.turn.status);
+
+    let reattach = attach_projection(&mut mcp, &thread.id).await?;
+    let token_usage = reattach
+        .snapshot
+        .token_usage
+        .expect("completed turn should establish token usage baseline");
+    assert_eq!(120, token_usage.last.total_tokens);
+    assert_eq!(120, token_usage.total.total_tokens);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn thread_projection_token_usage_event_advances_commit_chain() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let request_user_input_arguments = serde_json::to_string(&serde_json::json!({
+        "questions": [{
+            "id": "confirm_path",
+            "header": "Confirm",
+            "question": "Proceed with the plan?",
+            "options": [{
+                "label": "Yes (Recommended)",
+                "description": "Continue the current plan."
+            }, {
+                "label": "No",
+                "description": "Stop and revisit the approach."
+            }]
+        }]
+    }))?;
+    let server = create_mock_responses_server_sequence_unchecked(vec![
+        responses::sse(vec![
+            responses::ev_response_created("response-1"),
+            responses::ev_function_call(
+                "request-user-input-1",
+                "request_user_input",
+                &request_user_input_arguments,
+            ),
+            responses::ev_completed_with_tokens("response-1", /*total_tokens*/ 120),
+        ]),
+        token_usage_sse_response(
+            "response-2",
+            "message-2",
+            "second done",
+            /*total_tokens*/ 80,
+        ),
+    ])
+    .await;
+    write_mock_responses_config_toml(
+        codex_home.path(),
+        &server.uri(),
+        &BTreeMap::new(),
+        /*auto_compact_limit*/ 1024,
+        /*requires_openai_auth*/ None,
+        "mock_provider",
+        "compact",
+    )?;
+
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .build()
+        .await?;
+    timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
+    let thread = start_thread_with_auto_env(&mut mcp).await?;
+
+    let turn_id = mcp
+        .send_turn_start_request(TurnStartParams {
+            thread_id: thread.id.clone(),
+            input: vec![UserInput::Text {
+                text: "ask before continuing".to_string(),
+                text_elements: Vec::new(),
+            }],
+            model: Some("mock-model".to_string()),
+            effort: Some(ReasoningEffort::Medium),
+            collaboration_mode: Some(CollaborationMode {
+                mode: ModeKind::Plan,
+                settings: Settings {
+                    model: "mock-model".to_string(),
+                    reasoning_effort: Some(ReasoningEffort::Medium),
+                    developer_instructions: None,
+                },
+            }),
+            ..Default::default()
+        })
+        .await?;
+    let turn_response: TurnStartResponse = to_response(
+        timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_response_message(RequestId::Integer(turn_id)),
+        )
+        .await??,
+    )?;
+
+    let server_request = timeout(
+        DEFAULT_READ_TIMEOUT,
+        mcp.read_stream_until_request_message(),
+    )
+    .await??;
+    let ServerRequest::ToolRequestUserInput { request_id, params } = server_request else {
+        anyhow::bail!("expected ToolRequestUserInput, got {server_request:?}");
+    };
+    assert_eq!(thread.id, params.thread_id);
+    assert_eq!(turn_response.turn.id, params.turn_id);
+    assert_eq!("request-user-input-1", params.item_id);
+    assert!(params.is_blocking);
+
+    let attach = attach_projection(&mut mcp, &thread.id).await?;
+    let snapshot_token_usage = attach
+        .snapshot
+        .token_usage
+        .clone()
+        .expect("completed response should be visible in the attach snapshot");
+    assert_eq!(120, snapshot_token_usage.last.total_tokens);
+    assert_eq!(120, snapshot_token_usage.total.total_tokens);
+
+    mcp.send_response(
+        request_id,
+        serde_json::json!({
+            "answers": {
+                "confirm_path": { "answers": ["yes"] }
+            }
+        }),
+    )
+    .await?;
+
+    let usage_event = read_projection_event(&mut mcp).await?;
+    assert_eq!(thread.id, usage_event.thread_id);
+    assert_eq!(attach.subscription_id, usage_event.subscription_id);
+    assert_eq!(attach.snapshot.head_commit_id, usage_event.parent_commit_id);
+    let ThreadProjectionEvent::TokenUsageUpdated { notification } = &usage_event.event else {
+        anyhow::bail!("expected TokenUsageUpdated, got {:?}", usage_event.event);
+    };
+    assert_eq!(snapshot_token_usage, notification.token_usage);
+
+    let next_event = read_projection_event(&mut mcp).await?;
+    assert_eq!(thread.id, next_event.thread_id);
+    assert_eq!(attach.subscription_id, next_event.subscription_id);
+    assert_eq!(Some(usage_event.commit_id), next_event.parent_commit_id);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn thread_projection_attach_returns_empty_paginated_live_thread() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let server = create_mock_responses_server_sequence_unchecked(Vec::new()).await;
+    write_mock_responses_config_toml(
+        codex_home.path(),
+        &server.uri(),
+        &BTreeMap::new(),
+        /*auto_compact_limit*/ 1024,
+        /*requires_openai_auth*/ None,
+        "mock_provider",
+        "compact",
+    )?;
+
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .without_auto_env()
+        .build()
+        .await?;
+    timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
+
+    let start_id = mcp
+        .send_thread_start_request(ThreadStartParams {
+            model: Some("mock-model".to_string()),
+            history_mode: Some(ThreadHistoryMode::Paginated),
+            ..Default::default()
+        })
+        .await?;
+    let ThreadStartResponse { thread, .. } = to_response(
+        timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_response_message(RequestId::Integer(start_id)),
+        )
+        .await??,
+    )?;
+    let rollout_path = thread.path.clone().expect("thread path");
+    assert!(
+        !rollout_path.exists(),
+        "fresh paginated thread rollout should not be materialized yet"
+    );
+
+    let attach_id = mcp
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+            thread_id: thread.id.clone(),
+        })
+        .await?;
+    let attach: ThreadProjectionAttachResponse = to_response(
+        timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_response_message(RequestId::Integer(attach_id)),
+        )
+        .await??,
+    )?;
+
+    assert!(
+        !rollout_path.exists(),
+        "projection attach should not materialize a paginated thread rollout"
+    );
+    assert_eq!(thread.id, attach.snapshot.thread.id);
+    assert_eq!(
+        ThreadHistoryMode::Paginated,
+        attach.snapshot.thread.history_mode
+    );
+    assert!(attach.snapshot.thread.turns.is_empty());
+    assert!(attach.snapshot.thread.preview.is_empty());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn thread_projection_attach_returns_paginated_thread_history() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let server = create_mock_responses_server_sequence_unchecked(vec![
+        create_final_assistant_message_sse_response("paginated done")?,
+    ])
+    .await;
+    write_mock_responses_config_toml(
+        codex_home.path(),
+        &server.uri(),
+        &BTreeMap::new(),
+        /*auto_compact_limit*/ 1024,
+        /*requires_openai_auth*/ None,
+        "mock_provider",
+        "compact",
+    )?;
+
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .without_auto_env()
+        .build()
+        .await?;
+    timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
+
+    let start_id = mcp
+        .send_thread_start_request(ThreadStartParams {
+            model: Some("mock-model".to_string()),
+            history_mode: Some(ThreadHistoryMode::Paginated),
+            ..Default::default()
+        })
+        .await?;
+    let ThreadStartResponse { thread, .. } = to_response(
+        timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_response_message(RequestId::Integer(start_id)),
+        )
+        .await??,
+    )?;
+    assert_eq!(ThreadHistoryMode::Paginated, thread.history_mode);
+
+    let turn_id = mcp
+        .send_turn_start_request(TurnStartParams {
+            thread_id: thread.id.clone(),
+            input: vec![UserInput::Text {
+                text: "paginated prompt".to_string(),
+                text_elements: Vec::new(),
+            }],
+            model: Some("mock-model".to_string()),
+            ..Default::default()
+        })
+        .await?;
+    let _turn_response: TurnStartResponse = to_response(
+        timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_response_message(RequestId::Integer(turn_id)),
+        )
+        .await??,
+    )?;
+    let completed: TurnCompletedNotification = timeout(
+        DEFAULT_READ_TIMEOUT,
+        mcp.read_notification("turn/completed"),
+    )
+    .await??;
+    assert_eq!(TurnStatus::Completed, completed.turn.status);
+
+    let attach_id = mcp
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+            thread_id: thread.id.clone(),
+        })
+        .await?;
+    let attach: ThreadProjectionAttachResponse = to_response(
+        timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_response_message(RequestId::Integer(attach_id)),
+        )
+        .await??,
+    )?;
+
+    assert_eq!(thread.id, attach.snapshot.thread.id);
+    assert_eq!(
+        ThreadHistoryMode::Paginated,
+        attach.snapshot.thread.history_mode
+    );
+    assert_eq!("paginated prompt", attach.snapshot.thread.preview);
+    let [snapshot_turn] = attach.snapshot.thread.turns.as_slice() else {
+        anyhow::bail!(
+            "expected one materialized paginated turn, got {:?}",
+            attach.snapshot.thread.turns
+        );
+    };
+    assert_eq!(completed.turn.id, snapshot_turn.id);
+    assert_eq!(TurnStatus::Completed, snapshot_turn.status);
+    assert_eq!(TurnItemsView::Full, snapshot_turn.items_view);
+    assert!(matches!(
+        snapshot_turn.items.as_slice(),
+        [
+            ThreadItem::UserMessage { content, .. },
+            ThreadItem::AgentMessage { text, .. },
+        ] if content == &vec![UserInput::Text {
+            text: "paginated prompt".to_string(),
+            text_elements: Vec::new(),
+        }] && text == "paginated done"
+    ));
     Ok(())
 }
 
@@ -425,6 +1066,76 @@ async fn start_thread(mcp: &mut TestAppServer) -> Result<codex_app_server_protoc
     .await??;
     let ThreadStartResponse { thread, .. } = to_response(start_response)?;
     Ok(thread)
+}
+
+fn token_usage_sse_response(
+    response_id: &str,
+    message_id: &str,
+    text: &str,
+    total_tokens: i64,
+) -> String {
+    responses::sse(vec![
+        responses::ev_response_created(response_id),
+        responses::ev_assistant_message(message_id, text),
+        responses::ev_completed_with_tokens(response_id, total_tokens),
+    ])
+}
+
+async fn start_thread_with_auto_env(
+    mcp: &mut TestAppServer,
+) -> Result<codex_app_server_protocol::Thread> {
+    let start_id = mcp
+        .send_thread_start_request_with_auto_env(ThreadStartParams {
+            model: Some("mock-model".to_string()),
+            ..Default::default()
+        })
+        .await?;
+    let start_response: JSONRPCResponse = timeout(
+        DEFAULT_READ_TIMEOUT,
+        mcp.read_stream_until_response_message(RequestId::Integer(start_id)),
+    )
+    .await??;
+    let ThreadStartResponse { thread, .. } = to_response(start_response)?;
+    Ok(thread)
+}
+
+async fn attach_projection(
+    mcp: &mut TestAppServer,
+    thread_id: &str,
+) -> Result<ThreadProjectionAttachResponse> {
+    let attach_id = mcp
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+            thread_id: thread_id.to_string(),
+        })
+        .await?;
+    let attach_response: JSONRPCResponse = timeout(
+        DEFAULT_READ_TIMEOUT,
+        mcp.read_stream_until_response_message(RequestId::Integer(attach_id)),
+    )
+    .await??;
+    to_response(attach_response)
+}
+
+async fn send_turn(mcp: &mut TestAppServer, thread_id: &str, text: &str) -> Result<()> {
+    let turn_id = mcp
+        .send_turn_start_request(TurnStartParams {
+            thread_id: thread_id.to_string(),
+            input: vec![UserInput::Text {
+                text: text.to_string(),
+                text_elements: Vec::new(),
+            }],
+            model: Some("mock-model".to_string()),
+            ..Default::default()
+        })
+        .await?;
+    let _turn_response: TurnStartResponse = to_response(
+        timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_response_message(RequestId::Integer(turn_id)),
+        )
+        .await??,
+    )?;
+    Ok(())
 }
 
 async fn read_projection_event(

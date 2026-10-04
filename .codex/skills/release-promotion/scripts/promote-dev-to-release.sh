@@ -50,6 +50,8 @@ rp_cd_repo_root
 rp_require_local_branch "$dev_branch"
 rp_require_local_branch "$test_branch"
 rp_require_local_branch "$release_branch"
+rp_require_development_version "$dev_branch"
+rp_require_development_version "$test_branch"
 
 release_version="$(rp_version_from_branch "$release_branch")"
 if [[ -z "$release_version" ]]; then
@@ -72,7 +74,7 @@ if [[ "$dry_run" == true ]]; then
   rp_log preflight "release=$release_branch $(rp_git rev-parse --short "$release_branch")"
   rp_log bump-version "release version: $release_version"
   rp_log bump-version "target version: $target_version"
-  "$script_dir/merge-dev-to-test-without-superpowers.sh" --dev "$dev_branch" --test "$test_branch" --dry-run
+  "$script_dir/merge-dev-to-test.sh" --dev "$dev_branch" --test "$test_branch" --dry-run
   "$script_dir/merge-test-to-release.sh" --test "$test_branch" --release "$release_branch" --dry-run
   "$script_dir/bump-release-cdx-version.sh" --release "$release_branch" --target-version "$target_version" --dry-run
   exit 0
@@ -124,7 +126,7 @@ continue_release_promotion() {
   current_branch="$(rp_git branch --show-current)"
 
   if [[ "$current_branch" == "$test_branch" ]]; then
-    "$script_dir/merge-dev-to-test-without-superpowers.sh" --dev "$dev_branch" --test "$test_branch" --continue
+    "$script_dir/merge-dev-to-test.sh" --dev "$dev_branch" --test "$test_branch" --continue
   elif [[ "$current_branch" == "$release_branch" ]]; then
     "$script_dir/merge-test-to-release.sh" --test "$test_branch" --release "$release_branch" --continue
   else
@@ -141,7 +143,7 @@ else
   if dev_is_in_test; then
     rp_log merge-dev-to-test "already complete; $dev_branch is ancestor of $test_branch"
   else
-    "$script_dir/merge-dev-to-test-without-superpowers.sh" --dev "$dev_branch" --test "$test_branch"
+    "$script_dir/merge-dev-to-test.sh" --dev "$dev_branch" --test "$test_branch"
   fi
 fi
 
@@ -157,7 +159,7 @@ else
   "$script_dir/bump-release-cdx-version.sh" --release "$release_branch" --target-version "$target_version"
 fi
 
-rp_git switch "$release_branch"
+rp_git switch --no-overwrite-ignore "$release_branch"
 rp_git merge-base --is-ancestor "$dev_branch" "$test_branch"
 rp_git merge-base --is-ancestor "$test_branch" "$release_branch"
 

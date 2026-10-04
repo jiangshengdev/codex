@@ -7,10 +7,7 @@
       "type": "array"
     },
     "isError": {
-      "type": [
-        "boolean",
-        "null"
-      ]
+      "type": "boolean"
     },
     "structuredContent": true
   },

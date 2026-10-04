@@ -2,7 +2,20 @@ import { describe, expect, expectTypeOf, test } from "vitest";
 
 import type { ServerNotification } from "@codex-protocol/ServerNotification";
 import type {
+  SkillsListParams,
+  SkillsListResponse,
+  ThreadListParams,
+  ThreadListResponse,
   ThreadProjectionAttachParams,
+  ThreadProjectionAttachResponse,
+  ThreadProjectionDetachParams,
+  ThreadProjectionDetachResponse,
+  ThreadReadParams,
+  ThreadReadResponse,
+  ThreadResumeParams,
+  ThreadResumeResponse,
+  TurnSteerParams,
+  TurnSteerResponse,
   TurnStartParams,
   TurnStartResponse,
 } from "@codex-protocol/v2";
@@ -15,6 +28,27 @@ import { classifyServerNotification, requestDescriptors } from "@/generated/appS
 import type { RequestParams, RequestResponse } from "../appServerProtocol";
 
 describe("generated GUI Host protocol boundary", () => {
+  test("associates history requests with their generated params and responses", () => {
+    expectTypeOf<
+      RequestParams<"thread/projection/attach">
+    >().toEqualTypeOf<ThreadProjectionAttachParams>();
+    expectTypeOf<
+      RequestResponse<"thread/projection/attach">
+    >().toEqualTypeOf<ThreadProjectionAttachResponse>();
+    expectTypeOf<RequestParams<"thread/list">>().toEqualTypeOf<ThreadListParams>();
+    expectTypeOf<RequestResponse<"thread/list">>().toEqualTypeOf<ThreadListResponse>();
+    expectTypeOf<RequestParams<"thread/read">>().toEqualTypeOf<ThreadReadParams>();
+    expectTypeOf<RequestResponse<"thread/read">>().toEqualTypeOf<ThreadReadResponse>();
+    expectTypeOf<RequestParams<"thread/resume">>().toEqualTypeOf<ThreadResumeParams>();
+    expectTypeOf<RequestResponse<"thread/resume">>().toEqualTypeOf<ThreadResumeResponse>();
+    expectTypeOf<
+      RequestParams<"thread/projection/detach">
+    >().toEqualTypeOf<ThreadProjectionDetachParams>();
+    expectTypeOf<
+      RequestResponse<"thread/projection/detach">
+    >().toEqualTypeOf<ThreadProjectionDetachResponse>();
+  });
+
   test("associates turn/start with its generated params and response", () => {
     const descriptor = requestDescriptors["turn/start"];
     type Method = typeof descriptor.method;
@@ -30,8 +64,40 @@ describe("generated GUI Host protocol boundary", () => {
     }
   });
 
+  test("associates skills/list with its generated params, response, and schemas", () => {
+    const descriptor = requestDescriptors["skills/list"];
+    type Method = typeof descriptor.method;
+
+    expectTypeOf<Method>().toEqualTypeOf<"skills/list">();
+    expectTypeOf<RequestParams<Method>>().toEqualTypeOf<SkillsListParams>();
+    expectTypeOf<RequestResponse<Method>>().toEqualTypeOf<SkillsListResponse>();
+    expect(descriptor.paramsSchema).toBe("v2/SkillsListParams");
+    expect(descriptor.responseSchema).toBe("v2/SkillsListResponse");
+  });
+
+  test("associates turn/steer with its generated params, response, and schemas", () => {
+    const descriptor = requestDescriptors["turn/steer"];
+    type Method = typeof descriptor.method;
+
+    expectTypeOf<Method>().toEqualTypeOf<"turn/steer">();
+    expectTypeOf<RequestParams<Method>>().toEqualTypeOf<TurnSteerParams>();
+    expectTypeOf<RequestResponse<Method>>().toEqualTypeOf<TurnSteerResponse>();
+    expect(descriptor.paramsSchema).toBe("v2/TurnSteerParams");
+    expect(descriptor.responseSchema).toBe("v2/TurnSteerResponse");
+
+    const result: unknown = { turnId: "turn-active" };
+    if (descriptor.validateResponse(result)) {
+      expectTypeOf(result).toEqualTypeOf<TurnSteerResponse>();
+    }
+  });
+
   test("narrows selected notifications to their method-specific generated type", () => {
     const notifications = [
+      { method: "skills/changed", params: {} },
+      {
+        method: "thread/status/changed",
+        params: { threadId: "thread-1", status: { type: "idle" } },
+      },
       { method: "thread/projection/event", params: eventTurnStarted },
       { method: "thread/projection/delta", params: eventAgentMessageDelta },
       { method: "thread/projection/closed", params: closedBackpressure },
@@ -45,6 +111,16 @@ describe("generated GUI Host protocol boundary", () => {
       }
 
       switch (classification.notification.method) {
+        case "skills/changed":
+          expectTypeOf(classification.notification).toEqualTypeOf<
+            Extract<ServerNotification, { method: "skills/changed" }>
+          >();
+          break;
+        case "thread/status/changed":
+          expectTypeOf(classification.notification).toEqualTypeOf<
+            Extract<ServerNotification, { method: "thread/status/changed" }>
+          >();
+          break;
         case "thread/projection/event":
           expectTypeOf(classification.notification).toEqualTypeOf<
             Extract<ServerNotification, { method: "thread/projection/event" }>

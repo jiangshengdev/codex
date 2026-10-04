@@ -59,10 +59,18 @@
         "$ref": "#/definitions/ResourceContent"
       },
       "type": "array"
+    },
+    "originCallId": {
+      "description": "Originating call when the server applied app-specific resource scoping.",
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "required": [
-    "contents"
+    "contents",
+    "originCallId"
   ],
   "title": "McpResourceReadResponse",
   "type": "object"

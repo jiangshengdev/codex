@@ -4,7 +4,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use codex_gui_host::GuiHostConfig;
-use codex_gui_host::GuiHostMode;
 use codex_gui_host::GuiLaunchUrls;
 use codex_protocol::ThreadId;
 
@@ -76,11 +75,8 @@ impl AppServerGuiLaunchService {
     }
 
     pub(crate) fn new_with_default_config(opener: Arc<dyn LocalGuiConnectionOpener>) -> Self {
-        match GuiHostMode::default_for_profile() {
-            Ok(mode) => Self::new(GuiHostManager::new_with_opener(
-                opener,
-                GuiHostConfig { mode },
-            )),
+        match GuiHostConfig::default_for_profile() {
+            Ok(config) => Self::new(GuiHostManager::new_with_opener(opener, config)),
             Err(error) => Self::config_error(error.to_string()),
         }
     }
@@ -249,7 +245,8 @@ pub(crate) mod test_support {
     pub(crate) async fn new_test_gui_launch_service(mode: GuiHostMode) -> TestGuiLaunchService {
         let bridge =
             crate::gui_connection_bridge::test_support::start_local_bridge_for_test().await;
-        let manager = GuiHostManager::new_with_opener(bridge.opener(), GuiHostConfig { mode });
+        let manager =
+            GuiHostManager::new_with_opener(bridge.opener(), GuiHostConfig { mode, port: 0 });
 
         TestGuiLaunchService {
             service: AppServerGuiLaunchService::new(manager),
@@ -261,6 +258,14 @@ pub(crate) mod test_support {
 #[cfg(test)]
 #[path = "gui_launch_service_tests.rs"]
 mod gui_launch_service_tests;
+
+#[cfg(test)]
+#[path = "gui_launch_port_tests.rs"]
+mod gui_launch_port_tests;
+
+#[cfg(test)]
+#[path = "gui_launch_env_tests.rs"]
+mod gui_launch_env_tests;
 
 #[cfg(test)]
 mod tests {
@@ -313,7 +318,7 @@ mod tests {
         assert!(
             urls.entries[0]
                 .url
-                .contains("threadId=00000000-0000-0000-0000-0000000000a1")
+                .contains("/task/00000000-0000-0000-0000-0000000000a1#token=")
         );
         service.shutdown().await;
     }

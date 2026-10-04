@@ -2,7 +2,7 @@
 
 import { runAppleScriptJson } from '../lib/applescript.mjs';
 import { log } from '../lib/exec.mjs';
-import { metricsExpression, responsiveLike, summarizeMetrics } from '../lib/metrics.mjs';
+import { isCodexGui, metricsExpression, responsiveLike, summarizeMetrics } from '../lib/metrics.mjs';
 import { currentBrowser, evalJson } from '../lib/playwright-cli.mjs';
 import { updateState } from '../lib/state.mjs';
 
@@ -26,7 +26,7 @@ const discovery = {
   isHeaded: browser?.headed === true,
   hasBrowserWindow,
   hasDevToolsWindow,
-  isCodexGui: metrics?.title === 'codex-gui',
+  isCodexGui: isCodexGui(metrics),
   responsiveLike: responsiveLike(metrics),
 };
 

@@ -71,6 +71,9 @@
       ]
     }
   },
+  "required": [
+    "goal"
+  ],
   "title": "ThreadGoalGetResponse",
   "type": "object"
 }

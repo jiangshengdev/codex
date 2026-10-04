@@ -1,0 +1,210 @@
+import type { ComposerDraftCapture } from "@/features/composerEditor/composerEditorContracts";
+import type { AsyncQuestions } from "@/features/asyncQuestions/asyncQuestions";
+import type {
+  ComposerInputQueueCoordinator,
+  ComposerInputQueueCoordinatorSnapshot,
+  ComposerInputQueueCoordinatorReserveReleaseResult,
+} from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import type { ProjectionManualReconnectReason } from "@/features/projectionIngress/projectionIngressAdapter";
+import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
+import type {
+  Thread,
+  ThreadProjectionAttachResponse,
+  ThreadProjectionClosedNotification,
+  ThreadProjectionDeltaNotification,
+  ThreadProjectionEventNotification,
+} from "@codex-protocol/v2";
+import type {
+  ActiveThreadProjection,
+  ActiveThreadProjectionInputOutcome,
+} from "./activeThreadProjection";
+import type { ActiveThreadCompactionState } from "./activeThreadCompaction";
+import type { ActiveThreadSessionIdentity } from "./activeThreadSessionIdentity";
+
+export type ActiveThreadSessionOperationUnavailable = Readonly<{
+  type: "unavailable";
+  scope: "activeThreadSession";
+  reason: "staleRevision" | "projectionUnavailable" | "connectionUnavailable" | "disposed";
+  revision: number;
+}>;
+
+export type ActiveThreadSessionOperationResult<Result> =
+  | Result
+  | ActiveThreadSessionOperationUnavailable;
+
+export type ActiveThreadCompactionView =
+  | Readonly<{
+      phase: "idle";
+      canRequest: boolean;
+      startFailure: string | null;
+    }>
+  | Readonly<{
+      phase: Exclude<ActiveThreadCompactionState["phase"], "idle">;
+      canRequest: false;
+      startFailure: Extract<
+        ActiveThreadCompactionState,
+        { phase: "requestPending" }
+      >["startFailure"];
+    }>;
+
+export type ActiveThreadRequestCompactionResult =
+  | Readonly<{ type: "accepted" }>
+  | Readonly<{ type: "rejected"; reason: "activeTurn" | "operationInProgress" }>
+  | Exclude<ComposerInputQueueCoordinatorReserveReleaseResult, { type: "reserved" }>;
+
+export type ActiveThreadConnectionState =
+  | Readonly<{ phase: "available" }>
+  | Readonly<{
+      phase: "unavailable";
+      recovery: Readonly<{ pending: boolean; error: unknown }>;
+    }>;
+
+type ActiveSnapshotContents = Readonly<{
+  identity: ActiveThreadSessionIdentity;
+  revision: number;
+  threadId: string;
+  subscriptionId: string;
+  activeTurnId: string | null;
+  threadStatus: Thread["status"] | null;
+  compaction: ActiveThreadCompactionView;
+  composer: ComposerInputQueueCoordinatorSnapshot;
+  skills: SkillCatalogState;
+  connection: ActiveThreadConnectionState;
+}>;
+
+export type LiveActiveThreadSessionSnapshot =
+  | (Readonly<{ phase: "active" }> & ActiveSnapshotContents)
+  | (Readonly<{
+      phase: "projectionUnavailable";
+      reason: ProjectionManualReconnectReason;
+      recovery: Readonly<{ pending: boolean; error: unknown }>;
+    }> &
+      ActiveSnapshotContents)
+  | Readonly<{ phase: "disposed"; revision: number }>;
+
+type QueueBeginEditResult = ReturnType<ComposerInputQueueCoordinator["beginPendingInputEdit"]>;
+type QueueEditBegun = Extract<QueueBeginEditResult, { type: "begun" }>;
+
+export type ActiveThreadPendingInputEditReservation = Readonly<{
+  save(
+    capture: ComposerDraftCapture,
+  ): ActiveThreadSessionOperationResult<ReturnType<QueueEditBegun["reservation"]["save"]>>;
+  cancel(): ActiveThreadSessionOperationResult<ReturnType<QueueEditBegun["reservation"]["cancel"]>>;
+}>;
+
+export type ActiveThreadBeginPendingInputEditResult =
+  | Exclude<QueueBeginEditResult, QueueEditBegun>
+  | Readonly<{
+      type: "begun";
+      revision: number;
+      reservation: ActiveThreadPendingInputEditReservation;
+    }>;
+
+export type ActiveThreadReleaseReservation = Readonly<{
+  release(): ActiveThreadSessionOperationResult<Readonly<{ type: "released" }>>;
+  commit(): ActiveThreadSessionOperationResult<Readonly<{ type: "committed" }>>;
+}>;
+
+export type ActiveThreadReserveReleaseResult =
+  | Exclude<ComposerInputQueueCoordinatorReserveReleaseResult, { type: "reserved" }>
+  | Readonly<{ type: "reserved"; reservation: ActiveThreadReleaseReservation }>;
+
+export type LiveActiveThreadSession = Readonly<{
+  questions: AsyncQuestions;
+  identity: ActiveThreadSessionIdentity;
+  getSnapshot(): LiveActiveThreadSessionSnapshot;
+  subscribe(listener: () => void): () => void;
+  connectionUnavailable(): void;
+  beginConnectionRecovery(): boolean;
+  failConnectionRecovery(error: unknown): void;
+  beginProjectionRecovery(): boolean;
+  failProjectionRecovery(error: unknown): void;
+  commitProjectionRecovery(
+    attachResponse: ThreadProjectionAttachResponse,
+    projection: ActiveThreadProjection,
+    drainCandidate: () => boolean,
+  ): ProjectionRecoveryOutcome;
+  getDraft(): ReturnType<ComposerInputQueueCoordinator["getDraft"]>;
+  /** True means accepted into the retained owner, not persisted. Never sends input. */
+  retainDraft(draft: Parameters<ComposerInputQueueCoordinator["saveDraft"]>[0]): boolean;
+  saveDraft(
+    expectedRevision: number,
+    draft: Parameters<ComposerInputQueueCoordinator["saveDraft"]>[0],
+  ): ActiveThreadSessionOperationResult<boolean>;
+  retryPersistence(expectedRevision: number): ActiveThreadSessionOperationResult<boolean>;
+  resumeRestored(
+    expectedRevision: number,
+    expectedPersistenceRevision: number | null,
+  ): ActiveThreadSessionOperationResult<boolean>;
+  discardUnknown(
+    expectedRevision: number,
+    id: string,
+    expectedPersistenceRevision: number | null,
+  ): ActiveThreadSessionOperationResult<boolean>;
+  suspendRestored(): void;
+  submit(
+    expectedRevision: number,
+    capture: Parameters<ComposerInputQueueCoordinator["submit"]>[0],
+  ): ActiveThreadSessionOperationResult<ReturnType<ComposerInputQueueCoordinator["submit"]>>;
+  submitSteer(
+    expectedRevision: number,
+    capture: Parameters<ComposerInputQueueCoordinator["submitSteer"]>[0],
+  ): ActiveThreadSessionOperationResult<ReturnType<ComposerInputQueueCoordinator["submitSteer"]>>;
+  promoteOrdinaryFrontToSteer(
+    expectedRevision: number,
+  ): ActiveThreadSessionOperationResult<boolean>;
+  interruptActiveTurn(expectedRevision: number): ActiveThreadSessionOperationResult<boolean>;
+  recover(expectedRevision: number): ActiveThreadSessionOperationResult<boolean>;
+  requestCompaction(
+    expectedRevision: number,
+  ): ActiveThreadSessionOperationResult<ActiveThreadRequestCompactionResult>;
+  readPendingInputPage(
+    request: Parameters<ComposerInputQueueCoordinator["readPendingInputPage"]>[0],
+  ): ReturnType<ComposerInputQueueCoordinator["readPendingInputPage"]>;
+  readPendingInputDetail(
+    request: Parameters<ComposerInputQueueCoordinator["readPendingInputDetail"]>[0],
+  ): ReturnType<ComposerInputQueueCoordinator["readPendingInputDetail"]>;
+  beginPendingInputEdit(
+    expectedRevision: number,
+    request: Parameters<ComposerInputQueueCoordinator["beginPendingInputEdit"]>[0],
+    restore: Parameters<ComposerInputQueueCoordinator["beginPendingInputEdit"]>[1],
+  ): ActiveThreadSessionOperationResult<ActiveThreadBeginPendingInputEditResult>;
+  deletePendingInput(
+    expectedRevision: number,
+    request: Parameters<ComposerInputQueueCoordinator["deletePendingInput"]>[0],
+  ): ActiveThreadSessionOperationResult<
+    ReturnType<ComposerInputQueueCoordinator["deletePendingInput"]>
+  >;
+  movePendingInput(
+    expectedRevision: number,
+    request: Parameters<ComposerInputQueueCoordinator["movePendingInput"]>[0],
+  ): ActiveThreadSessionOperationResult<
+    ReturnType<ComposerInputQueueCoordinator["movePendingInput"]>
+  >;
+  getReleaseReadiness(): ReturnType<ComposerInputQueueCoordinator["getReleaseReadiness"]>;
+  reserveRelease(
+    expectedRevision: number,
+  ): ActiveThreadSessionOperationResult<ActiveThreadReserveReleaseResult>;
+  retrySkills(expectedRevision: number): ActiveThreadSessionOperationResult<boolean>;
+  refreshSkills(expectedRevision: number): ActiveThreadSessionOperationResult<boolean>;
+  invalidateSkills(expectedRevision: number): ActiveThreadSessionOperationResult<boolean>;
+  invalidateThreadStatus(): boolean;
+  settleThreadStatusInvalidations(): Promise<void>;
+  handleProjectionEvent(
+    notification: ThreadProjectionEventNotification,
+  ): ActiveThreadProjectionInputOutcome;
+  handleProjectionDelta(
+    notification: ThreadProjectionDeltaNotification,
+  ): ActiveThreadProjectionInputOutcome;
+  handleProjectionClosed(
+    notification: ThreadProjectionClosedNotification,
+  ): ActiveThreadProjectionInputOutcome;
+  flushProjection(): void;
+  dispose(): void;
+}>;
+
+export type ProjectionRecoveryOutcome =
+  | Readonly<{ type: "recovered" }>
+  | Readonly<{ type: "failed"; error: unknown }>
+  | Readonly<{ type: "blocked"; error: unknown }>
+  | Readonly<{ type: "unavailable" }>;

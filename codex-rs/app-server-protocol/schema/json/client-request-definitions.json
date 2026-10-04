@@ -70,6 +70,26 @@
     "responseSchema": "v2/ThreadMetadataUpdateResponse"
   },
   {
+    "method": "thread/attachment/add",
+    "paramsSchema": "v2/ThreadAttachmentAddParams",
+    "responseSchema": "v2/ThreadAttachmentAddResponse"
+  },
+  {
+    "method": "thread/attachment/list",
+    "paramsSchema": "v2/ThreadAttachmentListParams",
+    "responseSchema": "v2/ThreadAttachmentListResponse"
+  },
+  {
+    "method": "thread/attachment/remove",
+    "paramsSchema": "v2/ThreadAttachmentRemoveParams",
+    "responseSchema": "v2/ThreadAttachmentRemoveResponse"
+  },
+  {
+    "method": "thread/section/move",
+    "paramsSchema": "v2/ThreadSectionMoveParams",
+    "responseSchema": "v2/ThreadSectionMoveResponse"
+  },
+  {
     "method": "thread/unarchive",
     "paramsSchema": "v2/ThreadUnarchiveParams",
     "responseSchema": "v2/ThreadUnarchiveResponse"
@@ -90,14 +110,34 @@
     "responseSchema": "v2/ThreadApproveGuardianDeniedActionResponse"
   },
   {
-    "method": "thread/rollback",
-    "paramsSchema": "v2/ThreadRollbackParams",
-    "responseSchema": "v2/ThreadRollbackResponse"
+    "method": "thread/revert",
+    "paramsSchema": "v2/ThreadRevertParams",
+    "responseSchema": "v2/ThreadRevertResponse"
   },
   {
     "method": "thread/list",
     "paramsSchema": "v2/ThreadListParams",
     "responseSchema": "v2/ThreadListResponse"
+  },
+  {
+    "method": "threadSection/list",
+    "paramsSchema": "v2/ThreadSectionListParams",
+    "responseSchema": "v2/ThreadSectionListResponse"
+  },
+  {
+    "method": "threadSection/create",
+    "paramsSchema": "v2/ThreadSectionCreateParams",
+    "responseSchema": "v2/ThreadSectionCreateResponse"
+  },
+  {
+    "method": "threadSection/update",
+    "paramsSchema": "v2/ThreadSectionUpdateParams",
+    "responseSchema": "v2/ThreadSectionUpdateResponse"
+  },
+  {
+    "method": "threadSection/delete",
+    "paramsSchema": "v2/ThreadSectionDeleteParams",
+    "responseSchema": "v2/ThreadSectionDeleteResponse"
   },
   {
     "method": "thread/loaded/list",
@@ -108,6 +148,16 @@
     "method": "thread/read",
     "paramsSchema": "v2/ThreadReadParams",
     "responseSchema": "v2/ThreadReadResponse"
+  },
+  {
+    "method": "thread/turns/list",
+    "paramsSchema": "v2/ThreadTurnsListParams",
+    "responseSchema": "v2/ThreadTurnsListResponse"
+  },
+  {
+    "method": "thread/items/list",
+    "paramsSchema": "v2/ThreadItemsListParams",
+    "responseSchema": "v2/ThreadItemsListResponse"
   },
   {
     "method": "thread/inject_items",
@@ -153,6 +203,11 @@
     "method": "plugin/installed",
     "paramsSchema": "v2/PluginInstalledParams",
     "responseSchema": "v2/PluginInstalledResponse"
+  },
+  {
+    "method": "plugin/reconcile",
+    "paramsSchema": "v2/PluginReconcileParams",
+    "responseSchema": "v2/PluginReconcileResponse"
   },
   {
     "method": "plugin/read",
@@ -290,6 +345,21 @@
     "responseSchema": "v2/ModelListResponse"
   },
   {
+    "method": "account/gatewayOAuth/read",
+    "paramsSchema": null,
+    "responseSchema": "v2/GatewayOAuthReadResponse"
+  },
+  {
+    "method": "account/gatewayOAuth/login",
+    "paramsSchema": null,
+    "responseSchema": "v2/GatewayOAuthLoginResponse"
+  },
+  {
+    "method": "account/gatewayOAuth/cancel",
+    "paramsSchema": null,
+    "responseSchema": "v2/GatewayOAuthCancelResponse"
+  },
+  {
     "method": "modelProvider/capabilities/read",
     "paramsSchema": "v2/ModelProviderCapabilitiesReadParams",
     "responseSchema": "v2/ModelProviderCapabilitiesReadResponse"
@@ -361,7 +431,7 @@
   },
   {
     "method": "account/rateLimits/read",
-    "paramsSchema": null,
+    "paramsSchema": "v2/GetAccountRateLimitsParams",
     "responseSchema": "v2/GetAccountRateLimitsResponse"
   },
   {
@@ -371,7 +441,7 @@
   },
   {
     "method": "account/usage/read",
-    "paramsSchema": null,
+    "paramsSchema": "v2/GetAccountTokenUsageParams",
     "responseSchema": "v2/GetAccountTokenUsageResponse"
   },
   {

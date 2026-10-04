@@ -1,9 +1,17 @@
-import type { ThreadItem, ThreadProjectionDeltaNotification, Turn } from "@codex-protocol/v2";
+import type {
+  Thread,
+  ThreadItem,
+  ThreadProjectionDeltaNotification,
+  Turn,
+} from "@codex-protocol/v2";
 import {
   projectCompletedTranscriptItem,
+  projectSnapshotTranscriptItem,
   projectStartedTranscriptItem,
   projectTranscriptDelta,
   type TranscriptAgentMessageDelta,
+  type TranscriptReasoningSummaryPartAddedDelta,
+  type TranscriptReasoningSummaryTextDelta,
 } from "./transcriptItemPolicy";
 import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
@@ -15,8 +23,23 @@ import {
   type TranscriptEntryId,
   type TranscriptRenderableLiveItem,
   type TranscriptState,
+  type TranscriptStoredEntry,
+  type TranscriptStreamingReasoningStoredEntry,
   type TranscriptTurn,
 } from "./transcriptStateModel";
+import {
+  adjustTranscriptFragmentMiddleEntryCount,
+  appendChunkToTranscriptFragment,
+  appendFinalEntryToTranscriptFragment,
+  appendLeadingEntryToTranscriptFragment,
+  appendTranscriptContextBoundary,
+  ensureCurrentTranscriptTurnFragment,
+  ensureTranscriptEntryFragment,
+  forgetTranscriptEntryFragment,
+  removeChunkFromTranscriptFragment,
+  removeFinalEntryFromTranscriptFragment,
+  transcriptFragmentForMiddleEntry,
+} from "./transcriptContextPages";
 
 export const hasTranscriptEntry = (
   state: TranscriptState,
@@ -28,9 +51,10 @@ export const appendStartedTranscriptItem = (
   state: TranscriptState,
   turnId: string,
   item: ThreadItem,
+  commitId: string,
 ) => {
   recordOriginalFirstTranscriptItem(state, turnId, item);
-  const projection = projectStartedTranscriptItem(item);
+  const projection = projectStartedTranscriptItem(item, turnId);
   switch (projection.kind) {
     case "ignore":
       return;
@@ -54,15 +78,48 @@ export const appendStartedTranscriptItem = (
       };
 
       if (agentMessage.phase === "final_answer") {
+        ensureTranscriptEntryFragment(state, turnId, entryId);
         return;
       }
 
-      const chunk = getOrCreateMiddleChunk(state, turnId);
+      const chunk = getOrCreateMiddleChunk(state, turnId, entryId);
       chunk.entryIds.push(entryId);
       chunk.revision += 1;
       state.entryChunkById[entryId] = chunk.id;
       return;
     }
+    case "reserveReasoning": {
+      const { item: reasoning } = projection;
+      if (hasTranscriptEntry(state, turnId, reasoning.id)) {
+        return;
+      }
+
+      const entryId = transcriptEntryIdFor(turnId, reasoning.id);
+      state.entriesById[entryId] = {
+        type: "reasoning",
+        id: reasoning.id,
+        turnId,
+        lifecycle: "streaming",
+        summaryParts: {},
+        currentSummaryIndex: null,
+        title: null,
+        revision: 0,
+      };
+
+      const chunk = getOrCreateMiddleChunk(state, turnId, entryId);
+      chunk.entryIds.push(entryId);
+      chunk.revision += 1;
+      state.entryChunkById[entryId] = chunk.id;
+      return;
+    }
+    case "present":
+      if (hasTranscriptEntry(state, turnId, projection.entry.id)) {
+        return;
+      }
+
+      classifyNewEntry(state, projection.entry, { bumpChunkRevision: true });
+      state.committedScrollCommitKey = `event:${commitId}`;
+      return;
   }
 
   const exhaustiveProjection: never = projection;
@@ -75,6 +132,9 @@ const chunkIdForIndex = (turnId: string, index: number): string =>
 const createTranscriptTurn = (id: string, status: TranscriptTurn["status"]): TranscriptTurn => ({
   id,
   status,
+  startedAt: null,
+  completedAt: null,
+  durationMs: null,
   originalFirstItemId: null,
   leadingPromptEntryId: null,
   middleChunkIds: [],
@@ -107,16 +167,30 @@ const recordOriginalFirstTranscriptItem = (
 export const upsertTranscriptTurn = (state: TranscriptState, turn: Turn): void => {
   const transcriptTurn = ensureTranscriptTurn(state, turn.id);
   transcriptTurn.status = turn.status;
+  transcriptTurn.startedAt = turn.startedAt;
+  transcriptTurn.completedAt = turn.completedAt;
+  transcriptTurn.durationMs = turn.durationMs;
+  if (turn.error == null) {
+    Reflect.deleteProperty(transcriptTurn, "error");
+  } else {
+    transcriptTurn.error = { ...turn.error };
+    ensureCurrentTranscriptTurnFragment(state, turn.id);
+  }
   const originalFirstItem = turn.items[0];
   if (originalFirstItem != null) {
     recordOriginalFirstTranscriptItem(state, turn.id, originalFirstItem);
   }
 };
 
-const getOrCreateMiddleChunk = (state: TranscriptState, turnId: string): TranscriptChunk => {
+const getOrCreateMiddleChunk = (
+  state: TranscriptState,
+  turnId: string,
+  entryId: TranscriptEntryId,
+): TranscriptChunk => {
   const turn = ensureTranscriptTurn(state, turnId);
+  const fragment = transcriptFragmentForMiddleEntry(state, turnId, entryId);
   const chunkIds = turn.middleChunkIds;
-  const lastChunkId = chunkIds.at(-1);
+  const lastChunkId = fragment.middleChunkIds.at(-1);
   const lastChunk = lastChunkId == null ? null : state.chunksById[lastChunkId];
 
   if (lastChunk != null && lastChunk.entryIds.length < TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT) {
@@ -127,6 +201,7 @@ const getOrCreateMiddleChunk = (state: TranscriptState, turnId: string): Transcr
   const chunk: TranscriptChunk = { id: chunkId, turnId, entryIds: [], revision: 0 };
   state.chunksById[chunkId] = chunk;
   turn.middleChunkIds.push(chunkId);
+  appendChunkToTranscriptFragment(state, fragment, chunkId);
   return chunk;
 };
 
@@ -149,10 +224,11 @@ const appendEntryToMiddleChunk = (
   options: { bumpChunkRevision: boolean },
 ) => {
   const turn = ensureTranscriptTurn(state, entry.turnId);
-  const chunk = getOrCreateMiddleChunk(state, entry.turnId);
   const entryId = transcriptEntryIdFor(entry.turnId, entry.id);
+  const chunk = getOrCreateMiddleChunk(state, entry.turnId, entryId);
   chunk.entryIds.push(entryId);
   turn.middleEntryCount += 1;
+  adjustTranscriptFragmentMiddleEntryCount(state, entryId, 1);
   if (options.bumpChunkRevision) {
     chunk.revision += 1;
   }
@@ -182,6 +258,7 @@ const removeEntryFromMiddleChunk = (
   chunk.revision += 1;
   if (hadVisibleContribution) {
     turn.middleEntryCount -= 1;
+    adjustTranscriptFragmentMiddleEntryCount(state, entryId, -1);
   }
   Reflect.deleteProperty(state.entryChunkById, entryId);
 
@@ -190,6 +267,7 @@ const removeEntryFromMiddleChunk = (
   );
   if (!hasRemainingMiddleEntries) {
     for (const middleChunkId of turn.middleChunkIds) {
+      removeChunkFromTranscriptFragment(state, middleChunkId);
       Reflect.deleteProperty(state.chunksById, middleChunkId);
     }
     turn.middleChunkIds = [];
@@ -207,6 +285,7 @@ const appendEntryToFinal = (
   if (!turn.finalAssistantEntryIds.includes(entryId)) {
     turn.finalAssistantEntryIds.push(entryId);
   }
+  appendFinalEntryToTranscriptFragment(state, turnId, entryId);
 };
 
 const removeEntryFromFinal = (state: TranscriptState, turnId: string, itemId: string): boolean => {
@@ -222,6 +301,7 @@ const removeEntryFromFinal = (state: TranscriptState, turnId: string, itemId: st
   }
 
   turn.finalAssistantEntryIds.splice(entryIndex, 1);
+  removeFinalEntryFromTranscriptFragment(state, entryId);
   return true;
 };
 
@@ -264,6 +344,111 @@ const findLiveItemPlacement = (
   return null;
 };
 
+type StreamingReasoningPlacement = {
+  item: TranscriptStreamingReasoningStoredEntry;
+  chunk: TranscriptChunk;
+};
+
+const findStreamingReasoningPlacement = (
+  state: TranscriptState,
+  turnId: string,
+  itemId: string,
+): StreamingReasoningPlacement | null => {
+  const entryId = transcriptEntryIdFor(turnId, itemId);
+  const item = state.entriesById[entryId];
+  if (item?.type !== "reasoning" || item.lifecycle !== "streaming" || item.turnId !== turnId) {
+    return null;
+  }
+
+  const chunkId = state.entryChunkById[entryId];
+  const chunk = chunkId == null ? null : state.chunksById[chunkId];
+  return chunk?.turnId === turnId ? { item, chunk } : null;
+};
+
+const extractFirstBoldTitle = (source: string): string | null => {
+  let searchStart = 0;
+  while (searchStart < source.length) {
+    const open = source.indexOf("**", searchStart);
+    if (open === -1) {
+      return null;
+    }
+
+    const close = source.indexOf("**", open + 2);
+    if (close === -1) {
+      return null;
+    }
+
+    const title = source.slice(open + 2, close).trim();
+    if (title.length > 0) {
+      return title;
+    }
+    searchStart = close + 2;
+  }
+
+  return null;
+};
+
+const commitStreamingReasoningMutation = (
+  state: TranscriptState,
+  placement: StreamingReasoningPlacement,
+  previousTitle: string | null,
+) => {
+  const { item, chunk } = placement;
+  const currentPart =
+    item.currentSummaryIndex == null ? "" : (item.summaryParts[item.currentSummaryIndex] ?? "");
+  const title = extractFirstBoldTitle(currentPart);
+  const entryId = transcriptEntryIdFor(item.turnId, item.id);
+  item.title = title;
+  item.revision += 1;
+  chunk.revision += 1;
+
+  const turn = state.turnsById[item.turnId];
+  if (turn != null) {
+    if (previousTitle == null && title != null) {
+      turn.middleEntryCount += 1;
+      adjustTranscriptFragmentMiddleEntryCount(state, entryId, 1);
+    } else if (previousTitle != null && title == null) {
+      turn.middleEntryCount -= 1;
+      adjustTranscriptFragmentMiddleEntryCount(state, entryId, -1);
+    }
+  }
+
+  if (title != null && title !== previousTitle) {
+    bumpLiveScrollPulse(state);
+  }
+};
+
+const applyReasoningSummaryTextDelta = (
+  state: TranscriptState,
+  delta: TranscriptReasoningSummaryTextDelta,
+) => {
+  const placement = findStreamingReasoningPlacement(state, delta.turnId, delta.itemId);
+  if (placement == null) {
+    return;
+  }
+
+  const previousTitle = placement.item.title;
+  placement.item.currentSummaryIndex = delta.summaryIndex;
+  placement.item.summaryParts[delta.summaryIndex] =
+    (placement.item.summaryParts[delta.summaryIndex] ?? "") + delta.delta;
+  commitStreamingReasoningMutation(state, placement, previousTitle);
+};
+
+const applyReasoningSummaryPartAddedDelta = (
+  state: TranscriptState,
+  delta: TranscriptReasoningSummaryPartAddedDelta,
+) => {
+  const placement = findStreamingReasoningPlacement(state, delta.turnId, delta.itemId);
+  if (placement == null) {
+    return;
+  }
+
+  const previousTitle = placement.item.title;
+  placement.item.currentSummaryIndex = delta.summaryIndex;
+  placement.item.summaryParts[delta.summaryIndex] ??= "";
+  commitStreamingReasoningMutation(state, placement, previousTitle);
+};
+
 type AgentMessageDeltaBucket = {
   turnId: TranscriptAgentMessageDelta["turnId"];
   itemId: TranscriptAgentMessageDelta["itemId"];
@@ -291,12 +476,13 @@ const appendDeltaToLiveItem = (
     const turn = state.turnsById[item.turnId];
     if (turn != null) {
       turn.middleEntryCount += 1;
+      adjustTranscriptFragmentMiddleEntryCount(state, item.key, 1);
     }
   }
   if (!hadVisibleContribution && placement.type === "final") {
     const turn = state.turnsById[item.turnId];
     if (turn != null && !turn.finalAssistantEntryIds.includes(item.key)) {
-      turn.finalAssistantEntryIds.push(item.key);
+      appendEntryToFinal(state, item.turnId, item.key);
     }
   }
   bumpLiveScrollPulse(state);
@@ -318,7 +504,7 @@ export const applyAcceptedProjectionDeltaBatch = (
     switch (projection.kind) {
       case "ignore":
         continue;
-      case "present": {
+      case "agentMessage": {
         const { turnId, itemId, delta } = projection.delta;
         const key = transcriptEntryIdFor(turnId, itemId);
         const bucket = bucketByKey[key];
@@ -331,6 +517,12 @@ export const applyAcceptedProjectionDeltaBatch = (
         }
         continue;
       }
+      case "reasoningSummaryText":
+        applyReasoningSummaryTextDelta(state, projection.delta);
+        continue;
+      case "reasoningSummaryPartAdded":
+        applyReasoningSummaryPartAddedDelta(state, projection.delta);
+        continue;
     }
 
     projection satisfies never;
@@ -358,6 +550,7 @@ const classifyNewEntry = (
 
   if (isUserMessageEntry(entry) && entry.id === turn.originalFirstItemId) {
     turn.leadingPromptEntryId = entryId;
+    appendLeadingEntryToTranscriptFragment(state, entry.turnId, entryId);
     return;
   }
 
@@ -373,6 +566,59 @@ const appendBaselineEntry = (state: TranscriptState, entry: TranscriptEntry) => 
   classifyNewEntry(state, entry, { bumpChunkRevision: false });
 };
 
+const hasVisibleMiddleContribution = (entry: TranscriptStoredEntry): boolean => {
+  if (entry.type === "live") {
+    return entry.transientText.length > 0;
+  }
+  if (entry.type === "reasoning" && entry.lifecycle === "streaming") {
+    return entry.title != null;
+  }
+  return true;
+};
+
+export const clearStreamingReasoningForTurn = (state: TranscriptState, turnId: string): boolean => {
+  const turn = state.turnsById[turnId];
+  if (turn == null) {
+    return false;
+  }
+
+  const entryIds = turn.middleChunkIds.flatMap(
+    (chunkId) => state.chunksById[chunkId]?.entryIds.slice() ?? [],
+  );
+  let didChangeVisibleDom = false;
+  for (const entryId of entryIds) {
+    const entry = state.entriesById[entryId];
+    if (entry?.type !== "reasoning" || entry.lifecycle !== "streaming") {
+      continue;
+    }
+
+    const hadVisibleContribution = entry.title != null;
+    const removedFromMiddle = removeEntryFromMiddleChunk(
+      state,
+      turnId,
+      entry.id,
+      hadVisibleContribution,
+    );
+    if (!removedFromMiddle) {
+      continue;
+    }
+
+    Reflect.deleteProperty(state.entriesById, entryId);
+    forgetTranscriptEntryFragment(state, entryId);
+    didChangeVisibleDom ||= hadVisibleContribution;
+  }
+
+  return didChangeVisibleDom;
+};
+
+export const clearAllStreamingReasoning = (state: TranscriptState): boolean => {
+  let didChangeVisibleDom = false;
+  for (const turnId of state.turnIds) {
+    didChangeVisibleDom = clearStreamingReasoningForTurn(state, turnId) || didChangeVisibleDom;
+  }
+  return didChangeVisibleDom;
+};
+
 const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry) => {
   const entryId = transcriptEntryIdFor(entry.turnId, entry.id);
   const existingEntry = state.entriesById[entryId];
@@ -381,8 +627,7 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
     return;
   }
 
-  const hadVisibleMiddleContribution =
-    existingEntry.type !== "live" || existingEntry.transientText.length > 0;
+  const hadVisibleMiddleContribution = hasVisibleMiddleContribution(existingEntry);
 
   state.entriesById[entryId] = {
     ...entry,
@@ -411,6 +656,7 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
 
   if (!hadVisibleMiddleContribution) {
     turn.middleEntryCount += 1;
+    adjustTranscriptFragmentMiddleEntryCount(state, entryId, 1);
   }
 
   const chunk = state.chunksById[chunkId];
@@ -428,14 +674,51 @@ export const applyCompletedTranscriptItem = (
   recordOriginalFirstTranscriptItem(state, turnId, item);
   const projection = projectCompletedTranscriptItem(item, turnId);
   switch (projection.kind) {
+    case "contextBoundary":
+      if (appendTranscriptContextBoundary(state, turnId, projection.item.id)) {
+        state.committedScrollCommitKey = `event:${commitId}`;
+      }
+      return;
     case "ignore":
     case "remove": {
       const entryId = transcriptEntryIdFor(turnId, item.id);
       const existingEntry = state.entriesById[entryId];
+      let didChangeVisibleDom = false;
       if (existingEntry?.type === "live" && existingEntry.turnId === turnId) {
-        removeEntryFromMiddleChunk(state, turnId, item.id, existingEntry.transientText.length > 0);
-        removeEntryFromFinal(state, turnId, item.id);
+        const hadVisibleContribution = existingEntry.transientText.length > 0;
+        const removedFromMiddle = removeEntryFromMiddleChunk(
+          state,
+          turnId,
+          item.id,
+          hadVisibleContribution,
+        );
+        const removedFromFinal = removeEntryFromFinal(state, turnId, item.id);
         Reflect.deleteProperty(state.entriesById, entryId);
+        forgetTranscriptEntryFragment(state, entryId);
+        didChangeVisibleDom = hadVisibleContribution && (removedFromMiddle || removedFromFinal);
+      } else if (existingEntry?.type === "reasoning" && existingEntry.turnId === turnId) {
+        const hadVisibleContribution = hasVisibleMiddleContribution(existingEntry);
+        const removedFromMiddle = removeEntryFromMiddleChunk(
+          state,
+          turnId,
+          item.id,
+          hadVisibleContribution,
+        );
+        Reflect.deleteProperty(state.entriesById, entryId);
+        forgetTranscriptEntryFragment(state, entryId);
+        didChangeVisibleDom = hadVisibleContribution && removedFromMiddle;
+      } else if (
+        existingEntry?.type === "collabAgent" &&
+        existingEntry.turnId === turnId &&
+        existingEntry.toolStatus === "inProgress"
+      ) {
+        didChangeVisibleDom = removeEntryFromMiddleChunk(state, turnId, item.id, true);
+        Reflect.deleteProperty(state.entriesById, entryId);
+        forgetTranscriptEntryFragment(state, entryId);
+      }
+
+      if (didChangeVisibleDom) {
+        state.committedScrollCommitKey = `event:${commitId}`;
       }
       return;
     }
@@ -448,23 +731,17 @@ export const applyCompletedTranscriptItem = (
   projection satisfies never;
 };
 
-export const rebuildTranscriptFromSnapshot = (
-  state: TranscriptState,
-  threadId: string,
-  subscriptionId: string,
-  headCommitId: string | null,
-  turns: Turn[],
-): void => {
+export const buildTranscriptStateFromTurns = (turns: Thread["turns"]): TranscriptState => {
   const nextState = createEmptyTranscriptState();
-  nextState.threadId = threadId;
-  nextState.subscriptionId = subscriptionId;
-  nextState.committedScrollCommitKey = `attach:${threadId}:${subscriptionId}:${headCommitId ?? "none"}`;
 
   for (const turn of turns) {
     upsertTranscriptTurn(nextState, turn);
     for (const item of turn.items) {
-      const projection = projectCompletedTranscriptItem(item, turn.id);
+      const projection = projectSnapshotTranscriptItem(item, turn.id);
       switch (projection.kind) {
+        case "contextBoundary":
+          appendTranscriptContextBoundary(nextState, turn.id, projection.item.id);
+          continue;
         case "ignore":
         case "remove":
           continue;
@@ -477,5 +754,19 @@ export const rebuildTranscriptFromSnapshot = (
     }
   }
 
+  return nextState;
+};
+
+export const rebuildTranscriptFromSnapshot = (
+  state: TranscriptState,
+  threadId: string,
+  subscriptionId: string,
+  headCommitId: string | null,
+  turns: Thread["turns"],
+): void => {
+  const nextState = buildTranscriptStateFromTurns(turns);
+  nextState.threadId = threadId;
+  nextState.subscriptionId = subscriptionId;
+  nextState.committedScrollCommitKey = `attach:${threadId}:${subscriptionId}:${headCommitId ?? "none"}`;
   resetTranscriptState(state, nextState);
 };

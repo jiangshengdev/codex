@@ -1,0 +1,32 @@
+{
+  "threadId": "00000000-0000-0000-0000-000000000001",
+  "subscriptionId": "projection-fixture-subscription",
+  "commitId": "commit-token-usage-updated",
+  "parentCommitId": "commit-reasoning-item-completed",
+  "event": {
+    "type": "tokenUsageUpdated",
+    "notification": {
+      "threadId": "00000000-0000-0000-0000-000000000001",
+      "turnId": "turn-in-progress",
+      "tokenUsage": {
+        "total": {
+          "totalTokens": 200,
+          "inputTokens": 150,
+          "cachedInputTokens": 25,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 50,
+          "reasoningOutputTokens": 10
+        },
+        "last": {
+          "totalTokens": 120,
+          "inputTokens": 90,
+          "cachedInputTokens": 20,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 30,
+          "reasoningOutputTokens": 5
+        },
+        "modelContextWindow": 258400
+      }
+    }
+  }
+}

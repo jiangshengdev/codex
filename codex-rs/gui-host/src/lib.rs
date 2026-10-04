@@ -3,10 +3,12 @@ mod backend;
 mod browser_contract;
 mod browser_contract_fixtures;
 mod config;
+mod file_preview;
 mod filter;
 mod host;
 mod net;
 mod token;
+mod upload;
 mod url;
 pub(crate) mod ws;
 

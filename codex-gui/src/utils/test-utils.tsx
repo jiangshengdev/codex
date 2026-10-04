@@ -6,7 +6,7 @@ import { render } from "vitest-browser-react";
 import "@/index.css";
 import type { AppStore, RootState } from "@/app/store";
 import { makeStore } from "@/app/store";
-import { loadCatalog } from "@/i18n";
+import { loadCatalog, type AppLocale } from "@/i18n";
 import { TestProvider } from "./TestProvider";
 
 /**
@@ -23,6 +23,13 @@ type ExtendedRenderOptions = Omit<RenderOptions, "wrapper"> & {
    * with predetermined state conditions.
    */
   preloadedState?: Partial<RootState>;
+
+  /**
+   * Locale to activate before rendering the component.
+   *
+   * @default "en"
+   */
+  locale?: AppLocale;
 
   /**
    * Allows the use of a specific Redux store instance instead of a
@@ -50,13 +57,14 @@ export const renderWithProviders = async (
 ) => {
   const {
     preloadedState = {},
+    locale = "en",
     // Automatically create a store instance if no store was passed in
     store = makeStore(preloadedState),
     ...renderOptions
   } = extendedRenderOptions;
 
   const i18n = setupI18n();
-  await loadCatalog("en", i18n);
+  await loadCatalog(locale, i18n);
 
   const wrapper = ({ children }: PropsWithChildren) => (
     <TestProvider i18n={i18n} store={store}>

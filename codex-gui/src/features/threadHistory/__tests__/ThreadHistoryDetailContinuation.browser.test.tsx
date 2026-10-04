@@ -1,0 +1,1128 @@
+import { Button, toast } from "@heroui/react";
+import { afterEach, expect, test, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
+import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import { exposedBackdropPosition } from "@/__tests__/backdropBrowserTestSupport";
+import { createDeferred as deferred } from "@/__tests__/testDeferred";
+import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
+import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
+import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import {
+  agentMessage,
+  attachWithTurns,
+  baseTurn,
+  textInput,
+  userMessage,
+} from "@/features/projection/__tests__/projectionTestBuilders";
+import { detailThreadId, renderDetail } from "./threadHistoryDetailBrowserHarness";
+import { renderWithProviders } from "@/utils/test-utils";
+
+const historyThread = (
+  turns: typeof attachResponse.snapshot.thread.turns,
+  name = "Historical task",
+) => ({
+  ...attachWithTurns(attachResponse, turns).snapshot.thread,
+  id: detailThreadId,
+  name,
+});
+
+const emptyHistoryThread = () => historyThread([]);
+
+type NavigationResult = Awaited<
+  ReturnType<Awaited<ReturnType<typeof renderDetail>>["router"]["navigate"]>
+>;
+
+const waitForActionLayout = async (surface: Element) => {
+  await expect
+    .poll(async () => {
+      const sample = () => [
+        surface.getBoundingClientRect().height,
+        document.documentElement.scrollHeight,
+        window.scrollY,
+      ];
+      const before = sample();
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            resolve();
+          }),
+        ),
+      );
+      return (
+        surface
+          .getAnimations({ subtree: true })
+          .every((animation) => animation.playState !== "running" && !animation.pending) &&
+        sample().every((value, index) => value === before[index])
+      );
+    })
+    .toBe(true);
+};
+
+afterEach(() => {
+  toast.clear();
+});
+
+test("reports an unresolved current thread without flashing pending and links the action to its reason", async () => {
+  const activeThreadId = "00000000-0000-0000-0000-000000000089";
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
+    type: "unavailable",
+    failure: {
+      type: "currentThreadUnresolved",
+      blockers: [{ type: "ordinaryQueued", count: 1 }],
+      activeThreadId,
+    },
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { screen } = await renderDetail({ activate, commands });
+  const action = screen.getByRole("button", { name: "Continue this task" });
+
+  await expect.element(action).toBeEnabled();
+  await action.click();
+
+  const reason =
+    "The current task still has queued or unresolved messages. Return to it before switching.";
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to switch tasks yet")).toBeVisible();
+  await expect.element(alert.getByText(reason, { exact: true })).toBeVisible();
+  await expect.element(action).not.toHaveAttribute("data-pending");
+  await expect.element(action).toHaveAccessibleDescription(reason);
+  expect(activate).toHaveBeenCalledExactlyOnceWith(detailThreadId);
+  const returnAction = alert.getByRole("button", { name: "Return to current task" });
+  await expect.element(returnAction).toBeVisible();
+  await expect.element(returnAction).toBeEnabled();
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  const reference = await renderWithProviders(
+    <>
+      <Button size="sm">Compact reference</Button>
+      <Button size="md">Page action reference</Button>
+    </>,
+  );
+  try {
+    for (const width of [375, 1280]) {
+      await page.viewport(width, 900);
+      const compactHeight = reference
+        .getByRole("button", { name: "Compact reference" })
+        .element()
+        .getBoundingClientRect().height;
+      const regularHeight = reference
+        .getByRole("button", { name: "Page action reference" })
+        .element()
+        .getBoundingClientRect().height;
+      await expect
+        .poll(() => returnAction.element().getBoundingClientRect().height)
+        .toBe(compactHeight);
+      await expect.poll(() => action.element().getBoundingClientRect().height).toBe(regularHeight);
+    }
+  } finally {
+    await reference.unmount();
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
+test("pushes an unresolved continuation return target and preserves the history detail back stack", async () => {
+  const activeThreadId = "00000000-0000-0000-0000-000000000089";
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
+    type: "unavailable",
+    failure: {
+      type: "currentThreadUnresolved",
+      blockers: [{ type: "ordinaryQueued", count: 1 }],
+      activeThreadId,
+    },
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const detailUrl = `/history/${detailThreadId}`;
+  const { router, screen } = await renderDetail({
+    activate,
+    commands,
+    initialEntries: ["/origin", detailUrl],
+  });
+  const historyLength = router.history.length;
+
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+  const returnAction = screen.getByRole("button", { name: "Return to current task" });
+  await expect.element(returnAction).toBeEnabled();
+  await returnAction.click();
+
+  await expect.element(screen.getByRole("main", { name: "Current task" })).toBeInTheDocument();
+  expect(router.state.location.pathname).toBe(`/task/${activeThreadId}`);
+  expect(router.state.location.search).toEqual({});
+  expect(router.state.location.hash).toBe("");
+  expect(router.history.length).toBe(historyLength + 1);
+
+  router.history.back();
+  await expect.element(screen.getByRole("heading", { name: "Historical task" })).toBeVisible();
+  expect(router.state.location.pathname).toBe(detailUrl);
+});
+
+test("does not offer a return action when the current thread changed to empty", async () => {
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
+    type: "unavailable",
+    failure: {
+      type: "currentThreadChanged",
+      activeThreadId: null,
+      expectedRevision: 1,
+      actualRevision: 2,
+    },
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { screen } = await renderDetail({ activate, commands });
+
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to continue this task")).toBeVisible();
+  await expect.element(alert.getByText("The task could not be activated.")).toBeVisible();
+  await expect
+    .element(alert.getByRole("button", { name: "Return to current task" }))
+    .not.toBeInTheDocument();
+});
+
+test("reports another switch in progress without offering a stale owner route", async () => {
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
+    type: "unavailable",
+    failure: { type: "switchInProgress" },
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen } = await renderDetail({ activate, commands });
+
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+
+  const alert = screen.getByRole("alert");
+  await expect
+    .element(alert.getByText("Another task switch is already in progress. Try again shortly."))
+    .toBeVisible();
+  await expect
+    .element(alert.getByRole("button", { name: "Return to current task" }))
+    .not.toBeInTheDocument();
+  expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+});
+
+test("builds QR access for the visible detail instead of a different active thread", async () => {
+  const activeThreadId = "00000000-0000-0000-0000-000000000089";
+  const activeThreadSessionHarness = createActiveThreadSessionHarness();
+  activeThreadSessionHarness.publish(
+    activeThreadSessionHarness.activeSnapshot({
+      threadId: activeThreadId,
+      subscriptionId: `subscription-${activeThreadId}`,
+    }),
+  );
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { screen } = await renderDetail({
+    activeThreadSession: activeThreadSessionHarness.session,
+    authorizationToken: "retained-secret",
+    commands,
+  });
+
+  await screen.getByRole("button", { name: "Scan with phone" }).click();
+
+  const dialog = screen.getByRole("dialog", { name: "Scan with phone" });
+  await expect
+    .element(
+      dialog.getByText(`${window.location.origin}/history/${detailThreadId}#token=retained-secret`),
+    )
+    .toBeVisible();
+  await expect
+    .element(dialog.getByText(new RegExp(`/task/${activeThreadId}`)))
+    .not.toBeInTheDocument();
+});
+
+test("keeps the previous continuation failure and diagnostic until retry settles", async () => {
+  const retry = deferred<Awaited<ReturnType<ActiveThreadSession["activate"]>>>();
+  const success = deferred<Awaited<ReturnType<ActiveThreadSession["activate"]>>>();
+  const activate = vi
+    .fn<ActiveThreadSession["activate"]>()
+    .mockRejectedValueOnce(new Error("first continuation failure"))
+    .mockReturnValueOnce(retry.promise)
+    .mockReturnValueOnce(success.promise);
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen } = await renderDetail({ activate, commands });
+  const action = screen.getByRole("button", { name: "Continue this task", exact: true });
+  await action.click();
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to continue this task")).toBeVisible();
+  const previousPanel = alert.element();
+  await action.click();
+  const pendingAction = screen.getByRole("button", { name: "Continuing this task…" });
+  await expect.element(pendingAction).toHaveAttribute("data-pending", "true");
+  expect(alert.element()).toBe(previousPanel);
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect
+    .element(dialog.getByText("Diagnostic: first continuation failure", { exact: true }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "Close diagnostics" }).click();
+  const pendingButton = pendingAction.element();
+  if (!(pendingButton instanceof HTMLButtonElement))
+    throw new Error("Expected continuation button");
+  pendingButton.click();
+  expect(activate).toHaveBeenCalledTimes(2);
+  retry.reject(new Error("second continuation failure"));
+  await expect.element(action).not.toHaveAttribute("data-pending");
+  await alert.getByRole("button", { name: "View diagnostic information" }).click();
+  await expect
+    .element(dialog.getByText("Diagnostic: second continuation failure", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(dialog.getByText("Diagnostic: first continuation failure", { exact: true }))
+    .not.toBeInTheDocument();
+  await page.getByRole("button", { name: "Close diagnostics" }).click();
+  await action.click();
+  await expect.element(pendingAction).toHaveAttribute("data-pending", "true");
+  success.resolve({ type: "ready", threadId: detailThreadId, warnings: [] });
+  await expect.poll(() => router.state.location.pathname).toBe(`/task/${detailThreadId}`);
+  await expect.element(alert).not.toBeInTheDocument();
+  expect(activate).toHaveBeenCalledTimes(3);
+});
+
+test("keeps one continuation in flight while the primary action is pending", async () => {
+  const switching = deferred<Awaited<ReturnType<ActiveThreadSession["activate"]>>>();
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockReturnValue(switching.promise);
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen } = await renderDetail({ activate, commands });
+  const action = screen.getByRole("button", { name: "Continue this task" });
+
+  await action.click();
+  const pendingAction = screen.getByRole("button", { name: "Continuing this task…" });
+  await expect.element(pendingAction).toHaveAttribute("data-pending", "true");
+  const pendingActionElement = pendingAction.element();
+  if (!(pendingActionElement instanceof HTMLButtonElement)) {
+    throw new Error("Expected the pending continuation action to be a button");
+  }
+  pendingActionElement.click();
+  expect(activate).toHaveBeenCalledExactlyOnceWith(detailThreadId);
+
+  const rawFailure = new Error("continuation settled after pending");
+  switching.resolve({
+    type: "unavailable",
+    failure: {
+      type: "operationFailed",
+      phase: "resume",
+      error: rawFailure,
+      cleanupError: null,
+    },
+  });
+
+  await expect.element(action).not.toHaveAttribute("data-pending");
+  await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
+  const alert = screen.getByRole("alert");
+  await expect
+    .element(alert.getByText("The task could not be resumed.", { exact: true }))
+    .toBeVisible();
+  expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+});
+
+test("retains navigation failure and retries only navigation after activation succeeds", async () => {
+  const navigation = deferred<NavigationResult>();
+  const activate = vi
+    .fn<ActiveThreadSession["activate"]>()
+    .mockResolvedValue({ type: "ready", threadId: detailThreadId, warnings: [] });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen } = await renderDetail({ activate, commands });
+  const navigate = vi.spyOn(router, "navigate").mockReturnValueOnce(navigation.promise);
+  const action = screen.getByRole("button", { name: "Continue this task", exact: true });
+  try {
+    await action.click();
+    const pending = screen.getByRole("button", { name: "Continuing this task…" });
+    await expect.element(pending).toHaveAttribute("data-pending", "true");
+    const button = pending.element();
+    if (!(button instanceof HTMLButtonElement)) throw new Error("Expected continuation button");
+    button.click();
+    expect(activate).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledOnce();
+    navigation.reject(new Error("navigation failed after activation"));
+    await expect.element(action).not.toHaveAttribute("data-pending");
+    const alert = screen.getByRole("alert");
+    await alert.getByRole("button", { name: "View diagnostic information" }).click();
+    await expect
+      .element(
+        page
+          .getByRole("dialog")
+          .getByText("Diagnostic: navigation failed after activation", { exact: true }),
+      )
+      .toBeVisible();
+    await page.getByRole("button", { name: "Close diagnostics" }).click();
+    await action.click();
+    await expect.poll(() => router.state.location.pathname).toBe(`/task/${detailThreadId}`);
+    expect(activate).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledTimes(2);
+  } finally {
+    navigate.mockRestore();
+  }
+});
+
+test("ignores a navigation rejection after the continuation capability is replaced", async () => {
+  const navigation = deferred<NavigationResult>();
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen, capabilitiesStore, initialCapabilities } = await renderDetail({
+    commands,
+  });
+  const navigate = vi.spyOn(router, "navigate").mockReturnValueOnce(navigation.promise);
+  try {
+    await screen.getByRole("button", { name: "Continue this task" }).click();
+    await expect
+      .element(screen.getByRole("button", { name: "Continuing this task…" }))
+      .toHaveAttribute("data-pending", "true");
+    const replacement = createActiveThreadSessionHarness({ activate: { type: "empty" } });
+    capabilitiesStore.publish({ ...initialCapabilities, activeThreadSession: replacement.session });
+    const action = screen.getByRole("button", { name: "Continue this task" });
+    await expect.element(action).toBeEnabled();
+    navigation.reject(new Error("obsolete navigation failure"));
+    await action.click();
+    await expect
+      .element(screen.getByText("The task could not be activated.", { exact: true }))
+      .toBeVisible();
+    await expect
+      .element(screen.getByRole("button", { name: "View diagnostic information" }))
+      .not.toBeInTheDocument();
+    expect(replacement.activate).toHaveBeenCalledOnce();
+  } finally {
+    navigate.mockRestore();
+  }
+});
+
+test("keeps the read-only detail visible when activation returns empty", async () => {
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen } = await renderDetail({ activate: { type: "empty" }, commands });
+  const action = screen.getByRole("button", { name: "Continue this task" });
+
+  await action.click();
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to continue this task")).toBeVisible();
+  const summary = "The task could not be activated.";
+  await expect.element(alert.getByText(summary)).toBeVisible();
+  await expect.element(action).toHaveAccessibleDescription(summary);
+  await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
+  expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+});
+
+test("keeps a long history continuation failure visible beside the retry action", async () => {
+  const rawFailure = new Error("complete resume failure: request id 88");
+  const cleanupError = new Error("cleanup after resume failed");
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
+    type: "unavailable",
+    failure: {
+      type: "operationFailed",
+      phase: "resume",
+      error: rawFailure,
+      cleanupError,
+    },
+  });
+  const historyText = Array.from(
+    { length: 80 },
+    (_, index) => `Long read-only history line ${String(index + 1)}`,
+  ).join("\n");
+  const thread = historyThread([
+    baseTurn("long-history-turn", [
+      userMessage("long-history-user", [textInput(`${historyText}\nEnd of long history`)]),
+    ]),
+  ]);
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi.fn<GuiHostCommands["readThread"]>().mockResolvedValue({ thread }),
+  };
+  const { router, screen } = await renderDetail({ activate, commands });
+  const action = screen.getByRole("button", { name: "Continue this task" });
+
+  await expect.element(action).toBeVisible();
+  window.scrollTo({ left: 0, top: 0 });
+  await expect.poll(() => window.scrollY).toBe(0);
+  await expect
+    .poll(() => document.documentElement.scrollHeight - window.innerHeight - window.scrollY)
+    .toBeGreaterThan(100);
+
+  await action.click();
+
+  const summary = "The task could not be resumed.";
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText(summary, { exact: true })).toBeVisible();
+  await expect.element(alert).toBeInViewport();
+  const actionBar = action.element().closest("aside");
+  expect(actionBar).not.toBeNull();
+  expect(actionBar?.contains(alert.element())).toBe(true);
+  await expect.element(action).toHaveAccessibleName("Continue this task");
+  await expect.element(action).toHaveAccessibleDescription(summary);
+
+  const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
+  const operationDiagnostic = page.getByText("Operation diagnostic:", { exact: false });
+  const cleanupDiagnostic = page.getByText("Cleanup diagnostic:", { exact: false });
+  await expect.element(operationDiagnostic).not.toBeInTheDocument();
+  await expect.element(cleanupDiagnostic).not.toBeInTheDocument();
+  const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
+  await expect.element(disclosure).toBeVisible();
+  await expect.element(disclosure).toHaveClass("button--secondary");
+  disclosure.element().focus();
+  await expect.element(disclosure).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(operationDiagnostic).toHaveTextContent(rawFailure.message);
+  await expect.element(operationDiagnostic).toBeVisible();
+  await expect.element(cleanupDiagnostic).toHaveTextContent(cleanupError.message);
+  await expect.element(cleanupDiagnostic).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Close diagnostics" }).click();
+  await expect.element(dialog).not.toBeInTheDocument();
+  await expect.element(disclosure).toHaveFocus();
+  await expect.element(operationDiagnostic).not.toBeInTheDocument();
+  await expect.element(cleanupDiagnostic).not.toBeInTheDocument();
+
+  await disclosure.click();
+  await expect.element(dialog).toBeVisible();
+  const backdrop = dialog.element().closest('[data-slot="modal-backdrop"]');
+  if (!(backdrop instanceof HTMLElement)) {
+    throw new Error("Expected diagnostic modal backdrop");
+  }
+  await userEvent.click(backdrop, { position: exposedBackdropPosition(backdrop) });
+  await expect.element(dialog).not.toBeInTheDocument();
+  await expect.element(disclosure).toHaveFocus();
+
+  await action.click();
+  expect(activate).toHaveBeenCalledTimes(2);
+  expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+});
+
+test("preserves document scroll position when opening and dismissing diagnostics at the bottom", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  const originalScrollTop = window.scrollY;
+  try {
+    await page.viewport(1280, 720);
+    const diagnostic = "complete resume failure: request id 88";
+    const historyText = Array.from(
+      { length: 80 },
+      (_, index) => `Bottom expansion history line ${String(index + 1)}`,
+    ).join("\n");
+    const thread = historyThread([
+      baseTurn("bottom-expansion-turn", [
+        userMessage("bottom-expansion-user", [textInput(historyText)]),
+      ]),
+    ]);
+    const commands = {
+      ...createGuiHostCommands(),
+      readThread: vi.fn<GuiHostCommands["readThread"]>().mockResolvedValue({ thread }),
+    };
+    const { screen } = await renderDetail({
+      activate: {
+        type: "unavailable",
+        failure: {
+          type: "operationFailed",
+          phase: "resume",
+          error: new Error(diagnostic),
+          cleanupError: null,
+        },
+      },
+      commands,
+    });
+    const action = screen.getByRole("button", { name: "Continue this task" });
+
+    await action.click();
+    const alert = screen.getByRole("alert");
+    await expect.element(alert.getByText("The task could not be resumed.")).toBeVisible();
+    const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
+    await expect.element(disclosure).toBeVisible();
+
+    const actionBar = action.element().closest("aside");
+    if (!(actionBar instanceof HTMLElement)) {
+      throw new Error("Expected continuation action to be rendered in an aside");
+    }
+    await waitForActionLayout(actionBar);
+
+    const documentScroller = document.scrollingElement;
+    if (!(documentScroller instanceof HTMLElement)) {
+      throw new Error("Expected an HTML document scrolling element");
+    }
+    window.scrollTo({ top: documentScroller.scrollHeight });
+    await expect.poll(() => documentScroller.scrollTop).toBeGreaterThan(0);
+    await expect
+      .poll(
+        () =>
+          documentScroller.scrollHeight -
+          documentScroller.clientHeight -
+          documentScroller.scrollTop,
+      )
+      .toBeLessThanOrEqual(1);
+    disclosure.element().focus();
+    await expect.element(disclosure).toHaveFocus();
+    await waitForActionLayout(actionBar);
+    const scrollTopBeforeExpand = documentScroller.scrollTop;
+    await userEvent.keyboard("{Enter}");
+    const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
+    await expect.element(dialog.getByText(diagnostic, { exact: false })).toBeVisible();
+    await waitForActionLayout(dialog.element());
+    expect(dialog.element().contains(document.activeElement)).toBe(true);
+    expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
+    await userEvent.keyboard("{Escape}");
+    await expect.element(dialog).not.toBeInTheDocument();
+    await expect.element(disclosure).toHaveFocus();
+    expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
+  } finally {
+    window.scrollTo({ top: originalScrollTop });
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
+test("scrolls long continuation diagnostics in a narrow modal while locking the background", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  const originalScrollTop = window.scrollY;
+  try {
+    await page.viewport(390, 600);
+    const diagnostic = Array.from(
+      { length: 100 },
+      (_, index) =>
+        `Raw continuation diagnostic line ${String(index + 1)} with enough detail to wrap.`,
+    ).join("\n");
+    const historyText = Array.from(
+      { length: 80 },
+      (_, index) => `Narrow history line ${String(index + 1)}`,
+    ).join("\n");
+    const thread = historyThread([
+      baseTurn("narrow-diagnostic-turn", [
+        userMessage("narrow-diagnostic-user", [textInput(historyText)]),
+        agentMessage(
+          "narrow-diagnostic-answer",
+          "[Last history message](https://example.invalid/last-history-message)",
+        ),
+      ]),
+    ]);
+    const commands = {
+      ...createGuiHostCommands(),
+      readThread: vi.fn<GuiHostCommands["readThread"]>().mockResolvedValue({ thread }),
+    };
+    const { screen } = await renderDetail({
+      activate: {
+        type: "unavailable",
+        failure: {
+          type: "operationFailed",
+          phase: "resume",
+          error: new Error(diagnostic),
+          cleanupError: null,
+        },
+      },
+      commands,
+    });
+    const action = screen.getByRole("button", { name: "Continue this task" });
+
+    await expect.element(action).toBeVisible();
+    const actionPanel = action.element().closest(".task-bottom-panel");
+    if (!(actionPanel instanceof HTMLElement)) {
+      throw new Error("Expected continuation card");
+    }
+
+    await action.click();
+    const alert = screen.getByRole("alert");
+    await expect.element(alert.getByText("The task could not be resumed.")).toBeVisible();
+    const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
+    await expect.element(disclosure).toBeInViewport({ ratio: 1 });
+    await waitForActionLayout(actionPanel);
+
+    const documentScroller = document.scrollingElement;
+    if (!(documentScroller instanceof HTMLElement)) {
+      throw new Error("Expected an HTML document scrolling element");
+    }
+    window.scrollTo({ top: Math.min(120, documentScroller.scrollHeight - window.innerHeight) });
+    await expect.poll(() => documentScroller.scrollTop).toBeGreaterThan(0);
+    await waitForActionLayout(actionPanel);
+    const scrollTopBeforeExpand = documentScroller.scrollTop;
+
+    await disclosure.click();
+
+    const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
+    await expect.element(dialog).toBeVisible();
+    const diagnosticRegion = dialog.element().querySelector('[data-slot="modal-body"]');
+    if (!(diagnosticRegion instanceof HTMLElement)) {
+      throw new Error("Expected continuation diagnostics to own an internal scroll region");
+    }
+    await expect
+      .element(
+        dialog.getByText("Raw continuation diagnostic line 100 with enough detail to wrap.", {
+          exact: false,
+        }),
+      )
+      .toBeVisible();
+    await expect.element(dialog).toBeInViewport({ ratio: 1 });
+    await waitForActionLayout(dialog.element());
+    expect(dialog.element().contains(document.activeElement)).toBe(true);
+    expect(diagnosticRegion.scrollWidth).toBeLessThanOrEqual(diagnosticRegion.clientWidth + 1);
+    await expect
+      .poll(() => ({
+        documentScrollTopStable: Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand) <= 1,
+        hasInternalOverflow: diagnosticRegion.scrollHeight > diagnosticRegion.clientHeight + 1,
+      }))
+      .toEqual({
+        documentScrollTopStable: true,
+        hasInternalOverflow: true,
+      });
+    const lastDiagnosticLineVisible = () => {
+      const walker = document.createTreeWalker(diagnosticRegion, NodeFilter.SHOW_TEXT);
+      const text = "Raw continuation diagnostic line 100 with enough detail to wrap.";
+      let node = walker.nextNode();
+      while (node != null) {
+        const offset = node.textContent?.indexOf(text) ?? -1;
+        if (offset >= 0) {
+          const range = document.createRange();
+          range.setStart(node, offset);
+          range.setEnd(node, offset + text.length);
+          const regionBounds = diagnosticRegion.getBoundingClientRect();
+          return Array.from(range.getClientRects()).every(
+            (bounds) => bounds.top >= regionBounds.top && bounds.bottom <= regionBounds.bottom,
+          );
+        }
+        node = walker.nextNode();
+      }
+      return false;
+    };
+    while (!lastDiagnosticLineVisible()) {
+      const before = diagnosticRegion.scrollTop;
+      await userEvent.wheel(diagnosticRegion, { delta: { y: diagnosticRegion.clientHeight } });
+      await expect
+        .poll(() => ({
+          diagnosticScrolled: diagnosticRegion.scrollTop > before,
+          documentStayedStill: Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand) <= 1,
+        }))
+        .toEqual({ diagnosticScrolled: true, documentStayedStill: true });
+      await expect
+        .poll(async () => {
+          const scrollTop = diagnosticRegion.scrollTop;
+          await new Promise<void>((resolve) =>
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                resolve();
+              }),
+            ),
+          );
+          return diagnosticRegion.scrollTop === scrollTop;
+        })
+        .toBe(true);
+    }
+    expect(lastDiagnosticLineVisible()).toBe(true);
+    await userEvent.wheel(diagnosticRegion, { delta: { y: diagnosticRegion.scrollHeight } });
+    await expect
+      .poll(
+        () =>
+          diagnosticRegion.scrollHeight -
+          diagnosticRegion.clientHeight -
+          diagnosticRegion.scrollTop,
+      )
+      .toBeLessThanOrEqual(1);
+    const scrollTopAtEnd = diagnosticRegion.scrollTop;
+    await userEvent.wheel(diagnosticRegion, { delta: { y: diagnosticRegion.clientHeight } });
+    await waitForActionLayout(dialog.element());
+    expect(diagnosticRegion.scrollTop).toBe(scrollTopAtEnd);
+    expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
+    await dialog.getByRole("button", { name: "Close diagnostics" }).click();
+    await expect.element(dialog).not.toBeInTheDocument();
+    await expect.element(disclosure).toHaveFocus();
+    expect(Math.abs(documentScroller.scrollTop - scrollTopBeforeExpand)).toBeLessThanOrEqual(1);
+
+    await expect.element(disclosure).toBeInViewport({ ratio: 1 });
+    await userEvent.wheel(disclosure, { delta: { y: 180 } });
+    await expect.poll(() => documentScroller.scrollTop).toBeGreaterThan(scrollTopBeforeExpand);
+
+    await waitForActionLayout(actionPanel);
+    const lastMessage = screen.getByRole("link", { name: "Last history message" });
+    lastMessage.element().focus();
+    window.scrollTo({ top: documentScroller.scrollHeight });
+    await expect.element(lastMessage).toHaveFocus();
+    await expect.element(lastMessage).toBeInViewport({ ratio: 1 });
+    await expect
+      .poll(
+        () =>
+          actionPanel.getBoundingClientRect().top -
+          lastMessage.element().getBoundingClientRect().bottom,
+      )
+      .toBeGreaterThanOrEqual(0);
+    const lastBounds = lastMessage.element().getBoundingClientRect();
+    expect(
+      lastMessage
+        .element()
+        .contains(
+          document.elementFromPoint(lastBounds.left + 1, lastBounds.top + lastBounds.height / 2),
+        ),
+    ).toBe(true);
+    expect(documentScroller.scrollWidth).toBeLessThanOrEqual(documentScroller.clientWidth + 1);
+  } finally {
+    window.scrollTo({ top: originalScrollTop });
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
+test("releases the diagnostic modal scroll lock when the history detail unmounts", async () => {
+  const historyText = Array.from(
+    { length: 80 },
+    (_, index) => `Unmount history line ${String(index + 1)}`,
+  ).join("\n");
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi.fn<GuiHostCommands["readThread"]>().mockResolvedValue({
+      thread: historyThread([
+        baseTurn("unmount-history-turn", [
+          userMessage("unmount-history-user", [textInput(historyText)]),
+        ]),
+      ]),
+    }),
+  };
+  const { screen } = await renderDetail({
+    commands,
+    activate: {
+      type: "unavailable",
+      failure: {
+        type: "operationFailed",
+        phase: "resume",
+        error: new Error("Diagnostic retained until unmount"),
+        cleanupError: null,
+      },
+    },
+  });
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+  await screen.getByRole("button", { name: "View diagnostic information" }).click();
+  const dialog = page.getByRole("dialog", { name: "Diagnostic information" });
+  await expect.element(dialog).toBeVisible();
+
+  await screen.unmount();
+
+  await expect.element(dialog).not.toBeInTheDocument();
+  const next = await renderDetail({ commands });
+  const action = next.screen.getByRole("button", { name: "Continue this task" });
+  await expect.element(action).toBeInViewport({ ratio: 1 });
+  window.scrollTo({ top: 0 });
+  await expect.poll(() => window.scrollY).toBe(0);
+  const scrollTopBeforeWheel = window.scrollY;
+  await expect
+    .poll(() => document.documentElement.scrollHeight - window.innerHeight - window.scrollY)
+    .toBeGreaterThan(180);
+  await userEvent.wheel(action, { delta: { y: 180 } });
+  await expect.poll(() => window.scrollY).toBeGreaterThan(scrollTopBeforeWheel);
+});
+
+test.each([
+  ["loaded", "The task connection could not be prepared."],
+  ["resume", "The task could not be resumed."],
+  ["attach", "The task connection could not be prepared."],
+  ["prepare", "The task connection could not be prepared."],
+  ["activate", "The task could not be activated."],
+] as const)(
+  "keeps the read-only detail retryable after an %s operation failure",
+  async (phase, summary) => {
+    const rawFailure = new Error(`complete ${phase} failure: request id 88`);
+    const cleanupError = new Error(`cleanup after ${phase} failed`);
+    const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
+      type: "unavailable",
+      failure: {
+        type: "operationFailed",
+        phase,
+        error: rawFailure,
+        cleanupError,
+      },
+    });
+    const commands = {
+      ...createGuiHostCommands(),
+      readThread: vi
+        .fn<GuiHostCommands["readThread"]>()
+        .mockResolvedValue({ thread: emptyHistoryThread() }),
+    };
+    const { router, screen } = await renderDetail({ activate, commands });
+    const action = screen.getByRole("button", { name: "Continue this task" });
+
+    await action.click();
+    const alert = screen.getByRole("alert");
+    await expect.element(alert.getByText("Unable to continue this task")).toBeVisible();
+    await expect.element(alert.getByText(summary, { exact: true })).toBeVisible();
+    await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
+    await expect.element(action).not.toHaveAttribute("data-pending");
+    expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+
+    await action.click();
+    expect(activate).toHaveBeenCalledTimes(2);
+  },
+);
+
+test.each(["beforeCommit", "afterCommit"] as const)(
+  "keeps history visible after a %s connection loss without offering active-thread navigation",
+  async (progress) => {
+    const cleanupError = new Error(`cleanup after ${progress} failed`);
+    const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
+      type: "unavailable",
+      failure: {
+        type: "connectionLost",
+        progress,
+        threadId: detailThreadId,
+        cleanupError,
+      },
+    });
+    const commands = {
+      ...createGuiHostCommands(),
+      readThread: vi
+        .fn<GuiHostCommands["readThread"]>()
+        .mockResolvedValue({ thread: emptyHistoryThread() }),
+    };
+    const { router, screen } = await renderDetail({ activate, commands });
+
+    await screen.getByRole("button", { name: "Continue this task" }).click();
+
+    const alert = screen.getByRole("alert");
+    await expect
+      .element(
+        alert.getByText(
+          progress === "beforeCommit"
+            ? "The connection was interrupted before the task switch completed. Reconnect and try again."
+            : "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task.",
+          { exact: true },
+        ),
+      )
+      .toBeVisible();
+    await expect
+      .element(alert.getByRole("button", { name: "Return to current task" }))
+      .not.toBeInTheDocument();
+    await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
+    expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+  },
+);
+
+test("renders a synchronous activation exception as an unexpected failure", async () => {
+  const rawFailure = new Error("synchronous activation failure");
+  const activate = vi.fn<ActiveThreadSession["activate"]>(() => {
+    throw rawFailure;
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen } = await renderDetail({ activate, commands });
+  const action = screen.getByRole("button", { name: "Continue this task" });
+
+  await action.click();
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to continue this task")).toBeVisible();
+  const summary = "An unexpected error occurred while continuing the task.";
+  await expect.element(alert.getByText(summary, { exact: true })).toBeVisible();
+  await expect.element(action).toHaveAccessibleDescription(summary);
+  const diagnostic = page.getByText("Diagnostic:", { exact: false });
+  await expect.element(diagnostic).not.toBeInTheDocument();
+  const disclosure = alert.getByRole("button", { name: "View diagnostic information" });
+  await expect.element(disclosure).toBeVisible();
+  const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+  try {
+    for (const width of [1280, 375]) {
+      await page.viewport(width, 900);
+      await expect
+        .poll(() => {
+          const summaryBounds = alert
+            .getByText(summary, { exact: true })
+            .element()
+            .getBoundingClientRect();
+          const diagnosticBounds = disclosure.element().getBoundingClientRect();
+          return (
+            diagnosticBounds.top >= summaryBounds.bottom &&
+            Math.abs(diagnosticBounds.left - summaryBounds.left) <= 1
+          );
+        })
+        .toBe(true);
+      expect(alert.element().scrollWidth).toBeLessThanOrEqual(alert.element().clientWidth + 1);
+    }
+    expect(alert.element().querySelectorAll("button")).toHaveLength(1);
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+  await disclosure.click();
+  await expect.element(diagnostic).toHaveTextContent(rawFailure.message);
+  await expect.element(diagnostic).toBeVisible();
+  expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+});
+
+test("replaces history with the authoritative ready thread without showing a warning", async () => {
+  const authoritativeThreadId = "00000000-0000-0000-0000-000000000090";
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
+    type: "ready",
+    threadId: authoritativeThreadId,
+    warnings: [],
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const detailUrl = `/history/${detailThreadId}`;
+  const { router, screen } = await renderDetail({
+    activate,
+    commands,
+    initialEntries: ["/origin", detailUrl],
+  });
+  const historyLength = router.history.length;
+
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+
+  await expect.element(screen.getByRole("main", { name: "Current task" })).toBeInTheDocument();
+  expect(router.state.location.pathname).toBe(`/task/${authoritativeThreadId}`);
+  expect(router.history.length).toBe(historyLength);
+  await expect.element(screen.getByText("Task opened", { exact: true })).not.toBeInTheDocument();
+
+  router.history.back();
+  await expect.element(screen.getByRole("main", { name: "Origin" })).toBeInTheDocument();
+});
+
+test.each([
+  [
+    { type: "authorizationPersistenceFailed", error: new Error("persistence degraded") },
+    "The task opened, but some state synchronization did not finish.",
+  ],
+  [
+    { type: "previousOwnerCleanupFailed", error: new Error("cleanup degraded") },
+    "The previous task connection could not be fully cleaned up. Later state may be affected.",
+  ],
+] as const)(
+  "navigates after a ready warning and keeps its Toast visible",
+  async (warning, message) => {
+    const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
+      type: "ready",
+      threadId: detailThreadId,
+      warnings: [warning],
+    });
+    const commands = {
+      ...createGuiHostCommands(),
+      readThread: vi
+        .fn<GuiHostCommands["readThread"]>()
+        .mockResolvedValue({ thread: emptyHistoryThread() }),
+    };
+    const { screen } = await renderDetail({ activate, commands });
+
+    await screen.getByRole("button", { name: "Continue this task" }).click();
+
+    await expect.element(screen.getByRole("main", { name: "Current task" })).toBeInTheDocument();
+    await expect.element(screen.getByText("Task opened", { exact: true })).toBeVisible();
+    await expect.element(screen.getByText(message, { exact: true })).toBeVisible();
+  },
+);
+
+test("keeps both warning Toasts visible after navigating away from history", async () => {
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
+    type: "ready",
+    threadId: detailThreadId,
+    warnings: [
+      { type: "authorizationPersistenceFailed", error: new Error("persistence degraded") },
+      { type: "previousOwnerCleanupFailed", error: new Error("cleanup degraded") },
+    ],
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { screen } = await renderDetail({ activate, commands });
+
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+
+  await expect.element(screen.getByRole("main", { name: "Current task" })).toBeInTheDocument();
+  const postCommitWarning = screen.getByText(
+    "The task opened, but some state synchronization did not finish.",
+    { exact: true },
+  );
+  await expect.element(postCommitWarning).toBeVisible();
+  const cleanupWarning = screen.getByText(
+    "The previous task connection could not be fully cleaned up. Later state may be affected.",
+    { exact: true },
+  );
+  await expect.element(cleanupWarning).toBeVisible();
+  await expect
+    .poll(() => screen.getByText("Task opened", { exact: true }).elements().length)
+    .toBe(2);
+});
+
+test("ignores a stale in-flight capability result and invokes only its replacement", async () => {
+  const staleSwitch = deferred<Awaited<ReturnType<ActiveThreadSession["activate"]>>>();
+  const staleSessionHarness = createActiveThreadSessionHarness({
+    activate: () => staleSwitch.promise,
+  });
+  const replacementSessionHarness = createActiveThreadSessionHarness({
+    activate: {
+      type: "unavailable",
+      failure: { type: "switchInProgress" },
+    },
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { capabilitiesStore, initialCapabilities, router, screen } = await renderDetail({
+    activeThreadSession: staleSessionHarness.session,
+    commands,
+  });
+  const action = screen.getByRole("button", { name: "Continue this task" });
+
+  await action.click();
+  capabilitiesStore.publish({
+    ...initialCapabilities,
+    activeThreadSession: null,
+    status: { label: "closed" },
+  });
+  await expect.element(action).toBeDisabled();
+  capabilitiesStore.publish({
+    ...initialCapabilities,
+    activeThreadSession: replacementSessionHarness.session,
+  });
+  await expect.element(action).toBeEnabled();
+
+  staleSwitch.resolve({ type: "ready", threadId: detailThreadId, warnings: [] });
+  await expect.poll(() => router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+
+  await action.click();
+  await expect
+    .element(screen.getByText("Another task switch is already in progress. Try again shortly."))
+    .toBeVisible();
+  expect(staleSessionHarness.activate).toHaveBeenCalledOnce();
+  expect(replacementSessionHarness.activate).toHaveBeenCalledOnce();
+});

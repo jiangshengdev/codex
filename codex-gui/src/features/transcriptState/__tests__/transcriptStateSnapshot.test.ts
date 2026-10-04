@@ -1,7 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { createTranscriptReadModelActions } from "@/features/transcriptState/__tests__/transcriptReadModelActions";
+import { beforeEach, describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
-import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
+import { requiredTranscriptState } from "./requiredTranscriptState";
+import {
+  activeThreadReadModelSlotCreated,
+  activeThreadReadModelTransitionApplied,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjectionFacts";
+import {
+  attachBaseline,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
 import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
@@ -11,26 +20,193 @@ import {
   selectTranscriptTurnIds,
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
+import { buildTranscriptStateFromTurns } from "../transcriptStateImplementation";
 import {
   agentMessage,
   audioInput,
   attachWithTurns,
   baseTurn,
+  collabAgentState,
+  collabAgentToolCall,
+  failedTurn,
   imageInput,
   localAudioInput,
   planItem,
+  reasoningItem,
   sleepItem,
+  subAgentActivity,
   textInput,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
+const identity = { threadId: attachBaseline.snapshot.thread.id, instanceId: "test-live" };
+let actions: ReturnType<typeof createTranscriptReadModelActions>;
+beforeEach(() => {
+  actions = createTranscriptReadModelActions(identity);
+});
+
 describe("transcript state snapshot reducer", () => {
   it("registers transcript state in the app store", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    expect(selectTranscriptTurnIds(store.getState())).toStrictEqual([]);
-    expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
-    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBeNull();
+    expect(selectTranscriptTurnIds(store.getState(), identity.threadId)).toStrictEqual([]);
+    expect(selectTranscriptGlobalStatus(store.getState(), identity.threadId)).toStrictEqual([]);
+    expect(
+      selectCommittedTranscriptScrollCommitKey(store.getState(), identity.threadId),
+    ).toBeNull();
+  });
+
+  it("builds an isolated transcript state before live attach metadata is applied", () => {
+    const turnId = "turn-isolated-snapshot";
+    const userEntryId = transcriptEntryIdFor(turnId, "user-isolated-snapshot");
+    const agentEntryId = transcriptEntryIdFor(turnId, "agent-isolated-snapshot");
+    const fragmentId = JSON.stringify(["context-page:1", turnId, 0]);
+    const turns = [
+      baseTurn(turnId, [
+        userMessage("user-isolated-snapshot", [textInput("Question")]),
+        agentMessage("agent-isolated-snapshot", "Answer"),
+      ]),
+    ];
+
+    const transcriptState = buildTranscriptStateFromTurns(turns);
+
+    expect(transcriptState).toStrictEqual({
+      sessionRevision: 0,
+      threadId: null,
+      subscriptionId: null,
+      committedScrollCommitKey: null,
+      liveScrollPulse: 0,
+      turnIds: [turnId],
+      turnsById: {
+        [turnId]: {
+          id: turnId,
+          status: "completed",
+          originalFirstItemId: "user-isolated-snapshot",
+          startedAt: 1700000001,
+          completedAt: 1700000005,
+          durationMs: 4000,
+          leadingPromptEntryId: userEntryId,
+          middleChunkIds: [],
+          middleEntryCount: 0,
+          finalAssistantEntryIds: [agentEntryId],
+        },
+      },
+      chunksById: {},
+      entriesById: {
+        [userEntryId]: {
+          type: "message",
+          id: "user-isolated-snapshot",
+          turnId,
+          role: "user",
+          source: "Question",
+          textInputs: [{ type: "text", text: "Question", text_elements: [] }],
+          imageInputs: [],
+          phase: null,
+          revision: 0,
+        },
+        [agentEntryId]: {
+          type: "message",
+          id: "agent-isolated-snapshot",
+          turnId,
+          role: "assistant",
+          source: "Answer",
+          phase: "final_answer",
+          revision: 0,
+        },
+      },
+      entryChunkById: {},
+      contextPageIds: ["context-page:1"],
+      contextPagesById: {
+        "context-page:1": {
+          id: "context-page:1",
+          leadingBoundaryId: null,
+          turnFragmentIds: [fragmentId],
+        },
+      },
+      turnFragmentsById: {
+        [fragmentId]: {
+          id: fragmentId,
+          turnId,
+          leadingPromptEntryId: userEntryId,
+          middleChunkIds: [],
+          middleEntryCount: 0,
+          finalAssistantEntryIds: [agentEntryId],
+        },
+      },
+      entryFragmentById: {
+        [userEntryId]: fragmentId,
+        [agentEntryId]: fragmentId,
+      },
+      chunkFragmentById: {},
+      contextBoundaryIdsById: {},
+      globalStatus: [],
+      appliedEventIdsById: {},
+      appliedEventOrder: [],
+    });
+
+    const attach = attachWithTurns(attachBaseline, turns);
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+    const action = actions.threadRuntimeAttached(attach);
+    store.dispatch(action);
+
+    expect(requiredTranscriptState(store.getState(), identity.threadId)).toStrictEqual({
+      ...transcriptState,
+      sessionRevision: action.payload.sessionRevision,
+      threadId: attach.snapshot.thread.id,
+      subscriptionId: attach.subscriptionId,
+      committedScrollCommitKey: `attach:${attach.snapshot.thread.id}:${attach.subscriptionId}:${attach.snapshot.headCommitId ?? "none"}`,
+    });
+  });
+
+  it("rejects equal and stale read-model transitions", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+    const current = actions.threadRuntimeAttached(attachBaseline);
+    store.dispatch(current);
+    const before = requiredTranscriptState(store.getState(), identity.threadId);
+    const staleFacts: readonly ActiveThreadProjectionReadModelFact[] = [
+      { type: "baselineAttached", response: attachWithTurns(attachBaseline, []) },
+    ];
+
+    store.dispatch(
+      activeThreadReadModelTransitionApplied({
+        identity,
+        sessionRevision: current.payload.sessionRevision,
+        facts: staleFacts,
+      }),
+    );
+    expect(requiredTranscriptState(store.getState(), identity.threadId)).toBe(before);
+
+    store.dispatch(
+      activeThreadReadModelTransitionApplied({
+        identity,
+        sessionRevision: current.payload.sessionRevision - 1,
+        facts: staleFacts,
+      }),
+    );
+    expect(requiredTranscriptState(store.getState(), identity.threadId)).toBe(before);
+  });
+
+  it("applies a session transition's baseline and accepted facts in FIFO order", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+    const action = actions.readModelAction(
+      { type: "baselineAttached", response: attachWithTurns(attachBaseline, []) },
+      {
+        type: "eventAccepted",
+        payload: { notification: eventTurnStarted, replay: "live" },
+      },
+    );
+    store.dispatch(action);
+
+    expect(requiredTranscriptState(store.getState(), identity.threadId).sessionRevision).toBe(
+      action.payload.sessionRevision,
+    );
+    expect(selectTranscriptTurnIds(store.getState(), identity.threadId)).toStrictEqual([
+      "turn-in-progress",
+    ]);
   });
 
   it("rebuilds committed transcript chunks from an accepted attach snapshot", () => {
@@ -43,25 +219,35 @@ describe("transcript state snapshot reducer", () => {
         ]),
         agentMessage("agent-snapshot", "**Plain** text"),
         planItem("plan-snapshot"),
+        reasoningItem("reasoning-snapshot", [" **First** ", " ", "\nSecond\n"], ["raw reasoning"]),
       ]),
     ]);
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
-    store.dispatch(threadRuntimeAttached(attachWithChat));
+    store.dispatch(actions.threadRuntimeAttached(attachWithChat));
 
-    expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-snapshot"]);
-    expect(selectTranscriptTurn(store.getState(), "turn-snapshot")).toStrictEqual({
+    expect(selectTranscriptTurnIds(store.getState(), identity.threadId)).toStrictEqual([
+      "turn-snapshot",
+    ]);
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-snapshot"),
+    ).toStrictEqual({
       id: "turn-snapshot",
       status: "completed",
       originalFirstItemId: "user-snapshot",
+      startedAt: 1700000001,
+      completedAt: 1700000005,
+      durationMs: 4000,
       leadingPromptEntryId: transcriptEntryIdFor("turn-snapshot", "user-snapshot"),
-      middleChunkIds: [],
-      middleEntryCount: 0,
+      middleChunkIds: ["turn-snapshot:chunk:0"],
+      middleEntryCount: 1,
       finalAssistantEntryIds: [transcriptEntryIdFor("turn-snapshot", "agent-snapshot")],
     });
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-snapshot", "user-snapshot"),
       ),
     ).toStrictEqual({
@@ -69,12 +255,21 @@ describe("transcript state snapshot reducer", () => {
       id: "user-snapshot",
       turnId: "turn-snapshot",
       role: "user",
-      rendering: { mode: "plainText", source: "Hello there" },
+      rendering: {
+        mode: "userText",
+        source: "Hello there",
+        inputs: [
+          { type: "text", text: "Hello ", text_elements: [] },
+          { type: "text", text: "there", text_elements: [] },
+        ],
+        images: [],
+      },
       revision: 0,
     });
     expect(
       selectTranscriptEntry(
         store.getState(),
+        identity.threadId,
         transcriptEntryIdFor("turn-snapshot", "agent-snapshot"),
       ),
     ).toStrictEqual({
@@ -85,14 +280,105 @@ describe("transcript state snapshot reducer", () => {
       rendering: { mode: "staticMarkdown", source: "**Plain** text" },
       revision: 0,
     });
-    expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+    const reasoningEntryId = transcriptEntryIdFor("turn-snapshot", "reasoning-snapshot");
+    expect({
+      stored: requiredTranscriptState(store.getState(), identity.threadId).entriesById[
+        reasoningEntryId
+      ],
+      views: selectTranscriptChunk(store.getState(), identity.threadId, "turn-snapshot:chunk:0")
+        ?.entries,
+    }).toStrictEqual({
+      stored: {
+        type: "reasoning",
+        id: "reasoning-snapshot",
+        turnId: "turn-snapshot",
+        lifecycle: "completed",
+        summaryParts: ["**First**", "Second"],
+        revision: 0,
+      },
+      views: [
+        {
+          type: "reasoning",
+          id: "reasoning-snapshot",
+          turnId: "turn-snapshot",
+          lifecycle: "completed",
+          source: "**First**\n\nSecond",
+          revision: 0,
+        },
+      ],
+    });
+    expect(selectTranscriptGlobalStatus(store.getState(), identity.threadId)).toStrictEqual([]);
+  });
+
+  it("restores the complete failed turn error without adding a transcript entry", () => {
+    const error = {
+      message:
+        "unexpected status 403 Forbidden: token quota is not enough\n(request id: request-snapshot), url: https://shapi.vip/v1/responses",
+      codexErrorInfo: { responseTooManyFailedAttempts: { httpStatusCode: 403 } },
+      additionalDetails: "provider quota exhausted",
+      misalignment: null,
+    } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
+    const turn = failedTurn("turn-failed-snapshot", error);
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+
+    store.dispatch(actions.threadRuntimeAttached(attachWithTurns(attachBaseline, [turn])));
+
+    const transcriptTurn = selectTranscriptTurn(store.getState(), identity.threadId, turn.id);
+    expect(transcriptTurn).toStrictEqual({
+      id: turn.id,
+      status: "failed",
+      error,
+      originalFirstItemId: null,
+      startedAt: 1700000001,
+      completedAt: 1700000005,
+      durationMs: 4000,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(requiredTranscriptState(store.getState(), identity.threadId).entriesById).toStrictEqual(
+      {},
+    );
+    expect(requiredTranscriptState(store.getState(), identity.threadId).chunksById).toStrictEqual(
+      {},
+    );
+    const fragmentId = JSON.stringify(["context-page:1", turn.id, 0]);
+    expect({
+      contextPageIds: requiredTranscriptState(store.getState(), identity.threadId).contextPageIds,
+      contextPagesById: requiredTranscriptState(store.getState(), identity.threadId)
+        .contextPagesById,
+      turnFragmentsById: requiredTranscriptState(store.getState(), identity.threadId)
+        .turnFragmentsById,
+    }).toStrictEqual({
+      contextPageIds: ["context-page:1"],
+      contextPagesById: {
+        "context-page:1": {
+          id: "context-page:1",
+          leadingBoundaryId: null,
+          turnFragmentIds: [fragmentId],
+        },
+      },
+      turnFragmentsById: {
+        [fragmentId]: {
+          id: fragmentId,
+          turnId: turn.id,
+          leadingPromptEntryId: null,
+          middleChunkIds: [],
+          middleEntryCount: 0,
+          finalAssistantEntryIds: [],
+        },
+      },
+    });
   });
 
   it("classifies leading prompt, middle entries, and final answers from snapshot entries", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-layout", [
             userMessage("user-leading", [textInput("Initial prompt")]),
@@ -105,16 +391,21 @@ describe("transcript state snapshot reducer", () => {
       ),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-layout")).toStrictEqual({
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, "turn-layout")).toStrictEqual({
       id: "turn-layout",
       status: "completed",
       originalFirstItemId: "user-leading",
+      startedAt: 1700000001,
+      completedAt: 1700000005,
+      durationMs: 4000,
       leadingPromptEntryId: transcriptEntryIdFor("turn-layout", "user-leading"),
       middleChunkIds: ["turn-layout:chunk:0"],
       middleEntryCount: 3,
       finalAssistantEntryIds: [transcriptEntryIdFor("turn-layout", "agent-final")],
     });
-    expect(selectTranscriptChunk(store.getState(), "turn-layout:chunk:0")?.entries).toStrictEqual([
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-layout:chunk:0")?.entries,
+    ).toStrictEqual([
       {
         type: "message",
         id: "agent-commentary",
@@ -128,7 +419,12 @@ describe("transcript state snapshot reducer", () => {
         id: "user-follow-up",
         turnId: "turn-layout",
         role: "user",
-        rendering: { mode: "plainText", source: "Extra input" },
+        rendering: {
+          mode: "userText",
+          source: "Extra input",
+          inputs: [{ type: "text", text: "Extra input", text_elements: [] }],
+          images: [],
+        },
         revision: 0,
       },
       {
@@ -141,7 +437,11 @@ describe("transcript state snapshot reducer", () => {
       },
     ]);
     expect(
-      selectTranscriptEntry(store.getState(), transcriptEntryIdFor("turn-layout", "agent-final")),
+      selectTranscriptEntry(
+        store.getState(),
+        identity.threadId,
+        transcriptEntryIdFor("turn-layout", "agent-final"),
+      ),
     ).toStrictEqual({
       type: "message",
       id: "agent-final",
@@ -152,11 +452,206 @@ describe("transcript state snapshot reducer", () => {
     });
   });
 
-  it("leaves leading prompt empty when the first visible entry is assistant commentary", () => {
+  it("keeps same-path sub-agent identities in snapshot middle order", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn("turn-sub-agent-activity-snapshot", [
+            userMessage("user-sub-agent-activity-snapshot", [textInput("Initial prompt")]),
+            subAgentActivity(
+              "activity-sub-agent-started-snapshot",
+              "started",
+              "agents/shared_task",
+              { agentThreadId: "agent-thread-researcher" },
+            ),
+            agentMessage("agent-sub-agent-commentary-snapshot", "Still working", "commentary"),
+            subAgentActivity(
+              "activity-sub-agent-interacted-snapshot",
+              "interacted",
+              "agents/shared_task",
+              { agentThreadId: "agent-thread-reviewer" },
+            ),
+            agentMessage("agent-sub-agent-final-snapshot", "Final answer", "final_answer"),
+          ]),
+        ]),
+      ),
+    );
+
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-sub-agent-activity-snapshot"),
+    ).toStrictEqual({
+      id: "turn-sub-agent-activity-snapshot",
+      status: "completed",
+      originalFirstItemId: "user-sub-agent-activity-snapshot",
+      startedAt: 1700000001,
+      completedAt: 1700000005,
+      durationMs: 4000,
+      leadingPromptEntryId: transcriptEntryIdFor(
+        "turn-sub-agent-activity-snapshot",
+        "user-sub-agent-activity-snapshot",
+      ),
+      middleChunkIds: ["turn-sub-agent-activity-snapshot:chunk:0"],
+      middleEntryCount: 3,
+      finalAssistantEntryIds: [
+        transcriptEntryIdFor("turn-sub-agent-activity-snapshot", "agent-sub-agent-final-snapshot"),
+      ],
+    });
+    expect(
+      selectTranscriptChunk(
+        store.getState(),
+        identity.threadId,
+        "turn-sub-agent-activity-snapshot:chunk:0",
+      )?.entries,
+    ).toStrictEqual([
+      {
+        type: "subAgentActivity",
+        id: "activity-sub-agent-started-snapshot",
+        turnId: "turn-sub-agent-activity-snapshot",
+        title: {
+          kind: "agentStarted",
+          agentThreadId: "agent-thread-researcher",
+          agentPath: "agents/shared_task",
+        },
+        details: [],
+        revision: 0,
+      },
+      {
+        type: "message",
+        id: "agent-sub-agent-commentary-snapshot",
+        turnId: "turn-sub-agent-activity-snapshot",
+        role: "assistant",
+        rendering: { mode: "staticMarkdown", source: "Still working" },
+        revision: 0,
+      },
+      {
+        type: "subAgentActivity",
+        id: "activity-sub-agent-interacted-snapshot",
+        turnId: "turn-sub-agent-activity-snapshot",
+        title: {
+          kind: "agentInteracted",
+          agentThreadId: "agent-thread-reviewer",
+          agentPath: "agents/shared_task",
+        },
+        details: [],
+        revision: 0,
+      },
+    ]);
+  });
+
+  it("keeps terminal collab activities in snapshot middle order", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+    const turnId = "turn-collab-snapshot";
+
+    store.dispatch(
+      actions.threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn(turnId, [
+            userMessage("user-collab-snapshot", [textInput("Delegate work")]),
+            collabAgentToolCall("collab-spawn-snapshot", "spawnAgent", "completed", {
+              receiverThreadIds: ["agent-builder"],
+              prompt: "Build the feature",
+            }),
+            agentMessage("agent-collab-commentary", "Coordinating", "commentary"),
+            collabAgentToolCall("collab-wait-snapshot", "wait", "failed", {
+              receiverThreadIds: ["agent-builder"],
+              agentsStates: { "agent-builder": collabAgentState("completed", "Built") },
+            }),
+            agentMessage("agent-collab-final", "Done", "final_answer"),
+          ]),
+        ]),
+      ),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toMatchObject({
+      leadingPromptEntryId: transcriptEntryIdFor(turnId, "user-collab-snapshot"),
+      middleChunkIds: [`${turnId}:chunk:0`],
+      middleEntryCount: 3,
+      finalAssistantEntryIds: [transcriptEntryIdFor(turnId, "agent-collab-final")],
+    });
+    const entries = selectTranscriptChunk(
+      store.getState(),
+      identity.threadId,
+      `${turnId}:chunk:0`,
+    )?.entries;
+    expect(entries?.map(({ id }) => id)).toStrictEqual([
+      "collab-spawn-snapshot",
+      "agent-collab-commentary",
+      "collab-wait-snapshot",
+    ]);
+    expect(entries?.[0]).toStrictEqual({
+      type: "collabAgent",
+      id: "collab-spawn-snapshot",
+      turnId,
+      title: {
+        kind: "agentSpawned",
+        receiver: "agent-builder",
+        model: null,
+        reasoningEffort: null,
+      },
+      details: [{ kind: "raw", text: "Build the feature" }],
+      revision: 0,
+    });
+    expect(entries?.[2]).toStrictEqual({
+      type: "collabAgent",
+      id: "collab-wait-snapshot",
+      turnId,
+      title: { kind: "agentsFinishedWaiting" },
+      details: [
+        {
+          kind: "copy",
+          copy: {
+            kind: "agentState",
+            threadId: "agent-builder",
+            status: "completed",
+            messagePreview: "Built",
+          },
+        },
+      ],
+      revision: 0,
+    });
+  });
+
+  it("keeps an activity-first turn out of leading and final placement", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+    const turnId = "turn-activity-first-snapshot";
+
+    store.dispatch(
+      actions.threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn(turnId, [
+            collabAgentToolCall("collab-first-snapshot", "wait", "completed"),
+            userMessage("user-after-activity-snapshot", [textInput("Later prompt")]),
+            agentMessage("agent-after-activity-final", "Done", "final_answer"),
+          ]),
+        ]),
+      ),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), identity.threadId, turnId)).toMatchObject({
+      originalFirstItemId: "collab-first-snapshot",
+      leadingPromptEntryId: null,
+      middleChunkIds: [`${turnId}:chunk:0`],
+      middleEntryCount: 2,
+      finalAssistantEntryIds: [transcriptEntryIdFor(turnId, "agent-after-activity-final")],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, `${turnId}:chunk:0`)?.entries.map(
+        ({ id }) => id,
+      ),
+    ).toStrictEqual(["collab-first-snapshot", "user-after-activity-snapshot"]);
+  });
+
+  it("leaves leading prompt empty when the first visible entry is assistant commentary", () => {
+    const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
+
+    store.dispatch(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-assistant-first", [
             agentMessage("agent-first-commentary", "Working first", "commentary"),
@@ -166,17 +661,23 @@ describe("transcript state snapshot reducer", () => {
       ),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-assistant-first")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-assistant-first"),
+    ).toStrictEqual({
       id: "turn-assistant-first",
       status: "completed",
       originalFirstItemId: "agent-first-commentary",
+      startedAt: 1700000001,
+      completedAt: 1700000005,
+      durationMs: 4000,
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-assistant-first:chunk:0"],
       middleEntryCount: 1,
       finalAssistantEntryIds: [transcriptEntryIdFor("turn-assistant-first", "agent-first-final")],
     });
     expect(
-      selectTranscriptChunk(store.getState(), "turn-assistant-first:chunk:0")?.entries,
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-assistant-first:chunk:0")
+        ?.entries,
     ).toStrictEqual([
       {
         type: "message",
@@ -191,9 +692,10 @@ describe("transcript state snapshot reducer", () => {
 
   it("leaves leading prompt empty when the first visible entry is a final assistant answer", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-final-first", [
             agentMessage("agent-final-first", "Final first", "final_answer"),
@@ -203,24 +705,35 @@ describe("transcript state snapshot reducer", () => {
       ),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-final-first")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-final-first"),
+    ).toStrictEqual({
       id: "turn-final-first",
       status: "completed",
       originalFirstItemId: "agent-final-first",
+      startedAt: 1700000001,
+      completedAt: 1700000005,
+      durationMs: 4000,
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-final-first:chunk:0"],
       middleEntryCount: 1,
       finalAssistantEntryIds: [transcriptEntryIdFor("turn-final-first", "agent-final-first")],
     });
     expect(
-      selectTranscriptChunk(store.getState(), "turn-final-first:chunk:0")?.entries,
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-final-first:chunk:0")
+        ?.entries,
     ).toStrictEqual([
       {
         type: "message",
         id: "user-after-final",
         turnId: "turn-final-first",
         role: "user",
-        rendering: { mode: "plainText", source: "After final" },
+        rendering: {
+          mode: "userText",
+          source: "After final",
+          inputs: [{ type: "text", text: "After final", text_elements: [] }],
+          images: [],
+        },
         revision: 0,
       },
     ]);
@@ -228,9 +741,10 @@ describe("transcript state snapshot reducer", () => {
 
   it("stores multiple final assistant answers outside middle chunks", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-multi-final", [
             userMessage("user-multi-final", [textInput("Prompt")]),
@@ -241,10 +755,15 @@ describe("transcript state snapshot reducer", () => {
       ),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-multi-final")).toStrictEqual({
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-multi-final"),
+    ).toStrictEqual({
       id: "turn-multi-final",
       status: "completed",
       originalFirstItemId: "user-multi-final",
+      startedAt: 1700000001,
+      completedAt: 1700000005,
+      durationMs: 4000,
       leadingPromptEntryId: transcriptEntryIdFor("turn-multi-final", "user-multi-final"),
       middleChunkIds: [],
       middleEntryCount: 0,
@@ -257,9 +776,10 @@ describe("transcript state snapshot reducer", () => {
 
   it("preserves assistant message phase in stored snapshot entries while projecting views", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-phase", [
             agentMessage("agent-commentary", "Working", "commentary"),
@@ -269,7 +789,9 @@ describe("transcript state snapshot reducer", () => {
       ),
     );
 
-    expect(selectTranscriptChunk(store.getState(), "turn-phase:chunk:0")?.entries).toStrictEqual([
+    expect(
+      selectTranscriptChunk(store.getState(), identity.threadId, "turn-phase:chunk:0")?.entries,
+    ).toStrictEqual([
       {
         type: "message",
         id: "agent-commentary",
@@ -280,7 +802,11 @@ describe("transcript state snapshot reducer", () => {
       },
     ]);
     expect(
-      selectTranscriptEntry(store.getState(), transcriptEntryIdFor("turn-phase", "agent-final")),
+      selectTranscriptEntry(
+        store.getState(),
+        identity.threadId,
+        transcriptEntryIdFor("turn-phase", "agent-final"),
+      ),
     ).toStrictEqual({
       type: "message",
       id: "agent-final",
@@ -290,12 +816,12 @@ describe("transcript state snapshot reducer", () => {
       revision: 0,
     });
     expect(
-      store.getState().transcriptState.entriesById[
+      requiredTranscriptState(store.getState(), identity.threadId).entriesById[
         transcriptEntryIdFor("turn-phase", "agent-commentary")
       ],
     ).toMatchObject({ type: "message", phase: "commentary" });
     expect(
-      store.getState().transcriptState.entriesById[
+      requiredTranscriptState(store.getState(), identity.threadId).entriesById[
         transcriptEntryIdFor("turn-phase", "agent-final")
       ],
     ).toMatchObject({ type: "message", phase: "final_answer" });
@@ -303,9 +829,10 @@ describe("transcript state snapshot reducer", () => {
 
   it("filters empty text, non-text user inputs, and non-chat snapshot items", () => {
     const store = makeStore();
+    store.dispatch(activeThreadReadModelSlotCreated(identity));
 
     store.dispatch(
-      threadRuntimeAttached(
+      actions.threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-filtered", [
             userMessage("image-only", [imageInput("https://example.invalid/image.png")]),
@@ -321,11 +848,18 @@ describe("transcript state snapshot reducer", () => {
       ),
     );
 
-    expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-filtered"]);
-    expect(selectTranscriptTurn(store.getState(), "turn-filtered")).toStrictEqual({
+    expect(selectTranscriptTurnIds(store.getState(), identity.threadId)).toStrictEqual([
+      "turn-filtered",
+    ]);
+    expect(
+      selectTranscriptTurn(store.getState(), identity.threadId, "turn-filtered"),
+    ).toStrictEqual({
       id: "turn-filtered",
       status: "completed",
       originalFirstItemId: "image-only",
+      startedAt: 1700000001,
+      completedAt: 1700000005,
+      durationMs: 4000,
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-filtered:chunk:0"],
       middleEntryCount: 1,

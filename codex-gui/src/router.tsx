@@ -1,20 +1,101 @@
-import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  createRoute,
+  createRouter,
+  notFound,
+  type RouterHistory,
+} from "@tanstack/react-router";
 import { NotFoundPage } from "./NotFoundPage";
-import App from "./App";
+import {
+  CURRENT_TASK_ROUTE_PATH,
+  HISTORY_DETAIL_ROUTE_PATH,
+  HISTORY_LIST_ROUTE_PATH,
+  NEW_TASK_ROUTE_PATH,
+  SHORTCUTS_ROUTE_PATH,
+  isValidThreadId,
+  validateEmptyRouteSearch,
+  validateTurnPositionSearch,
+} from "./features/browserLaunch/guiRouteTarget";
+import { CurrentTaskPage } from "./features/currentTask/CurrentTaskPage";
+import { DocumentTitleOwner } from "./features/documentTitle/DocumentTitleOwner";
+import { ThreadHistoryDetailPage } from "./features/threadHistory/ThreadHistoryDetailPage";
+import { ThreadHistoryListPage } from "./features/threadHistory/ThreadHistoryListPage";
+import { NewSessionPage } from "./features/newSession/NewSessionPage";
+import { AppRouteBoundary, RootRouteError } from "./routerComponents";
+import { ShortcutHelp } from "./features/appShell/ShortcutHelp";
 
 const rootRoute = createRootRoute({
+  errorComponent: RootRouteError,
+  notFoundComponent: NotFoundPage,
+  validateSearch: validateTurnPositionSearch,
+});
+
+const appRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: "app",
+  component: AppRouteBoundary,
   notFoundComponent: NotFoundPage,
 });
 
-const indexRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/",
-  component: App,
+const currentTaskRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: CURRENT_TASK_ROUTE_PATH,
+  component: CurrentTaskPage,
+  params: { parse: parseThreadIdParams },
 });
 
-const routeTree = rootRoute.addChildren([indexRoute]);
+const historyRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: HISTORY_LIST_ROUTE_PATH,
+  component: ThreadHistoryListPage,
+  validateSearch: validateEmptyRouteSearch,
+});
 
-export const router = createRouter({ routeTree });
+const historyDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: HISTORY_DETAIL_ROUTE_PATH,
+  component: ThreadHistoryDetailPage,
+  params: { parse: parseThreadIdParams },
+});
+
+const newTaskRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: NEW_TASK_ROUTE_PATH,
+  component: NewSessionPage,
+  validateSearch: validateEmptyRouteSearch,
+});
+
+const shortcutsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: SHORTCUTS_ROUTE_PATH,
+  component: ShortcutHelp,
+  validateSearch: validateEmptyRouteSearch,
+});
+
+function parseThreadIdParams(params: Readonly<{ threadId: string }>): { threadId: string } {
+  if (!isValidThreadId(params.threadId)) {
+    return notFound({ routeId: rootRoute.id, throw: true }) as never;
+  }
+  return { threadId: params.threadId };
+}
+
+const routeTree = rootRoute.addChildren([
+  appRoute.addChildren([
+    currentTaskRoute,
+    historyRoute,
+    historyDetailRoute,
+    newTaskRoute,
+    shortcutsRoute,
+  ]),
+]);
+
+export function createAppRouter(history?: RouterHistory) {
+  return history == null
+    ? createRouter({ routeTree, InnerWrap: DocumentTitleOwner })
+    : createRouter({ history, routeTree, InnerWrap: DocumentTitleOwner });
+}
+
+export const router = createAppRouter();
 
 declare module "@tanstack/react-router" {
   // eslint-disable-next-line @typescript-eslint/consistent-type-definitions

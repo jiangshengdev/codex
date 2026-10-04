@@ -1,0 +1,17 @@
+packages:
+  - .
+
+allowBuilds:
+  '@swc/core': true
+  core-js: true
+
+blockExoticSubdeps: true
+
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude: []
+
+recursiveInstall: false
+strictDepBuilds: true
+trustPolicy: no-downgrade
+trustPolicyExclude: []
+trustPolicyIgnoreAfter: 10080

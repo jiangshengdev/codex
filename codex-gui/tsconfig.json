@@ -2,6 +2,9 @@
   "files": [],
   "references": [
     {
+      "path": "./tsconfig.notification-worker.json"
+    },
+    {
       "path": "./tsconfig.node.json"
     },
     {
@@ -15,6 +18,9 @@
     },
     {
       "path": "./e2e/tsconfig.json"
+    },
+    {
+      "path": "./storybook-tests/tsconfig.json"
     }
   ]
 }

@@ -1,24 +1,23 @@
-import { Alert, Surface, Toast } from "@heroui/react";
-import type { ReactNode } from "react";
-import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
-import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
-import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
-import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
-import { useCommittedTranscriptStickyBottom } from "./useCommittedTranscriptStickyBottom";
+import { Alert, Toast } from "@heroui/react";
+import { Trans } from "@lingui/react/macro";
+import { useRef, type ReactNode } from "react";
+import { ComposerFocusContext } from "@/features/composerEditor/composerFocusContext";
+import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
+import { FailureLayout } from "@/feedback/FailureLayout";
+import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
+import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import { aggregateErrorText } from "@/text/aggregateErrorText";
+import {
+  useActiveThreadCollectionSnapshot,
+  useActiveThreadSessionSnapshot,
+  useAppCapabilities,
+} from "./AppCapabilities";
+import { AppShellTopBar } from "./AppShellTopBar";
+import { ConnectionRecoveryNotice } from "./ConnectionRecoveryNotice";
+import { AppShellNotices } from "./AppShellNotices";
+import { BrowserNotificationPermission } from "@/features/taskNotifications/BrowserNotificationPermission";
 
-export type AppShellProps = {
-  status: GuiHostStatus;
-  commands: GuiHostCommands | null;
-  launchParams: BrowserLaunchParams | null;
-};
-
-function isMacAppleWebKitRuntime(): boolean {
-  return (
-    navigator.vendor === "Apple Computer, Inc." &&
-    navigator.platform === "MacIntel" &&
-    navigator.maxTouchPoints <= 1
-  );
-}
+export type AppShellProps = { children: ReactNode };
 
 function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
   if (status.label !== "error") {
@@ -28,55 +27,105 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
   return (
     <Alert className="w-full" status="danger">
       <Alert.Indicator />
-      <Alert.Content>
-        <Alert.Title>Unable to start Codex GUI</Alert.Title>
-        <Alert.Description>{status.message}</Alert.Description>
-      </Alert.Content>
+      <FailureLayout>
+        <Alert.Content>
+          <Alert.Title>
+            <Trans>Unable to start Codex GUI</Trans>
+          </Alert.Title>
+          <Alert.Description>
+            <Trans>Codex GUI could not be started.</Trans>
+          </Alert.Description>
+          {status.message ? (
+            <FailureDiagnosticModal triggerClassName="mt-2 self-start">
+              {status.message}
+            </FailureDiagnosticModal>
+          ) : null}
+        </Alert.Content>
+      </FailureLayout>
     </Alert>
   );
 }
 
-function AppShellTopNotices({ children }: { children: ReactNode }) {
+export function AppShell({ children }: AppShellProps) {
+  const composerFocus = useRef<(() => boolean) | null>(null);
+  const { routeTarget, status, connectionRecovery, activeThreadSession } = useAppCapabilities();
+  const collection = useActiveThreadCollectionSnapshot();
+  const snapshot = useActiveThreadSessionSnapshot();
+  const isCurrentTask = routeTarget.type === "currentTask";
+  const isDetail = isCurrentTask || routeTarget.type === "historyDetail";
+  const floating = isCurrentTask
+    ? (snapshot.phase === "active" || snapshot.phase === "projectionUnavailable") &&
+      snapshot.threadId === routeTarget.threadId
+    : status.label === "initialized" || activeThreadSession != null;
+
   return (
-    <div className="sticky top-0 z-20" data-app-shell-top-notices="">
-      <div className="mx-auto grid w-full max-w-3xl gap-2 pt-3">{children}</div>
-    </div>
+    <ComposerFocusContext value={composerFocus}>
+      <div
+        className="flex min-h-svh w-full flex-col bg-background text-foreground"
+        data-app-shell-content-layout={contentLayoutForRouteTarget(routeTarget)}
+      >
+        <Toast.Provider placement="top" />
+        <AppShellTopBar />
+        <div aria-hidden="true" className="h-14 shrink-0" />
+        <div className={isDetail ? "app-shell-content-boundary task-page-layout" : "contents"}>
+          <AppShellNotices
+            contained={isDetail}
+            floating={floating}
+            notices={
+              <>
+                <BrowserNotificationPermission />
+                {connectionRecovery == null ? <GuiHostErrorAlert status={status} /> : null}
+                {status.label === "closed" || connectionRecovery != null ? (
+                  <ConnectionRecoveryNotice
+                    recovery={connectionRecovery}
+                    hasRetainedSession={activeThreadSession != null}
+                  />
+                ) : null}
+                {collection.errors.map(({ operation, threadId, error }) => {
+                  const diagnostic = aggregateErrorText(error);
+
+                  return (
+                    <Alert key={`${operation}:${threadId ?? ""}`} role="alert" status="danger">
+                      <Alert.Indicator />
+                      <FailureLayout>
+                        <Alert.Content>
+                          <Alert.Title>
+                            <Trans>Unable to update the task list</Trans>
+                          </Alert.Title>
+                          <Alert.Description>
+                            <Trans>The task list could not be updated.</Trans>
+                          </Alert.Description>
+                          {diagnostic ? (
+                            <FailureDiagnosticModal triggerClassName="mt-2 self-start">
+                              {diagnostic}
+                            </FailureDiagnosticModal>
+                          ) : null}
+                        </Alert.Content>
+                      </FailureLayout>
+                    </Alert>
+                  );
+                })}
+              </>
+            }
+          >
+            {children}
+          </AppShellNotices>
+        </div>
+      </div>
+    </ComposerFocusContext>
   );
 }
 
-export function AppShell({ status, commands, launchParams }: AppShellProps) {
-  const transcriptBottomRef = useCommittedTranscriptStickyBottom();
-  const guardCompositionEndEnter = isMacAppleWebKitRuntime();
-  const hasTopNotice = status.label === "error";
+function contentLayoutForRouteTarget(routeTarget: GuiRouteTarget): "reading" | "wide" {
+  switch (routeTarget.type) {
+    case "currentTask":
+    case "historyDetail":
+    case "newTask":
+    case "shortcuts":
+      return "reading";
+    case "historyList":
+      return "wide";
+  }
 
-  return (
-    <main
-      className="flex min-h-svh w-full flex-col gap-4 bg-background text-foreground"
-      data-gui-host-status={status.label}
-    >
-      <Toast.Provider placement="top" />
-      {hasTopNotice ? (
-        <AppShellTopNotices>
-          <GuiHostErrorAlert status={status} />
-        </AppShellTopNotices>
-      ) : null}
-      <Surface
-        className="mx-auto grid min-w-0 w-full max-w-3xl flex-1 content-start"
-        variant="transparent"
-      >
-        <CommittedTranscriptSurface />
-      </Surface>
-      <div
-        aria-hidden="true"
-        className="committed-transcript-bottom-sentinel h-px w-full"
-        ref={transcriptBottomRef}
-      />
-      <ComposerTurnControl
-        commands={commands}
-        guardCompositionEndEnter={guardCompositionEndEnter}
-        guiHostStatus={status}
-        launchParams={launchParams}
-      />
-    </main>
-  );
+  routeTarget satisfies never;
 }

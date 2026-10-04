@@ -1,6 +1,5 @@
 import { AUTHENTICATE_METHOD } from "@codex-gui-host-contract";
 import { requestDescriptors } from "@/generated/appServerProtocol";
-import type { RequestResponse } from "./appServerProtocol";
 import type {
   AppServerRequestSender,
   AuthenticateRequestSender,
@@ -15,29 +14,25 @@ export type GuiHostHandshakeTerminalFailure = {
 export type GuiHostHandshakeCallbacks = {
   onAuthenticated: () => void;
   onInitialized: () => void;
-  onAttached: (response: RequestResponse<"thread/projection/attach">) => void;
   onTerminalFailure: (failure: GuiHostHandshakeTerminalFailure) => void;
 };
 
 type GuiHostHandshakeControllerOptions = {
   requests: AppServerRequestSender & AuthenticateRequestSender;
   token: string;
-  threadId: string;
   callbacks: GuiHostHandshakeCallbacks;
 };
 
 export class GuiHostHandshakeController {
   private readonly requests: AppServerRequestSender & AuthenticateRequestSender;
   private readonly token: string;
-  private readonly threadId: string;
   private readonly callbacks: GuiHostHandshakeCallbacks;
   private started = false;
   private active = false;
 
-  constructor({ requests, token, threadId, callbacks }: GuiHostHandshakeControllerOptions) {
+  constructor({ requests, token, callbacks }: GuiHostHandshakeControllerOptions) {
     this.requests = requests;
     this.token = token;
-    this.threadId = threadId;
     this.callbacks = callbacks;
   }
 
@@ -96,30 +91,8 @@ export class GuiHostHandshakeController {
           return;
         }
 
-        this.callbacks.onInitialized();
-        if (this.shouldContinue()) {
-          this.startAttach();
-        }
-      },
-    );
-    void request.catch(() => undefined);
-  }
-
-  private startAttach(): void {
-    const request = this.requests.request(
-      requestDescriptors["thread/projection/attach"],
-      { threadId: this.threadId },
-      (settlement) => {
-        if (!this.active) {
-          return;
-        }
-        if (settlement.type === "failure") {
-          this.handleFailure(settlement.failure);
-          return;
-        }
-
         this.active = false;
-        this.callbacks.onAttached(settlement.response);
+        this.callbacks.onInitialized();
       },
     );
     void request.catch(() => undefined);

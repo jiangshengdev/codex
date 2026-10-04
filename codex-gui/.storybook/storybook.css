@@ -1,0 +1,4 @@
+@import "../src/styles/product.css";
+
+/* Preview renders both product components and the dedicated demo scenarios. */
+@source "../";

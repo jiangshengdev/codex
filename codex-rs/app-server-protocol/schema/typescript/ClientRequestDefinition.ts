@@ -57,9 +57,14 @@ import type { FsWriteFileParams } from "./v2/FsWriteFileParams";
 import type { FsWriteFileResponse } from "./v2/FsWriteFileResponse";
 import type { FuzzyFileSearchParams } from "./FuzzyFileSearchParams";
 import type { FuzzyFileSearchResponse } from "./FuzzyFileSearchResponse";
+import type { GatewayOAuthCancelResponse } from "./v2/GatewayOAuthCancelResponse";
+import type { GatewayOAuthLoginResponse } from "./v2/GatewayOAuthLoginResponse";
+import type { GatewayOAuthReadResponse } from "./v2/GatewayOAuthReadResponse";
 import type { GetAccountParams } from "./v2/GetAccountParams";
+import type { GetAccountRateLimitsParams } from "./v2/GetAccountRateLimitsParams";
 import type { GetAccountRateLimitsResponse } from "./v2/GetAccountRateLimitsResponse";
 import type { GetAccountResponse } from "./v2/GetAccountResponse";
+import type { GetAccountTokenUsageParams } from "./v2/GetAccountTokenUsageParams";
 import type { GetAccountTokenUsageResponse } from "./v2/GetAccountTokenUsageResponse";
 import type { GetAuthStatusParams } from "./GetAuthStatusParams";
 import type { GetAuthStatusResponse } from "./GetAuthStatusResponse";
@@ -104,6 +109,8 @@ import type { PluginListParams } from "./v2/PluginListParams";
 import type { PluginListResponse } from "./v2/PluginListResponse";
 import type { PluginReadParams } from "./v2/PluginReadParams";
 import type { PluginReadResponse } from "./v2/PluginReadResponse";
+import type { PluginReconcileParams } from "./v2/PluginReconcileParams";
+import type { PluginReconcileResponse } from "./v2/PluginReconcileResponse";
 import type { PluginShareCheckoutParams } from "./v2/PluginShareCheckoutParams";
 import type { PluginShareCheckoutResponse } from "./v2/PluginShareCheckoutResponse";
 import type { PluginShareDeleteParams } from "./v2/PluginShareDeleteParams";
@@ -132,6 +139,12 @@ import type { ThreadApproveGuardianDeniedActionParams } from "./v2/ThreadApprove
 import type { ThreadApproveGuardianDeniedActionResponse } from "./v2/ThreadApproveGuardianDeniedActionResponse";
 import type { ThreadArchiveParams } from "./v2/ThreadArchiveParams";
 import type { ThreadArchiveResponse } from "./v2/ThreadArchiveResponse";
+import type { ThreadAttachmentAddParams } from "./v2/ThreadAttachmentAddParams";
+import type { ThreadAttachmentAddResponse } from "./v2/ThreadAttachmentAddResponse";
+import type { ThreadAttachmentListParams } from "./v2/ThreadAttachmentListParams";
+import type { ThreadAttachmentListResponse } from "./v2/ThreadAttachmentListResponse";
+import type { ThreadAttachmentRemoveParams } from "./v2/ThreadAttachmentRemoveParams";
+import type { ThreadAttachmentRemoveResponse } from "./v2/ThreadAttachmentRemoveResponse";
 import type { ThreadCompactStartParams } from "./v2/ThreadCompactStartParams";
 import type { ThreadCompactStartResponse } from "./v2/ThreadCompactStartResponse";
 import type { ThreadDeleteParams } from "./v2/ThreadDeleteParams";
@@ -146,6 +159,8 @@ import type { ThreadGoalSetParams } from "./v2/ThreadGoalSetParams";
 import type { ThreadGoalSetResponse } from "./v2/ThreadGoalSetResponse";
 import type { ThreadInjectItemsParams } from "./v2/ThreadInjectItemsParams";
 import type { ThreadInjectItemsResponse } from "./v2/ThreadInjectItemsResponse";
+import type { ThreadItemsListParams } from "./v2/ThreadItemsListParams";
+import type { ThreadItemsListResponse } from "./v2/ThreadItemsListResponse";
 import type { ThreadListParams } from "./v2/ThreadListParams";
 import type { ThreadListResponse } from "./v2/ThreadListResponse";
 import type { ThreadLoadedListParams } from "./v2/ThreadLoadedListParams";
@@ -160,14 +175,26 @@ import type { ThreadReadParams } from "./v2/ThreadReadParams";
 import type { ThreadReadResponse } from "./v2/ThreadReadResponse";
 import type { ThreadResumeParams } from "./v2/ThreadResumeParams";
 import type { ThreadResumeResponse } from "./v2/ThreadResumeResponse";
-import type { ThreadRollbackParams } from "./v2/ThreadRollbackParams";
-import type { ThreadRollbackResponse } from "./v2/ThreadRollbackResponse";
+import type { ThreadRevertParams } from "./v2/ThreadRevertParams";
+import type { ThreadRevertResponse } from "./v2/ThreadRevertResponse";
+import type { ThreadSectionCreateParams } from "./v2/ThreadSectionCreateParams";
+import type { ThreadSectionCreateResponse } from "./v2/ThreadSectionCreateResponse";
+import type { ThreadSectionDeleteParams } from "./v2/ThreadSectionDeleteParams";
+import type { ThreadSectionDeleteResponse } from "./v2/ThreadSectionDeleteResponse";
+import type { ThreadSectionListParams } from "./v2/ThreadSectionListParams";
+import type { ThreadSectionListResponse } from "./v2/ThreadSectionListResponse";
+import type { ThreadSectionMoveParams } from "./v2/ThreadSectionMoveParams";
+import type { ThreadSectionMoveResponse } from "./v2/ThreadSectionMoveResponse";
+import type { ThreadSectionUpdateParams } from "./v2/ThreadSectionUpdateParams";
+import type { ThreadSectionUpdateResponse } from "./v2/ThreadSectionUpdateResponse";
 import type { ThreadSetNameParams } from "./v2/ThreadSetNameParams";
 import type { ThreadSetNameResponse } from "./v2/ThreadSetNameResponse";
 import type { ThreadShellCommandParams } from "./v2/ThreadShellCommandParams";
 import type { ThreadShellCommandResponse } from "./v2/ThreadShellCommandResponse";
 import type { ThreadStartParams } from "./v2/ThreadStartParams";
 import type { ThreadStartResponse } from "./v2/ThreadStartResponse";
+import type { ThreadTurnsListParams } from "./v2/ThreadTurnsListParams";
+import type { ThreadTurnsListResponse } from "./v2/ThreadTurnsListResponse";
 import type { ThreadUnarchiveParams } from "./v2/ThreadUnarchiveParams";
 import type { ThreadUnarchiveResponse } from "./v2/ThreadUnarchiveResponse";
 import type { ThreadUnsubscribeParams } from "./v2/ThreadUnsubscribeParams";
@@ -197,14 +224,24 @@ export type ClientRequestDefinition =
   | { method: "thread/goal/get"; params: ThreadGoalGetParams; response: ThreadGoalGetResponse; }
   | { method: "thread/goal/clear"; params: ThreadGoalClearParams; response: ThreadGoalClearResponse; }
   | { method: "thread/metadata/update"; params: ThreadMetadataUpdateParams; response: ThreadMetadataUpdateResponse; }
+  | { method: "thread/attachment/add"; params: ThreadAttachmentAddParams; response: ThreadAttachmentAddResponse; }
+  | { method: "thread/attachment/list"; params: ThreadAttachmentListParams; response: ThreadAttachmentListResponse; }
+  | { method: "thread/attachment/remove"; params: ThreadAttachmentRemoveParams; response: ThreadAttachmentRemoveResponse; }
+  | { method: "thread/section/move"; params: ThreadSectionMoveParams; response: ThreadSectionMoveResponse; }
   | { method: "thread/unarchive"; params: ThreadUnarchiveParams; response: ThreadUnarchiveResponse; }
   | { method: "thread/compact/start"; params: ThreadCompactStartParams; response: ThreadCompactStartResponse; }
   | { method: "thread/shellCommand"; params: ThreadShellCommandParams; response: ThreadShellCommandResponse; }
   | { method: "thread/approveGuardianDeniedAction"; params: ThreadApproveGuardianDeniedActionParams; response: ThreadApproveGuardianDeniedActionResponse; }
-  | { method: "thread/rollback"; params: ThreadRollbackParams; response: ThreadRollbackResponse; }
+  | { method: "thread/revert"; params: ThreadRevertParams; response: ThreadRevertResponse; }
   | { method: "thread/list"; params: ThreadListParams; response: ThreadListResponse; }
+  | { method: "threadSection/list"; params: ThreadSectionListParams; response: ThreadSectionListResponse; }
+  | { method: "threadSection/create"; params: ThreadSectionCreateParams; response: ThreadSectionCreateResponse; }
+  | { method: "threadSection/update"; params: ThreadSectionUpdateParams; response: ThreadSectionUpdateResponse; }
+  | { method: "threadSection/delete"; params: ThreadSectionDeleteParams; response: ThreadSectionDeleteResponse; }
   | { method: "thread/loaded/list"; params: ThreadLoadedListParams; response: ThreadLoadedListResponse; }
   | { method: "thread/read"; params: ThreadReadParams; response: ThreadReadResponse; }
+  | { method: "thread/turns/list"; params: ThreadTurnsListParams; response: ThreadTurnsListResponse; }
+  | { method: "thread/items/list"; params: ThreadItemsListParams; response: ThreadItemsListResponse; }
   | { method: "thread/inject_items"; params: ThreadInjectItemsParams; response: ThreadInjectItemsResponse; }
   | { method: "skills/list"; params: SkillsListParams; response: SkillsListResponse; }
   | { method: "skills/extraRoots/set"; params: SkillsExtraRootsSetParams; response: SkillsExtraRootsSetResponse; }
@@ -214,6 +251,7 @@ export type ClientRequestDefinition =
   | { method: "marketplace/upgrade"; params: MarketplaceUpgradeParams; response: MarketplaceUpgradeResponse; }
   | { method: "plugin/list"; params: PluginListParams; response: PluginListResponse; }
   | { method: "plugin/installed"; params: PluginInstalledParams; response: PluginInstalledResponse; }
+  | { method: "plugin/reconcile"; params: PluginReconcileParams; response: PluginReconcileResponse; }
   | { method: "plugin/read"; params: PluginReadParams; response: PluginReadResponse; }
   | { method: "plugin/skill/read"; params: PluginSkillReadParams; response: PluginSkillReadResponse; }
   | { method: "plugin/share/save"; params: PluginShareSaveParams; response: PluginShareSaveResponse; }
@@ -241,6 +279,9 @@ export type ClientRequestDefinition =
   | { method: "turn/interrupt"; params: TurnInterruptParams; response: TurnInterruptResponse; }
   | { method: "review/start"; params: ReviewStartParams; response: ReviewStartResponse; }
   | { method: "model/list"; params: ModelListParams; response: ModelListResponse; }
+  | { method: "account/gatewayOAuth/read"; params: undefined; response: GatewayOAuthReadResponse; }
+  | { method: "account/gatewayOAuth/login"; params: undefined; response: GatewayOAuthLoginResponse; }
+  | { method: "account/gatewayOAuth/cancel"; params: undefined; response: GatewayOAuthCancelResponse; }
   | { method: "modelProvider/capabilities/read"; params: ModelProviderCapabilitiesReadParams; response: ModelProviderCapabilitiesReadResponse; }
   | { method: "experimentalFeature/list"; params: ExperimentalFeatureListParams; response: ExperimentalFeatureListResponse; }
   | { method: "permissionProfile/list"; params: PermissionProfileListParams; response: PermissionProfileListResponse; }
@@ -255,9 +296,9 @@ export type ClientRequestDefinition =
   | { method: "account/login/start"; params: LoginAccountParams; response: LoginAccountResponse; }
   | { method: "account/login/cancel"; params: CancelLoginAccountParams; response: CancelLoginAccountResponse; }
   | { method: "account/logout"; params: undefined; response: LogoutAccountResponse; }
-  | { method: "account/rateLimits/read"; params: undefined; response: GetAccountRateLimitsResponse; }
+  | { method: "account/rateLimits/read"; params: GetAccountRateLimitsParams | null; response: GetAccountRateLimitsResponse; }
   | { method: "account/rateLimitResetCredit/consume"; params: ConsumeAccountRateLimitResetCreditParams; response: ConsumeAccountRateLimitResetCreditResponse; }
-  | { method: "account/usage/read"; params: undefined; response: GetAccountTokenUsageResponse; }
+  | { method: "account/usage/read"; params: GetAccountTokenUsageParams | null; response: GetAccountTokenUsageResponse; }
   | { method: "account/workspaceMessages/read"; params: undefined; response: GetWorkspaceMessagesResponse; }
   | { method: "account/sendAddCreditsNudgeEmail"; params: SendAddCreditsNudgeEmailParams; response: SendAddCreditsNudgeEmailResponse; }
   | { method: "feedback/upload"; params: FeedbackUploadParams; response: FeedbackUploadResponse; }

@@ -1,4 +1,4 @@
-import { render } from "vitest-browser-react";
+import { renderWithProviders as render } from "@/utils/test-utils";
 import { expect, test, vi } from "vitest";
 
 vi.hoisted(() => {
@@ -48,5 +48,10 @@ test("shows copy controls when clipboard text writes are available", async () =>
 
   expect(committedCopy.disabled).toBe(false);
   expect(liveCopy.disabled).toBe(true);
-  expect(committed.container.querySelector('button[title="Copy table"]')).not.toBeNull();
+  await expect
+    .element(committed.getByRole("button", { name: "Copy table" }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(committed.getByRole("button", { name: "Download table" }))
+    .not.toBeInTheDocument();
 });

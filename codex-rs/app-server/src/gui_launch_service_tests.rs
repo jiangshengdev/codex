@@ -23,6 +23,7 @@ use crate::config_manager::ConfigManager;
 use crate::message_processor::MessageProcessor;
 use crate::message_processor::MessageProcessorArgs;
 use crate::outgoing_message::OutgoingMessageSender;
+use crate::plugin_config_reload::PluginStartupConfig;
 
 #[tokio::test]
 async fn app_server_gui_launch_service_returns_tool_urls() {
@@ -46,7 +47,7 @@ async fn app_server_gui_launch_service_returns_tool_urls() {
     assert!(
         urls.entries[0]
             .url
-            .contains("threadId=00000000-0000-0000-0000-0000000000a7")
+            .contains("/task/00000000-0000-0000-0000-0000000000a7#token=")
     );
     service.shutdown().await;
 }
@@ -61,6 +62,7 @@ async fn clear_runtime_references_cancels_gui_launch_service() {
         crate::gui_host::GuiHostManager::new_with_opener(
             gui_bridge.opener(),
             GuiHostConfig {
+                port: 0,
                 mode: GuiHostMode::Dev(DevAssetProxyConfig {
                     vite_origin: "http://127.0.0.1:5173".to_string(),
                 }),
@@ -90,7 +92,9 @@ async fn build_test_processor(
 ) -> Arc<MessageProcessor> {
     let (outgoing_tx, _outgoing_rx) = mpsc::channel(16);
     let auth_manager =
-        AuthManager::shared_from_config(config.as_ref(), /*enable_codex_api_key_env*/ false).await;
+        AuthManager::shared_from_config(config.as_ref(), /*enable_codex_api_key_env*/ false)
+            .await
+            .expect("test auth manager");
     let config_manager = ConfigManager::new(
         config.codex_home.to_path_buf(),
         Vec::new(),
@@ -118,12 +122,15 @@ async fn build_test_processor(
         state_db: None,
         config_warnings: Vec::new(),
         session_source: SessionSource::VSCode,
+        user_verification: Arc::new(crate::user_verification::Service::new(Arc::clone(
+            &auth_manager,
+        ))),
         auth_manager,
         installation_id: "11111111-1111-4111-8111-111111111111".to_string(),
         code_mode_session_provider: None,
         rpc_transport: AppServerRpcTransport::Stdio,
         remote_control_handle: None,
-        plugin_startup_tasks: crate::PluginStartupTasks::Start,
+        plugin_startup_tasks: Some(PluginStartupConfig::Current),
         gui_launch_service,
     }))
 }
