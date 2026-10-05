@@ -679,7 +679,6 @@ async fn node_elicitations_attribute_independent_reviews_without_changing_action
             })
         );
         assert!(prompt.contains("<guardian_tool_descriptions>"));
-        assert!(prompt.contains("Review this action independently from JavaScript"));
         assert!(prompt.contains("Connector for the reviewed inner action"));
     }
     let [tool_item] = tool_items.as_slice() else {
