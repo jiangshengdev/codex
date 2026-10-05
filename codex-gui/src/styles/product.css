@@ -75,6 +75,11 @@
 }
 
 @layer components {
+  /* Match the clickable label to the full radio row, including trailing space. */
+  .radio__content {
+    align-self: stretch;
+  }
+
   .close-button {
     @apply outline-none;
 

@@ -67,7 +67,7 @@ export function AsyncQuestionCard({
               onChange={(value) => owner?.select(key, value === "custom" ? null : Number(value))}
               isDisabled={!enabled}
               variant="secondary"
-              className="min-w-0"
+              className="min-w-0 [&_[data-slot=radio-content]]:items-start [&_[data-slot=radio-control]]:mt-[calc((1lh-var(--spacing)*4)/2)]"
             >
               {question.options.map((option, optionIndex) => (
                 <Radio
@@ -75,7 +75,7 @@ export function AsyncQuestionCard({
                   value={String(optionIndex)}
                   className="min-w-0"
                 >
-                  <Radio.Content className="min-w-0 items-start">
+                  <Radio.Content className="min-w-0">
                     <Radio.Control>
                       <Radio.Indicator />
                     </Radio.Control>

@@ -3,6 +3,43 @@ import { composer } from "../e2e/persistenceHarness";
 
 test.use({ locale: "en" });
 
+test("aligns question controls with the first text line at desktop and mobile widths", async ({
+  page,
+}) => {
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const { story, count, multilineCount } of [
+      { story: "options", count: 3, multilineCount: 0 },
+      { story: "long-text", count: 6, multilineCount: 4 },
+    ]) {
+      await page.goto(`/iframe.html?id=transcript-async-questions--${story}&viewMode=story`);
+      const rows = page.locator('[data-slot="radio-content"]');
+      await expect(rows).toHaveCount(count);
+      const geometry = await rows.evaluateAll((elements) =>
+        elements.map((element) => {
+          const row = element.getBoundingClientRect();
+          const control = element.querySelector('[data-slot="radio-control"]');
+          if (!control) throw new Error("Question option is missing its radio control");
+          const circle = control.getBoundingClientRect();
+          const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight);
+          return {
+            offset: circle.y + circle.height / 2 - (row.y + lineHeight / 2),
+            round: circle.width === circle.height && circle.width > 0,
+            overflow: element.scrollWidth > element.clientWidth,
+            multiline: row.height > lineHeight,
+          };
+        }),
+      );
+      for (const row of geometry) {
+        expect(Math.abs(row.offset)).toBeLessThan(0.5);
+        expect(row.round).toBe(true);
+        expect(row.overflow).toBe(false);
+      }
+      expect(geometry.filter((row) => row.multiline)).toHaveLength(multilineCount);
+    }
+  }
+});
+
 test("keeps ordinary inputs queued while answering behind earlier guidance", async ({ page }) => {
   await page.goto("/iframe.html?id=transcript-async-question-lifecycle--queued&viewMode=story");
   const question = page.getByRole("group", { name: "Which environment?", exact: true });
