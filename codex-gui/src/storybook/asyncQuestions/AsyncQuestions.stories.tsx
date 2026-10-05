@@ -31,4 +31,5 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const PlainText: Story = { args: { preset: "plainText" } };
 export const Options: Story = { args: { preset: "options" } };
+export const LongText: Story = { args: { preset: "longText" } };
 export const Multiple: Story = { args: { preset: "multiple" } };
