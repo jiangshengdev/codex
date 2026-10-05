@@ -8,6 +8,9 @@ const run = currentRunContext();
 export default defineConfig(shared, {
   testDir: "./storybook-tests",
   outputDir: `${run.artifactsDirectory}/test-results`,
-  reporter: [["html", { outputFolder: `${run.artifactsDirectory}/report`, open: "never" }]],
+  reporter: [
+    ["dot"],
+    ["html", { outputFolder: `${run.artifactsDirectory}/report`, open: "never" }],
+  ],
   use: { baseURL: storybookOrigin },
 });
