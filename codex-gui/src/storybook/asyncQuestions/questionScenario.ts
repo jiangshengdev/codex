@@ -40,6 +40,7 @@ export const questionThreadId = "00000000-0000-0000-0000-000000000214";
 export type QuestionPreset =
   | "plainText"
   | "options"
+  | "longText"
   | "multiple"
   | "idle"
   | "queued"
@@ -75,11 +76,22 @@ export function createQuestionScenario(dispatch: AppDispatch, preset: QuestionPr
         ]
       : [
           {
-            title: "Which environment?",
+            title:
+              preset === "longText"
+                ? "Which environment should receive this release while the team verifies the updated question flow, reviews accessibility feedback, and checks that long answers remain readable on both desktop and narrow mobile screens?"
+                : "Which environment?",
             options:
-              preset === "options" || preset === "disconnected" || preset === "history"
-                ? ["Preview", "Production"]
-                : null,
+              preset === "longText"
+                ? [
+                    "Preview",
+                    "Deploy to the preview environment first so the team can review the complete conversation, compare the available answers, and verify keyboard navigation before approving the release for production users across all supported regions.",
+                    "先部署到预览环境，让团队完整检查较长的问题和选项在窄屏上的自动换行效果，确认单选圆点、第一行文字以及后续多行内容的位置都清晰可读，再决定是否向所有生产环境用户开放。",
+                    "Deploy in stages:\nStart with internal reviewers and collect their feedback.\nContinue with production only after the review is complete.",
+                    `preview-${"region0123456789".repeat(16)}`,
+                  ]
+                : preset === "options" || preset === "disconnected" || preset === "history"
+                  ? ["Preview", "Production"]
+                  : null,
           },
         ],
   );
