@@ -151,6 +151,9 @@ def main():
         # A TOML array preserves runner arguments even when paths contain spaces.
         target = os.environ["CODEX_CI_TARGET"]
         runner = [sys.executable, str(Path(__file__).resolve()), "test-runner"]
+        if sys.platform == "win32":
+            # Avoid backslash escapes in TOML passed through Windows launchers.
+            runner = [argument.replace("\\", "/") for argument in runner]
         command = [*args, "--config", f"target.{target}.runner={json.dumps(runner)}"]
         env = os.environ.copy()
     elif mode == "test-runner":

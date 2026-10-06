@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+from pathlib import PureWindowsPath
 import shlex
 import shutil
 import subprocess
@@ -189,6 +190,56 @@ class CargoVoiceTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn(str(runtime / "lib"), result.stdout)
+
+    def test_windows_runner_config_preserves_paths_without_backslash_escapes(self):
+        for target, python, script in (
+            (
+                "x86_64-pc-windows-msvc",
+                r"C:\Program Files\Python\python.exe",
+                r"D:\a\codex checkout\.github\scripts\cargo_voice.py",
+            ),
+            (
+                "aarch64-pc-windows-msvc",
+                r"C:\hostedtoolcache\windows\Python\3.12.10\arm64\python.exe",
+                r"C:\a\codex\codex\.github\scripts\cargo_voice.py",
+            ),
+            (
+                "x86_64-pc-windows-msvc",
+                r"\\server\tools\Python\python.exe",
+                r"\\server\work space\.github\scripts\cargo_voice.py",
+            ),
+        ):
+            with self.subTest(target=target, script=script):
+                with (
+                    patch.dict(os.environ, CODEX_CI_TARGET=target),
+                    patch.object(sys, "platform", "win32"),
+                    patch.object(sys, "executable", python),
+                    patch.object(
+                        sys,
+                        "argv",
+                        [
+                            "cargo_voice.py", "run", "--", "env", "HELPER=value",
+                            "cargo", "nextest", "run",
+                        ],
+                    ),
+                    patch.object(cargo_voice, "Path") as path,
+                    patch.object(cargo_voice.subprocess, "run") as run,
+                ):
+                    path.return_value.resolve.return_value = PureWindowsPath(script)
+                    run.return_value.returncode = 17
+                    self.assertEqual(cargo_voice.main(), 17)
+                command = run.call_args.args[0]
+                self.assertEqual(
+                    command[:-2], ["env", "HELPER=value", "cargo", "nextest", "run"]
+                )
+                self.assertEqual(command[-2], "--config")
+                # No path escape sequences can be consumed by an intermediate launcher.
+                self.assertNotIn("\\", command[-1])
+                runner = tomllib.loads(command[-1])["target"][target]["runner"]
+                self.assertEqual(len(runner), 3)
+                self.assertEqual(PureWindowsPath(runner[0]), PureWindowsPath(python))
+                self.assertEqual(PureWindowsPath(runner[1]), PureWindowsPath(script))
+                self.assertEqual(runner[2], "test-runner")
 
     def test_runner_limits_loader_environment_to_voice_binaries(self):
         for platform, variable, directory, separator in (
