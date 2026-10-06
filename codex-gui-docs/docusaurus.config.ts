@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Codex GUI',
-  tagline: 'Codex GUI 使用与开发文档',
+  tagline: 'User and developer documentation for Codex GUI',
 
   future: {
     v4: true,
@@ -16,8 +16,12 @@ const config: Config = {
   onBrokenLinks: 'throw',
 
   i18n: {
-    defaultLocale: 'zh-Hans',
-    locales: ['zh-Hans'],
+    defaultLocale: 'en',
+    locales: ['en', 'zh-Hans'],
+    localeConfigs: {
+      en: {label: 'English'},
+      'zh-Hans': {label: '简体中文'},
+    },
   },
 
   presets: [
@@ -46,8 +50,12 @@ const config: Config = {
         {
           type: 'docSidebar',
           sidebarId: 'docsSidebar',
-          label: '文档',
+          label: 'Documentation',
           position: 'left',
+        },
+        {
+          type: 'localeDropdown',
+          position: 'right',
         },
         {
           href: 'https://github.com/jiangshengdev/codex',
@@ -60,24 +68,24 @@ const config: Config = {
       style: 'dark',
       links: [
         {
-          title: '文档',
+          title: 'Documentation',
           items: [
             {
-              label: '首页',
+              label: 'Home',
               to: '/',
             },
             {
-              label: '安装与启动',
+              label: 'Installation and Launch',
               to: '/getting-started',
             },
             {
-              label: '从源码启动',
+              label: 'Run from Source',
               to: '/development/getting-started',
             },
           ],
         },
         {
-          title: '项目',
+          title: 'Project',
           items: [
             {
               label: 'GitHub',
