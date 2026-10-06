@@ -300,7 +300,7 @@ jobs:
           cargo build "${cargo_args[@]}" --target "$target" --release --timings "${build_args[@]}"
 
       - name: Upload Cargo timings
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: ./.github/actions/upload-artifact-with-retry
         with:
           name: cargo-timings-rust-release-${{ matrix.target }}-${{ matrix.bundle }}
           path: codex-rs/target/**/cargo-timings/cargo-timing.html
@@ -838,26 +838,28 @@ jobs:
           cp "$unsigned/codex-voice-host" "$signed/codex-voice-host"
           chmod 0755 "$signed/codex-voice-host"
 
-          while IFS= read -r -d '' library; do
-            name="$(basename "$library")"
+          if [[ "${IS_UPSTREAM_REPO}" == "true" ]]; then
+            while IFS= read -r -d '' library; do
+              name="$(basename "$library")"
+              .github/scripts/macos-signing/sign_macos_code.sh \
+                --target "$library" --identity unused --deep false \
+                --identifier "com.openai.codex.voice.${name}" \
+                --options runtime --timestamp true
+            done < <(find "$signed/runtime" -name '*.dylib' -type f -print0)
             .github/scripts/macos-signing/sign_macos_code.sh \
-              --target "$library" --identity unused --deep false \
-              --identifier "com.openai.codex.voice.${name}" \
-              --options runtime --timestamp true
-          done < <(find "$signed/runtime" -name '*.dylib' -type f -print0)
-          .github/scripts/macos-signing/sign_macos_code.sh \
-            --target "$signed/codex-voice-host" --identity unused --deep false \
-            --identifier com.openai.codex.voice-host --options runtime --timestamp true \
-            --entitlements .github/scripts/macos-signing/codex-voice-host.entitlements.plist
+              --target "$signed/codex-voice-host" --identity unused --deep false \
+              --identifier com.openai.codex.voice-host --options runtime --timestamp true \
+              --entitlements .github/scripts/macos-signing/codex-voice-host.entitlements.plist
 
-          # Notarize the actual signed closure together, then hash those bytes.
-          (cd "$signed" && zip -qr "${RUNNER_TEMP}/voice-${TARGET}.zip" runtime codex-voice-host)
-          report_dir="${GITHUB_WORKSPACE}/macos-binary-signing-verification/${TARGET}/voice"
-          mkdir -p "$report_dir"
-          python3 .github/scripts/macos-signing/notarize_with_akv.py \
-            --file "${RUNNER_TEMP}/voice-${TARGET}.zip" \
-            --report-log "${report_dir}/notarization.json" \
-            --max-wait-seconds 600
+            # Notarize the actual signed closure together, then hash those bytes.
+            (cd "$signed" && zip -qr "${RUNNER_TEMP}/voice-${TARGET}.zip" runtime codex-voice-host)
+            report_dir="${GITHUB_WORKSPACE}/macos-binary-signing-verification/${TARGET}/voice"
+            mkdir -p "$report_dir"
+            python3 .github/scripts/macos-signing/notarize_with_akv.py \
+              --file "${RUNNER_TEMP}/voice-${TARGET}.zip" \
+              --report-log "${report_dir}/notarization.json" \
+              --max-wait-seconds 600
+          fi
           python3 third_party/voice/release_runtime.py seal \
             --target "$TARGET" --output "$signed/runtime"
           tar -C "$signed" -czf "${GITHUB_WORKSPACE}/signed-voice-${TARGET}.tar.gz" \
@@ -977,10 +979,14 @@ jobs:
           PY
           while IFS= read -r -d '' binary; do
             lipo "$binary" -verify_arch "$arch"
-            codesign --verify --strict --verbose=2 "$binary"
+            if [[ "${IS_UPSTREAM_REPO}" == "true" ]]; then
+              codesign --verify --strict --verbose=2 "$binary"
+            fi
           done < <(find "$root/runtime" -name '*.dylib' -type f -print0)
           lipo "$root/codex-voice-host" -verify_arch "$arch"
-          codesign --verify --strict --verbose=2 "$root/codex-voice-host"
+          if [[ "${IS_UPSTREAM_REPO}" == "true" ]]; then
+            codesign --verify --strict --verbose=2 "$root/codex-voice-host"
+          fi
 
       - name: Verify signed macOS binaries
         shell: bash

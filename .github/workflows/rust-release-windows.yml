@@ -6,6 +6,7 @@ on:
 env:
   WINDOWS_BINARIES: "codex codex-code-mode-host codex-responses-api-proxy codex-windows-sandbox-setup codex-windows-sandbox-service codex-command-runner codex-app-server"
   IS_UPSTREAM_REPO: ${{ github.repository == 'openai/codex' && 'true' || 'false' }}
+  CODEX_UPSTREAM_REPOSITORY: openai/codex
 
 jobs:
   build-windows-binaries:
@@ -150,15 +151,11 @@ jobs:
           - target: x86_64-pc-windows-msvc
             arch: x86_64
             python_arch: x64
-            runs_on:
-              group: ${{ github.event.repository.name }}-runners
-              labels: ${{ github.event.repository.name }}-windows-x64
+            runs_on: windows-2025
           - target: aarch64-pc-windows-msvc
             arch: aarch64
             python_arch: arm64
-            runs_on:
-              group: ${{ github.event.repository.name }}-runners
-              labels: ${{ github.event.repository.name }}-windows-arm64
+            runs_on: windows-11-arm
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -168,6 +165,7 @@ jobs:
           python-version: "3.12"
           architecture: ${{ matrix.python_arch }}
       - name: Prepare Bazel CI
+        id: prepare_bazel
         uses: ./.github/actions/prepare-bazel-ci
         with:
           target: ${{ matrix.target }}
@@ -188,7 +186,7 @@ jobs:
           $source = $manifest.sourceArchive
           $directory = Join-Path $env:RUNNER_TEMP "voice-cygwin-snapshot"
           New-Item -ItemType Directory -Path $directory | Out-Null
-          gh release download $pin.tag --repo "${{ github.repository }}" --pattern $pin.name --pattern $source.name --dir $directory
+          gh release download $pin.tag --repo "$env:CODEX_UPSTREAM_REPOSITORY" --pattern $pin.name --pattern $source.name --dir $directory
           if ($LASTEXITCODE -ne 0) { throw "Cannot obtain the public Cygwin inputs and source" }
           $sourceFile = Join-Path $directory $source.name
           if ((Get-Item $sourceFile).Length -ne $source.bytes -or
@@ -207,10 +205,12 @@ jobs:
           if (-not $hostArch) { throw "Windows host architecture is required" }
           "VOICE_WINDOWS_HOST_ARCH=$hostArch" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Build same-commit native runtime and helper
+        id: build_voice
         shell: bash
         env:
           ARCH: ${{ matrix.arch }}
           VOICE_ARCH: ${{ matrix.arch }}
+          VOICE_RETRY_SDK_DOWNLOADS: "1"
           # Avoid Java JIT crashes in the Windows ARM64 voice build.
           BAZEL_HOST_JVM_ARG: ${{ matrix.arch == 'aarch64' && '-Xint' || '' }}
           BUILDBUDDY_API_KEY: ""
@@ -239,6 +239,13 @@ jobs:
             "//third_party/voice:native_runtime_windows_$ARCH" \
             @rules_rust//cargo/private/cargo_build_script_runner:test \
             //codex-rs/voice-host:codex-voice-host
+      - name: Save bazel repository cache
+        if: always() && !cancelled() && steps.build_voice.outcome == 'success' && steps.prepare_bazel.outputs.repository-cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ steps.prepare_bazel.outputs.repository-cache-path }}
+          key: ${{ steps.prepare_bazel.outputs.repository-cache-key }}
       - name: Stage verified voice build output
         shell: bash
         env:
@@ -410,6 +417,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Sign Windows voice helper and native DLLs
+        if: ${{ env.IS_UPSTREAM_REPO == 'true' }}
         uses: azure/trusted-signing-action@1d365fec12862c4aa68fcac418143d73f0cea293 # v0.5.11
         with:
           endpoint: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
@@ -432,7 +440,7 @@ jobs:
         with:
           target: ${{ matrix.target }}
 
-      - name: Seal and verify signed voice output
+      - name: Seal and verify voice output
         shell: pwsh
         run: |
           $target = "${{ matrix.target }}"
@@ -444,9 +452,11 @@ jobs:
               ForEach-Object FullName
           )
           if ($files.Count -lt 8) { throw "Voice DLL closure is incomplete" }
-          foreach ($file in $files) {
-            $signature = Get-AuthenticodeSignature $file
-            if ($signature.Status -ne 'Valid') { throw "Unsigned voice file: $file ($($signature.Status))" }
+          if ($env:IS_UPSTREAM_REPO -eq 'true') {
+            foreach ($file in $files) {
+              $signature = Get-AuthenticodeSignature $file
+              if ($signature.Status -ne 'Valid') { throw "Unsigned voice file: $file ($($signature.Status))" }
+            }
           }
           python (Join-Path $env:GITHUB_WORKSPACE 'third_party/voice/release_runtime.py') seal --target $target --output (Join-Path $signed 'runtime')
           if ($LASTEXITCODE -ne 0) { throw 'Cannot seal signed voice runtime' }
@@ -491,10 +501,12 @@ jobs:
           $voice = Join-Path $package 'codex-resources/voice'
           $helper = Join-Path $voice 'bin/codex-voice-host.exe'
           if (-not (Test-Path $helper) -or -not (Test-Path (Join-Path $voice 'bin/gstreamer-1.0-0.dll'))) {
-            throw 'Signed Windows voice files are missing from the canonical package'
+            throw 'Windows voice files are missing from the canonical package'
           }
-          $signature = Get-AuthenticodeSignature $helper
-          if ($signature.Status -ne 'Valid') { throw "Packaged helper signature: $($signature.Status)" }
+          if ($env:IS_UPSTREAM_REPO -eq 'true') {
+            $signature = Get-AuthenticodeSignature $helper
+            if ($signature.Status -ne 'Valid') { throw "Packaged helper signature: $($signature.Status)" }
+          }
           python -c 'import sys; from pathlib import Path; sys.path.insert(0, sys.argv[3]); from package_runtime import runtime_files; runtime_files(Path(sys.argv[1]), sys.argv[2], public_release=True)' $voice $target (Join-Path $env:GITHUB_WORKSPACE 'third_party/voice')
           if ($LASTEXITCODE -ne 0) { throw 'Packaged runtime receipt verification failed' }
 

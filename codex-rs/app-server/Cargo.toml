@@ -152,8 +152,8 @@ rmcp = { workspace = true, default-features = false, features = [
     "transport-streamable-http-server",
 ] }
 serial_test = { workspace = true }
-sqlx = { workspace = true }
 shlex = { workspace = true }
+sqlx = { workspace = true }
 tar = { workspace = true }
 test-case = "3.3.1"
 tokio-rustls = { workspace = true }

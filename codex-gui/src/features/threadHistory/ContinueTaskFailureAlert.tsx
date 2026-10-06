@@ -3,7 +3,7 @@ import { Trans } from "@lingui/react/macro";
 import { FailureDiagnosticModal } from "@/feedback/FailureDiagnosticModal";
 import { FailureLayout } from "@/feedback/FailureLayout";
 import type { ActiveThreadActivationFailure } from "@/features/activeThreadSession/activeThreadSession";
-import { errorText } from "@/text/errorText";
+import { aggregateErrorText } from "@/text/aggregateErrorText";
 
 type ContinueTaskFailureAlertState =
   | Readonly<{ type: "idle" }>
@@ -49,7 +49,7 @@ export function ContinueTaskFailureAlert({
               </Alert.Description>
               <FailureDiagnosticModal>
                 <span className="block">
-                  <Trans>Diagnostic:</Trans> {errorText(state.error)}
+                  <Trans>Diagnostic:</Trans> {aggregateErrorText(state.error)}
                 </span>
               </FailureDiagnosticModal>
             </Alert.Content>
@@ -214,7 +214,7 @@ function ContinueTaskUnavailableAlert({
               {failure.cleanupError == null ? null : (
                 <FailureDiagnosticModal>
                   <span className="block">
-                    <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
+                    <Trans>Cleanup diagnostic:</Trans> {aggregateErrorText(failure.cleanupError)}
                   </span>
                 </FailureDiagnosticModal>
               )}
@@ -238,11 +238,11 @@ function ContinueTaskUnavailableAlert({
               </Alert.Description>
               <FailureDiagnosticModal>
                 <span className="block">
-                  <Trans>Operation diagnostic:</Trans> {errorText(failure.error)}
+                  <Trans>Operation diagnostic:</Trans> {aggregateErrorText(failure.error)}
                 </span>
                 {failure.cleanupError == null ? null : (
                   <span className="block">
-                    <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
+                    <Trans>Cleanup diagnostic:</Trans> {aggregateErrorText(failure.cleanupError)}
                   </span>
                 )}
               </FailureDiagnosticModal>

@@ -5,6 +5,8 @@ import {
   type GuiHostCommands,
 } from "@/features/guiHost/guiHostCommandGateway";
 import { createListenerSet } from "@/subscriptions/listenerSet";
+import { activationOutcomeError } from "@/features/activeThreadSession/activationDiagnostic";
+import { toError } from "@/text/toError";
 
 export type ThreadForkConnection = Readonly<{
   commands: Pick<GuiHostCommands, "forkThread">;
@@ -14,7 +16,7 @@ export type ThreadForkConnection = Readonly<{
 export type ThreadForkFailure = Readonly<{
   stage: "create" | "activate" | "navigate";
   delivery: GuiHostCommandError["delivery"];
-  error: unknown;
+  error: Error;
 }>;
 
 export type ThreadForkRecovery = Readonly<{
@@ -112,7 +114,7 @@ export class ThreadForkOwner {
         failure: {
           stage: "create",
           delivery: isGuiHostCommandError(error) ? error.delivery : "deliveryUnknown",
-          error,
+          error: toError(error),
         },
       });
     } finally {
@@ -152,7 +154,11 @@ export class ThreadForkOwner {
         if (activation.type !== "ready" || activation.threadId !== threadId) {
           this.updateRecovery({
             ...recovery,
-            failure: { stage, delivery: "definitelyNotAccepted", error: activation },
+            failure: {
+              stage,
+              delivery: "definitelyNotAccepted",
+              error: activationOutcomeError(activation, threadId),
+            },
           });
           return;
         }
@@ -174,7 +180,7 @@ export class ThreadForkOwner {
       if (latest !== undefined) {
         this.updateRecovery({
           ...latest,
-          failure: { stage, delivery: "definitelyNotAccepted", error },
+          failure: { stage, delivery: "definitelyNotAccepted", error: toError(error) },
         });
       }
     }

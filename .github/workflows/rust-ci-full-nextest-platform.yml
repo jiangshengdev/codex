@@ -129,6 +129,10 @@ jobs:
               sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential pkg-config libcap-dev libasound2-dev bubblewrap
           fi
 
+      - uses: ./.github/actions/setup-cargo-voice
+        with:
+          target: ${{ inputs.target }}
+
       - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
         with:
           targets: ${{ inputs.target }}
@@ -355,6 +359,10 @@ jobs:
               sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config libcap-dev libasound2-dev bubblewrap
           fi
 
+      - uses: ./.github/actions/setup-cargo-voice
+        with:
+          target: ${{ inputs.target }}
+
       - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
         with:
           targets: ${{ inputs.target }}
@@ -447,7 +455,7 @@ jobs:
             )
           fi
 
-          "${test_command[@]}"
+          python "$GITHUB_WORKSPACE/.github/scripts/cargo_voice.py" run -- "${test_command[@]}"
         env:
           RUST_BACKTRACE: 1
           RUST_MIN_STACK: "8388608" # 8 MiB

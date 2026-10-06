@@ -8,6 +8,7 @@ import { createThreadResumeResponse } from "@/features/guiHost/__tests__/threadR
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { NewSessionOwner } from "@/features/newSession/newSessionOwner";
 import { attachWithSnapshotThread } from "@/features/projection/__tests__/projectionTestBuilders";
+import { closedBackpressure } from "@/features/projection/__tests__/projectionFixtures";
 import { createRecoveryCommands } from "../recovery/recoveryCommands";
 import { createListenerSet } from "@/subscriptions/listenerSet";
 import type { ForkScenario } from "./forkScenarios";
@@ -30,7 +31,12 @@ import {
 export type HistoryScenarioOptions = Readonly<{
   list?: HistoryListScenario;
   detail?: HistoryDetailScenario;
-  continuation?: ContinuationFailurePreset | "unexpectedFailure" | "navigationFailed" | "pending";
+  continuation?:
+    | ContinuationFailurePreset
+    | "unexpectedFailure"
+    | "navigationFailed"
+    | "pending"
+    | "cleanupPending";
   warning?: ContinuationWarningPreset;
   fork?: ForkScenario;
 }>;
@@ -80,6 +86,7 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
   let subscription = 0;
   let activationCount = 0;
   let forkCount = 0;
+  let forkAttachFailed = false;
   const listeners = createListenerSet();
   const commands: GuiHostCommands = {
     ...fallback.commands,
@@ -109,15 +116,31 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
       });
     },
     attachThreadProjection: ({ threadId }) => {
+      if (
+        options.fork === "activationFailed" &&
+        threadId === historyReturnedId &&
+        !forkAttachFailed
+      ) {
+        forkAttachFailed = true;
+        // Let the production session wrap this command failure in its activation outcome.
+        return Promise.reject(
+          new Error("STORYBOOK_FORK_FAILED: The saved fork projection could not be attached."),
+        );
+      }
       const baseline = task(threadId);
+      const subscriptionId = `history-subscription-${String(++subscription)}`;
+      if (options.continuation === "cleanupPending" && threadId === historySelectedId) {
+        // Queue closure before the attach response is published by the real session owner.
+        controller.handleProjectionClosed({ ...closedBackpressure, threadId, subscriptionId });
+      }
       return Promise.resolve(
-        attachWithSnapshotThread(
-          baseline,
-          baseline.snapshot.thread,
-          `history-subscription-${String(++subscription)}`,
-        ),
+        attachWithSnapshotThread(baseline, baseline.snapshot.thread, subscriptionId),
       );
     },
+    detachThreadProjection: (params) =>
+      options.continuation === "cleanupPending" && params.threadId === historySelectedId
+        ? Promise.reject(new Error("STORYBOOK_CONTINUE_CLEANUP_FAILED: Projection detach failed."))
+        : fallback.commands.detachThreadProjection(params),
   };
   const controller = createActiveThreadSession({
     dispatch,
@@ -145,6 +168,7 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
         activationCount === 1 &&
         options.continuation != null &&
         options.continuation !== "navigationFailed" &&
+        options.continuation !== "cleanupPending" &&
         options.continuation !== "pending"
       ) {
         await wait();
@@ -154,7 +178,9 @@ export function createHistoryScenario(dispatch: AppDispatch, options: HistorySce
       }
       // Simulate the public activation capability returning an authoritative identity.
       const outcome = await controller.session.activate(
-        threadId === historySelectedId ? historyReturnedId : threadId,
+        threadId === historySelectedId && options.continuation !== "cleanupPending"
+          ? historyReturnedId
+          : threadId,
       );
       return outcome.type === "ready" && options.warning != null
         ? { ...outcome, warnings: [...outcome.warnings, continuationWarnings[options.warning]] }

@@ -290,6 +290,11 @@ test("activation failure keeps the created fork available for another open", asy
   vi.mocked(commands.attachThreadProjection).mockRejectedValueOnce(new Error("Attach failed"));
   await page.getByRole("button", { name: "Fork from here", exact: true }).click();
   await expect.element(page.getByRole("button", { name: "Open fork", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "View diagnostic information", exact: true }).click();
+  await expect
+    .element(page.getByRole("dialog", { name: "Diagnostic information" }))
+    .toHaveTextContent("Attach failed");
+  await page.getByRole("button", { name: "Close diagnostics" }).click();
   await page.getByRole("button", { name: "Open fork", exact: true }).click();
   await expect.poll(() => router.state.location.pathname).toBe(`/task/${forkId}`);
   expect(commands.forkThread).toHaveBeenCalledTimes(1);

@@ -1,5 +1,6 @@
 import process from "node:process";
 import { defineConfig, devices } from "@playwright/test";
+import { localNetworkLaunchOptions } from "./scripts/testRun/network.ts";
 
 export default defineConfig({
   timeout: 30 * 1000,
@@ -13,8 +14,17 @@ export default defineConfig({
     headless: true,
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
-    { name: "webkit", use: { ...devices["Desktop Safari"] } },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"], launchOptions: localNetworkLaunchOptions("chromium") },
+    },
+    {
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"], launchOptions: localNetworkLaunchOptions("firefox") },
+    },
+    {
+      name: "webkit",
+      use: { ...devices["Desktop Safari"], launchOptions: localNetworkLaunchOptions("webkit") },
+    },
   ],
 });

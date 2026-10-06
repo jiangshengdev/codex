@@ -14,13 +14,24 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 const openFork: Story["play"] = async ({ canvasElement }) => {
   await userEvent.click(
-    await within(canvasElement).findByRole("button", { name: /^(Open fork|打开分叉)$/ }),
+    await within(canvasElement).findByRole("button", { name: /^(Open fork|打开分叉会话)$/ }),
   );
 };
 export const CreationFailure: Story = { args: { fork: "creationFailure" } };
 export const ResultUnknown: Story = { args: { fork: "resultUnknown" } };
 export const CreatedUnopened: Story = { args: { fork: "createdUnopened" } };
 export const OpenFailed: Story = { args: { fork: "openFailed" } };
+export const ActivationFailed: Story = {
+  args: { fork: "activationFailed" },
+  play: async (context) => {
+    await openFork(context);
+    await userEvent.click(
+      await within(context.canvasElement).findByRole("button", {
+        name: /^(View diagnostic information|查看诊断信息)$/,
+      }),
+    );
+  },
+};
 export const NavigationFailed: Story = { args: { fork: "navigationFailed" }, play: openFork };
 export const Pending: Story = { args: { fork: "pending" } };
 export const Unavailable: Story = { args: { fork: "unavailable" } };
