@@ -461,6 +461,7 @@ jobs:
 
           python "$GITHUB_WORKSPACE/.github/scripts/cargo_voice.py" run -- "${test_command[@]}"
         env:
+          CODEX_GUI_PORT: "0"
           RUST_BACKTRACE: 1
           RUST_MIN_STACK: "8388608" # 8 MiB
           NEXTEST_STATUS_LEVEL: leak
