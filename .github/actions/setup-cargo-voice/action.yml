@@ -21,7 +21,13 @@ runs:
         VOICE_TARGET: ${{ inputs.target }}
       run: |
         set -euo pipefail
-        mkdir -p "$RUNNER_TEMP/voice-ci"
-        tar -C "$RUNNER_TEMP/voice-ci" -xzf "$RUNNER_TEMP/voice-ci-download/voice-ci.tar.gz"
+        output="$RUNNER_TEMP/voice-ci"
+        archive="$RUNNER_TEMP/voice-ci-download/voice-ci.tar.gz"
+        if [[ "$RUNNER_OS" == Windows ]]; then
+          output="$(cygpath -u "$output")"
+          archive="$(cygpath -u "$archive")"
+        fi
+        mkdir -p "$output"
+        tar -C "$output" -xzf "$archive"
         python "$GITHUB_WORKSPACE/.github/scripts/cargo_voice.py" configure \
           --root "$RUNNER_TEMP/voice-ci" --target "$VOICE_TARGET" --commit "$GITHUB_SHA"

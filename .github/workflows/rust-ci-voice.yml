@@ -111,6 +111,11 @@ jobs:
         run: |
           set -euo pipefail
           output="$RUNNER_TEMP/voice-ci"
+          archive="$RUNNER_TEMP/voice-ci.tar.gz"
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            output="$(cygpath -u "$output")"
+            archive="$(cygpath -u "$archive")"
+          fi
           mkdir -p "$output/tools"
           cp -RL "bazel-bin/third_party/voice/native_link_${PREFIX}" "$output/runtime"
           cp -RL "bazel-bin/third_party/voice/native_runtime_${PREFIX}_sdk" "$output/sdk"
@@ -122,7 +127,7 @@ jobs:
             cp "$pkg_config" "$output/tools/pkg-config"
             chmod +x "$output/tools/pkg-config"
           fi
-          tar -C "$output" -czf "$RUNNER_TEMP/voice-ci.tar.gz" runtime sdk tools
+          tar -C "$output" -czf "$archive" runtime sdk tools
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: voice-ci-${{ matrix.target }}
