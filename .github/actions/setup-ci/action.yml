@@ -12,12 +12,12 @@ runs:
   using: composite
   steps:
     # setup-ci expects either this step or the Unix fallback below to define
-    # CI_BUILD_ROOT. Windows uses a Dev Drive because Cargo and Bazel
-    # spend significant time reading and writing build/cache trees.
-    - name: Configure Dev Drive (Windows)
+    # CI_BUILD_ROOT. Windows preserves existing build volumes and provisions
+    # a Dev Drive on an empty hosted temporary disk when available.
+    - name: Configure CI build volume (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
-      run: ./.github/scripts/setup-dev-drive.ps1
+      run: ./.github/scripts/setup-dev-drive.ps1 -GitHubHostedRunner:('${{ runner.environment }}' -eq 'github-hosted')
 
     - name: Configure CI build root (Unix)
       if: runner.os != 'Windows'
