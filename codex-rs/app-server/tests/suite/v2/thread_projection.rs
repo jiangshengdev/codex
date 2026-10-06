@@ -88,16 +88,19 @@ async fn thread_projection_attach_reads_existing_goal() -> Result<()> {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn thread_projection_goal_respects_support_and_read_errors() -> Result<()> {
-    for (goals, broken_database, ephemeral, expected_error) in [
-        (true, false, false, None),
-        (false, false, false, None),
+    for (goals, broken_database, ephemeral, history_mode, expected_error) in [
+        (true, false, false, None, None),
+        (false, false, false, None, None),
+        (true, false, true, None, None),
+        (true, false, true, Some(ThreadHistoryMode::Paginated), None),
         (
             true,
             false,
             true,
+            Some(ThreadHistoryMode::Legacy),
             Some("ephemeral threads do not support thread/turns/list"),
         ),
-        (true, true, false, Some("failed to read thread goal")),
+        (true, true, false, None, Some("failed to read thread goal")),
     ] {
         let codex_home = TempDir::new()?;
         let sqlite_home = codex_home.path().to_string_lossy();
@@ -113,9 +116,14 @@ async fn thread_projection_goal_respects_support_and_read_errors() -> Result<()>
         let thread = app_server
             .start_thread(ThreadStartParams {
                 ephemeral: Some(ephemeral),
+                history_mode,
                 ..Default::default()
             })
             .await?;
+        assert_eq!(
+            thread.thread.history_mode,
+            history_mode.unwrap_or(ThreadHistoryMode::Paginated)
+        );
         if broken_database {
             let sqlite = codex_state::SqliteConfig::new_for_testing(codex_home.path().abs());
             let pool = sqlite.open_read_write_pool(&sqlite.goals_db_path()).await?;
