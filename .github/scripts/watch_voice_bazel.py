@@ -23,7 +23,8 @@ class SdkDownloadFailure:
     def observe(self, line):
         text = line.decode(errors="replace").strip()
         sdk_eof = (
-            "Error downloading [https://www.nuget.org/api/v2/package/Microsoft.Windows.SDK.CPP" in text
+            "Error downloading [https://www.nuget.org/api/v2/package/Microsoft.Windows.SDK.CPP"
+            in text
             and text.endswith(": Premature EOF")
         )
         if text.startswith("Error in download_and_extract:") and sdk_eof:
@@ -36,13 +37,15 @@ class SdkDownloadFailure:
                 sdk_eof
                 or (
                     "windows_sdk.bzl:" in text
-                    and "An error occurred during the fetch of repository 'windows_support++windows_sdk+windows_sdk':" in text
+                    and "An error occurred during the fetch of repository 'windows_support++windows_sdk+windows_sdk':"
+                    in text
                 )
                 or re.fullmatch(
                     r"ERROR: Analysis of target '//third_party/voice:native_runtime_windows_(?:aarch64|x86_64)' failed; build aborted: Analysis failed",
                     text,
                 )
-                or text in (
+                or text
+                in (
                     "ERROR: Build did NOT complete successfully",
                     "ERROR: No test targets were found, yet testing was requested",
                 )

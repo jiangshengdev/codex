@@ -46,8 +46,13 @@ class WatchVoiceBazelTests(unittest.TestCase):
             )
             result = subprocess.run(
                 [
-                    sys.executable, "-c", launcher,
-                    sys.executable, str(child), str(counter), json.dumps(results),
+                    sys.executable,
+                    "-c",
+                    launcher,
+                    sys.executable,
+                    str(child),
+                    str(counter),
+                    json.dumps(results),
                 ],
                 cwd=Path(__file__).parent,
                 env={
