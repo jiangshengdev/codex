@@ -165,6 +165,7 @@ jobs:
           python-version: "3.12"
           architecture: ${{ matrix.python_arch }}
       - name: Prepare Bazel CI
+        id: prepare_bazel
         uses: ./.github/actions/prepare-bazel-ci
         with:
           target: ${{ matrix.target }}
@@ -204,10 +205,12 @@ jobs:
           if (-not $hostArch) { throw "Windows host architecture is required" }
           "VOICE_WINDOWS_HOST_ARCH=$hostArch" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Build same-commit native runtime and helper
+        id: build_voice
         shell: bash
         env:
           ARCH: ${{ matrix.arch }}
           VOICE_ARCH: ${{ matrix.arch }}
+          VOICE_RETRY_SDK_DOWNLOADS: "1"
           # Avoid Java JIT crashes in the Windows ARM64 voice build.
           BAZEL_HOST_JVM_ARG: ${{ matrix.arch == 'aarch64' && '-Xint' || '' }}
           BUILDBUDDY_API_KEY: ""
@@ -236,6 +239,13 @@ jobs:
             "//third_party/voice:native_runtime_windows_$ARCH" \
             @rules_rust//cargo/private/cargo_build_script_runner:test \
             //codex-rs/voice-host:codex-voice-host
+      - name: Save bazel repository cache
+        if: always() && !cancelled() && steps.build_voice.outcome == 'success' && steps.prepare_bazel.outputs.repository-cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ steps.prepare_bazel.outputs.repository-cache-path }}
+          key: ${{ steps.prepare_bazel.outputs.repository-cache-key }}
       - name: Stage verified voice build output
         shell: bash
         env:
