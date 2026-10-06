@@ -1,0 +1,15 @@
+name: Free macOS disk space
+description: Free disk space on macOS runners by removing unused hosted-runner toolchains.
+
+runs:
+  using: composite
+  steps:
+    - name: Remove unused macOS runner toolchains
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "Disk space before removing unused Android and .NET toolchains:"
+        df -k "$HOME" "$RUNNER_TEMP"
+        sudo rm -rf -- "$HOME/Library/Android" "$HOME/.dotnet"
+        echo "Disk space after removing unused Android and .NET toolchains:"
+        df -k "$HOME" "$RUNNER_TEMP"
