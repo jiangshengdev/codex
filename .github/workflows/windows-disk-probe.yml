@@ -31,9 +31,11 @@ jobs:
         env:
           SCAN_DIRECTORIES: ${{ inputs.scan_directories }}
         run: ./.github/scripts/windows-disk-probe.ps1 -Phase Before -ScanDirectories:($env:SCAN_DIRECTORIES -eq 'true')
-      - name: Configure the CI Dev Drive
-        run: ./.github/scripts/setup-dev-drive.ps1
-      - name: Record storage after Dev Drive setup
+      - name: Test build volume selection guards
+        run: ./.github/scripts/test-setup-dev-drive.ps1
+      - name: Configure the CI build volume
+        run: ./.github/scripts/setup-dev-drive.ps1 -GitHubHostedRunner:('${{ runner.environment }}' -eq 'github-hosted')
+      - name: Record storage after build volume setup
         if: ${{ always() }}
         run: ./.github/scripts/windows-disk-probe.ps1 -Phase After
       - name: Upload disk reports
