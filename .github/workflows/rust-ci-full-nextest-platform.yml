@@ -115,6 +115,10 @@ jobs:
         if: ${{ runner.os == 'Linux' && runner.environment == 'github-hosted' && inputs.artifact_id == 'linux-x64-remote' }}
         uses: ./.github/actions/free-linux-disk
 
+      - name: Free disk space (macOS archive)
+        if: ${{ runner.os == 'macOS' && runner.environment == 'github-hosted' }}
+        uses: ./.github/actions/free-macos-disk
+
       - uses: ./.github/actions/setup-ci
 
       - name: Install Linux build dependencies

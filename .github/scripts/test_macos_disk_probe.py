@@ -35,7 +35,7 @@ class MacosDiskProbeTests(unittest.TestCase):
                     patch.object(macos_disk_probe.shutil, "which", return_value=None),
                     patch.object(
                         macos_disk_probe.subprocess, "run",
-                        side_effect=[success] * 7 + [failure],
+                        side_effect=lambda command, **kwargs: self.command_result(command, failure, success),
                     ) as run,
                     contextlib.redirect_stdout(io.StringIO()),
                 ):
@@ -43,10 +43,56 @@ class MacosDiskProbeTests(unittest.TestCase):
                 report = json.loads((root / "macos-disk-probe/report.json").read_text())
                 self.assertFalse(report["complete"])
                 self.assertEqual(report["directories"], [])
-                self.assertEqual(run.call_count, 8)
+                self.assertIn(["xcrun", "simctl", "runtime", "list", "--json"],
+                              [call.args[0] for call in run.call_args_list])
                 markdown = (root / "macos-disk-probe/report.md").read_text()
                 self.assertIn("Status: incomplete", markdown)
                 self.assertEqual((root / "summary.md").read_text(), markdown)
+
+    @staticmethod
+    def command_result(command, failure, success):
+        if command == ["diskutil", "apfs", "list"]:
+            if isinstance(failure, subprocess.CompletedProcess):
+                return failure
+            raise failure
+        return success
+
+    def test_detailed_inventory_covers_components_versions_and_dependencies(self):
+        environment = {
+            "HOME": "/fixture/home", "RUNNER_TEMP": "/fixture/temp",
+            "GITHUB_WORKSPACE": "/fixture/workspace", "SCAN_DIRECTORIES": "true",
+            "RUNNER_TOOL_CACHE": "/fixture/tools",
+        }
+        application = Path("/Applications/Xcode_16.4.app")
+        alias = Path("/Applications/Xcode.app")
+        platform = application / "Contents/Developer/Platforms/MacOSX.platform"
+        runtime = Path("/Library/Developer/CoreSimulator/Images/runtime.dmg")
+        tool = Path("/fixture/tools/CodeQL")
+        version = tool / "1.2.3"
+        discoveries = {
+            ("/Applications", "*.app"): [application, alias],
+            (str(application), "Contents/Developer/Platforms/*"): [platform],
+            ("/Library/Developer/CoreSimulator", "Images/*"): [runtime],
+            ("/fixture/tools", "*"): [tool],
+            (str(tool), "*"): [version],
+        }
+        with (
+            patch.object(macos_disk_probe.shutil, "which", side_effect=lambda tool: "/fixture/brew" if tool == "brew" else None),
+            patch.object(Path, "glob", autospec=True, side_effect=lambda p, pattern: discoveries.get((str(p), pattern), [])),
+            patch.object(Path, "exists", return_value=True),
+            patch.object(Path, "is_symlink", autospec=True, side_effect=lambda p: p == alias),
+            patch.object(Path, "resolve", autospec=True, side_effect=lambda p: application if p == alias else p),
+            patch.object(macos_disk_probe.subprocess, "run", side_effect=lambda command, **kwargs: subprocess.CompletedProcess(command, 0, "2048\tfixture", "")) as commands,
+        ):
+            report = macos_disk_probe.collect(environment)
+        self.assertTrue(report["complete"])
+        records = {record["path"]: record for record in report["directories"]}
+        for path in (platform, runtime, version):
+            self.assertEqual(records[str(path)]["allocated_kib"], 2048)
+        self.assertTrue(records[str(alias)]["is_symlink"])
+        self.assertEqual(records[str(alias)]["resolved_path"], str(application))
+        self.assertIn(["/fixture/brew", "info", "--json=v2", "--installed"],
+                      [call.args[0] for call in commands.call_args_list])
 
     def test_directory_scan_keeps_partial_usage_and_absent_paths_distinct(self):
         environment = {
