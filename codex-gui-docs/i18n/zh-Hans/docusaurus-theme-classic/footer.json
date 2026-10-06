@@ -1,0 +1,30 @@
+{
+  "link.title.Documentation": {
+    "message": "文档",
+    "description": "The title of the footer links column with title=Documentation in the footer"
+  },
+  "link.title.Project": {
+    "message": "项目",
+    "description": "The title of the footer links column with title=Project in the footer"
+  },
+  "link.item.label.Home": {
+    "message": "首页",
+    "description": "The label of footer link with label=Home linking to /"
+  },
+  "link.item.label.Installation and Launch": {
+    "message": "安装与启动",
+    "description": "The label of footer link with label=Installation and Launch linking to /getting-started"
+  },
+  "link.item.label.Run from Source": {
+    "message": "从源码启动",
+    "description": "The label of footer link with label=Run from Source linking to /development/getting-started"
+  },
+  "link.item.label.GitHub": {
+    "message": "GitHub",
+    "description": "The label of footer link with label=GitHub linking to https://github.com/jiangshengdev/codex"
+  },
+  "link.item.label.Docusaurus": {
+    "message": "Docusaurus",
+    "description": "The label of footer link with label=Docusaurus linking to https://docusaurus.io"
+  }
+}

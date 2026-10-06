@@ -147,12 +147,26 @@ def main():
     elif mode == "run":
         if not args or args.pop(0) != "--" or not args:
             raise ValueError("run requires -- followed by a command")
+        # Keep Cargo, metadata discovery and Git in the host loader environment.
+        # A TOML array preserves runner arguments even when paths contain spaces.
+        target = os.environ["CODEX_CI_TARGET"]
+        runner = [sys.executable, str(Path(__file__).resolve()), "test-runner"]
+        command = [*args, "--config", f"target.{target}.runner={json.dumps(runner)}"]
+        env = os.environ.copy()
+    elif mode == "test-runner":
         command = args
-        # Set this after starting the runner shell: macOS SIP can remove DYLD_*
-        # variables when launching system shells. No shell is started here.
-        env = runtime_environment(
-            Path(os.environ["CODEX_TEST_VOICE_RUNTIME"]), os.environ, sys.platform
-        )
+        env = os.environ.copy()
+        # Cargo's hashed executable names are available during both nextest
+        # discovery and execution. These integration binaries belong to voice-host.
+        if re.fullmatch(
+            r"(?:codex_voice_host|installed_client|packaged_runtime)-[0-9a-f]+(?:\.exe)?",
+            Path(command[0]).name,
+        ):
+            # Set this after starting the runner shell: macOS SIP can remove
+            # DYLD_* variables when launching system shells.
+            env = runtime_environment(
+                Path(os.environ["CODEX_TEST_VOICE_RUNTIME"]), env, sys.platform
+            )
     elif mode == "configure":
         parser = argparse.ArgumentParser(description=__doc__)
         parser.add_argument("--root", required=True, type=Path)
