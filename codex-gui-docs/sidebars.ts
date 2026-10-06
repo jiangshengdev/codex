@@ -4,7 +4,7 @@ const sidebars: SidebarsConfig = {
   docsSidebar: [
     {
       type: 'category',
-      label: '文档',
+      label: 'Documentation',
       link: {type: 'doc', id: 'index'},
       items: ['getting-started', 'development/getting-started'],
     },
