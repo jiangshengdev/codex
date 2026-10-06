@@ -1,0 +1,35 @@
+name: macOS disk probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      scan_directories:
+        description: Scan tool directory sizes (adds several minutes)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Disk probe — macos-15
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Inspect storage and installed tools
+        shell: bash
+        env:
+          SCAN_DIRECTORIES: ${{ inputs.scan_directories }}
+        run: python3 .github/scripts/macos_disk_probe.py
+      - name: Upload disk reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: macos-disk-probe
+          path: ${{ runner.temp }}/macos-disk-probe/
+          if-no-files-found: error
+          retention-days: 7
