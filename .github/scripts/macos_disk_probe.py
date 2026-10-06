@@ -50,10 +50,17 @@ def collect(environ):
         ["xcode-select", "-p"],
         ["xcrun", "--find", "clang"],
         ["xcrun", "--sdk", "macosx", "--show-sdk-path"],
+        ["mount"],
+        ["hdiutil", "info", "-plist"],
+        ["xcrun", "simctl", "list", "--json"],
+        ["xcrun", "simctl", "runtime", "list", "--json"],
     ):
         report["commands"].append(capture(command))
     if report["tool_paths"]["brew"]:
         report["commands"].append(capture([report["tool_paths"]["brew"], "list", "--versions"]))
+        report["commands"].append(capture([
+            report["tool_paths"]["brew"], "info", "--json=v2", "--installed",
+        ]))
     if report["scan_directories"]:
         candidates = {
             Path("/Library/Developer/CommandLineTools"): "Keep active compiler and macOS SDK dependencies",
@@ -80,6 +87,14 @@ def collect(environ):
                 if application.name.startswith("Xcode")
                 else "Review application against archive job dependencies"
             )
+            if application.name.startswith("Xcode") and not application.is_symlink():
+                for pattern in ("Contents/Developer/Platforms/*", "Contents/Developer/Toolchains/*"):
+                    for component in application.glob(pattern):
+                        candidates[component] = "Xcode component inventory; preserve active macOS SDK and compiler"
+        for simulator_root in (Path("/Library/Developer/CoreSimulator"), home / "Library/Developer/CoreSimulator"):
+            for pattern in ("*", "Images/*", "Profiles/Runtimes/*", "Devices/*"):
+                for component in simulator_root.glob(pattern):
+                    candidates[component] = "Match simulator runtime/device IDs and mounted images before removal"
         for cellar in (Path("/opt/homebrew/Cellar"), Path("/usr/local/Cellar")):
             for formula in cellar.glob("*"):
                 candidates[formula] = "Review Homebrew formula and reverse dependencies before removal"
@@ -88,17 +103,21 @@ def collect(environ):
             candidates[tool_cache] = "Inspect cached toolchains; keep Python required by setup-cargo-voice"
             for tool in tool_cache.glob("*"):
                 candidates[tool] = "Review cached toolchain against setup actions"
+                if not tool.is_symlink():
+                    for version in tool.glob("*"):
+                        candidates[version] = "Cached tool version; check setup action requirements before removal"
         for variable in ("ANDROID_HOME", "ANDROID_SDK_ROOT", "JAVA_HOME", "DOTNET_ROOT"):
             if environ.get(variable):
                 candidates[Path(environ[variable])] = f"Review installed toolchain from {variable}"
         for path in sorted(candidates):
-            if not path.exists():
+            if not path.exists() and not path.is_symlink():
                 report["directories"].append({"path": str(path), "status": "absent", "review": candidates[path]})
                 continue
             # BSD du defaults to not following symlinks; -x stays on one filesystem.
             record = capture(["du", "-skx", str(path)])
             record["path"] = str(path)
             record["resolved_path"] = str(path.resolve())
+            record["is_symlink"] = path.is_symlink()
             record["review"] = candidates[path]
             if record["status"] == "complete":
                 try:
@@ -131,6 +150,8 @@ def main():
         "APFS volumes can share container space; du usage is not guaranteed reclaimable space.",
         "Missing directories are reported as absent; failed or timed-out scans are incomplete.",
         "Review notes are candidate triage, not confirmation that a tool can safely be removed.",
+        "Use simulator IDs, mounts and image backing paths together; mounted volume sizes are not additional host usage.",
+        "Homebrew installed metadata includes dependencies for reverse-dependency review, not proof of removability.",
         "Keep the active Xcode/macOS SDK, Rust toolchain, Python, Git, and their dependencies.",
         "",
     ]
@@ -145,6 +166,8 @@ def main():
     for record in report["commands"] + report["directories"]:
         label = record.get("path") or " ".join(record["command"])
         summary.extend([f"## {label}", f"Status: {record['status']}", "", "```text"])
+        if "resolved_path" in record:
+            summary.extend([f"Resolved path: {record['resolved_path']}", f"Symbolic link: {record['is_symlink']}"])
         summary.extend(
             record[key] for key in ("stdout", "stderr", "error") if record.get(key)
         )
