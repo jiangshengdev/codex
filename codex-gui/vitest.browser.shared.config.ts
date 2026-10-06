@@ -3,6 +3,7 @@ import { defineConfig, mergeConfig, type TestUserConfig } from "vitest/config";
 import viteConfig from "./vite.config.ts";
 import { sharedTestConfig } from "./vitest.shared.config.ts";
 import { isolatedBrowserInstances, isolatedVitestConfig } from "./scripts/testRun/vitestConfig.ts";
+import { localNetworkLaunchOptions } from "./scripts/testRun/network.ts";
 
 type BrowserOptions = NonNullable<TestUserConfig["browser"]>;
 
@@ -30,7 +31,14 @@ export function defineBrowserConfig({ browser, ...test }: BrowserTestConfig) {
           watch: false,
           browser: {
             ...browser,
-            instances: isolatedBrowserInstances(browser.instances),
+            instances: isolatedBrowserInstances(browser.instances).map((instance) => ({
+              ...instance,
+              provider:
+                instance.provider ??
+                playwright({
+                  launchOptions: localNetworkLaunchOptions(instance.browser),
+                }),
+            })),
             headless: true,
             provider: playwright(),
           },

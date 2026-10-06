@@ -43,6 +43,26 @@ const client = {
   ],
 };
 
+test("owned processes bypass only local test hosts and preserve proxy configuration", async () => {
+  const parentEnvironment = { ...process.env };
+  const check = `const assert=require('node:assert/strict');for(const key of ['NO_PROXY','no_proxy','npm_config_noproxy','NPM_CONFIG_NOPROXY'])assert.equal(process.env[key],'localhost,127.0.0.1');assert.equal(process.env.HTTP_PROXY,'http://127.0.0.1:8080');assert.equal(process.env.TEST_SENTINEL,'preserved');`;
+  const result = await runIsolated({
+    name: "local-network-environment",
+    env: {
+      HTTP_PROXY: "http://127.0.0.1:8080",
+      NO_PROXY: "*",
+      no_proxy: "*",
+      npm_config_noproxy: "*",
+      TEST_SENTINEL: "preserved",
+    },
+    service: { ...service, args: ["-e", check + service.args[1]] },
+    test: { ...client, args: ["-e", check + client.args[1]] },
+  });
+  expect(result.code).toBe(0);
+  expect(process.env).toEqual(parentEnvironment);
+  await expect(fetch(result.context.origin)).rejects.toThrow("fetch failed");
+});
+
 test("parallel commands keep their own service and evidence after cleanup", async () => {
   await withRunLogs(async (assertRunLogs) => {
     const results = await Promise.all([
