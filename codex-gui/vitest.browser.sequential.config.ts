@@ -2,6 +2,7 @@ import path from "node:path";
 import { playwright } from "@vitest/browser-playwright";
 import packageJson from "./package.json" with { type: "json" };
 import { defineBrowserConfig } from "./vitest.browser.shared.config.js";
+import { localNetworkLaunchOptions } from "./scripts/testRun/network.ts";
 
 export default defineBrowserConfig({
   name: `${packageJson.name}-browser-sequential`,
@@ -19,7 +20,10 @@ export default defineBrowserConfig({
     instances: [
       {
         browser: "chromium",
-        provider: playwright({ contextOptions: { permissions: ["clipboard-write"] } }),
+        provider: playwright({
+          launchOptions: localNetworkLaunchOptions("chromium"),
+          contextOptions: { permissions: ["clipboard-write"] },
+        }),
       },
       { browser: "firefox" },
       { browser: "webkit" },

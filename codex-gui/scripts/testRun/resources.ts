@@ -1,6 +1,7 @@
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
+import { localNetworkEnvironment } from "./network.ts";
 
 export type RunContext = {
   id: string;
@@ -55,7 +56,7 @@ export function runEnvironment(
   context: RunContext,
   additions: NodeJS.ProcessEnv = {},
 ): NodeJS.ProcessEnv {
-  return {
+  return localNetworkEnvironment({
     ...process.env,
     ...additions,
     CODEX_GUI_TEST_RUN_DIR: context.directory,
@@ -64,7 +65,7 @@ export function runEnvironment(
     CODEX_GUI_VITE_PORT: String(context.port),
     CODEX_GUI_VITE_HMR_PORT: String(context.port),
     PLAYWRIGHT_HTML_OPEN: "never",
-  };
+  });
 }
 
 export function currentRunContext(): RunContext {

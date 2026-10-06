@@ -6,6 +6,7 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { sharedTestConfig } from "./vitest.shared.config.ts";
 import { isolatedVitestConfig } from "./scripts/testRun/vitestConfig.ts";
+import { localNetworkLaunchOptions } from "./scripts/testRun/network.ts";
 
 // More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 export default mergeConfig(
@@ -51,7 +52,9 @@ export default mergeConfig(
                     browser: {
                       enabled: true,
                       headless: true,
-                      provider: playwright({}),
+                      provider: playwright({
+                        launchOptions: localNetworkLaunchOptions("chromium"),
+                      }),
                       instances: [
                         {
                           browser: "chromium" as const,
