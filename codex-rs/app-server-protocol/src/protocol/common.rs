@@ -3353,6 +3353,7 @@ mod tests {
         let response = ClientResponse::ThreadStart {
             request_id: RequestId::Integer(7),
             response: v2::ThreadStartResponse {
+                tools_disabled: false,
                 disabled_plugin_ids: Vec::new(),
                 thread: v2::Thread {
                     originator: None,
@@ -3454,6 +3455,7 @@ mod tests {
                     "modelProvider": "openai",
                     "serviceTier": null,
                     "disabledPluginIds": [],
+                    "toolsDisabled": false,
                     "cwd": absolute_path_string("tmp"),
                     "runtimeWorkspaceRoots": [],
                     "instructionSources": [absolute_path_string("tmp/AGENTS.md")],

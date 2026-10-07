@@ -580,6 +580,9 @@ def generate_v2_all(schema_dir: Path) -> None:
     _require_nullable_field(
         out_path, "McpResourceReadTarget", r"link_id: Annotated\[\n(?:        .*\n)+    \]"
     )
+    _require_nullable_field(
+        out_path, "FeedbackUploadResponse", r"prompt_hash: Annotated\[\n(?:        .*\n)+    \]"
+    )
     _preserve_reasoning_effort_enum(out_path)
     _preserve_thread_source_enum(out_path)
     _preserve_plan_type_enum(out_path)

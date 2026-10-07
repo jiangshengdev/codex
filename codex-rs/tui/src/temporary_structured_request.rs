@@ -150,6 +150,7 @@ pub(crate) async fn start_temporary_thread(
                     permissions: custom_permission_profile.clone(),
                     runtime_workspace_roots: Some(Vec::new()),
                     ephemeral: Some(true),
+                    disable_tools: true,
                     thread_source: Some(thread_source),
                     environments: Some(Vec::new()),
                     dynamic_tools: Some(Vec::new()),
@@ -162,6 +163,13 @@ pub(crate) async fn start_temporary_thread(
     })
     .await
     .map_err(|_| eyre!("temporary structured thread start timed out"))??;
+
+    if !response.tools_disabled {
+        unsubscribe_temporary_thread(request_handle, response.thread.id.clone()).await;
+        return Err(eyre!(
+            "temporary structured thread did not confirm tools are disabled"
+        ));
+    }
 
     if let Some(expected_profile) = custom_permission_profile {
         if response

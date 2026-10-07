@@ -76,6 +76,36 @@ fn test_absolute_path() -> AbsolutePathBuf {
 }
 
 #[test]
+fn feedback_upload_response_preserves_wire_behavior() {
+    for prompt_hash in [Some("prompt-hash".to_string()), None] {
+        let response = FeedbackUploadResponse {
+            thread_id: "thread-id".to_string(),
+            prompt_hash: prompt_hash.clone(),
+        };
+        let value = json!({"threadId": "thread-id", "promptHash": prompt_hash});
+        assert_eq!(serde_json::to_value(&response).unwrap(), value);
+        assert_eq!(
+            serde_json::from_value::<FeedbackUploadResponse>(value).unwrap(),
+            response
+        );
+    }
+
+    assert_eq!(
+        serde_json::from_value::<FeedbackUploadResponse>(json!({"threadId": "thread-id"})).unwrap(),
+        FeedbackUploadResponse {
+            thread_id: "thread-id".to_string(),
+            prompt_hash: None,
+        }
+    );
+    assert!(
+        serde_json::from_value::<FeedbackUploadResponse>(
+            json!({"threadId": "thread-id", "promptHash": 42})
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn managed_hooks_requirements_default_interrupt_to_empty() {
     let value = json!({
         "managedDir": null,
@@ -4846,6 +4876,24 @@ fn dynamic_tool_response_serializes_text_image_and_audio_content_items() {
 }
 
 #[test]
+fn thread_start_params_disable_tools_is_opt_in() {
+    for value in [json!({}), json!({ "disableTools": false })] {
+        let params: ThreadStartParams = serde_json::from_value(value).unwrap();
+        assert!(!params.disable_tools);
+        assert!(
+            serde_json::to_value(params)
+                .unwrap()
+                .get("disableTools")
+                .is_none()
+        );
+    }
+    let params: ThreadStartParams =
+        serde_json::from_value(json!({ "ephemeral": true, "disableTools": true })).unwrap();
+    assert!(params.disable_tools);
+    assert_eq!(serde_json::to_value(params).unwrap()["disableTools"], true);
+}
+
+#[test]
 fn thread_start_params_preserve_explicit_null_service_tier() {
     let params: ThreadStartParams =
         serde_json::from_value(json!({ "serviceTier": null })).expect("params should deserialize");
@@ -4897,6 +4945,7 @@ fn thread_lifecycle_responses_default_missing_optional_fields() {
 
     let start: ThreadStartResponse =
         serde_json::from_value(response.clone()).expect("thread/start response");
+    assert!(!start.tools_disabled);
     let resume: ThreadResumeResponse =
         serde_json::from_value(response.clone()).expect("thread/resume response");
     let fork: ThreadForkResponse =

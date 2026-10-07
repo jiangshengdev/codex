@@ -30,6 +30,9 @@ pub struct FeedbackUploadResponse {
     /// Whitespace-normalized SHA-256 of the session base instructions, matching the
     /// uploaded `prompt_hash` tag. Does not include later developer messages.
     /// Null when the reported rollout has no prompt metadata.
-    #[serde(default)]
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub prompt_hash: Option<String>,
 }

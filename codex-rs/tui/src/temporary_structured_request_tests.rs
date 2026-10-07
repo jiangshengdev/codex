@@ -16,10 +16,159 @@ use codex_app_server_protocol::TurnCompletedNotification;
 use codex_app_server_protocol::TurnStatus;
 use codex_config::LoaderOverrides;
 use codex_exec_server::EnvironmentManager;
+use futures::SinkExt;
+use futures::StreamExt;
 use pretty_assertions::assert_eq;
 use std::sync::Arc;
 use tempfile::tempdir;
 use tokio::sync::mpsc::unbounded_channel;
+use tokio_tungstenite::tungstenite::Message;
+
+#[tokio::test]
+async fn tool_isolation_requires_an_effectively_ephemeral_thread() -> color_eyre::Result<()> {
+    let (chat_widget, _, _, _) =
+        crate::chatwidget::tests::make_chatwidget_manual_with_sender().await;
+    let config = chat_widget.config_ref();
+    let app_server = crate::start_embedded_app_server_for_picker(config).await?;
+    for (disable_tools, ephemeral) in [(false, false), (true, false), (true, true)] {
+        let result = app_server
+            .request_handle()
+            .request_typed::<codex_app_server_protocol::ThreadStartResponse>(
+                codex_app_server_protocol::ClientRequest::ThreadStart {
+                    request_id: codex_app_server_protocol::RequestId::String(format!(
+                        "tool-isolation-{disable_tools}-{ephemeral}"
+                    )),
+                    params: codex_app_server_protocol::ThreadStartParams {
+                        disable_tools,
+                        ephemeral: Some(ephemeral),
+                        ..Default::default()
+                    },
+                },
+            )
+            .await;
+        if disable_tools && !ephemeral {
+            assert!(
+                result
+                    .expect_err("durable threads cannot retain the startup restriction")
+                    .to_string()
+                    .contains("disableTools is only supported for ephemeral threads")
+            );
+        } else {
+            let response = result?;
+            assert_eq!(response.tools_disabled, disable_tools);
+            assert_eq!(response.thread.ephemeral, ephemeral);
+        }
+    }
+    app_server.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn requires_tool_isolation_confirmation_and_unsubscribes_unconfirmed_threads()
+-> color_eyre::Result<()> {
+    for confirmation in [None, Some(false), Some(true)] {
+        let cwd = tempdir()?;
+        let mut thread_response = serde_json::json!({
+            "thread": {
+                "id": "temporary-thread",
+                "sessionId": "temporary-session",
+                "preview": "",
+                "ephemeral": true,
+                "modelProvider": "openai",
+                "createdAt": 0,
+                "updatedAt": 0,
+                "status": {"type": "idle"},
+                "cwd": cwd.path(),
+                "cliVersion": "0.0.0",
+                "source": "cli",
+                "turns": []
+            },
+            "model": "gpt-5.2",
+            "modelProvider": "openai",
+            "cwd": cwd.path(),
+            "approvalPolicy": "never",
+            "approvalsReviewer": "user",
+            "sandbox": {"type": "readOnly", "networkAccess": false}
+        });
+        if let Some(confirmation) = confirmation {
+            thread_response["toolsDisabled"] = confirmation.into();
+        }
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let websocket_url = format!("ws://{}", listener.local_addr()?);
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let mut methods = Vec::new();
+            while let Some(Ok(Message::Text(text))) = socket.next().await {
+                let request: serde_json::Value = serde_json::from_str(&text).unwrap();
+                if request["id"].is_null() {
+                    continue;
+                }
+                let method = request["method"].as_str().unwrap();
+                let result = match method {
+                    "initialize" => serde_json::json!({"userAgent": "tool-isolation-test"}),
+                    "config/read" => serde_json::json!({"config": {}, "origins": {}}),
+                    "thread/start" => {
+                        assert_eq!(request["params"]["disableTools"], true);
+                        assert_eq!(request["params"]["ephemeral"], true);
+                        thread_response.clone()
+                    }
+                    "thread/unsubscribe" => {
+                        assert_eq!(
+                            request["params"],
+                            serde_json::json!({"threadId": "temporary-thread"})
+                        );
+                        serde_json::json!({"status": "unsubscribed"})
+                    }
+                    _ => panic!("unexpected request: {request}"),
+                };
+                methods.push(method.to_string());
+                socket
+                    .send(Message::Text(
+                        serde_json::json!({"id": request["id"], "result": result})
+                            .to_string()
+                            .into(),
+                    ))
+                    .await
+                    .unwrap();
+            }
+            methods
+        });
+        let client = crate::connect_remote_app_server(crate::RemoteAppServerEndpoint::WebSocket {
+            websocket_url,
+            auth_token: None,
+        })
+        .await?;
+        let result = start_temporary_thread(
+            &client.request_handle(),
+            TemporaryStructuredThreadOptions {
+                thread_source: ThreadSource::Feature("thread_title".to_string()),
+                model: "gpt-5.2".to_string(),
+                model_provider: "openai".to_string(),
+                cwd: cwd.path().display().to_string(),
+                active_permission_profile: None,
+                mcp_server_names: Vec::new(),
+            },
+        )
+        .await;
+        client.shutdown().await?;
+        let methods = server.await?;
+        let mut expected_methods = vec!["initialize", "config/read", "thread/start"];
+        if confirmation == Some(true) {
+            assert!(result?.tools_disabled);
+        } else {
+            assert_eq!(
+                result
+                    .expect_err("tool isolation must be confirmed")
+                    .to_string(),
+                "temporary structured thread did not confirm tools are disabled"
+            );
+            expected_methods.push("thread/unsubscribe");
+        }
+        assert_eq!(methods, expected_methods);
+    }
+    Ok(())
+}
 
 fn agent_message_notification(turn_id: &str, text: &str) -> ServerNotification {
     ServerNotification::ItemCompleted(ItemCompletedNotification {
