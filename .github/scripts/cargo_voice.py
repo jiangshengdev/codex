@@ -162,7 +162,7 @@ def main():
         # Cargo's hashed executable names are available during both nextest
         # discovery and execution. These integration binaries belong to voice-host.
         if re.fullmatch(
-            r"(?:codex_voice_host|installed_client|packaged_runtime)-[0-9a-f]+(?:\.exe)?",
+            r"(?:codex_voice_host|installed_client|lifecycle|packaged_runtime)-[0-9a-f]+(?:\.exe)?",
             Path(command[0]).name,
         ):
             # Set this after starting the runner shell: macOS SIP can remove

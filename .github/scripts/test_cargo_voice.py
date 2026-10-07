@@ -256,8 +256,10 @@ class CargoVoiceTests(unittest.TestCase):
             for binary, voice in (
                 ("codex_voice_host-0123456789abcdef", True),
                 ("installed_client-0123456789abcdef", True),
+                ("lifecycle-0123456789abcdef", True),
                 ("packaged_runtime-0123456789abcdef", True),
                 ("codex_core-0123456789abcdef", False),
+                ("lifecycle_extra-0123456789abcdef", False),
                 ("codex_voice_host_extra-0123456789abcdef", False),
             ):
                 with self.subTest(platform=platform, binary=binary):
@@ -295,8 +297,7 @@ class CargoVoiceTests(unittest.TestCase):
         if sys.platform == "win32":
             variable = "PATH"
         executable = self.root / (
-            "codex_voice_host-0123456789abcdef"
-            + (".exe" if sys.platform == "win32" else "")
+            "lifecycle-0123456789abcdef" + (".exe" if sys.platform == "win32" else "")
         )
         executable.symlink_to(sys.executable)
         result = subprocess.run(
@@ -306,7 +307,9 @@ class CargoVoiceTests(unittest.TestCase):
                 "test-runner",
                 str(executable),
                 "-c",
-                f"import os; print(os.environ[{variable!r}])",
+                "import subprocess, sys; "
+                f"subprocess.run([sys.executable, '-c', "
+                f"{f'import os; print(os.environ[{variable!r}])'!r}], check=True)",
             ],
             env={**os.environ, "CODEX_TEST_VOICE_RUNTIME": str(runtime)},
             capture_output=True,
