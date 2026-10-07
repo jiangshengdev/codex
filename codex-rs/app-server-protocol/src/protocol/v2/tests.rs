@@ -76,6 +76,36 @@ fn test_absolute_path() -> AbsolutePathBuf {
 }
 
 #[test]
+fn feedback_upload_response_preserves_wire_behavior() {
+    for prompt_hash in [Some("prompt-hash".to_string()), None] {
+        let response = FeedbackUploadResponse {
+            thread_id: "thread-id".to_string(),
+            prompt_hash: prompt_hash.clone(),
+        };
+        let value = json!({"threadId": "thread-id", "promptHash": prompt_hash});
+        assert_eq!(serde_json::to_value(&response).unwrap(), value);
+        assert_eq!(
+            serde_json::from_value::<FeedbackUploadResponse>(value).unwrap(),
+            response
+        );
+    }
+
+    assert_eq!(
+        serde_json::from_value::<FeedbackUploadResponse>(json!({"threadId": "thread-id"})).unwrap(),
+        FeedbackUploadResponse {
+            thread_id: "thread-id".to_string(),
+            prompt_hash: None,
+        }
+    );
+    assert!(
+        serde_json::from_value::<FeedbackUploadResponse>(
+            json!({"threadId": "thread-id", "promptHash": 42})
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn managed_hooks_requirements_default_interrupt_to_empty() {
     let value = json!({
         "managedDir": null,

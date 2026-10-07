@@ -525,6 +525,26 @@ def test_generate_v2_all_uses_titles_for_generated_names() -> None:
     assert "ruff-format" in source
 
 
+@pytest.mark.parametrize("prompt_hash", ["prompt-hash", None])
+def test_generated_feedback_response_requires_nullable_prompt_hash(prompt_hash: str | None) -> None:
+    from openai_codex.generated.v2_all import FeedbackUploadResponse
+
+    payload = {"threadId": "thread-id", "promptHash": prompt_hash}
+    response = FeedbackUploadResponse.model_validate(payload)
+    assert response.model_dump(by_alias=True) == payload
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [{"threadId": "thread-id"}, {"threadId": "thread-id", "promptHash": 42}],
+)
+def test_generated_feedback_response_rejects_invalid_prompt_hash(payload: dict) -> None:
+    from openai_codex.generated.v2_all import FeedbackUploadResponse
+
+    with pytest.raises(ValidationError):
+        FeedbackUploadResponse.model_validate(payload)
+
+
 def test_generated_chatgpt_account_email_is_required_nullable() -> None:
     from openai_codex.generated.v2_all import ChatgptAccount
 
