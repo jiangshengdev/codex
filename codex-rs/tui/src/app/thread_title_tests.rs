@@ -428,6 +428,7 @@ async fn check_thread_title_generation(scenario: TitleScenario) -> color_eyre::R
     assert!(!render_bottom_popup(&app.chat_widget, /*width*/ 120).contains('⠋'));
 
     let request = response.single_request();
+    assert_eq!(request.body_json()["tools"], serde_json::json!([]));
     assert!(
         request
             .body_json()

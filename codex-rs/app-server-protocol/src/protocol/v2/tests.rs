@@ -4846,6 +4846,24 @@ fn dynamic_tool_response_serializes_text_image_and_audio_content_items() {
 }
 
 #[test]
+fn thread_start_params_disable_tools_is_opt_in() {
+    for value in [json!({}), json!({ "disableTools": false })] {
+        let params: ThreadStartParams = serde_json::from_value(value).unwrap();
+        assert!(!params.disable_tools);
+        assert!(
+            serde_json::to_value(params)
+                .unwrap()
+                .get("disableTools")
+                .is_none()
+        );
+    }
+    let params: ThreadStartParams =
+        serde_json::from_value(json!({ "ephemeral": true, "disableTools": true })).unwrap();
+    assert!(params.disable_tools);
+    assert_eq!(serde_json::to_value(params).unwrap()["disableTools"], true);
+}
+
+#[test]
 fn thread_start_params_preserve_explicit_null_service_tier() {
     let params: ThreadStartParams =
         serde_json::from_value(json!({ "serviceTier": null })).expect("params should deserialize");
@@ -4897,6 +4915,7 @@ fn thread_lifecycle_responses_default_missing_optional_fields() {
 
     let start: ThreadStartResponse =
         serde_json::from_value(response.clone()).expect("thread/start response");
+    assert!(!start.tools_disabled);
     let resume: ThreadResumeResponse =
         serde_json::from_value(response.clone()).expect("thread/resume response");
     let fork: ThreadForkResponse =
