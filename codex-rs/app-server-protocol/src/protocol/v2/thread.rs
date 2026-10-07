@@ -113,6 +113,10 @@ pub struct ThreadStartParams {
     pub multi_agent_mode: Option<MultiAgentMode>,
     #[ts(optional = nullable)]
     pub ephemeral: Option<bool>,
+    /// Disable all model tools for this ephemeral thread. Not supported for durable threads.
+    #[experimental("thread/start.disableTools")]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub disable_tools: bool,
     /// Persisted thread history contract to use for this new thread.
     #[experimental("thread/start.historyMode")]
     #[ts(optional = nullable)]
@@ -191,6 +195,11 @@ pub struct MockExperimentalMethodResponse {
 #[ts(export_to = "v2/")]
 pub struct ThreadStartResponse {
     pub thread: Thread,
+    /// Confirms that all model tools are disabled for the lifetime of this ephemeral thread.
+    /// Missing on older servers; clients requiring tool isolation must check this before a turn.
+    #[experimental("thread/start.disableTools")]
+    #[serde(default)]
+    pub tools_disabled: bool,
     pub model: String,
     pub model_provider: String,
     #[schemars(

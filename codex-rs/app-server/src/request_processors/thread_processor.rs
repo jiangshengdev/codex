@@ -1156,6 +1156,7 @@ impl ThreadRequestProcessor {
             personality,
             multi_agent_mode: _multi_agent_mode,
             ephemeral,
+            disable_tools,
             history_mode,
             session_start_source,
             thread_source,
@@ -1242,6 +1243,7 @@ impl ThreadRequestProcessor {
                 config,
                 typesafe_overrides,
                 dynamic_tools,
+                disable_tools,
                 selected_capability_roots.unwrap_or_default(),
                 history_mode.map(Into::into),
                 session_start_source,
@@ -1324,6 +1326,7 @@ impl ThreadRequestProcessor {
         config_overrides: Option<HashMap<String, serde_json::Value>>,
         typesafe_overrides: ConfigOverrides,
         dynamic_tools: Option<Vec<DynamicToolSpec>>,
+        disable_tools: bool,
         selected_capability_roots: Vec<SelectedCapabilityRoot>,
         history_mode: Option<ThreadHistoryMode>,
         session_start_source: Option<codex_app_server_protocol::ThreadStartSource>,
@@ -1346,6 +1349,11 @@ impl ThreadRequestProcessor {
         if config.ephemeral && daybreak_enabled.is_some() {
             return Err(invalid_request(
                 "daybreakEnabled is not supported for ephemeral threads",
+            ));
+        }
+        if disable_tools && !config.ephemeral {
+            return Err(invalid_request(
+                "disableTools is only supported for ephemeral threads",
             ));
         }
         // Project-local config can launch host processes, so only the effective
@@ -1465,6 +1473,12 @@ impl ThreadRequestProcessor {
                 .then_some(ThreadHistoryMode::Paginated)
         });
         let mut thread_extension_init = ExtensionDataInit::new();
+        if disable_tools {
+            thread_extension_init.insert(codex_extension_api::ToolPolicy {
+                allowed_tools: Some(Vec::new()),
+                ..Default::default()
+            });
+        }
         if !selected_capability_roots.is_empty() {
             thread_extension_init.insert(selected_capability_roots);
         }
@@ -1622,6 +1636,7 @@ impl ThreadRequestProcessor {
 
         let response = ThreadStartResponse {
             thread: thread.clone(),
+            tools_disabled: disable_tools,
             disabled_plugin_ids: config_snapshot.disabled_plugin_ids,
             model: config_snapshot.model,
             model_provider: config_snapshot.model_provider_id,

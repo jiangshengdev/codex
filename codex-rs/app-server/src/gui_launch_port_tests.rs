@@ -11,7 +11,7 @@ use super::AppServerGuiLaunchService;
 use crate::gui_host::GuiHostManager;
 
 #[tokio::test]
-async fn occupied_port_falls_back_and_restart_reclaims_preferred_port() {
+async fn occupied_port_falls_back_to_independent_hosts_with_stable_urls() {
     let occupied = TcpListener::bind((Ipv4Addr::UNSPECIFIED, 0)).await.unwrap();
     let preferred_port = occupied.local_addr().unwrap().port();
     let bridge = crate::gui_connection_bridge::test_support::start_local_bridge_for_test().await;
@@ -36,47 +36,30 @@ async fn occupied_port_falls_back_and_restart_reclaims_preferred_port() {
     tokio::net::TcpStream::connect((Ipv4Addr::LOCALHOST, preferred_port))
         .await
         .expect("existing service remains available");
-    drop(occupied);
-    assert_eq!(fallback.launch_urls_for_thread(task).await.unwrap(), urls);
-
-    let manager = GuiHostManager::new_with_opener(bridge.opener(), config.clone());
-    let preferred = AppServerGuiLaunchService::new(manager);
-    let preferred_urls = preferred
-        .launch_urls_for_thread(ThreadId::new())
-        .await
-        .unwrap();
-    let preferred_url = url::Url::parse(&preferred_urls.entries[0].url).unwrap();
-    assert_eq!(preferred_url.port_or_known_default(), Some(preferred_port));
-    assert_ne!(preferred_url.fragment(), fallback_url.fragment());
-
-    let manager = GuiHostManager::new_with_opener(bridge.opener(), config.clone());
-    let third = AppServerGuiLaunchService::new(manager);
-    let third_urls = third.launch_urls_for_thread(ThreadId::new()).await.unwrap();
-    let third_url = url::Url::parse(&third_urls.entries[0].url).unwrap();
-    let third_port = third_url.port_or_known_default().unwrap();
-    assert_ne!(third_port, preferred_port);
-    assert_ne!(third_port, fallback_port);
-    for port in [preferred_port, fallback_port, third_port] {
+    let manager = GuiHostManager::new_with_opener(bridge.opener(), config);
+    let second = AppServerGuiLaunchService::new(manager);
+    let second_task = ThreadId::new();
+    let second_urls = second.launch_urls_for_thread(second_task).await.unwrap();
+    let second_url = url::Url::parse(&second_urls.entries[0].url).unwrap();
+    let second_port = second_url.port_or_known_default().unwrap();
+    assert_ne!(second_port, preferred_port);
+    assert_ne!(second_port, fallback_port);
+    assert_ne!(second_url.fragment(), fallback_url.fragment());
+    for port in [fallback_port, second_port] {
         tokio::net::TcpStream::connect((Ipv4Addr::LOCALHOST, port))
             .await
-            .expect("all three GUI instances remain available");
+            .expect("both GUI instances remain available");
     }
-    preferred.shutdown().await;
+    // Releasing the reservation must not move existing hosts, regardless of
+    // when the operating system makes the preferred port available again.
+    drop(occupied);
     assert_eq!(fallback.launch_urls_for_thread(task).await.unwrap(), urls);
-    let manager = GuiHostManager::new_with_opener(bridge.opener(), config);
-    let restarted = AppServerGuiLaunchService::new(manager);
-    let restarted_urls = restarted
-        .launch_urls_for_thread(ThreadId::new())
-        .await
-        .unwrap();
     assert_eq!(
-        url::Url::parse(&restarted_urls.entries[0].url)
-            .unwrap()
-            .port_or_known_default(),
-        Some(preferred_port)
+        second.launch_urls_for_thread(second_task).await.unwrap(),
+        second_urls
     );
-    restarted.shutdown().await;
-    third.shutdown().await;
+    second.shutdown().await;
+    assert_eq!(fallback.launch_urls_for_thread(task).await.unwrap(), urls);
     fallback.shutdown().await;
     bridge.shutdown().await;
 }
